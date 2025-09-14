@@ -14,6 +14,7 @@ model User {
   password       String?           // <- optional for OAuth users
   role           Role      @default(CUSTOMER)
   image          String?
+  redirectUrl   String?   @default("/guest/dashboard")
   emailVerified  DateTime?
   bookings       Booking[]
   accounts       Account[]
