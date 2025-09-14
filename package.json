@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "npx prisma generate && next build",
+     "build": "npx prisma migrate deploy && npx prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
     "generate:erd": "npx prisma-erd generate --schema prisma/schema.prisma --output ERD.svg"
