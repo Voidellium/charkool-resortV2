@@ -2,6 +2,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { signOut } from 'next-auth/react';
 
 export default function GuestDashboard() {
   const [guest, setGuest] = useState(null);
@@ -84,6 +85,7 @@ export default function GuestDashboard() {
         <button onClick={() => router.push('/guest/history')} style={{ padding: '10px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '5px' }}>Booking History</button>
         <button onClick={() => router.push('/guest/payment')} style={{ padding: '10px', backgroundColor: '#6f42c1', color: 'white', border: 'none', borderRadius: '5px' }}>Payments</button>
         <button onClick={() => router.push('/guest/chat')} style={{ padding: '10px', backgroundColor: '#e83e8c', color: 'white', border: 'none', borderRadius: '5px' }}>Support Chat</button>
+        <button onClick={() => signOut({ callbackUrl: '/login' })} style={{ padding: '10px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '5px' }}>Logout</button>
       </div>
 
       <hr />
