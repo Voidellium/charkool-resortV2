@@ -1,19 +1,24 @@
-# Guest Module Implementation TODO
+# TODO: Replace Hardcoded localhost URLs
 
-## Completed Tasks
-- [x] Analyze current code and plan implementation
-- [x] Update app/register/page.js: Change redirect from /login to /guest/dashboard after registration
-- [x] Fix app/guest/dashboard/page.js: Remove duplicate fetchData, fix hardcoded URL, fix button path, add notifications, add quick access links
-- [x] Update app/guest/booking/page.js: Redirect to /booking instead of disabled message
-
-## Pending Tasks
-- [ ] Implement app/guest/profile/page.js: View and edit personal details and preferences
-- [ ] Implement app/guest/history/page.js: Display booking history with details
-- [ ] Implement app/guest/payment/page.js: Show payment history, invoices, track payments
-- [ ] Implement app/guest/chat/page.js: Placeholder for customer support & feedback
-- [ ] Create app/guest/3dview/page.js: Placeholder for interactive 3D model of rooms
-
-## Followup Steps
-- [ ] Test registration flow: register -> redirect to dashboard
-- [ ] Test dashboard features: notifications, links to all modules
-- [ ] Ensure authentication and data fetching work properly
+- [x] app/receptionist/booking/page.js: Replace all 'http://localhost:3000' with relative paths
+- [x] app/amenityinventorymanager/amenities/page.js: Replace all 'http://localhost:3000' with relative paths
+- [x] app/amenityinventorymanager/logs/page.js: Replace all 'http://localhost:3000' with relative paths
+- [x] app/amenityinventorymanager/categorization/page.js: Replace all 'http://localhost:3000' with relative paths
+- [x] app/booking/page.js: Replace all 'http://localhost:3000' with relative paths
+- [x] app/guest/3dview/page.js: Replace all 'http://localhost:3000' with relative paths
+- [x] app/guest/booking/page.js: Replace all 'http://localhost:3000' with relative paths
+- [x] app/guest/dashboard/page.js: Replace all 'http://localhost:3000' with relative paths
+- [x] app/guest/history/page.js: Replace all 'http://localhost:3000' with relative paths
+- [x] app/guest/payment/page.js: Replace all 'http://localhost:3000' with relative paths
+- [x] app/guest/profile/page.js: Replace all 'http://localhost:3000' with relative paths
+- [x] app/login/forgot-password/page.js: Replace all 'http://localhost:3000' with relative paths
+- [x] app/login/page.js: Replace all 'http://localhost:3000' with relative paths
+- [x] app/super-admin/amenities/page.js: Replace all 'http://localhost:3000' with relative paths
+- [x] app/super-admin/bookings/page.js: Replace all 'http://localhost:3000' with relative paths
+- [x] app/super-admin/reports/page.js: Replace all 'http://localhost:3000' with relative paths
+- [x] app/super-admin/rooms/page.js: Replace all 'http://localhost:3000' with relative paths
+- [x] app/super-admin/users/page.js: Replace all 'http://localhost:3000' with relative paths
+- [x] app/cashier/page.js: Replace all 'http://localhost:3000' with relative paths
+- [x] components/BookingCalendar.js: Replace all 'http://localhost:3000' with relative paths
+- [ ] Test the application locally to ensure all fetches work
+- [ ] Verify in production environment if possible

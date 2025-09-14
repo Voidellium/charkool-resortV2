@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 
 export default function AmenityInventoryPage() {
-  const API_URL = 'http://localhost:3000/api/amenities/inventory'; // Use relative path
+  const API_URL = '/api/amenities/inventory';
   const [amenities, setAmenities] = useState([]);
   const [newAmenity, setNewAmenity] = useState({ name: '', quantity: '' });
   const [editingAmenity, setEditingAmenity] = useState(null);

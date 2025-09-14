@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 
 export default function CategorizationPage() {
-  const API_URL = 'http://localhost:3000/api/categories'; // Use relative path
+  const API_URL = '/api/categories';
   const [categories, setCategories] = useState([]);
   const [newCategory, setNewCategory] = useState('');
   const [editingId, setEditingId] = useState(null);

@@ -7,7 +7,7 @@ export default function LogsPage() {
 
   async function fetchLogs() {
     try {
-      const res = await fetch('http://localhost:3000/api/amenityinventory/logs', {
+      const res = await fetch('/api/amenityinventory/logs', {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
       });

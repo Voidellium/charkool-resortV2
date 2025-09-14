@@ -12,7 +12,7 @@ export default function UsersPage() {
   // Fetch all users from backend
   const fetchUsers = async () => {
     try {
-      const res = await fetch('http://localhost:3000/api/user', { headers: { 'Content-Type': 'application/json' } });
+      const res = await fetch('/api/user', { headers: { 'Content-Type': 'application/json' } });
       const data = await res.json();
       setUsers(data);
     } catch (err) {
@@ -37,7 +37,7 @@ export default function UsersPage() {
   const handleDelete = async (id) => {
     if (!confirm('Are you sure you want to delete this user?')) return;
     try {
-      const res = await fetch(`http://localhost:3000/api/user/${id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' } });
+      const res = await fetch(`/api/user/${id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' } });
       if (res.ok) setUsers(users.filter(u => u.id !== id));
     } catch (err) {
       console.error(err);
@@ -47,7 +47,7 @@ export default function UsersPage() {
   const handleSave = async (user) => {
     try {
       if (editingUser) {
-        const res = await fetch(`http://localhost:3000/api/user/${editingUser.id}`, {
+        const res = await fetch(`/api/user/${editingUser.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(user),
@@ -55,7 +55,7 @@ export default function UsersPage() {
         const updatedUser = await res.json();
         setUsers(users.map(u => u.id === updatedUser.id ? updatedUser : u));
       } else {
-        const res = await fetch('http://localhost:3000/api/user', {
+        const res = await fetch('/api/user', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(user),

@@ -20,6 +20,7 @@ export default function BookingPage() {
     checkOut: '',
     guests: 1,
     roomType: '',
+    selectedRoomType: '',
     selectedAmenities: [],
   });
 
@@ -31,7 +32,7 @@ export default function BookingPage() {
   useEffect(() => {
     async function fetchAmenities() {
       try {
-        const res = await fetch('http://localhost:3000/api/amenities'); // relative path
+        const res = await fetch('/api/amenities');
         if (!res.ok) throw new Error('Failed to fetch amenities');
         const data = await res.json();
         setAmenities(data);
@@ -53,7 +54,7 @@ export default function BookingPage() {
         const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
         const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
 
-        const res = await fetch('http://localhost:3000/api/availability', {
+        const res = await fetch('/api/availability', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -83,7 +84,7 @@ export default function BookingPage() {
       setLoadingRooms(true);
       try {
         // A hardcoded URL
-        const res = await fetch(`http://localhost:3000/api/rooms?checkIn=${formData.checkIn}&checkOut=${formData.checkOut}`);
+        const res = await fetch(`/api/rooms?checkIn=${formData.checkIn}&checkOut=${formData.checkOut}`);
         if (!res.ok) throw new Error('Failed to fetch rooms');
         const data = await res.json();
 
@@ -175,7 +176,7 @@ export default function BookingPage() {
     const totalPrice = pricePerNight * nights;
 
     // Create booking via API
-    const res = await fetch('http://localhost:3000/api/bookings', {
+    const res = await fetch('/api/bookings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

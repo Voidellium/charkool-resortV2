@@ -11,7 +11,7 @@ export default function CashierDashboard() {
 
   async function fetchPayments() {
     try {
-      const res = await fetch('http://localhost:3000/api/payments');
+      const res = await fetch('/api/payments');
       const data = await res.json();
       setPayments(data || []);
     } catch (err) {

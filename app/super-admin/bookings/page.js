@@ -34,7 +34,7 @@ export default function SuperAdminBookingList() {
 
   async function fetchBookings() {
     try {
-      const res = await fetch('http://localhost:3000/api/bookings');
+      const res = await fetch('/api/bookings');
       const data = await res.json();
       setBookings(data || []);
     } catch (err) {
@@ -46,7 +46,7 @@ export default function SuperAdminBookingList() {
 
   async function fetchRooms() {
     try {
-      const res = await fetch('http://localhost:3000/api/rooms');
+      const res = await fetch('/api/rooms');
       const data = await res.json();
       setRooms(data || []);
     } catch (err) {
@@ -56,7 +56,7 @@ export default function SuperAdminBookingList() {
 
   async function fetchAmenities() {
     try {
-      const res = await fetch('http://localhost:3000/api/amenities/inventory');
+      const res = await fetch('/api/amenities/inventory');
       const data = await res.json();
       setAmenities(data || []);
     } catch (err) {
@@ -65,7 +65,7 @@ export default function SuperAdminBookingList() {
   }
 
   async function handleConfirm(id) {
-    await fetch(`http://localhost:3000/api/bookings/${id}`, {
+    await fetch(`/api/bookings/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'confirmed' }),
@@ -74,7 +74,7 @@ export default function SuperAdminBookingList() {
   }
 
   async function handleCancel(id) {
-    await fetch(`http://localhost:3000/api/bookings/${id}`, {
+    await fetch(`/api/bookings/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'cancelled' }),
@@ -90,7 +90,7 @@ export default function SuperAdminBookingList() {
   async function handleAddBooking(e) {
     e.preventDefault();
     try {
-      await fetch('http://localhost:3000/api/bookings', {
+      await fetch('/api/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -26,7 +26,7 @@ export default function ReportsPage() {
 
   async function fetchReport(startDate, endDate, userType, status) {
     try {
-      let url = 'http://localhost:3000/api/reports';
+      let url = '/api/reports';
       const params = new URLSearchParams();
       if (startDate && endDate) {
         params.append("startDate", startDate);

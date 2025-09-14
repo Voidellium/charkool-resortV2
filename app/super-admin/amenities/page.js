@@ -11,7 +11,7 @@ export default function SuperAdminAmenityInventoryPage() {
   // Fetch amenities from API
   const fetchAmenities = async () => {
     try {
-      const res = await fetch('http://localhost:3000/api/amenities/inventory');
+      const res = await fetch('/api/amenities/inventory');
       const data = await res.json();
       setAmenities(data || []);
     } catch (err) {
@@ -38,7 +38,7 @@ export default function SuperAdminAmenityInventoryPage() {
 
     try {
       if (editingAmenity) {
-        await fetch(`http://localhost:3000/api/amenities/inventory/${editingAmenity.id}`, {
+        await fetch(`/api/amenities/inventory/${editingAmenity.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -48,7 +48,7 @@ export default function SuperAdminAmenityInventoryPage() {
         });
         setEditingAmenity(null);
       } else {
-        await fetch('http://localhost:3000/api/amenities/inventory', {
+        await fetch('/api/amenities/inventory', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -69,7 +69,7 @@ export default function SuperAdminAmenityInventoryPage() {
   const handleDelete = async (id) => {
     if (!confirm('Are you sure you want to delete this amenity?')) return;
     try {
-      await fetch(`http://localhost:3000/api/amenities/inventory/${id}`, { method: 'DELETE' });
+      await fetch(`/api/amenities/inventory/${id}`, { method: 'DELETE' });
       fetchAmenities();
     } catch (err) {
       console.error('Failed to delete amenity:', err);

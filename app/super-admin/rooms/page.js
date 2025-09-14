@@ -20,7 +20,7 @@ export default function SuperAdminRoomsPage() {
 
   const fetchRooms = async () => {
     try {
-      const res = await fetch('http://localhost:3000/api/rooms', { cache: 'no-store' });
+      const res = await fetch('/api/rooms', { cache: 'no-store' });
       if (!res.ok) throw new Error(`Error fetching rooms: ${res.status}`);
       const data = await res.json();
       setRooms(data);
@@ -45,7 +45,7 @@ export default function SuperAdminRoomsPage() {
       formData.append('quantity', newRoom.quantity);
       if (newRoom.image) formData.append('image', newRoom.image);
 
-      const res = await fetch('http://localhost:3000/api/rooms', { method: 'POST', body: formData });
+      const res = await fetch('/api/rooms', { method: 'POST', body: formData });
       if (!res.ok) throw new Error('Failed to add room');
 
       const addedRoom = await res.json();
@@ -71,7 +71,7 @@ export default function SuperAdminRoomsPage() {
       formData.append('quantity', editingRoom.quantity);
       if (editingRoom.image) formData.append('image', editingRoom.image);
 
-      const res = await fetch(`http://localhost:3000/api/rooms/${id}`, { method: 'PUT', body: formData });
+      const res = await fetch(`/api/rooms/${id}`, { method: 'PUT', body: formData });
       if (!res.ok) throw new Error('Failed to update room');
 
       const updatedRoom = await res.json();
@@ -87,7 +87,7 @@ export default function SuperAdminRoomsPage() {
     if (!confirm('Are you sure you want to delete this room?')) return;
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/rooms/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/rooms/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete room');
 
       setRooms((prev) => prev.filter((room) => room.id !== id));

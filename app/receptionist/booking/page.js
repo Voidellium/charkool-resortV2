@@ -35,7 +35,7 @@ export default function ReceptionistBookingList() {
 
   async function fetchBookings() {
     try {
-      const res = await fetch('http://localhost:3000/api/bookings');
+      const res = await fetch('/api/bookings');
       const data = await res.json();
       setBookings(data || []);
     } catch (err) {
@@ -47,7 +47,7 @@ export default function ReceptionistBookingList() {
 
   async function fetchRooms() {
     try {
-      const res = await fetch('http://localhost:3000/api/rooms');
+      const res = await fetch('/api/rooms');
       const data = await res.json();
       setRooms(data || []);
     } catch (err) {
@@ -57,7 +57,7 @@ export default function ReceptionistBookingList() {
 
   async function fetchAmenities() {
     try {
-      const res = await fetch('http://localhost:3000/api/amenities/inventory');
+      const res = await fetch('/api/amenities/inventory');
       const data = await res.json();
       setAmenities(data || []);
     } catch (err) {
@@ -67,7 +67,7 @@ export default function ReceptionistBookingList() {
 
   // === Booking actions ===
   async function handleConfirm(id) {
-    await fetch(`http://localhost:3000/api/bookings/${id}`, {
+    await fetch(`/api/bookings/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'confirmed' }),
@@ -76,7 +76,7 @@ export default function ReceptionistBookingList() {
   }
 
   async function handleCancel(id) {
-    await fetch(`http://localhost:3000/api/bookings/${id}`, {
+    await fetch(`/api/bookings/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'cancelled' }),
@@ -86,7 +86,7 @@ export default function ReceptionistBookingList() {
 
   async function handleDelete(id) {
     if (!confirm('Are you sure you want to delete this booking?')) return;
-    await fetch(`http://localhost:3000/api/bookings/${id}`, { method: 'DELETE' });
+    await fetch(`/api/bookings/${id}`, { method: 'DELETE' });
     fetchBookings();
   }
 
@@ -112,7 +112,7 @@ export default function ReceptionistBookingList() {
     }
 
     try {
-      await fetch('http://localhost:3000/api/bookings', {
+      await fetch('/api/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
