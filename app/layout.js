@@ -11,12 +11,11 @@ const poppins = Poppins({
   display: 'swap',
 });
 
-export default function RootLayout({ children, session }) {
+export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body className={poppins.className}>
         <SessionProvider
-          session={session}
           refetchInterval={0} // Disable auto refetch
           basePath="/api/auth" // Use internal API routes in merged app
           options={{
