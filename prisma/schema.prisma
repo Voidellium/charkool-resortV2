@@ -1,0 +1,172 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             Int       @id @default(autoincrement())
+  name           String?
+  email          String    @unique
+  password       String?           // <- optional for OAuth users
+  role           Role      @default(CUSTOMER)
+  image          String?
+  emailVerified  DateTime?
+  bookings       Booking[]
+  accounts       Account[]
+  sessions       Session[]
+}
+
+model Account {
+  id                Int     @id @default(autoincrement())
+  userId            Int
+  type              String
+  provider          String
+  providerAccountId String
+
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           Int      @id @default(autoincrement())
+  sessionToken String   @unique
+  userId       Int
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+
+
+model Room {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  type      RoomType
+  price     Int
+  createdAt DateTime  @default(now())
+  heldUntil DateTime?
+  status    String    @default("available")
+  updatedAt DateTime  @updatedAt
+  image     String?
+  quantity  Int       @default(1)
+  amenities Amenity[]
+  bookings  Booking[]
+}
+
+model Amenity {
+  id          Int     @id @default(autoincrement())
+  name        String
+  roomId      Int
+  description String?
+  room        Room    @relation(fields: [roomId], references: [id])
+}
+
+model AmenityInventory {
+  id        Int              @id @default(autoincrement())
+  name      String
+  quantity  Int
+  updatedAt DateTime         @updatedAt
+  bookings  BookingAmenity[]
+}
+
+model AmenityCategory {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AmenityLog {
+  id          Int      @id @default(autoincrement())
+  action      String
+  amenityName String
+  user        String?
+  timestamp   DateTime @default(now())
+}
+
+model Booking {
+  id            Int              @id @default(autoincrement())
+  userId        Int?
+  roomId        Int
+  checkIn       DateTime
+  checkOut      DateTime
+  status        String           @default("pending")
+  createdAt     DateTime         @default(now())
+  heldUntil     DateTime?
+  guestName     String           @default("Walk-in Guest")
+  paymentStatus String           @default("unpaid")
+  totalPrice    Int              @default(0)
+  room          Room             @relation(fields: [roomId], references: [id])
+  user          User?            @relation(fields: [userId], references: [id])
+  amenities     BookingAmenity[]
+  payments      Payment[]
+}
+
+model BookingAmenity {
+  id                 Int              @id @default(autoincrement())
+  bookingId          Int
+  amenityInventoryId Int
+  amenity            AmenityInventory @relation(fields: [amenityInventoryId], references: [id])
+  booking            Booking          @relation(fields: [bookingId], references: [id])
+}
+
+model Payment {
+  id           String   @id @default(cuid())
+  bookingId    Int
+  booking      Booking  @relation(fields: [bookingId], references: [id])
+
+  amount       Int      // in cents (₱100 = 10000)
+  currency     String   @default("PHP")
+
+  status       String   @default("pending") // pending, paid, failed, refunded
+  provider     String   @default("paymongo")
+
+  referenceId  String?  // PayMongo payment ID
+  receiptUrl   String?  // PayMongo generated receipt link
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  message   String
+  type      String
+  role      String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+enum Role {
+  CUSTOMER
+  GUEST
+  ADMIN
+  SUPERADMIN
+  RECEPTIONIST
+  CASHIER
+  AMENITYINVENTORYMANAGER
+}
+
+enum RoomType {
+  STANDARD
+  DELUXE
+  SUITE
+  BEACHFRONT
+  TEPEE
+  LOFT
+  FAMILY_LODGE
+  VILLA
+}
