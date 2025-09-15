@@ -10,8 +10,19 @@ export default function GuestBookingPage() {
   }, [router]);
 
   return (
-    <div>
+    <div className="redirect-message">
       <p>Redirecting to booking page...</p>
+      <style jsx>{`
+        .redirect-message {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          height: 70vh;
+          font-size: 1.5rem;
+          color: #555;
+          text-align: center;
+        }
+      `}</style>
     </div>
   );
 }
