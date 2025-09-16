@@ -19,9 +19,14 @@ function LoginForm() {
   // Redirect if already logged in
   useEffect(() => {
     if (status === 'authenticated') {
-      redirectByRole(session?.user?.role);
+      const redirectUrl = searchParams.get('redirect');
+      if (redirectUrl) {
+        router.push(redirectUrl);
+      } else {
+        redirectByRole(session?.user?.role);
+      }
     }
-  }, [status, session, router]);
+  }, [status, session, router, searchParams]);
 
   // Map NextAuth errors
   useEffect(() => {

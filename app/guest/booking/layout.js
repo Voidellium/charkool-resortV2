@@ -22,6 +22,7 @@ export default function GuestLayout({ children }) {
           <span onClick={() => router.push('/guest/history')}>History</span>
           <span onClick={() => router.push('/guest/payment')}>Payment</span>
           <span onClick={() => router.push('/guest/chat')}>Chat</span>
+          <button className="book-now-btn" onClick={() => router.push('/guest/booking')}>Book now</button>
         </nav>
         <div className="user-info">
           <button onClick={() => router.push('/guest/profile')} className="profile-button">Profile</button>
@@ -74,6 +75,20 @@ export default function GuestLayout({ children }) {
         .user-info {
           display: flex;
           gap: 1rem;
+        }
+        .book-now-btn {
+          background-color: #2563eb;
+          color: white;
+          border: none;
+          padding: 0.5rem 1rem;
+          border-radius: 5px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: background-color 0.2s ease-in-out;
+          margin-left: 1rem;
+        }
+        .book-now-btn:hover {
+          background-color: #1d4ed8;
         }
         .profile-button, .signout-button {
           padding: 0.5rem 1rem;
