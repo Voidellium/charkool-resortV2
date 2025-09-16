@@ -16,20 +16,23 @@ const Header = ({ guestName }) => {
                 <img src="/logo.png" alt="Logo" />
                 <span>Resort Name</span>
             </div>
-            <div className="icons">
-                <MdCamera className="icon" onClick={() => router.push('/guest/3dview')} title="Virtual Tour" />
-                <MdChat className="icon" onClick={() => router.push('/guest/chat')} title="Chat" />
-                <FaBell className="icon" title="Notifications" />
-                <div className="profile-container">
-                    <FaUser className="icon" onClick={() => setDropdownOpen(!dropdownOpen)} title="Profile" />
-                    {dropdownOpen && (
-                        <div className="dropdown">
-                            <div onClick={() => { router.push('/guest/profile'); setDropdownOpen(false); }}>View Profile</div>
-                            <div onClick={() => { router.push('/guest/profile'); setDropdownOpen(false); }}>Edit Profile</div>
-                            <div onClick={() => { signOut({ callbackUrl: '/login' }); setDropdownOpen(false); }}>Logout</div>
-                        </div>
-                    )}
-                </div>
+            <nav className="nav-links">
+                <span className="nav-link" onClick={() => router.push('/guest/3dview')}>Virtual Tour</span>
+                <span className="nav-link" onClick={() => router.push('/guest/chat')}>Chat</span>
+                <span className="nav-link" onClick={() => router.push('/guest/notifications')}>Notifications</span>
+                <span className="nav-link" onClick={() => router.push('/guest/booking')}>Reservations</span>
+                <span className="nav-link" onClick={() => router.push('/guest/dashboard')}>Dashboard</span>
+                <button className="book-now-btn" onClick={() => router.push('/guest/booking')}>Book now</button>
+            </nav>
+            <div className="profile-container">
+                <FaUser className="icon" onClick={() => setDropdownOpen(!dropdownOpen)} title="Profile" />
+                {dropdownOpen && (
+                    <div className="dropdown">
+                        <div onClick={() => { router.push('/guest/profile'); setDropdownOpen(false); }}>View Profile</div>
+                        <div onClick={() => { router.push('/guest/profile'); setDropdownOpen(false); }}>Edit Profile</div>
+                        <div onClick={() => { signOut({ callbackUrl: '/login' }); setDropdownOpen(false); }}>Logout</div>
+                    </div>
+                )}
             </div>
             <style jsx>{`
                 .header {

@@ -158,7 +158,7 @@ export default function BookingPage() {
   if (!session || !session.user) {
     alert('You must be logged in to book a room.');
     // Redirect to login with redirect param to continue booking after login
-    router.push('/login?redirect=/checkout');
+    router.push('/login?redirect=/booking');
     return;
   }
 
