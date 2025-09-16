@@ -1,8 +1,8 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 
-export default function ConfirmationPage() {
+function ConfirmationContent() {
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
   const searchParams = useSearchParams();
@@ -41,5 +41,13 @@ export default function ConfirmationPage() {
       <p><strong>Check-out:</strong> {new Date(booking.checkOut).toLocaleDateString()}</p>
       <p><strong>Amenities:</strong> {booking.amenities?.map(a => a.amenity.name).join(', ') || 'None'}</p>
     </div>
+  );
+}
+
+export default function ConfirmationPage() {
+  return (
+    <Suspense fallback={<p>Loading...</p>}>
+      <ConfirmationContent />
+    </Suspense>
   );
 }
