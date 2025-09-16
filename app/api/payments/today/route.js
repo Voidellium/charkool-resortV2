@@ -17,7 +17,12 @@ export const GET = async () => {
         },
       },
       include: {
-        booking: true, // So cashier can see booking details
+        booking: {
+          include: {
+            user: true,
+            room: true,
+          },
+        },
       },
       orderBy: {
         createdAt: "desc",

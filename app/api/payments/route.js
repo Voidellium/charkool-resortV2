@@ -5,7 +5,12 @@ export async function GET() {
   try {
     const payments = await prisma.payment.findMany({
       include: {
-        booking: true,
+        booking: {
+          include: {
+            user: true,
+            room: true,
+          },
+        },
       },
       orderBy: {
         createdAt: 'desc',

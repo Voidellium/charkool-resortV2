@@ -4,3 +4,7 @@
 - [x] For payment history: fetch payments, display detailed cards.
 - [x] Style with styled-jsx only, make buttons modern/material.
 - [x] Ensure only profile, notification, virtual tour, chat are clickable; history is display-only.
+- [x] Enhance cashier dashboard: fetch today's payments, show guest info, booking dates, room, payment type, status, add confirm/cancel buttons for pending payments.
+- [x] Update payments API to include user and room details.
+- [x] Create cancel payment API to update payment and booking status to cancelled.
+- [x] Change revenue calculation to current day only.
