@@ -1,6 +1,14 @@
 'use client';
+import { usePathname } from 'next/navigation';
 import Navbar from './Navbar';
 
 export default function ClientNavbarWrapper() {
-  return <Navbar />;
+  const pathname = usePathname();
+
+  // Show navbar only on specific public pages
+  const showNavbarPaths = ['/', '/booking', '/virtual-tour', '/login'];
+
+  const shouldShowNavbar = showNavbarPaths.includes(pathname);
+
+  return shouldShowNavbar ? <Navbar /> : null;
 }

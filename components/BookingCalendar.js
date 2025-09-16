@@ -21,8 +21,11 @@ export default function BookingCalendar({ availabilityData, onDateChange }) {
   // availabilityData: { 'yyyy-mm-dd': boolean } true=available, false=not available
   // onDateChange: callback with { checkInDate, checkOutDate }
 
-  const [currentYear, setCurrentYear] = useState(() => new Date().getFullYear());
-  const [currentMonth, setCurrentMonth] = useState(() => new Date().getMonth());
+  const today = new Date();
+  const maxMonth = new Date(today.getFullYear(), today.getMonth() + 3, 1); // max 3 months ahead
+
+  const [currentYear, setCurrentYear] = useState(() => today.getFullYear());
+  const [currentMonth, setCurrentMonth] = useState(() => today.getMonth());
   const [checkInDate, setCheckInDate] = useState(null);
   const [checkOutDate, setCheckOutDate] = useState(null);
 
@@ -43,6 +46,10 @@ export default function BookingCalendar({ availabilityData, onDateChange }) {
   function handleDateClick(date) {
     if (!date) return;
     const dateStr = formatDate(date);
+
+    // Disable past dates
+    if (date < today) return;
+
     if (!availabilityData || !availabilityData[dateStr]) return; // not available
 
     if (!checkInDate || (checkInDate && checkOutDate)) {
@@ -79,6 +86,9 @@ export default function BookingCalendar({ availabilityData, onDateChange }) {
     }
   }
   function nextMonth() {
+    const nextMonthDate = new Date(currentYear, currentMonth + 1, 1);
+    if (nextMonthDate > maxMonth) return; // limit to max 3 months ahead
+
     if (currentMonth === 11) {
       setCurrentYear(currentYear + 1);
       setCurrentMonth(0);
@@ -123,7 +133,8 @@ export default function BookingCalendar({ availabilityData, onDateChange }) {
           const inStay = isInStayPeriod(date);
 
           let className = 'day';
-          if (!isAvailable) className += ' not-available';
+          if (date < today) className += ' not-available'; // disable past dates visually
+          else if (!isAvailable) className += ' not-available';
           else if (isCheckIn) className += ' check-in';
           else if (isCheckOut) className += ' check-out';
           else if (inStay) className += ' stay-period';

@@ -1,24 +1,6 @@
-# TODO: Replace Hardcoded localhost URLs
-
-- [x] app/receptionist/booking/page.js: Replace all 'http://localhost:3000' with relative paths
-- [x] app/amenityinventorymanager/amenities/page.js: Replace all 'http://localhost:3000' with relative paths
-- [x] app/amenityinventorymanager/logs/page.js: Replace all 'http://localhost:3000' with relative paths
-- [x] app/amenityinventorymanager/categorization/page.js: Replace all 'http://localhost:3000' with relative paths
-- [x] app/booking/page.js: Replace all 'http://localhost:3000' with relative paths
-- [x] app/guest/3dview/page.js: Replace all 'http://localhost:3000' with relative paths
-- [x] app/guest/booking/page.js: Replace all 'http://localhost:3000' with relative paths
-- [x] app/guest/dashboard/page.js: Replace all 'http://localhost:3000' with relative paths
-- [x] app/guest/history/page.js: Replace all 'http://localhost:3000' with relative paths
-- [x] app/guest/payment/page.js: Replace all 'http://localhost:3000' with relative paths
-- [x] app/guest/profile/page.js: Replace all 'http://localhost:3000' with relative paths
-- [x] app/login/forgot-password/page.js: Replace all 'http://localhost:3000' with relative paths
-- [x] app/login/page.js: Replace all 'http://localhost:3000' with relative paths
-- [x] app/super-admin/amenities/page.js: Replace all 'http://localhost:3000' with relative paths
-- [x] app/super-admin/bookings/page.js: Replace all 'http://localhost:3000' with relative paths
-- [x] app/super-admin/reports/page.js: Replace all 'http://localhost:3000' with relative paths
-- [x] app/super-admin/rooms/page.js: Replace all 'http://localhost:3000' with relative paths
-- [x] app/super-admin/users/page.js: Replace all 'http://localhost:3000' with relative paths
-- [x] app/cashier/page.js: Replace all 'http://localhost:3000' with relative paths
-- [x] components/BookingCalendar.js: Replace all 'http://localhost:3000' with relative paths
-- [ ] Test the application locally to ensure all fetches work
-- [ ] Verify in production environment if possible
+- [x] Update guest dashboard header: replace nav and user-info with person icon dropdown (view profile, edit profile, logout), bell icon for notifications beside profile, and buttons/links for virtual tour and chat.
+- [x] Integrate all history into dashboard: show booking history and payment history in a 2-row, 1-column layout.
+- [x] For booking history: fetch all bookings, display detailed cards (room type, payment info, etc.), add "Book Now" material button.
+- [x] For payment history: fetch payments, display detailed cards.
+- [x] Style with styled-jsx only, make buttons modern/material.
+- [x] Ensure only profile, notification, virtual tour, chat are clickable; history is display-only.

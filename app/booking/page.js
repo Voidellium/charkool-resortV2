@@ -45,21 +45,21 @@ export default function BookingPage() {
     fetchAmenities();
   }, []);
 
-  // ✅ Fetch availability data for calendar
+  // ✅ Fetch availability data for calendar (3 months)
   useEffect(() => {
     async function fetchAvailability() {
       try {
-        // Calculate date range for current month
+        // Calculate date range for 3 months ahead
         const today = new Date();
         const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-        const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        const endOf3Months = new Date(today.getFullYear(), today.getMonth() + 3, 0);
 
         const res = await fetch('/api/availability', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             checkIn: startOfMonth.toISOString().split('T')[0],
-            checkOut: endOfMonth.toISOString().split('T')[0],
+            checkOut: endOf3Months.toISOString().split('T')[0],
           }),
         });
 

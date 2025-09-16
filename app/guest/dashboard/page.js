@@ -3,9 +3,12 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'next-auth/react';
+import { FaUser, FaBell } from 'react-icons/fa';
+import { MdCamera, MdChat } from 'react-icons/md';
 
 const Header = ({ guestName }) => {
     const router = useRouter();
+    const [dropdownOpen, setDropdownOpen] = useState(false);
 
     return (
         <header className="header">
@@ -13,15 +16,20 @@ const Header = ({ guestName }) => {
                 <img src="/logo.png" alt="Logo" />
                 <span>Resort Name</span>
             </div>
-            <nav className="nav">
-                <span onClick={() => router.push('/guest/dashboard')}>Dashboard</span>
-                <span onClick={() => router.push('/guest/history')}>History</span>
-                <span onClick={() => router.push('/guest/payment')}>Payment</span>
-                <span onClick={() => router.push('/guest/chat')}>Chat</span>
-            </nav>
-            <div className="user-info">
-                <button onClick={() => router.push('/guest/profile')} className="profile-button">Profile</button>
-                <button onClick={() => signOut({ callbackUrl: '/login' })} className="signout-button">Sign Out</button>
+            <div className="icons">
+                <MdCamera className="icon" onClick={() => router.push('/guest/3dview')} title="Virtual Tour" />
+                <MdChat className="icon" onClick={() => router.push('/guest/chat')} title="Chat" />
+                <FaBell className="icon" title="Notifications" />
+                <div className="profile-container">
+                    <FaUser className="icon" onClick={() => setDropdownOpen(!dropdownOpen)} title="Profile" />
+                    {dropdownOpen && (
+                        <div className="dropdown">
+                            <div onClick={() => { router.push('/guest/profile'); setDropdownOpen(false); }}>View Profile</div>
+                            <div onClick={() => { router.push('/guest/profile'); setDropdownOpen(false); }}>Edit Profile</div>
+                            <div onClick={() => { signOut({ callbackUrl: '/login' }); setDropdownOpen(false); }}>Logout</div>
+                        </div>
+                    )}
+                </div>
             </div>
             <style jsx>{`
                 .header {
@@ -33,6 +41,7 @@ const Header = ({ guestName }) => {
                     border-bottom: 1px solid #e0e0e0;
                     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
                     color: #333;
+                    position: relative;
                 }
                 .logo {
                     display: flex;
@@ -44,56 +53,53 @@ const Header = ({ guestName }) => {
                     height: 40px;
                     margin-right: 10px;
                 }
-                .nav {
+                .icons {
                     display: flex;
-                    gap: 2rem;
+                    gap: 1rem;
+                    align-items: center;
                 }
-                .nav span {
+                .icon {
+                    font-size: 1.5rem;
                     cursor: pointer;
-                    font-size: 1rem;
                     color: #555;
                     transition: color 0.2s ease-in-out;
                 }
-                .nav span:hover {
+                .icon:hover {
                     color: #000;
                 }
-                .user-info {
-                    display: flex;
-                    gap: 1rem;
+                .profile-container {
+                    position: relative;
                 }
-                .profile-button, .signout-button {
-                    padding: 0.5rem 1rem;
-                    border: none;
+                .dropdown {
+                    position: absolute;
+                    top: 100%;
+                    right: 0;
+                    background-color: white;
+                    border: 1px solid #e0e0e0;
                     border-radius: 5px;
+                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                    z-index: 1000;
+                    min-width: 150px;
+                }
+                .dropdown div {
+                    padding: 0.75rem 1rem;
                     cursor: pointer;
-                    font-size: 1rem;
-                    font-weight: 500;
+                    color: #333;
                     transition: background-color 0.2s ease-in-out;
                 }
-                .profile-button {
-                    background-color: #ffc107;
-                    color: #333;
-                }
-                .profile-button:hover {
-                    background-color: #e0a800;
-                }
-                .signout-button {
-                    background-color: #dc3545;
-                    color: white;
-                }
-                .signout-button:hover {
-                    background-color: #c82333;
+                .dropdown div:hover {
+                    background-color: #f0f0f0;
                 }
             `}</style>
         </header>
     );
 };
 
-const ReservationCard = ({ booking }) => {
+const BookingHistoryCard = ({ booking }) => {
     return (
-        <div className="reservation-card">
+        <div className="booking-history-card">
             <div className="card-header">
-                <h3>{booking.room.name}</h3>
+                <h3>{booking.room.name} - {booking.room.type}</h3>
                 <span className="status-badge">
                     {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                 </span>
@@ -102,10 +108,12 @@ const ReservationCard = ({ booking }) => {
                 <p><strong>Check-in:</strong> {booking.checkIn}</p>
                 <p><strong>Check-out:</strong> {booking.checkOut}</p>
                 <p><strong>Guests:</strong> {booking.guests}</p>
+                <p><strong>Payment Status:</strong> {booking.payments && booking.payments.length > 0 ? 'Paid' : 'Pending'}</p>
+                <p><strong>Total Paid:</strong> ${booking.payments.reduce((sum, p) => sum + p.amount, 0).toFixed(2)}</p>
             </div>
-            <button className="view-details-btn">View Details</button>
+            <button className="book-now-btn" onClick={() => window.location.href = '/guest/booking'}>Book Now</button>
             <style jsx>{`
-                .reservation-card {
+                .booking-history-card {
                     background-color: #ffffff;
                     border: 1px solid #e0e0e0;
                     border-radius: 8px;
@@ -113,7 +121,7 @@ const ReservationCard = ({ booking }) => {
                     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
                     transition: transform 0.2s ease-in-out;
                 }
-                .reservation-card:hover {
+                .booking-history-card:hover {
                     transform: translateY(-5px);
                 }
                 .card-header {
@@ -140,20 +148,20 @@ const ReservationCard = ({ booking }) => {
                     font-size: 0.95rem;
                     color: #666;
                 }
-                .view-details-btn {
-                    background-color: #007bff;
+                .book-now-btn {
+                    background-color: #6200ee;
                     color: white;
                     border: none;
                     padding: 0.75rem 1.5rem;
-                    border-radius: 5px;
+                    border-radius: 4px;
                     cursor: pointer;
                     font-size: 1rem;
-                    font-weight: 500;
-                    transition: background-color 0.2s ease-in-out;
+                    font-weight: 600;
+                    transition: background-color 0.3s ease;
                     margin-top: 1rem;
                 }
-                .view-details-btn:hover {
-                    background-color: #0056b3;
+                .book-now-btn:hover {
+                    background-color: #3700b3;
                 }
             `}</style>
         </div>
@@ -205,9 +213,65 @@ const NotificationItem = ({ notification }) => {
     );
 };
 
+const PaymentHistoryCard = ({ payment }) => {
+    return (
+        <div className="payment-history-card">
+            <div className="card-header">
+                <h3>Payment for {payment.booking.room.name}</h3>
+                <span className="status-badge">
+                    {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
+                </span>
+            </div>
+            <div className="card-details">
+                <p><strong>Amount:</strong> ${payment.amount.toFixed(2)}</p>
+                <p><strong>Method:</strong> {payment.method}</p>
+                <p><strong>Date:</strong> {new Date(payment.createdAt).toLocaleDateString()}</p>
+            </div>
+            <style jsx>{`
+                .payment-history-card {
+                    background-color: #ffffff;
+                    border: 1px solid #e0e0e0;
+                    border-radius: 8px;
+                    padding: 1.5rem;
+                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+                    transition: transform 0.2s ease-in-out;
+                }
+                .payment-history-card:hover {
+                    transform: translateY(-5px);
+                }
+                .card-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 1rem;
+                }
+                .card-header h3 {
+                    margin: 0;
+                    font-size: 1.25rem;
+                    color: #333;
+                }
+                .status-badge {
+                    background-color: #28a745;
+                    color: white;
+                    padding: 0.3rem 0.8rem;
+                    border-radius: 20px;
+                    font-size: 0.85rem;
+                    font-weight: bold;
+                }
+                .card-details p {
+                    margin: 0.5rem 0;
+                    font-size: 0.95rem;
+                    color: #666;
+                }
+            `}</style>
+        </div>
+    );
+};
+
 export default function GuestDashboard() {
     const [guest, setGuest] = useState(null);
     const [bookings, setBookings] = useState([]);
+    const [payments, setPayments] = useState([]);
     const [notifications, setNotifications] = useState([]);
     const router = useRouter();
 
@@ -234,6 +298,21 @@ export default function GuestDashboard() {
             }
         }
 
+        async function fetchPayments() {
+            try {
+                const res = await fetch('/api/guest/payment', {
+                    method: 'GET',
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    setPayments(data || []);
+                }
+            } catch (err) {
+                console.error('Error fetching payments:', err);
+            }
+        }
+
         async function fetchNotifications() {
             try {
                 const res = await fetch('/api/notifications?role=CUSTOMER', {
@@ -250,6 +329,7 @@ export default function GuestDashboard() {
         }
 
         fetchData();
+        fetchPayments();
         fetchNotifications();
     }, [router]);
 
@@ -269,33 +349,31 @@ export default function GuestDashboard() {
         </div>
     );
 
-    const activeBookings = bookings.filter(b => b.status === 'active');
-
     return (
         <div className="dashboard-container">
             <Header guestName={guest.name} />
 
             <main className="main-content">
-                <section className="section-reservations">
-                    <h2>Reservations</h2>
-                    <div className="reservation-list">
-                        {activeBookings.length > 0 ? (
-                            activeBookings.map(b => <ReservationCard key={b.id} booking={b} />)
+                <section className="section-history">
+                    <h2>Booking History</h2>
+                    <div className="history-list">
+                        {bookings.length > 0 ? (
+                            bookings.map(b => <BookingHistoryCard key={b.id} booking={b} />)
                         ) : (
-                            <p className="no-data">No active reservations.</p>
+                            <p className="no-data">No booking history.</p>
                         )}
                     </div>
                 </section>
 
                 <hr className="divider" />
 
-                <section className="section-notifications">
-                    <h2>Notifications</h2>
-                    <div className="notification-list">
-                        {notifications.length > 0 ? (
-                            notifications.map(n => <NotificationItem key={n.id} notification={n} />)
+                <section className="section-payments">
+                    <h2>Payment History</h2>
+                    <div className="payment-list">
+                        {payments.length > 0 ? (
+                            payments.map(p => <PaymentHistoryCard key={p.id} payment={p} />)
                         ) : (
-                            <p className="no-data">No new notifications.</p>
+                            <p className="no-data">No payment history.</p>
                         )}
                     </div>
                 </section>
@@ -312,7 +390,7 @@ export default function GuestDashboard() {
                     max-width: 1200px;
                     margin: 0 auto;
                 }
-                .section-reservations, .section-notifications {
+                .section-history, .section-payments {
                     margin-bottom: 2rem;
                 }
                 h2 {
@@ -323,15 +401,10 @@ export default function GuestDashboard() {
                     border-bottom: 2px solid #ffc107;
                     padding-bottom: 0.5rem;
                 }
-                .reservation-list {
+                .history-list, .payment-list {
                     display: grid;
                     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
                     gap: 1.5rem;
-                }
-                .notification-list {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 1rem;
                 }
                 .divider {
                     border: none;
@@ -349,14 +422,6 @@ export default function GuestDashboard() {
                         flex-direction: column;
                         align-items: flex-start;
                         gap: 1rem;
-                    }
-                    .nav {
-                        width: 100%;
-                        justify-content: space-around;
-                    }
-                    .user-info {
-                        width: 100%;
-                        justify-content: space-around;
                     }
                     .main-content {
                         padding: 1rem;

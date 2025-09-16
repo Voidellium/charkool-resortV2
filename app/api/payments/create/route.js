@@ -28,7 +28,10 @@ export async function POST(req) {
             description: `Booking #${bookingId}`,
             metadata: {
               bookingId: bookingId.toString()
-            }
+            },
+            // Add success and cancel URLs to redirect user after payment
+            success_url: `${process.env.NEXTAUTH_URL}/confirmation?bookingId=${bookingId}`,
+            cancel_url: `${process.env.NEXTAUTH_URL}/booking`
           }
         }
       })

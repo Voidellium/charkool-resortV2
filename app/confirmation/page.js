@@ -1,25 +1,45 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 
 export default function ConfirmationPage() {
   const [booking, setBooking] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const searchParams = useSearchParams();
+  const bookingId = searchParams.get('bookingId');
 
   useEffect(() => {
-    const data = JSON.parse(localStorage.getItem('finalBooking'));
-    setBooking(data);
-  }, []);
+    async function fetchBooking() {
+      if (!bookingId) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const res = await fetch(`/api/bookings/${bookingId}`);
+        if (!res.ok) throw new Error('Failed to fetch booking');
+        const data = await res.json();
+        setBooking(data);
+      } catch (error) {
+        console.error('Error fetching booking:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchBooking();
+  }, [bookingId]);
 
-  if (!booking) return <p>Loading...</p>;
+  if (loading) return <p>Loading booking details...</p>;
+  if (!booking) return <p>Booking not found.</p>;
 
   return (
     <div>
       <h2>Booking Confirmed!</h2>
-      <p><strong>Guest:</strong> {booking.guest.name}</p>
-      <p><strong>Email:</strong> {booking.guest.email}</p>
-      <p><strong>Room:</strong> {booking.room}</p>
-      <p><strong>Check-in:</strong> {booking.checkIn}</p>
-      <p><strong>Check-out:</strong> {booking.checkOut}</p>
-      <p><strong>Amenities:</strong> {booking.amenities?.join(', ')}</p>
+      <p><strong>Guest:</strong> {booking.guestName || booking.user?.name || 'Guest'}</p>
+      <p><strong>Email:</strong> {booking.user?.email || 'N/A'}</p>
+      <p><strong>Room:</strong> {booking.room?.name || booking.room}</p>
+      <p><strong>Check-in:</strong> {new Date(booking.checkIn).toLocaleDateString()}</p>
+      <p><strong>Check-out:</strong> {new Date(booking.checkOut).toLocaleDateString()}</p>
+      <p><strong>Amenities:</strong> {booking.amenities?.map(a => a.amenity.name).join(', ') || 'None'}</p>
     </div>
   );
 }
