@@ -70,7 +70,8 @@ function LoginForm() {
 
   const handleOAuthLogin = async (provider) => {
     try {
-      await signIn(provider, { redirect: true, callbackUrl: '/guest/dashboard' });
+      const redirectUrl = searchParams.get('redirect') || '/guest/dashboard';
+      await signIn(provider, { redirect: true, callbackUrl: redirectUrl });
     } catch (err) {
       console.error('OAuth login error:', err);
       setError('OAuth login failed. Please try again.');
