@@ -100,7 +100,7 @@ export const POST = async (req) => {
 
     const booking = await prisma.booking.create({
       data: {
-        userId,
+        user: { connect: { id: userId } },
         room: { connect: { id: roomId } },
         checkIn: checkInDate,
         checkOut: checkOutDate,
