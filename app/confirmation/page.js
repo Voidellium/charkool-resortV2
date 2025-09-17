@@ -4,7 +4,7 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, Suspense } from 'react';
 
-export default function ConfirmationPage() {
+function ConfirmationPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const bookingId = searchParams.get('bookingId');
@@ -33,34 +33,40 @@ export default function ConfirmationPage() {
   };
 
   return (
+    <div style={{ maxWidth: '600px', margin: '2rem auto', padding: '1rem', textAlign: 'center' }}>
+      <h2>Booking Confirmed!</h2>
+      {booking ? (
+        <div>
+          <p><strong>Guest:</strong> {booking.guestName || booking.user?.name || 'Guest'}</p>
+          <p><strong>Email:</strong> {booking.user?.email || 'N/A'}</p>
+          <p><strong>Room:</strong> {booking.room?.name || booking.room}</p>
+          <p><strong>Check-in:</strong> {new Date(booking.checkIn).toLocaleDateString()}</p>
+          <p><strong>Check-out:</strong> {new Date(booking.checkOut).toLocaleDateString()}</p>
+          <p><strong>Amenities:</strong> {booking.amenities?.map(a => a.amenity.name).join(', ') || 'None'}</p>
+        </div>
+      ) : (
+        <p>Loading booking details...</p>
+      )}
+      <button onClick={goToDashboard} style={{
+        marginTop: '1.5rem',
+        padding: '0.75rem 1.5rem',
+        fontSize: '1rem',
+        backgroundColor: '#FEBE54',
+        color: 'white',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer'
+      }}>
+        Go to Dashboard
+      </button>
+    </div>
+  );
+}
+
+export default function ConfirmationPage() {
+  return (
     <Suspense fallback={<p>Loading booking details...</p>}>
-      <div style={{ maxWidth: '600px', margin: '2rem auto', padding: '1rem', textAlign: 'center' }}>
-        <h2>Booking Confirmed!</h2>
-        {booking ? (
-          <div>
-            <p><strong>Guest:</strong> {booking.guestName || booking.user?.name || 'Guest'}</p>
-            <p><strong>Email:</strong> {booking.user?.email || 'N/A'}</p>
-            <p><strong>Room:</strong> {booking.room?.name || booking.room}</p>
-            <p><strong>Check-in:</strong> {new Date(booking.checkIn).toLocaleDateString()}</p>
-            <p><strong>Check-out:</strong> {new Date(booking.checkOut).toLocaleDateString()}</p>
-            <p><strong>Amenities:</strong> {booking.amenities?.map(a => a.amenity.name).join(', ') || 'None'}</p>
-          </div>
-        ) : (
-          <p>Loading booking details...</p>
-        )}
-        <button onClick={goToDashboard} style={{
-          marginTop: '1.5rem',
-          padding: '0.75rem 1.5rem',
-          fontSize: '1rem',
-          backgroundColor: '#FEBE54',
-          color: 'white',
-          border: 'none',
-          borderRadius: '4px',
-          cursor: 'pointer'
-        }}>
-          Go to Dashboard
-        </button>
-      </div>
+      <ConfirmationPageInner />
     </Suspense>
   );
 }
