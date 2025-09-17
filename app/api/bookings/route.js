@@ -120,6 +120,7 @@ export const POST = async (req) => {
     return NextResponse.json({ success: true, booking }, { status: 201 });
   } catch (error) {
     console.error('❌ Booking POST Error:', error);
+    console.error(error.stack);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 };
