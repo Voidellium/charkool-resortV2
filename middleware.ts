@@ -34,6 +34,29 @@ export async function middleware(req: NextRequest) {
 
   // --- 1. Handle authenticated users trying to access login/register pages ---
   if (token && isLoginOrRegister) {
+    // Check if there's a redirect parameter and honor it for safe redirects
+    const redirectParam = req.nextUrl.searchParams.get("redirect");
+    if (redirectParam && typeof token.role === "string") {
+      // Define safe redirects based on user role
+      const role = token.role.toLowerCase();
+      const safeRedirects: Record<string, string[]> = {
+        "customer": ["/booking", "/guest"],
+        "superadmin": ["/super-admin", "/booking"],
+        "admin": ["/admin", "/booking"],
+        "receptionist": ["/receptionist", "/booking"],
+        "cashier": ["/cashier", "/booking"],
+        "amenityinventorymanager": ["/amenityinventorymanager", "/booking"],
+      };
+
+      const allowedRedirects = safeRedirects[role] || [];
+      const isSafeRedirect = allowedRedirects.some(path => redirectParam.startsWith(path));
+
+      if (isSafeRedirect) {
+        return NextResponse.redirect(new URL(redirectParam, req.url));
+      }
+    }
+
+    // Default role-based redirect if no safe redirect parameter
     if (typeof token.role === "string") {
       const role = token.role.toLowerCase();
       switch (role) {
@@ -52,7 +75,12 @@ export async function middleware(req: NextRequest) {
   // --- 2. Handle unauthenticated users trying to access protected pages ---
   if (!token && !isPublicPath) {
     const loginUrl = new URL("/login", req.url);
-    loginUrl.searchParams.set("redirect", pathname);
+    // Always redirect to /booking if the requested path is /booking or starts with /booking
+    if (pathname === "/booking" || pathname.startsWith("/booking/")) {
+      loginUrl.searchParams.set("redirect", "/booking");
+    } else {
+      loginUrl.searchParams.set("redirect", pathname);
+    }
     return NextResponse.redirect(loginUrl);
   }
 

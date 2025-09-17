@@ -1,8 +1,34 @@
 'use client';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 
 export default function Navbar() {
+  const router = useRouter();
+  const { data: session } = useSession();
+
+  const handleBookingClick = (e) => {
+    // If the user is not logged in, show an alert and redirect.
+    if (!session) {
+      e.preventDefault(); // Prevent default link behavior
+      const isConfirmed = window.confirm("You must be logged in to book. Click OK to go to the login page.");
+      if (isConfirmed) {
+        // Redirect to login page with a `redirect` query parameter
+        router.push('/login?redirect=/booking');
+      }
+    }
+  };
+
+  const handleLoginClick = (e) => {
+    if (session) {
+      // If the user is already logged in, prevent the link behavior
+      // and redirect to the guest dashboard.
+      e.preventDefault();
+      router.push('/guest/dashboard');
+    }
+  };
+
   return (
     <nav className="navbar">
       <div className="navbar-container">
@@ -13,9 +39,17 @@ export default function Navbar() {
         </div>
         <ul>
           <li><Link href="/">Home</Link></li>
-          <li><Link href="/booking">Booking</Link></li>
+          <li>
+            <Link href="/booking" onClick={handleBookingClick}>
+              Booking
+            </Link>
+          </li>
           <li><Link href="/virtual-tour">Virtual Tour</Link></li>
-          <li><Link href="/login">Login</Link></li>
+          <li>
+            <Link href="/login" onClick={handleLoginClick}>
+              Login
+            </Link>
+          </li>
         </ul>
       </div>
       <style jsx>{`

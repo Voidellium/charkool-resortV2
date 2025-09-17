@@ -2,8 +2,13 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 
 export default function Home() {
+  const { data: session } = useSession();
+  const router = useRouter();
+
   const images = [
     '/images/background.jpg',
     '/images/background4.jpg',
@@ -30,6 +35,15 @@ export default function Home() {
   startSlideshow();
   return () => clearTimeout(timeoutRef.current);
 }, [currentIndex, images]); // Corrected dependency arrayIndex, images.length]);
+
+  const handleBookNow = () => {
+    if (!session) {
+      alert('You must be logged in to book.');
+      router.push('/login?redirect=/booking');
+    } else {
+      router.push('/booking');
+    }
+  };
 
   return (
     <div className="landing">
@@ -63,7 +77,7 @@ export default function Home() {
           <h1>Charkool Leisure Beach Resort</h1>
           <h3>Experience paradise with luxury rooms, pristine beaches, and world-class amenities.</h3>
           <div className="cta-buttons">
-            <Link href="/booking"><button>Book Now</button></Link>
+            <button onClick={handleBookNow}>Book Now</button>
             <Link href="/rooms"><button>Explore Rooms</button></Link>
             <Link href="/virtual-tour"><button>Virtual Tour</button></Link>
           </div>

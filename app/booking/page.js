@@ -9,6 +9,15 @@ export default function BookingPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
+  if (status === 'loading') {
+    return <div>Loading...</div>;
+  }
+
+  if (status === 'unauthenticated') {
+    router.push('/login?redirect=/booking');
+    return <div>Redirecting to login...</div>;
+  }
+
   const [amenities, setAmenities] = useState([]);
   const [loadingAmenities, setLoadingAmenities] = useState(true);
 
