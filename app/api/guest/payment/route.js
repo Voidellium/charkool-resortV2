@@ -20,7 +20,11 @@ export const GET = async (req) => {
         },
       },
       include: {
-        booking: true,
+        booking: {
+          include: {
+            room: true,
+          },
+        },
       },
       orderBy: {
         createdAt: 'desc',

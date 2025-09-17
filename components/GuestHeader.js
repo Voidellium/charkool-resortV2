@@ -1,24 +1,50 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
-import { Bell, User, LayoutDashboard, MessageCircle, Eye } from 'lucide-react';
+import { useSession, signOut } from 'next-auth/react';
+import { useRouter, usePathname } from 'next/navigation';
+import { Bell, User, LogOut, Settings } from 'lucide-react';
 
 export default function GuestHeader() {
   const router = useRouter();
   const { data: session } = useSession();
+  const pathname = usePathname();
   const [isNotificationDropdownOpen, setIsNotificationDropdownOpen] = useState(false);
-  const [notifications, setNotifications] = useState([]); // Assuming notifications are fetched or managed elsewhere
+  const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const notifications = [];
+  const profileDropdownRef = useRef(null);
+  const notificationDropdownRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target)) {
+        setIsProfileDropdownOpen(false);
+      }
+      if (notificationDropdownRef.current && !notificationDropdownRef.current.contains(event.target)) {
+        setIsNotificationDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [profileDropdownRef, notificationDropdownRef]);
 
   const handleBookNow = () => {
-    router.push('/booking'); // Change from /guest/booking to /booking for consistency
+    router.push('/booking');
   };
 
   const handleProfileClick = () => {
-    // You can redirect to the profile page
+    setIsProfileDropdownOpen(!isProfileDropdownOpen);
+  };
+  
+  const handleSignOut = async () => {
+    await signOut({ callbackUrl: '/' });
+  };
+
+  const handleEditProfile = () => {
     router.push('/guest/profile');
   };
 
@@ -30,28 +56,25 @@ export default function GuestHeader() {
       <div className="logo-container">
         <Link href="/guest/dashboard">
           <Image
-            src="/images/logo.png" // Replace with your actual logo path if different
+            src="/images/logo.png"
             alt="Resort Logo"
             width={40}
             height={40}
             className="logo"
           />
         </Link>
-        <span className="resort-name">Resort Name</span>
+        <span className="resort-name">Charkool</span>
       </div>
 
       {/* Navigation Links */}
       <nav className="nav-links">
-        <Link href="/guest/dashboard">
-          <LayoutDashboard size={20} />
+        <Link href="/guest/dashboard" className={pathname === '/guest/dashboard' ? 'active' : ''}>
           <span>Dashboard</span>
         </Link>
-        <Link href="/guest/3dview">
-          <Eye size={20} />
+        <Link href="/guest/3dview" className={pathname === '/guest/3dview' ? 'active' : ''}>
           <span>3D View</span>
         </Link>
-        <Link href="/guest/chat">
-          <MessageCircle size={20} />
+        <Link href="/guest/chat" className={pathname === '/guest/chat' ? 'active' : ''}>
           <span>Chat</span>
         </Link>
       </nav>
@@ -59,20 +82,19 @@ export default function GuestHeader() {
       {/* Actions and Profile */}
       <div className="action-links">
         {/* Notifications */}
-        <div className="notification-container">
+        <div className="notification-container" ref={notificationDropdownRef}>
           <button
             className="notification-bell"
             onClick={() => setIsNotificationDropdownOpen(!isNotificationDropdownOpen)}
             aria-label="Notifications"
           >
-            <Bell size={20} />
+            <Bell size={20} color="white" />
             {hasNotifications && <span className="notification-dot" />}
           </button>
           {isNotificationDropdownOpen && (
             <div className="notification-dropdown">
               {hasNotifications ? (
                 <ul>
-                  {/* Map over notifications and display them */}
                   {notifications.map((notif, index) => (
                     <li key={index}>{notif.message}</li>
                   ))}
@@ -92,14 +114,37 @@ export default function GuestHeader() {
           Book now
         </button>
 
-        {/* User Profile */}
-        <button
-          className="profile-btn"
-          onClick={handleProfileClick}
-          aria-label="Profile"
-        >
-          <User size={20} />
-        </button>
+        {/* User Profile Dropdown */}
+        <div className="profile-container" ref={profileDropdownRef}>
+          <button
+            className="profile-btn"
+            onClick={handleProfileClick}
+            aria-label="Profile"
+          >
+            <div className="menu-icon">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+            <User size={20} />
+          </button>
+          {isProfileDropdownOpen && (
+            <div className="profile-dropdown">
+              <div className="dropdown-header">
+                {session?.user?.name && <p className="font-bold">{session.user.name}</p>}
+                {session?.user?.email && <p className="text-sm text-gray-500">{session.user.email}</p>}
+              </div>
+              <div className="dropdown-item" onClick={handleEditProfile}>
+                <Settings size={16} />
+                <span>Edit Profile</span>
+              </div>
+              <div className="dropdown-item" onClick={handleSignOut}>
+                <LogOut size={16} />
+                <span>Logout</span>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Styled JSX for component-specific styles */}
@@ -109,11 +154,11 @@ export default function GuestHeader() {
           justify-content: space-between;
           align-items: center;
           padding: 1rem 2rem;
-          background-color: #f0f0f0;
-          border-bottom: 1px solid #e0e0e0;
-          color: #333;
+          background-color: #FEBE54; /* Corrected Navbar color */
+          color: white;
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-          min-height: 70px; /* Ensures consistent height */
+          min-height: 70px;
+          position: relative;
         }
 
         .logo-container {
@@ -125,28 +170,34 @@ export default function GuestHeader() {
         .resort-name {
           font-size: 1.25rem;
           font-weight: bold;
-          color: #1a1a1a;
+          color: white;
         }
 
         .nav-links {
           display: flex;
-          gap: 2rem;
+          gap: 2.5rem;
         }
 
         .nav-links a {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          color: #555;
+          color: white !important; /* Force white text */
           text-decoration: none;
-          font-weight: 500;
-          transition: color 0.2s ease-in-out, transform 0.2s ease;
+          font-weight: 600;
+          transition: color 0.2s ease-in-out;
           cursor: pointer;
+          position: relative;
+          padding: 0.5rem 0;
         }
         
         .nav-links a:hover {
-          color: #000;
-          transform: translateY(-2px);
+          text-decoration: none; /* No underline on hover */
+          color: white !important;
+        }
+
+        .nav-links a.active {
+          color: white;
+          text-decoration: underline;
+          text-decoration-color: #f6a624; /* Underline color from image */
+          text-decoration-thickness: 3px;
         }
 
         .action-links {
@@ -155,11 +206,11 @@ export default function GuestHeader() {
           gap: 1rem;
         }
 
-        .notification-container {
+        .notification-container, .profile-container {
           position: relative;
         }
 
-        .notification-bell, .profile-btn {
+        .notification-bell {
           background: none;
           border: none;
           cursor: pointer;
@@ -170,8 +221,8 @@ export default function GuestHeader() {
           transition: color 0.2s ease-in-out;
         }
         
-        .notification-bell:hover, .profile-btn:hover {
-          color: #000;
+        .notification-bell:hover {
+          color: #eee;
         }
 
         .notification-dot {
@@ -180,11 +231,11 @@ export default function GuestHeader() {
           right: 8px;
           height: 8px;
           width: 8px;
-          background-color: #ef4444; /* red-500 */
+          background-color: #ef4444;
           border-radius: 50%;
         }
 
-        .notification-dropdown {
+        .notification-dropdown, .profile-dropdown {
           position: absolute;
           top: 100%;
           right: 0;
@@ -195,37 +246,77 @@ export default function GuestHeader() {
           padding: 1rem;
           width: 250px;
           z-index: 100;
+          min-width: 200px;
         }
-        
-        .notification-dropdown ul {
-          list-style: none;
+
+        .profile-dropdown {
           padding: 0;
-          margin: 0;
+          overflow: hidden;
         }
-        
-        .notification-dropdown li {
-          padding: 0.5rem 0;
+
+        .dropdown-header {
+          padding: 1rem;
           border-bottom: 1px solid #eee;
         }
-        
-        .notification-dropdown li:last-child {
-          border-bottom: none;
+
+        .dropdown-item {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          padding: 0.75rem 1rem;
+          cursor: pointer;
+          transition: background-color 0.2s ease-in-out;
+        }
+
+        .dropdown-item:hover {
+          background-color: #f5f5f5;
         }
 
         .book-now-btn {
-          background-color: #0c4a6e; /* Darker blue, similar to image */
+          background-color: #4b4b4b;
           color: white;
           border: none;
           padding: 0.75rem 1.5rem;
-          border-radius: 8px;
+          border-radius: 20px;
           font-weight: 600;
           cursor: pointer;
           transition: background-color 0.2s ease-in-out, transform 0.2s ease;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
         }
 
         .book-now-btn:hover {
-          background-color: #072a44;
+          background-color: #333;
           transform: translateY(-1px);
+        }
+
+        .profile-btn {
+          background-color: #4b4b4b;
+          border: none;
+          cursor: pointer;
+          padding: 0.75rem 1rem;
+          border-radius: 20px;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          color: white;
+          transition: background-color 0.2s ease-in-out;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .profile-btn:hover {
+          background-color: #333;
+        }
+
+        .menu-icon {
+          display: flex;
+          flex-direction: column;
+          gap: 3px;
+        }
+        .menu-icon span {
+          width: 18px;
+          height: 2px;
+          background-color: white;
+          border-radius: 1px;
         }
       `}</style>
     </header>

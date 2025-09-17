@@ -65,7 +65,13 @@ export const POST = async (req) => {
     const body = await req.json();
     const { userId, roomId, checkIn, checkOut, guestName, amenityIds = [], totalPrice = 0 } = body;
 
-    if (!userId) {
+    // Convert userId to integer if it's a string
+    const userIdInt = parseInt(userId, 10);
+    if (isNaN(userIdInt)) {
+      return NextResponse.json({ error: 'Invalid user ID' }, { status: 400 });
+    }
+
+    if (!userIdInt) {
       return NextResponse.json({ error: 'User must be logged in to book' }, { status: 401 });
     }
 
@@ -100,7 +106,7 @@ export const POST = async (req) => {
 
     const booking = await prisma.booking.create({
       data: {
-        user: { connect: { id: userId } },
+        user: { connect: { id: userIdInt } },
         room: { connect: { id: roomId } },
         checkIn: checkInDate,
         checkOut: checkOutDate,
@@ -120,7 +126,6 @@ export const POST = async (req) => {
     return NextResponse.json({ success: true, booking }, { status: 201 });
   } catch (error) {
     console.error('❌ Booking POST Error:', error);
-    console.error(error.stack);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 };

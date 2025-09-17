@@ -1,53 +1,64 @@
-'use client';
-import { useEffect, useState, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
 
-function ConfirmationContent() {
-  const [booking, setBooking] = useState(null);
-  const [loading, setLoading] = useState(true);
+// 'use client' directive is required for client components
+'use client';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
+
+export default function ConfirmationPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const bookingId = searchParams.get('bookingId');
 
+  const [booking, setBooking] = useState(null);
+
   useEffect(() => {
     async function fetchBooking() {
-      if (!bookingId) {
-        setLoading(false);
-        return;
-      }
       try {
         const res = await fetch(`/api/bookings/${bookingId}`);
-        if (!res.ok) throw new Error('Failed to fetch booking');
-        const data = await res.json();
-        setBooking(data);
+        if (res.ok) {
+          const data = await res.json();
+          setBooking(data);
+        }
       } catch (error) {
-        console.error('Error fetching booking:', error);
-      } finally {
-        setLoading(false);
+        console.error('Failed to fetch booking:', error);
       }
     }
-    fetchBooking();
+    if (bookingId) {
+      fetchBooking();
+    }
   }, [bookingId]);
 
-  if (loading) return <p>Loading booking details...</p>;
-  if (!booking) return <p>Booking not found.</p>;
+  const goToDashboard = () => {
+    router.push('/guest/dashboard');
+  };
 
   return (
-    <div>
+    <div style={{ maxWidth: '600px', margin: '2rem auto', padding: '1rem', textAlign: 'center' }}>
       <h2>Booking Confirmed!</h2>
-      <p><strong>Guest:</strong> {booking.guestName || booking.user?.name || 'Guest'}</p>
-      <p><strong>Email:</strong> {booking.user?.email || 'N/A'}</p>
-      <p><strong>Room:</strong> {booking.room?.name || booking.room}</p>
-      <p><strong>Check-in:</strong> {new Date(booking.checkIn).toLocaleDateString()}</p>
-      <p><strong>Check-out:</strong> {new Date(booking.checkOut).toLocaleDateString()}</p>
-      <p><strong>Amenities:</strong> {booking.amenities?.map(a => a.amenity.name).join(', ') || 'None'}</p>
+      {booking ? (
+        <div>
+          <p><strong>Guest:</strong> {booking.guestName || booking.user?.name || 'Guest'}</p>
+          <p><strong>Email:</strong> {booking.user?.email || 'N/A'}</p>
+          <p><strong>Room:</strong> {booking.room?.name || booking.room}</p>
+          <p><strong>Check-in:</strong> {new Date(booking.checkIn).toLocaleDateString()}</p>
+          <p><strong>Check-out:</strong> {new Date(booking.checkOut).toLocaleDateString()}</p>
+          <p><strong>Amenities:</strong> {booking.amenities?.map(a => a.amenity.name).join(', ') || 'None'}</p>
+        </div>
+      ) : (
+        <p>Loading booking details...</p>
+      )}
+      <button onClick={goToDashboard} style={{
+        marginTop: '1.5rem',
+        padding: '0.75rem 1.5rem',
+        fontSize: '1rem',
+        backgroundColor: '#FEBE54',
+        color: 'white',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer'
+      }}>
+        Go to Dashboard
+      </button>
     </div>
-  );
-}
-
-export default function ConfirmationPage() {
-  return (
-    <Suspense fallback={<p>Loading...</p>}>
-      <ConfirmationContent />
-    </Suspense>
   );
 }

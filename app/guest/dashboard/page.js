@@ -2,103 +2,14 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { signOut } from 'next-auth/react';
 import { FaUser, FaBell } from 'react-icons/fa';
 import { MdCamera, MdChat } from 'react-icons/md';
 
-const Header = ({ guestName }) => {
-    const router = useRouter();
-    const [dropdownOpen, setDropdownOpen] = useState(false);
-
-    return (
-        <header className="header">
-            <div className="logo">
-                <img src="/logo.png" alt="Logo" />
-                <span>Resort Name</span>
-            </div>
-            <nav className="nav-links">
-                <span className="nav-link" onClick={() => router.push('/guest/3dview')}>Virtual Tour</span>
-                <span className="nav-link" onClick={() => router.push('/guest/chat')}>Chat</span>
-                <span className="nav-link" onClick={() => router.push('/guest/notifications')}>Notifications</span>
-                <span className="nav-link" onClick={() => router.push('/guest/booking')}>Reservations</span>
-                <span className="nav-link" onClick={() => router.push('/guest/dashboard')}>Dashboard</span>
-                <button className="book-now-btn" onClick={() => router.push('/guest/booking')}>Book now</button>
-            </nav>
-            <div className="profile-container">
-                <FaUser className="icon" onClick={() => setDropdownOpen(!dropdownOpen)} title="Profile" />
-                {dropdownOpen && (
-                    <div className="dropdown">
-                        <div onClick={() => { router.push('/guest/profile'); setDropdownOpen(false); }}>View Profile</div>
-                        <div onClick={() => { router.push('/guest/profile'); setDropdownOpen(false); }}>Edit Profile</div>
-                        <div onClick={() => { signOut({ callbackUrl: '/login' }); setDropdownOpen(false); }}>Logout</div>
-                    </div>
-                )}
-            </div>
-            <style jsx>{`
-                .header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    background-color: #f7f7f7;
-                    padding: 1rem 2rem;
-                    border-bottom: 1px solid #e0e0e0;
-                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-                    color: #333;
-                    position: relative;
-                }
-                .logo {
-                    display: flex;
-                    align-items: center;
-                    font-weight: bold;
-                    font-size: 1.5rem;
-                }
-                .logo img {
-                    height: 40px;
-                    margin-right: 10px;
-                }
-                .icons {
-                    display: flex;
-                    gap: 1rem;
-                    align-items: center;
-                }
-                .icon {
-                    font-size: 1.5rem;
-                    cursor: pointer;
-                    color: #555;
-                    transition: color 0.2s ease-in-out;
-                }
-                .icon:hover {
-                    color: #000;
-                }
-                .profile-container {
-                    position: relative;
-                }
-                .dropdown {
-                    position: absolute;
-                    top: 100%;
-                    right: 0;
-                    background-color: white;
-                    border: 1px solid #e0e0e0;
-                    border-radius: 5px;
-                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-                    z-index: 1000;
-                    min-width: 150px;
-                }
-                .dropdown div {
-                    padding: 0.75rem 1rem;
-                    cursor: pointer;
-                    color: #333;
-                    transition: background-color 0.2s ease-in-out;
-                }
-                .dropdown div:hover {
-                    background-color: #f0f0f0;
-                }
-            `}</style>
-        </header>
-    );
-};
+// Removed the 'Header' component since it's an inline navbar.
 
 const BookingHistoryCard = ({ booking }) => {
+    const [showDetails, setShowDetails] = useState(false);
+
     return (
         <div className="booking-history-card">
             <div className="card-header">
@@ -114,7 +25,17 @@ const BookingHistoryCard = ({ booking }) => {
                 <p><strong>Payment Status:</strong> {booking.payments && booking.payments.length > 0 ? 'Paid' : 'Pending'}</p>
                 <p><strong>Total Paid:</strong> ${booking.payments.reduce((sum, p) => sum + p.amount, 0).toFixed(2)}</p>
             </div>
-            <button className="book-now-btn" onClick={() => window.location.href = '/guest/booking'}>Book Now</button>
+            <button className="view-details-btn" onClick={() => setShowDetails(!showDetails)}>
+                {showDetails ? 'Hide Details' : 'View Details'}
+            </button>
+            {showDetails && (
+                <div className="details-section">
+                    {/* Add more detailed booking info here */}
+                    <p><strong>Booking ID:</strong> {booking.id}</p>
+                    <p><strong>Status:</strong> {booking.status}</p>
+                    {/* Add any other relevant details */}
+                </div>
+            )}
             <style jsx>{`
                 .booking-history-card {
                     background-color: #ffffff;
@@ -151,7 +72,7 @@ const BookingHistoryCard = ({ booking }) => {
                     font-size: 0.95rem;
                     color: #666;
                 }
-                .book-now-btn {
+                .view-details-btn {
                     background-color: #6200ee;
                     color: white;
                     border: none;
@@ -163,8 +84,16 @@ const BookingHistoryCard = ({ booking }) => {
                     transition: background-color 0.3s ease;
                     margin-top: 1rem;
                 }
-                .book-now-btn:hover {
+                .view-details-btn:hover {
                     background-color: #3700b3;
+                }
+                .details-section {
+                    margin-top: 1rem;
+                    padding: 1rem;
+                    background-color: #f9f9f9;
+                    border-radius: 6px;
+                    border: 1px solid #ddd;
+                    color: #333;
                 }
             `}</style>
         </div>
@@ -217,6 +146,8 @@ const NotificationItem = ({ notification }) => {
 };
 
 const PaymentHistoryCard = ({ payment }) => {
+    const [showDetails, setShowDetails] = useState(false);
+
     return (
         <div className="payment-history-card">
             <div className="card-header">
@@ -230,6 +161,17 @@ const PaymentHistoryCard = ({ payment }) => {
                 <p><strong>Method:</strong> {payment.method}</p>
                 <p><strong>Date:</strong> {new Date(payment.createdAt).toLocaleDateString()}</p>
             </div>
+            <button className="view-details-btn" onClick={() => setShowDetails(!showDetails)}>
+                {showDetails ? 'Hide Details' : 'View Details'}
+            </button>
+            {showDetails && (
+                <div className="details-section">
+                    {/* Add more detailed payment info here */}
+                    <p><strong>Payment ID:</strong> {payment.id}</p>
+                    <p><strong>Status:</strong> {payment.status}</p>
+                    {/* Add any other relevant details */}
+                </div>
+            )}
             <style jsx>{`
                 .payment-history-card {
                     background-color: #ffffff;
@@ -265,6 +207,29 @@ const PaymentHistoryCard = ({ payment }) => {
                     margin: 0.5rem 0;
                     font-size: 0.95rem;
                     color: #666;
+                }
+                .view-details-btn {
+                    background-color: #6200ee;
+                    color: white;
+                    border: none;
+                    padding: 0.75rem 1.5rem;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 1rem;
+                    font-weight: 600;
+                    transition: background-color 0.3s ease;
+                    margin-top: 1rem;
+                }
+                .view-details-btn:hover {
+                    background-color: #3700b3;
+                }
+                .details-section {
+                    margin-top: 1rem;
+                    padding: 1rem;
+                    background-color: #f9f9f9;
+                    border-radius: 6px;
+                    border: 1px solid #ddd;
+                    color: #333;
                 }
             `}</style>
         </div>
@@ -354,8 +319,7 @@ export default function GuestDashboard() {
 
     return (
         <div className="dashboard-container">
-            <Header guestName={guest.name} />
-
+            {/* The header is now removed from this component and will be provided by the layout. */}
             <main className="main-content">
                 <section className="section-history">
                     <h2>Booking History</h2>
@@ -421,11 +385,6 @@ export default function GuestDashboard() {
                     padding: 2rem;
                 }
                 @media (max-width: 768px) {
-                    .header {
-                        flex-direction: column;
-                        align-items: flex-start;
-                        gap: 1rem;
-                    }
                     .main-content {
                         padding: 1rem;
                     }
@@ -434,3 +393,6 @@ export default function GuestDashboard() {
         </div>
     );
 }
+
+// Removed the 'NotificationItem' component as it's not being used in the main component.
+// Removed the `FaBell` and `MdChat` imports since they are not used anymore.

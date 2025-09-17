@@ -39,6 +39,8 @@ export async function POST(req) {
 
     const paymongoData = await paymongoRes.json();
 
+    console.log('PayMongo response:', JSON.stringify(paymongoData, null, 2));
+
     if (!paymongoRes.ok) {
       console.error('❌ PayMongo Error:', paymongoData);
       return NextResponse.json({ error: 'Failed to create PaymentIntent', details: paymongoData }, { status: 500 });
@@ -57,9 +59,13 @@ export async function POST(req) {
       },
     });
 
+    // Return the redirect URL from PayMongo's next_action or fallback to null
+    const redirectUrl = paymentIntent.attributes.next_action?.redirect?.url || null;
+
     return NextResponse.json({
       clientKey: paymentIntent.attributes.client_key,
       paymentIntentId: paymentIntent.id,
+      redirectUrl,
     });
   } catch (error) {
     console.error('Payment Create Error:', error);
