@@ -26,8 +26,8 @@ export async function middleware(req: NextRequest) {
   const loginAndRegisterPaths = ["/login", "/register"];
   const isLoginOrRegister = loginAndRegisterPaths.includes(pathname);
 
-  // These are the paths that don't require authentication (e.g., home, booking)
-  const publicPaths = ["/", "/booking", "/login", "/register", "/api/public"];
+  // These are the paths that don't require authentication (e.g., home)
+  const publicPaths = ["/", "/login", "/register", "/api/public"];
   const isPublicPath = publicPaths.includes(pathname);
 
   const token = await getToken({ req, secret: JWT_SECRET });
@@ -51,7 +51,9 @@ export async function middleware(req: NextRequest) {
 
   // --- 2. Handle unauthenticated users trying to access protected pages ---
   if (!token && !isPublicPath) {
-    return NextResponse.redirect(new URL("/login", req.url));
+    const loginUrl = new URL("/login", req.url);
+    loginUrl.searchParams.set("redirect", pathname);
+    return NextResponse.redirect(loginUrl);
   }
 
   // --- 3. Role-based protection for specific routes ---

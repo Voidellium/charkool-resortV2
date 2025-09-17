@@ -1,10 +1,13 @@
-- [x] Update guest dashboard header: replace nav and user-info with person icon dropdown (view profile, edit profile, logout), bell icon for notifications beside profile, and buttons/links for virtual tour and chat.
-- [x] Integrate all history into dashboard: show booking history and payment history in a 2-row, 1-column layout.
-- [x] For booking history: fetch all bookings, display detailed cards (room type, payment info, etc.), add "Book Now" material button.
-- [x] For payment history: fetch payments, display detailed cards.
-- [x] Style with styled-jsx only, make buttons modern/material.
-- [x] Ensure only profile, notification, virtual tour, chat are clickable; history is display-only.
-- [x] Enhance cashier dashboard: fetch today's payments, show guest info, booking dates, room, payment type, status, add confirm/cancel buttons for pending payments.
-- [x] Update payments API to include user and room details.
-- [x] Create cancel payment API to update payment and booking status to cancelled.
-- [x] Change revenue calculation to current day only.
+# TODO: Update Register Page and Database Schema
+
+## Completed Tasks
+- [x] Update Prisma schema: Add firstName, middleName (optional), lastName, birthdate, contactNumber to User model
+- [x] Update API register: Accept new fields, validate, compute full name, save to OTP table temporarily
+- [x] Update register page: Replace username with firstName, middleName (optional), lastName, birthdate (date input), contactNumber (11 digits), adjust UI size
+- [x] Implement OTP verification flow: Save user data in OTP table, send OTP email, verify OTP before creating user in main User table
+- [x] Run Prisma migrations for user fields and OTP data
+
+## Next Steps
+- [ ] Test the updated register form and API including OTP flow
+- [ ] Update login page if needed to handle new fields
+- [ ] Update profile page to display/edit new fields

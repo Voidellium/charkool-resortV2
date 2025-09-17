@@ -90,7 +90,11 @@ const Header = () => {
 
 export default function Profile() {
     const [user, setUser] = useState(null);
-    const [name, setName] = useState('');
+    const [firstName, setFirstName] = useState('');
+    const [middleName, setMiddleName] = useState('');
+    const [lastName, setLastName] = useState('');
+    const [birthdate, setBirthdate] = useState('');
+    const [contactNumber, setContactNumber] = useState('');
     const [email, setEmail] = useState('');
     const [preferences, setPreferences] = useState('');
     const [error, setError] = useState('');
@@ -104,7 +108,11 @@ export default function Profile() {
                 if (!res.ok) throw new Error('Failed to fetch user');
                 const data = await res.json();
                 setUser(data.guest);
-                setName(data.guest.name);
+                setFirstName(data.guest.firstName || '');
+                setMiddleName(data.guest.middleName || '');
+                setLastName(data.guest.lastName || '');
+                setBirthdate(data.guest.birthdate ? new Date(data.guest.birthdate).toISOString().split('T')[0] : '');
+                setContactNumber(data.guest.contactNumber || '');
                 setEmail(data.guest.email);
                 setPreferences(data.guest.preferences || '');
             } catch (err) {
@@ -124,12 +132,12 @@ export default function Profile() {
             const res = await fetch('/api/user', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, email, preferences }),
+                body: JSON.stringify({ firstName, middleName, lastName, birthdate, contactNumber, email, preferences }),
             });
 
             if (res.ok) {
                 setSuccess('Profile updated successfully');
-                setUser({ ...user, name, email, preferences });
+                setUser({ ...user, firstName, middleName, lastName, birthdate, contactNumber, email, preferences });
             } else {
                 const data = await res.json();
                 setError(data.error || 'Update failed');
@@ -165,12 +173,56 @@ export default function Profile() {
                 <div className="profile-card">
                     <form onSubmit={handleSubmit} className="profile-form">
                         <div className="form-group">
-                            <label className="form-label" htmlFor="name">Name:</label>
+                            <label className="form-label" htmlFor="firstName">First Name:</label>
                             <input
-                                id="name"
+                                id="firstName"
                                 type="text"
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
+                                value={firstName}
+                                onChange={(e) => setFirstName(e.target.value)}
+                                required
+                                className="form-input"
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label" htmlFor="middleName">Middle Name:</label>
+                            <input
+                                id="middleName"
+                                type="text"
+                                value={middleName}
+                                onChange={(e) => setMiddleName(e.target.value)}
+                                className="form-input"
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label" htmlFor="lastName">Last Name:</label>
+                            <input
+                                id="lastName"
+                                type="text"
+                                value={lastName}
+                                onChange={(e) => setLastName(e.target.value)}
+                                required
+                                className="form-input"
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label" htmlFor="birthdate">Birthdate:</label>
+                            <input
+                                id="birthdate"
+                                type="date"
+                                value={birthdate}
+                                onChange={(e) => setBirthdate(e.target.value)}
+                                required
+                                className="form-input"
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label" htmlFor="contactNumber">Contact Number:</label>
+                            <input
+                                id="contactNumber"
+                                type="tel"
+                                value={contactNumber}
+                                onChange={(e) => setContactNumber(e.target.value)}
+                                maxLength={11}
                                 required
                                 className="form-input"
                             />

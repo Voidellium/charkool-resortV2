@@ -28,6 +28,59 @@ export default function BookingPage() {
 
   const [availabilityData, setAvailabilityData] = useState({}); // For calendar availability
 
+  // ✅ Booking Progress Persistence
+  const saveBookingProgress = () => {
+    const progressData = {
+      formData,
+      step,
+      timestamp: Date.now()
+    };
+    localStorage.setItem('bookingProgress', JSON.stringify(progressData));
+  };
+
+  const restoreBookingProgress = () => {
+    try {
+      const savedProgress = localStorage.getItem('bookingProgress');
+      if (savedProgress) {
+        const progressData = JSON.parse(savedProgress);
+        const hoursSinceSave = (Date.now() - progressData.timestamp) / (1000 * 60 * 60);
+
+        // Only restore if data is less than 24 hours old
+        if (hoursSinceSave < 24) {
+          setFormData(progressData.formData);
+          setStep(progressData.step);
+        }
+        // Clear the saved data after restoration
+        localStorage.removeItem('bookingProgress');
+      }
+    } catch (error) {
+      console.error('Error restoring booking progress:', error);
+      localStorage.removeItem('bookingProgress'); // Clear corrupted data
+    }
+  };
+
+  const clearBookingProgress = () => {
+    localStorage.removeItem('bookingProgress');
+  };
+
+  // ✅ Save progress before page unloads (redirect to login)
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Only save if we have meaningful data
+      if (formData.checkIn || formData.checkOut || formData.roomType || formData.selectedAmenities.length > 0) {
+        saveBookingProgress();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [formData, step]);
+
+  // ✅ Restore progress on component mount
+  useEffect(() => {
+    restoreBookingProgress();
+  }, []);
+
   // ✅ Fetch amenities
   useEffect(() => {
     async function fetchAmenities() {
@@ -155,13 +208,6 @@ export default function BookingPage() {
   const handleSubmit = async (e) => {
   e.preventDefault();
 
-  if (!session || !session.user) {
-    alert('You must be logged in to book a room.');
-    // Redirect to login with redirect param to continue booking after login
-    router.push('/login?redirect=/booking');
-    return;
-  }
-
   try {
     const selectedRoom = availableRooms.find(r => r.name === formData.roomType);
     if (!selectedRoom) {
@@ -197,6 +243,9 @@ export default function BookingPage() {
     // ✅ Store booking details for checkout page
     localStorage.setItem('bookingId', data.booking.id);
     localStorage.setItem('bookingAmount', totalPrice);
+
+    // ✅ Clear saved booking progress after successful booking
+    clearBookingProgress();
 
     // Redirect to checkout page
     window.location.href = '/checkout';

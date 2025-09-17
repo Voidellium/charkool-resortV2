@@ -8,25 +8,40 @@ import { FaGoogle } from 'react-icons/fa6';
 import { Eye, EyeOff } from 'lucide-react';
 
 export default function RegisterPage() {
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [middleName, setMiddleName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [birthdate, setBirthdate] = useState('');
+  const [contactNumber, setContactNumber] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
   const [isValidEmail, setIsValidEmail] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showOtpForm, setShowOtpForm] = useState(false);
   const router = useRouter();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const trimmedName = name.trim();
+    const trimmedFirstName = firstName.trim();
+    const trimmedMiddleName = middleName.trim();
+    const trimmedLastName = lastName.trim();
     const trimmedEmail = email.trim();
+    const trimmedContactNumber = contactNumber.trim();
 
     // Empty field check
-    if (!trimmedName || !trimmedEmail || !password || !confirm) {
-      setError("All fields are required.");
+    if (!trimmedFirstName || !trimmedLastName || !birthdate || !trimmedContactNumber || !trimmedEmail || !password || !confirm) {
+      setError("All required fields except middle name must be filled.");
+      return;
+    }
+
+    // Contact number validation (11 digits)
+    if (trimmedContactNumber.length !== 11 || !/^\d+$/.test(trimmedContactNumber)) {
+      setError("Contact number must be exactly 11 digits.");
       return;
     }
 
@@ -54,7 +69,42 @@ export default function RegisterPage() {
       const res = await fetch(`/api/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: trimmedName, email: trimmedEmail, password }),
+        body: JSON.stringify({
+          firstName: trimmedFirstName,
+          middleName: trimmedMiddleName || null,
+          lastName: trimmedLastName,
+          birthdate,
+          contactNumber: trimmedContactNumber,
+          email: trimmedEmail,
+          password,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setShowOtpForm(true);
+        setError('');
+      } else {
+        setError(data.error || 'Registration failed.');
+      }
+    } catch (err) {
+      console.error(err);
+      setError('Something went wrong.');
+    }
+  };
+
+  const verifyOtp = async () => {
+    if (!otp) {
+      setError('Please enter the OTP.');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), otp }),
       });
 
       const data = await res.json();
@@ -62,7 +112,7 @@ export default function RegisterPage() {
       if (res.ok) {
         router.push('/guest/dashboard');
       } else {
-        setError(data.error || 'Registration failed.');
+        setError(data.error || 'OTP verification failed.');
       }
     } catch (err) {
       console.error(err);
@@ -94,9 +144,10 @@ export default function RegisterPage() {
 
         {/* Right Side - Registration Form */}
         <div className="right-column">
-          <h2 className="title">Sign Up</h2>
+          <h2 className="title">{showOtpForm ? 'Verify OTP' : 'Sign Up'}</h2>
 
-          <form onSubmit={handleSubmit} className="form-content">
+          {!showOtpForm ? (
+            <form onSubmit={handleSubmit} className="form-content">
             {/* Email */}
             <div className="input-group">
               <label htmlFor="email">Email</label>
@@ -119,17 +170,73 @@ export default function RegisterPage() {
               )}
             </div>
             
-            {/* Full Name / Username */}
-            <div className="input-group">
-              <label htmlFor="name">Username</label> {/* Changed to Username for consistency with the image */}
-              <input
-                type="text"
-                id="name"
-                value={name}
-                onChange={(e) => { setName(e.target.value); setError(''); }}
-                required
-              />
-            </div>
+          {/* First Name */}
+          <div className="input-group">
+            <label htmlFor="firstName">First Name</label>
+            <input
+              type="text"
+              id="firstName"
+              value={firstName}
+              onChange={(e) => { setFirstName(e.target.value); setError(''); }}
+              required
+            />
+          </div>
+
+          {/* Middle Name (Optional) */}
+          <div className="input-group">
+            <label htmlFor="middleName">Middle Name <span style={{ fontWeight: 'normal', fontStyle: 'italic', color: '#6b7280' }}>(Optional)</span></label>
+            <input
+              type="text"
+              id="middleName"
+              value={middleName}
+              onChange={(e) => { setMiddleName(e.target.value); setError(''); }}
+              placeholder="Optional"
+            />
+          </div>
+
+          {/* Last Name */}
+          <div className="input-group">
+            <label htmlFor="lastName">Last Name</label>
+            <input
+              type="text"
+              id="lastName"
+              value={lastName}
+              onChange={(e) => { setLastName(e.target.value); setError(''); }}
+              required
+            />
+          </div>
+
+          {/* Birthdate */}
+          <div className="input-group">
+            <label htmlFor="birthdate">Birthdate</label>
+            <input
+              type="date"
+              id="birthdate"
+              value={birthdate}
+              onChange={(e) => { setBirthdate(e.target.value); setError(''); }}
+              required
+              max={new Date().toISOString().split("T")[0]} // prevent future dates
+            />
+          </div>
+
+          {/* Contact Number */}
+          <div className="input-group">
+            <label htmlFor="contactNumber">Contact Number</label>
+            <input
+              type="tel"
+              id="contactNumber"
+              value={contactNumber}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (/^\d{0,11}$/.test(val)) {
+                  setContactNumber(val);
+                  setError('');
+                }
+              }}
+              maxLength={11}
+              required
+            />
+          </div>
 
             {/* Password */}
             <div className="input-group">
@@ -180,6 +287,29 @@ export default function RegisterPage() {
               Sign Up
             </button>
           </form>
+          ) : (
+            <div className="otp-form">
+              <p>Please enter the OTP sent to your email.</p>
+              <div className="input-group">
+                <label htmlFor="otp">OTP</label>
+                <input
+                  type="text"
+                  id="otp"
+                  value={otp}
+                  onChange={(e) => { setOtp(e.target.value); setError(''); }}
+                  required
+                  maxLength={6}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={verifyOtp}
+                className="signup-button"
+              >
+                Verify OTP
+              </button>
+            </div>
+          )}
 
           {/* Error Message */}
           {error && <p className="error-message">{error}</p>}
@@ -219,7 +349,7 @@ export default function RegisterPage() {
         .card {
           display: flex;
           width: 100%;
-          max-width: 960px; /* max-w-4xl equivalent */
+          max-width: 1200px; /* Increased for more fields */
           background-color: white;
           border-radius: 0.5rem;
           box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);

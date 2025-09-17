@@ -10,6 +10,11 @@ datasource db {
 model User {
   id             Int       @id @default(autoincrement())
   name           String?
+  firstName      String
+  middleName     String?
+  lastName       String
+  birthdate      DateTime
+  contactNumber  String
   email          String    @unique
   password       String?           // <- optional for OAuth users
   role           Role      @default(CUSTOMER)
@@ -19,6 +24,20 @@ model User {
   bookings       Booking[]
   accounts       Account[]
   sessions       Session[]
+}
+
+model OTP {
+  id             Int      @id @default(autoincrement())
+  email          String
+  otp            String
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+  firstName      String
+  middleName     String?
+  lastName       String
+  birthdate      DateTime
+  contactNumber  String
+  password       String
 }
 
 model Account {
