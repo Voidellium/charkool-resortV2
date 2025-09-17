@@ -65,6 +65,10 @@ function LoginForm() {
 
     if (result?.error) {
       setError(result.error || 'Invalid email or password');
+    } else {
+      // Redirect after successful login
+      const redirectUrl = searchParams.get('redirect') || '/guest/dashboard';
+      router.push(redirectUrl);
     }
   };
 

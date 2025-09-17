@@ -14,8 +14,38 @@ export default function BookingPage() {
   }
 
   if (status === 'unauthenticated') {
+    // Save booking progress before redirecting
+    if (typeof window !== 'undefined') {
+      const progressData = {
+        formData: {
+          checkIn: '',
+          checkOut: '',
+          guests: 1,
+          roomType: '',
+          selectedRoomType: '',
+          selectedAmenities: [],
+        },
+        step: 1,
+        timestamp: Date.now()
+      };
+      try {
+        localStorage.setItem('bookingProgress', JSON.stringify(progressData));
+      } catch (error) {
+        console.error('Error saving booking progress:', error);
+      }
+    }
     router.push('/login?redirect=/booking');
     return <div>Redirecting to login...</div>;
+  }
+
+  // Ensure session is fully loaded before proceeding
+  if (!session || !session.user) {
+    // Show loading or fallback UI instead of crashing
+    return (
+      <div>
+        <p>Loading session...</p>
+      </div>
+    );
   }
 
   const [amenities, setAmenities] = useState([]);
@@ -246,8 +276,11 @@ export default function BookingPage() {
       }),
     });
 
-    if (!res.ok) throw new Error('Booking failed');
     const data = await res.json();
+    if (!res.ok) {
+      const errorMsg = data.error || 'Booking failed';
+      throw new Error(errorMsg);
+    }
 
     // ✅ Store booking details for checkout page
     localStorage.setItem('bookingId', data.booking.id);
@@ -261,7 +294,7 @@ export default function BookingPage() {
 
   } catch (err) {
     console.error('❌ Booking Error:', err);
-    alert('❌ Booking Failed. Please try again.');
+    alert(`❌ Booking Failed: ${err.message}`);
   }
 };
 
