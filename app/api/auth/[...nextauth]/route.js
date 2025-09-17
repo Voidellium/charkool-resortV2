@@ -128,7 +128,10 @@ async authorize(credentials) {
       return token;
     },
     async session({ session, token }) {
-      if (session.user) session.user.role = token.role?.toUpperCase() ?? "CUSTOMER";
+      if (session.user) {
+        session.user.role = token.role?.toUpperCase() ?? "CUSTOMER";
+        session.user.id = token.sub; // Add user id to session.user
+      }
       return session;
     },
     async redirect({ url, baseUrl }) {
