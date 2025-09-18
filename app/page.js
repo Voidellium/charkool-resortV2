@@ -331,7 +331,7 @@ export default function Home() {
         }
 
         .contact {
-          background: rgb(52, 152, 219);
+          background: #FEBE54;
           padding: 1rem 1rem;
           text-align: left;
         }

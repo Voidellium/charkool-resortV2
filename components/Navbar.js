@@ -54,7 +54,7 @@ export default function Navbar() {
       </div>
       <style jsx>{`
         .navbar {
-          background: #fff;
+          background: #FEBE54;
           padding: 1rem 0;
           box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
           position: sticky;
@@ -96,14 +96,14 @@ export default function Navbar() {
           bottom: -4px;
           width: 100%;
           height: 2px;
-          background-color: #0070f3;
+          background-color: #fff;
           transform: scaleX(0);
           transform-origin: left;
           transition: transform 0.3s ease;
         }
 
         ul li :global(a):hover {
-          color: #0070f3;
+          color: #fff;
           transform: translateY(-2px);
         }
 

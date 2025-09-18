@@ -14,9 +14,14 @@ export const GET = async (req) => {
     const userId = parseInt(token.sub);
 
     const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, name: true, email: true },
-    });
+  where: { id: userId },
+  select: {
+    id: true,
+    email: true,
+    firstName: true, // Make sure these are here
+    lastName: true,  // Make sure these are here
+  },
+});
 
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
