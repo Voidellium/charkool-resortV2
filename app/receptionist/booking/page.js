@@ -1,333 +1,204 @@
 'use client';
 import { useEffect, useState } from 'react';
+import './receptionist-styles.css';
 
-export default function ReceptionistBookingList() {
-  const [bookings, setBookings] = useState([]);
-  const [search, setSearch] = useState('');
-  const [filterStatus, setFilterStatus] = useState('All');
-  const [filterRoom, setFilterRoom] = useState('All');
-  const [sortBy, setSortBy] = useState('Check-in');
+// === Temporary Mock Data ===
+// This data simulates what would come from your API.
+const MOCK_DATA = {
+  totalRooms: 50,
+  occupiedRooms: 1,
+  upcomingReservations: [
+    { id: '1', guestId: '123', guestName: 'Guest #2', checkIn: '2025-09-18' },
+    { id: '2', guestId: '124', guestName: 'Guest #1', checkIn: '2025-09-17' },
+  ],
+  currentGuests: [
+    { id: '3', guestId: '89', guestName: 'Guest #89', checkIn: '2025-09-17' },
+  ],
+};
+
+// === Styles ===
+const styles = {
+  dashboardContainer: {
+    padding: '2rem',
+    fontFamily: 'sans-serif',
+  },
+  headerContainer: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '2rem',
+  },
+  headerTitle: {
+    fontSize: '1.875rem',
+    fontWeight: '600',
+    color: '#4B5563',
+  },
+  userId: {
+    fontSize: '0.875rem',
+    color: '#6B7280',
+    marginTop: '0.25rem',
+  },
+  kpiCardContainer: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+    gap: '1.5rem',
+    marginBottom: '2rem',
+  },
+  kpiCard: {
+    backgroundColor: '#FFCC7A',
+    borderRadius: '1rem',
+    padding: '1.5rem',
+    color: '#4B5563',
+    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: '12rem',
+    textAlign: 'center',
+  },
+  kpiCardTitle: {
+    fontSize: '1.25rem',
+    fontWeight: '500',
+  },
+  kpiCardMetric: {
+    fontSize: '3rem',
+    fontWeight: '700',
+    marginTop: '0.5rem',
+  },
+  guestCard: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '1rem',
+    backgroundColor: '#F3F4F6',
+    borderRadius: '0.5rem',
+    marginBottom: '1rem',
+  },
+  guestName: {
+    fontWeight: '500',
+    color: '#4B5563',
+  },
+  guestDetails: {
+    fontSize: '0.875rem',
+    color: '#6B7280',
+  },
+  checkInButtonGreen: {
+    backgroundColor: '#56A86B',
+    color: '#fff',
+    padding: '0.25rem 1rem',
+    borderRadius: '9999px',
+    fontWeight: '500',
+    border: 'none',
+    cursor: 'pointer',
+  },
+  checkOutButtonRed: {
+    backgroundColor: '#E74C3C',
+    color: '#fff',
+    padding: '0.25rem 1rem',
+    borderRadius: '9999px',
+    fontWeight: '500',
+    border: 'none',
+    cursor: 'pointer',
+  },
+  sectionCard: {
+    backgroundColor: '#fff',
+    borderRadius: '1rem',
+    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+    padding: '1.5rem',
+    height: '25rem',
+  },
+  sectionTitle: {
+    fontSize: '1.25rem',
+    fontWeight: '600',
+    marginBottom: '1rem',
+    color: '#4B5563',
+  },
+};
+
+export default function ReceptionistDashboard() {
   const [loading, setLoading] = useState(true);
 
-  // Add booking states
-  const [showForm, setShowForm] = useState(false);
-  const [rooms, setRooms] = useState([]);
-  const [amenities, setAmenities] = useState([]);
-  const [guestName, setGuestName] = useState('');
-  const [roomId, setRoomId] = useState('');
-  const [checkIn, setCheckIn] = useState('');
-  const [checkOut, setCheckOut] = useState('');
-  const [totalPrice, setTotalPrice] = useState('');
-  const [selectedAmenities, setSelectedAmenities] = useState([]);
-
   useEffect(() => {
-    fetchAllData();
+    // Simulate API call
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 500);
+
+    return () => clearTimeout(timer);
   }, []);
 
-  // Add manual refresh handler
-  const handleRefresh = () => {
-    fetchAllData();
-  };
-
-  async function fetchAllData() {
-    await Promise.all([fetchBookings(), fetchRooms(), fetchAmenities()]);
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+        <p>Loading dashboard...</p>
+      </div>
+    );
   }
 
-  async function fetchBookings() {
-    try {
-      const res = await fetch('/api/bookings');
-      const data = await res.json();
-      setBookings(data || []);
-    } catch (err) {
-      console.error('Failed to fetch bookings:', err);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function fetchRooms() {
-    try {
-      const res = await fetch('/api/rooms');
-      const data = await res.json();
-      setRooms(data || []);
-    } catch (err) {
-      console.error('Failed to fetch rooms:', err);
-    }
-  }
-
-  async function fetchAmenities() {
-    try {
-      const res = await fetch('/api/amenities/inventory');
-      const data = await res.json();
-      setAmenities(data || []);
-    } catch (err) {
-      console.error('Failed to fetch amenities:', err);
-    }
-  }
-
-  // === Booking actions ===
-  async function handleConfirm(id) {
-    await fetch(`/api/bookings/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'confirmed' }),
-    });
-    fetchBookings();
-  }
-
-  async function handleCancel(id) {
-    await fetch(`/api/bookings/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'cancelled' }),
-    });
-    fetchBookings();
-  }
-
-  async function handleDelete(id) {
-    if (!confirm('Are you sure you want to delete this booking?')) return;
-    await fetch(`/api/bookings/${id}`, { method: 'DELETE' });
-    fetchBookings();
-  }
-
-  async function handleAddBooking(e) {
-    e.preventDefault();
-
-    // Validate room availability
-    const room = rooms.find((r) => r.id === parseInt(roomId));
-    const availableRooms = rooms.filter((r) => {
-      if (!checkIn || !checkOut) return true;
-      const checkInDate = new Date(checkIn);
-      const checkOutDate = new Date(checkOut);
-      return !bookings.some((b) => {
-        if (b.roomId !== r.id || b.status === 'cancelled') return false;
-        const bCheckIn = new Date(b.checkIn);
-        const bCheckOut = new Date(b.checkOut);
-        return checkInDate < bCheckOut && checkOutDate > bCheckIn;
-      });
-    });
-
-    if (!room || !availableRooms.includes(room)) {
-      return alert('Selected room is not available for the chosen dates.');
-    }
-
-    try {
-      await fetch('/api/bookings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          guestName: guestName || 'Walk-in Guest',
-          roomId: parseInt(roomId),
-          checkIn,
-          checkOut,
-          amenityIds: selectedAmenities,
-          totalPrice: parseFloat(totalPrice || 0),
-        }),
-      });
-
-      // Reset form
-      setShowForm(false);
-      setGuestName('');
-      setRoomId('');
-      setCheckIn('');
-      setCheckOut('');
-      setTotalPrice('');
-      setSelectedAmenities([]);
-
-      fetchBookings();
-    } catch (err) {
-      console.error('Error adding booking:', err);
-    }
-  }
-
-  // === Derived filtered + sorted bookings ===
-  const filtered = bookings
-    .filter((b) => b.guestName?.toLowerCase().includes(search.toLowerCase()))
-    .filter((b) => filterStatus === 'All' || b.status.toLowerCase() === filterStatus.toLowerCase())
-    .filter((b) => filterRoom === 'All' || b.room?.name === filterRoom)
-    .sort((a, b) => {
-      const aDate = new Date(a.checkIn);
-      const bDate = new Date(b.checkIn);
-      return sortBy === 'Check-in' ? aDate - bDate : bDate - aDate;
-    });
-
-  if (loading) return <p>Loading...</p>;
-
-  // Compute available rooms for form dropdown
-  const availableRoomsForForm = rooms.filter((r) => {
-    if (!checkIn || !checkOut) return true;
-    const checkInDate = new Date(checkIn);
-    const checkOutDate = new Date(checkOut);
-    return !bookings.some((b) => {
-      if (b.roomId !== r.id || b.status === 'cancelled') return false;
-      const bCheckIn = new Date(b.checkIn);
-      const bCheckOut = new Date(b.checkOut);
-      return checkInDate < bCheckOut && checkOutDate > bCheckIn;
-    });
-  });
+  const { totalRooms, occupiedRooms, upcomingReservations, currentGuests } = MOCK_DATA;
+  const availableRooms = totalRooms - occupiedRooms;
 
   return (
-    <div style={{ padding: '20px' }}>
-      <h2>Receptionist – Booking Management</h2>
-
-      {/* Refresh button */}
-      <button onClick={handleRefresh} style={{ marginBottom: '1rem', marginRight: '1rem' }}>
-        🔄 Refresh
-      </button>
-
-      {/* Add booking form toggle */}
-      <button onClick={() => setShowForm(!showForm)} style={{ marginBottom: '1rem' }}>
-        {showForm ? 'Close Form' : '➕ Add Booking'}
-      </button>
-
-      {showForm && (
-        <form
-          onSubmit={handleAddBooking}
-          style={{
-            margin: '1rem 0',
-            padding: '1rem',
-            border: '1px solid #ccc',
-            borderRadius: '6px',
-            display: 'grid',
-            gap: '0.75rem',
-            maxWidth: '500px',
-          }}
-        >
-          <label>Guest Name:</label>
-          <input value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="Walk-in Guest" />
-
-          <label>Room:</label>
-          <select value={roomId} onChange={(e) => setRoomId(e.target.value)} required>
-            <option value="">Select Room</option>
-            {availableRoomsForForm.length > 0 ? (
-              availableRoomsForForm.map((room) => (
-                <option key={room.id} value={room.id}>
-                  {room.name}
-                </option>
-              ))
-            ) : (
-              <option value="">No rooms available for selected dates</option>
-            )}
-          </select>
-
-          <label>Check-in:</label>
-          <input type="date" value={checkIn} onChange={(e) => setCheckIn(e.target.value)} required />
-
-          <label>Check-out:</label>
-          <input type="date" value={checkOut} onChange={(e) => setCheckOut(e.target.value)} required />
-
-          <label>Amenities:</label>
-          {amenities.map((a) => (
-            <label key={a.id} style={{ display: 'block' }}>
-              <input
-                type="checkbox"
-                value={a.id}
-                checked={selectedAmenities.includes(a.id)}
-                onChange={(e) => {
-                  const id = parseInt(e.target.value);
-                  setSelectedAmenities((prev) =>
-                    e.target.checked ? [...prev, id] : prev.filter((x) => x !== id)
-                  );
-                }}
-              />
-              {a.name} ({a.quantity} available)
-            </label>
-          ))}
-
-          <label>Total Price:</label>
-          <input type="number" value={totalPrice} onChange={(e) => setTotalPrice(e.target.value)} />
-
-          <button type="submit">Save Booking</button>
-        </form>
-      )}
-
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-        <input
-          type="text"
-          placeholder="🔍 Search by Guest Name"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-          <option>All</option>
-          <option>Pending</option>
-          <option>Confirmed</option>
-          <option>Cancelled</option>
-        </select>
-        <select value={filterRoom} onChange={(e) => setFilterRoom(e.target.value)}>
-          <option>All</option>
-          {rooms.map((room) => (
-            <option key={room.id}>{room.name}</option>
-          ))}
-        </select>
-        <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-          <option>Check-in</option>
-          <option>Check-out</option>
-        </select>
+    <div style={styles.dashboardContainer}>
+      <div style={styles.headerContainer}>
+        <div>
+          <h1 style={styles.headerTitle}>Receptionist Dashboard</h1>
+          <p style={styles.userId}>User ID: 1234113340746626333</p>
+        </div>
       </div>
 
-      {/* Booking table */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Guest</th>
-            <th>Room</th>
-            <th>Check-in</th>
-            <th>Check-out</th>
-            <th>Amenities</th>
-            <th>Status</th>
-            <th>Payment</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.length > 0 ? (
-            filtered.map((b) => (
-              <tr key={b.id}>
-                <td>{b.id}</td>
-                <td>{b.guestName}</td>
-                <td>{b.room?.name}</td>
-                <td>{new Date(b.checkIn).toLocaleDateString()}</td>
-                <td>{new Date(b.checkOut).toLocaleDateString()}</td>
-                <td>
-                  {b.amenities?.length > 0
-                    ? b.amenities.map((a) => a.amenity.name).join(', ')
-                    : '—'}
-                </td>
-                <td>
-                  <span
-                    style={{
-                      padding: '0.25rem 0.5rem',
-                      borderRadius: '6px',
-                      color: '#fff',
-                      background:
-                        b.status === 'confirmed'
-                          ? 'green'
-                          : b.status === 'cancelled'
-                          ? 'red'
-                          : 'orange',
-                    }}
-                  >
-                    {b.status}
-                  </span>
-                </td>
-                <td>{b.paymentStatus || 'unpaid'}</td>
-                <td>
-                  <button onClick={() => handleConfirm(b.id)}>Confirm</button>{' '}
-                  <button onClick={() => handleCancel(b.id)}>Cancel</button>{' '}
-                  <button onClick={() => handleDelete(b.id)}>Delete</button>
-                </td>
-              </tr>
-            ))
-          ) : (
-            <tr>
-              <td colSpan="9" style={{ textAlign: 'center' }}>No bookings found</td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+      {/* KPI Cards */}
+      <div style={styles.kpiCardContainer}>
+        <div style={styles.kpiCard}>
+          <p style={styles.kpiCardTitle}>Rooms Occupied</p>
+          <p style={styles.kpiCardMetric}>{occupiedRooms}</p>
+          <p style={{ marginTop: '0.25rem' }}>/{totalRooms}</p>
+        </div>
+        <div style={styles.kpiCard}>
+          <p style={styles.kpiCardTitle}>Rooms Available</p>
+          <p style={styles.kpiCardMetric}>{availableRooms}</p>
+        </div>
+      </div>
+
+      {/* Reservations & Current Guests Sections */}
+      <div className="section-container">
+        {/* Upcoming Reservations */}
+        <div style={styles.sectionCard}>
+          <h2 style={styles.sectionTitle}>
+            Upcoming Reservations ({upcomingReservations.length})
+          </h2>
+          <div className="guest-list-container">
+            {upcomingReservations.map((guest) => (
+              <div key={guest.id} style={styles.guestCard}>
+                <div>
+                  <p style={styles.guestName}>{guest.guestName}</p>
+                  <p style={styles.guestDetails}>Check-in: {guest.checkIn}</p>
+                </div>
+                <button style={styles.checkInButtonGreen}>Check In</button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Current Guests */}
+        <div style={styles.sectionCard}>
+          <h2 style={styles.sectionTitle}>
+            Current Guests ({currentGuests.length})
+          </h2>
+          <div className="guest-list-container">
+            {currentGuests.map((guest) => (
+              <div key={guest.id} style={styles.guestCard}>
+                <div>
+                  <p style={styles.guestName}>{guest.guestName}</p>
+                  <p style={styles.guestDetails}>Check-in: {guest.checkIn}</p>
+                </div>
+                <button style={styles.checkOutButtonRed}>Check Out</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

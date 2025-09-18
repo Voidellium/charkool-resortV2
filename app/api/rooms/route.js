@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { writeFile } from 'fs/promises';
-import path from 'path';
 
 // ✅ GET: All rooms or available rooms if checkIn/checkOut provided
 export const GET = async (req) => {
@@ -10,31 +8,34 @@ export const GET = async (req) => {
     const checkIn = url.searchParams.get('checkIn');
     const checkOut = url.searchParams.get('checkOut');
 
-    // Fix: Prisma enum mismatch error - fetch rooms using raw query to avoid enum issues
-    let rooms = await prisma.$queryRaw`SELECT * FROM "Room" ORDER BY "name" ASC`;
+    let rooms = await prisma.room.findMany({ orderBy: { name: 'asc' } });
 
     if (checkIn && checkOut) {
       const checkInDate = new Date(checkIn);
       const checkOutDate = new Date(checkOut);
+      const now = new Date();
 
-      const bookings = await prisma.booking.findMany({
+      const overlappingBookings = await prisma.booking.findMany({
         where: {
-          OR: [
-            { checkIn: { lte: checkOutDate }, checkOut: { gte: checkInDate } },
+          AND: [
+            { OR: [{ checkIn: { lte: checkOutDate }, checkOut: { gte: checkInDate } }] },
+            { OR: [{ status: 'HELD' }, { status: 'PENDING' }, { status: 'CONFIRMED' }] },
+            { OR: [{ heldUntil: null }, { heldUntil: { gt: now } }] },
           ],
         },
         select: { roomId: true },
       });
 
-      const bookingCounts = bookings.reduce((acc, b) => {
-        acc[b.roomId] = (acc[b.roomId] || 0) + 1;
-        return acc;
-      }, {});
+      const bookedCounts = {};
+      overlappingBookings.forEach(b => {
+        bookedCounts[b.roomId] = (bookedCounts[b.roomId] || 0) + 1;
+      });
 
-      rooms = rooms.map((room) => ({
-        ...room,
-        quantity: room.quantity - (bookingCounts[room.id] || 0),
-      }));
+      rooms = rooms.map(r => {
+        const booked = bookedCounts[r.id] || 0;
+        const remaining = r.quantity - booked;
+        return { ...r, available: remaining > 0, remaining };
+      });
     }
 
     return NextResponse.json(rooms);
@@ -45,6 +46,9 @@ export const GET = async (req) => {
 };
 
 // ✅ POST: Create a new room
+import { writeFile } from 'fs/promises';
+import path from 'path';
+
 export const POST = async (req) => {
   try {
     const formData = await req.formData();

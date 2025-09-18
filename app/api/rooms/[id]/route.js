@@ -14,9 +14,10 @@ export async function PUT(req, { params }) {
     const type = formData.get('type')?.toString() || '';
     const price = Number(formData.get('price')) || 0;
     const quantity = Number(formData.get('quantity')) || 0;
+    const description = formData.get('description')?.toString() || '';
     const imageFile = formData.get('image');
 
-    const data = { name, type, price, quantity };
+    const data = { name, type, price, quantity, description };
 
     if (imageFile && imageFile instanceof File) {
       const uploadDir = path.join(process.cwd(), 'public/uploads');
@@ -54,8 +55,6 @@ export async function DELETE(req, { params }) {
     if (bookingCount > 0) {
       return NextResponse.json({ error: 'Cannot delete room with existing bookings' }, { status: 400 });
     }
-    // Delete related amenities first to avoid foreign key constraint
-    await prisma.amenity.deleteMany({ where: { roomId: Number(id) } });
     // Now delete the room
     await prisma.room.delete({ where: { id: Number(id) } });
     return NextResponse.json({ message: 'Room deleted' });

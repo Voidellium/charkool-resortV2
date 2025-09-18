@@ -1,12 +1,12 @@
-// src/app/api/bookings/[id]/route.js
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
 // GET booking by ID
-export const GET = async (_, { params }) => {
+export const GET = async (_, context) => {
   try {
+    const { id } = context.params;
     const booking = await prisma.booking.findUnique({
-      where: { id: parseInt(params.id) },
+      where: { id: parseInt(id) },
       include: {
         room: true,
         user: true,
@@ -26,26 +26,56 @@ export const GET = async (_, { params }) => {
 };
 
 // PUT update booking
-export const PUT = async (req, { params }) => {
+export const PUT = async (req, context) => {
   try {
+    const { id } = context.params;
     const data = await req.json();
 
+    const updateData = {};
+
+    if (data.guestName !== undefined) updateData.guestName = data.guestName;
+    if (data.checkIn !== undefined) {
+      const checkInDate = new Date(data.checkIn);
+      if (isNaN(checkInDate.getTime())) {
+        return NextResponse.json({ error: 'Invalid checkIn date' }, { status: 400 });
+      }
+      updateData.checkIn = checkInDate;
+    }
+    if (data.checkOut !== undefined) {
+      const checkOutDate = new Date(data.checkOut);
+      if (isNaN(checkOutDate.getTime())) {
+        return NextResponse.json({ error: 'Invalid checkOut date' }, { status: 400 });
+      }
+      updateData.checkOut = checkOutDate;
+    }
+    if (data.status !== undefined) updateData.status = data.status;
+    if (data.paymentStatus !== undefined) updateData.paymentStatus = data.paymentStatus;
+    if (data.totalPrice !== undefined) updateData.totalPrice = data.totalPrice;
+
+    if (data.room !== undefined) {
+      updateData.roomId = data.room.id;
+    } else if (data.roomId !== undefined) {
+      updateData.roomId = data.roomId;
+    }
+
+    // User is optional, only update if provided
+    if (data.userId !== undefined) {
+      updateData.userId = data.userId;
+    }
+
+    if (data.amenityIds !== undefined) {
+      const amenityUpdates = {
+        // Delete all existing amenities for this booking
+        deleteMany: {},
+        // Create new ones based on the provided IDs
+        create: data.amenityIds.map((amenityId) => ({ amenityInventoryId: amenityId })),
+      };
+      updateData.amenities = amenityUpdates;
+    }
+
     const updatedBooking = await prisma.booking.update({
-      where: { id: parseInt(params.id) },
-      data: {
-        guestName: data.guestName,
-        checkIn: new Date(data.checkIn),
-        checkOut: new Date(data.checkOut),
-        status: data.status,
-        paymentStatus: data.paymentStatus,
-        totalPrice: data.totalPrice,
-        roomId: data.roomId,
-        userId: data.userId,
-        amenities: {
-          deleteMany: {},
-          create: data.amenityIds?.map((id) => ({ amenityInventoryId: id })) || [],
-        },
-      },
+      where: { id: parseInt(id) },
+      data: updateData,
       include: { amenities: { include: { amenity: true } } },
     });
 
@@ -57,17 +87,21 @@ export const PUT = async (req, { params }) => {
 };
 
 // DELETE booking
-export const DELETE = async (_, { params }) => {
+export const DELETE = async (_, context) => {
   try {
+    const { id } = context.params;
+    
+    // First, delete all associated booking amenities
     await prisma.bookingAmenity.deleteMany({
-      where: { bookingId: parseInt(params.id) },
+      where: { bookingId: parseInt(id) },
     });
 
+    // Then, delete the booking itself
     await prisma.booking.delete({
-      where: { id: parseInt(params.id) },
+      where: { id: parseInt(id) },
     });
 
-    return NextResponse.json({ message: 'Booking deleted' });
+    return NextResponse.json({ message: 'Booking and associated amenities deleted' });
   } catch (error) {
     console.error('❌ Booking DELETE Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

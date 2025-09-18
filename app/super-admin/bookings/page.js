@@ -65,19 +65,15 @@ export default function SuperAdminBookingList() {
   }
 
   async function handleConfirm(id) {
-    await fetch(`/api/bookings/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'confirmed' }),
+    await fetch(`/api/admin/bookings/${id}/confirm`, {
+      method: 'POST',
     });
     fetchBookings();
   }
 
   async function handleCancel(id) {
-    await fetch(`/api/bookings/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'cancelled' }),
+    await fetch(`/api/admin/bookings/${id}/cancel`, {
+      method: 'POST',
     });
     fetchBookings();
   }

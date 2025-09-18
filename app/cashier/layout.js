@@ -1,12 +1,12 @@
 'use client';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 
 export default function CashierLayout({ children }) {
   const router = useRouter();
   const { data: session, status } = useSession();
+  const [showDropdown, setShowDropdown] = useState(false);
 
   // ✅ Role-based route protection
   useEffect(() => {
@@ -16,59 +16,96 @@ export default function CashierLayout({ children }) {
     }
   }, [session, status, router]);
 
+  function toggleDropdown() {
+    setShowDropdown(!showDropdown);
+  }
+
+  function handleSignOut() {
+    router.push('/api/auth/signout');
+  }
+
+  function cancelSignOut() {
+    setShowDropdown(false);
+  }
+
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#f9fafb' }}>
-      {/* Sidebar */}
-      <aside style={{
-        width: '220px',
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: '#f9fafb' }}>
+      {/* Header with user icon */}
+      <header style={{
+        display: 'flex',
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+        padding: '10px 20px',
         background: '#1E293B',
         color: '#fff',
-        padding: '20px',
-        display: 'flex',
-        flexDirection: 'column',
+        position: 'relative',
       }}>
-        <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '20px' }}>Cashier</h2>
-
-        <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <Link href="/cashier" style={linkStyle(router.pathname === '/cashier')}>
-            💵 Dashboard
-          </Link>
-          <Link href="/cashier/payments" style={linkStyle(router.pathname === '/cashier/payments')}>
-            📑 Payments
-          </Link>
-          <Link href="/cashier/reports" style={linkStyle(router.pathname === '/cashier/reports')}>
-            📊 Reports
-          </Link>
-        </nav>
-
         <button
-          onClick={() => router.push('/api/auth/signout')}
+          onClick={toggleDropdown}
+          aria-label="User menu"
+          title="User menu"
           style={{
-            marginTop: 'auto',
-            background: '#ef4444',
-            color: '#fff',
+            background: 'transparent',
             border: 'none',
-            padding: '10px',
-            borderRadius: '6px',
             cursor: 'pointer',
+            color: '#fff',
+            fontSize: '1.5rem',
             fontWeight: 'bold',
+            userSelect: 'none',
           }}
         >
-          Logout
+          👤
         </button>
-      </aside>
+        {showDropdown && (
+          <div style={{
+            position: 'absolute',
+            top: '100%',
+            right: '20px',
+            backgroundColor: '#fff',
+            color: '#000',
+            borderRadius: '6px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            padding: '10px',
+            zIndex: 1000,
+            width: '180px',
+          }}>
+            <p>Are you sure you want to sign out?</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px' }}>
+              <button
+                onClick={handleSignOut}
+                style={{
+                  backgroundColor: '#ef4444',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '5px 10px',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                }}
+              >
+                Yes
+              </button>
+              <button
+                onClick={cancelSignOut}
+                style={{
+                  backgroundColor: '#ccc',
+                  color: '#333',
+                  border: 'none',
+                  padding: '5px 10px',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                }}
+              >
+                No
+              </button>
+            </div>
+          </div>
+        )}
+      </header>
 
       {/* Main Content */}
-      <main style={{ flex: 1, padding: '20px' }}>{children}</main>
+      <main style={{ flex: 1, padding: '20px' }}>
+        {children}
+      </main>
     </div>
   );
 }
-
-const linkStyle = (isActive) => ({
-  padding: '10px',
-  borderRadius: '6px',
-  background: isActive ? '#334155' : 'transparent',
-  color: isActive ? '#93c5fd' : '#fff',
-  textDecoration: 'none',
-  fontWeight: 'bold',
-});
