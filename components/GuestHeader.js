@@ -292,6 +292,11 @@ export default function GuestHeader() {
           transform: translateY(-1px);
         }
 
+        /* Profile Container */
+        .profile-container {
+          position: relative;
+        }
+
         /* Profile Button */
         .profile-btn {
           background-color: #4b4b4b;
@@ -321,6 +326,7 @@ export default function GuestHeader() {
           box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
           min-width: 200px;
           overflow: hidden;
+          z-index: 10;
         }
 
         .dropdown-header {

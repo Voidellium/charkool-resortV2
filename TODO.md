@@ -5,3 +5,8 @@
 - [ ] Hide booking ID and payment ID from details
 - [ ] Ensure detailed information is shown in modal
 - [ ] Test the modal functionality
+- [x] Implement 3D OBJ model viewer for resort
+- [x] Add 3D viewer to guest/3dview page
+- [x] Add 3D viewer to virtual-tour page
+- [x] Support multiple OBJ models (Teepee, BilyaranStore, PoolsideKubo, Stage)
+- [x] Ensure Vercel compatibility with dynamic imports
