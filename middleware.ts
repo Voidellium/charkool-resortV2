@@ -27,7 +27,7 @@ export async function middleware(req: NextRequest) {
   const isLoginOrRegister = loginAndRegisterPaths.includes(pathname);
 
   // These are the paths that don't require authentication (e.g., home)
-  const publicPaths = ["/", "/login", "/register", "/api/public"];
+  const publicPaths = ["/", "/login", "/register", "/api/public", "/virtual-tour"];
   const isPublicPath = publicPaths.includes(pathname);
 
   const token = await getToken({ req, secret: JWT_SECRET });
