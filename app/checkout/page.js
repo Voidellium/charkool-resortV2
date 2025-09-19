@@ -1,3 +1,4 @@
+
 'use client';
 import { useState, useEffect } from 'react';
 
@@ -5,11 +6,12 @@ export default function CheckoutPage() {
   const [bookingId, setBookingId] = useState('');
   const [amount, setAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('card'); // default payment method
+  const [paymentOption, setPaymentOption] = useState('full'); // full, half, reservation
+  const [enteredAmount, setEnteredAmount] = useState('');
   const [cardNumber, setCardNumber] = useState('');
   const [expMonth, setExpMonth] = useState('');
   const [expYear, setExpYear] = useState('');
   const [cvc, setCvc] = useState('');
-  const [testAmount, setTestAmount] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -18,12 +20,32 @@ export default function CheckoutPage() {
     const storedBookingId = localStorage.getItem('bookingId');
     const storedAmount = localStorage.getItem('bookingAmount');
     if (storedBookingId) setBookingId(storedBookingId);
-    if (storedAmount) setAmount(storedAmount);
+    if (storedAmount) {
+      setAmount(storedAmount);
+      setEnteredAmount(storedAmount); // default entered amount to full amount
+    }
   }, []);
+
+  // Calculate expected amount based on payment option
+  const getExpectedAmount = () => {
+    const fullAmount = parseFloat(amount);
+    if (paymentOption === 'full') return fullAmount;
+    if (paymentOption === 'half') return fullAmount / 2;
+    if (paymentOption === 'reservation') return 1000;
+    return fullAmount;
+  };
 
   const handlePayment = async () => {
     setLoading(true);
     setMessage('');
+    const expectedAmount = getExpectedAmount();
+
+    if (parseFloat(enteredAmount) !== expectedAmount) {
+      setMessage('Please enter the exact amount');
+      setLoading(false);
+      return;
+    }
+
     try {
       if (paymentMethod === 'TEST') {
         // Development phase only: simulate payment success with TEST method
@@ -33,7 +55,7 @@ export default function CheckoutPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             bookingId,
-            amount: parseFloat(testAmount),
+            amount: parseFloat(enteredAmount),
             status: 'paid',
             method: 'TEST',
           }),
@@ -78,6 +100,7 @@ export default function CheckoutPage() {
         body: JSON.stringify({
           bookingId,
           paymentMethodId: paymentMethodData.id,
+          amount: parseFloat(enteredAmount),
         }),
       });
       const confirmData = await confirmRes.json();
@@ -103,21 +126,56 @@ export default function CheckoutPage() {
   };
 
   return (
-    <div style={{ maxWidth: '400px', margin: '2rem auto', padding: '1rem', border: '1px solid #ccc', borderRadius: '8px' }}>
+    <div className="payment-gateway-container">
       <h2>Checkout</h2>
       <p>Booking ID: {bookingId}</p>
-      <p>Amount: ${amount}</p>
+      <p>Original Amount: ${amount}</p>
 
-      <label>
-        Payment Method:
-        <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}>
-          <option value="card">Card</option>
-          <option value="TEST">TEST (Development only)</option>
-        </select>
-      </label>
+      <div className="section">
+        <label>
+          Payment Option:
+          <select value={paymentOption} onChange={e => {
+            setPaymentOption(e.target.value);
+            const newAmount = e.target.value === 'full' ? amount : e.target.value === 'half' ? (parseFloat(amount) / 2).toFixed(2) : '1000';
+            setEnteredAmount(newAmount);
+            setMessage('');
+          }}>
+            <option value="full">Full Payment</option>
+            <option value="half">Half Payment</option>
+            <option value="reservation">Reservation Only</option>
+          </select>
+        </label>
+      </div>
+
+      <div className="section">
+        <label>
+          Amount to Pay:
+          <input
+            type="number"
+            value={enteredAmount}
+            onChange={e => {
+              setEnteredAmount(e.target.value);
+              setMessage('');
+            }}
+            placeholder="Enter amount"
+            step="0.01"
+            min="0"
+          />
+        </label>
+      </div>
+
+      <div className="section">
+        <label>
+          Payment Method:
+          <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}>
+            <option value="card">Card</option>
+            <option value="TEST">TEST (Development only)</option>
+          </select>
+        </label>
+      </div>
 
       {paymentMethod === 'card' && (
-        <>
+        <div className="card-details">
           <label>
             Card Number:
             <input type="text" value={cardNumber} onChange={e => setCardNumber(e.target.value)} placeholder="4242424242424242" />
@@ -134,13 +192,16 @@ export default function CheckoutPage() {
             CVC:
             <input type="text" value={cvc} onChange={e => setCvc(e.target.value)} placeholder="123" />
           </label>
-        </>
+        </div>
       )}
 
       {paymentMethod === 'TEST' && (
         <label>
           Amount to Pay:
-          <input type="number" value={testAmount} onChange={e => setTestAmount(e.target.value)} placeholder="Enter amount" />
+          <input type="number" value={enteredAmount} onChange={e => {
+            setEnteredAmount(e.target.value);
+            setMessage('');
+          }} placeholder="Enter amount" />
         </label>
       )}
 
@@ -148,18 +209,55 @@ export default function CheckoutPage() {
         {loading ? 'Processing...' : 'Pay Now'}
       </button>
 
-      {message && <p>{message}</p>}
+      {message && <p className="message">{message}</p>}
 
       <style jsx>{`
+        .payment-gateway-container {
+          max-width: 400px;
+          margin: 2rem auto;
+          padding: 2rem;
+          border: 1px solid #ccc;
+          border-radius: 12px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+          background: #fff;
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        h2 {
+          text-align: center;
+          margin-bottom: 1.5rem;
+          color: #333;
+        }
+        p {
+          font-size: 0.9rem;
+          color: #666;
+          margin-bottom: 1rem;
+          text-align: center;
+        }
+        .section {
+          margin-bottom: 1.5rem;
+        }
         label {
           display: block;
-          margin-bottom: 1rem;
+          font-weight: 600;
+          margin-bottom: 0.5rem;
+          color: #444;
         }
-        input, select {
+        select, input {
           width: 100%;
-          padding: 0.5rem;
-          margin-top: 0.25rem;
+          padding: 0.6rem;
+          font-size: 1rem;
+          border: 1px solid #ccc;
+          border-radius: 6px;
           box-sizing: border-box;
+          transition: border-color 0.3s ease;
+        }
+        select:focus, input:focus {
+          border-color: #6200ee;
+          outline: none;
+          box-shadow: 0 0 5px rgba(98,0,238,0.5);
+        }
+        .card-details label {
+          margin-bottom: 1rem;
         }
         button {
           width: 100%;
@@ -167,13 +265,23 @@ export default function CheckoutPage() {
           background-color: #6200ee;
           color: white;
           border: none;
-          border-radius: 4px;
-          font-size: 1rem;
+          border-radius: 6px;
+          font-size: 1.1rem;
           cursor: pointer;
+          transition: background-color 0.3s ease;
+        }
+        button:hover:not(:disabled) {
+          background-color: #4b00b5;
         }
         button:disabled {
           background-color: #999;
           cursor: not-allowed;
+        }
+        .message {
+          margin-top: 1rem;
+          color: red;
+          font-weight: 600;
+          text-align: center;
         }
       `}</style>
     </div>
