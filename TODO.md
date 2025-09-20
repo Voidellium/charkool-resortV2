@@ -1,21 +1,34 @@
-# TODO: Add Payment Options to Checkout Page
+# 3D Model Viewer Enhancement Task
 
-## Tasks
-- [x] Add state for payment option selection (full, half, reservation)
-- [x] Add dropdown for payment option
-- [x] Calculate expected amount based on payment option (full=amount, half=amount/2, reservation=1000)
-- [x] Add input field for user to enter amount to pay
-- [x] Add validation to check if entered amount matches expected amount exactly
-- [x] Display error message "please enter the exact amount" if validation fails
-- [x] Improve UI to look like a payment gateway (professional styling, sections, etc.)
-- [x] Use only styled-jsx for styles
-- [ ] Test the payment flow with new options
+## Plan Implementation Steps:
 
-# TODO: Create Unauthorized Page for Role-Based Access
+### 1. Create Side Panel Component
+- [ ] Create `components/ModelSelectorPanel.js` with smooth animations
+- [ ] Add toggle functionality (open/close)
+- [ ] Add model selection buttons for all 4 models
+- [ ] Style with modern UI design
 
-## Tasks
-- [x] Create unauthorized page at app/unauthorized/page.js with large text "You are unauthorized to access this account level"
-- [x] Add refined UI with centered layout, gradient background, and professional styling
-- [x] Add "Back to Login" button that signs out the user using NextAuth and redirects to /login
-- [x] Verify middleware redirects unauthorized users to /unauthorized (already implemented)
-- [ ] Test unauthorized access to superadmin dashboard with customer role
+### 2. Enhance 3D Viewer Component
+- [ ] Update `components/ThreeDModelViewer.js` with custom mouse controls
+- [ ] Add cursor hide/show functionality on click
+- [ ] Implement mouse movement for rotation
+- [ ] Add scroll wheel zoom functionality
+- [ ] Make layout fixed/fullscreen (no scrolling)
+
+### 3. Update Page Components
+- [ ] Update `app/virtual-tour/page.js` to use new components
+- [ ] Update `app/guest/3dview/page.js` to use new components
+- [ ] Remove select dropdowns from both pages
+- [ ] Add "Choose Model" button and panel integration
+
+### 4. Testing & Verification
+- [ ] Test panel animations on both pages
+- [ ] Verify model switching works correctly
+- [ ] Test mouse controls (cursor, rotation, zoom)
+- [ ] Check responsive behavior
+
+## Models Available:
+- Teepee Model (`/models/Teepee.obj`)
+- Bilyaran Store Model (`/models/BilyaranStore.obj`)
+- Poolside Kubo Model (`/models/PoolsideKubo.obj`)
+- Stage Model (`/models/Stage.obj`)

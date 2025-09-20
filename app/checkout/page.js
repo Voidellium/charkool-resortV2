@@ -179,6 +179,7 @@ export default function CheckoutPage() {
           <label>
             Card Number:
             <input type="text" value={cardNumber} onChange={e => setCardNumber(e.target.value)} placeholder="4242424242424242" />
+
           </label>
           <label>
             Expiry Month:
