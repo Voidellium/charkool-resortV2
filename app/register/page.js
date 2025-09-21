@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import { FaGoogle } from 'react-icons/fa6';
 import { Eye, EyeOff, Check, X } from 'lucide-react';
+import { validateEmailWithDomain } from '@/lib/emailValidation';
 
 export default function RegisterPage() {
   const [firstName, setFirstName] = useState('');
@@ -195,7 +196,9 @@ export default function RegisterPage() {
                     setEmail(e.target.value);
                     setError('');
                     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                    setIsValidEmail(emailRegex.test(e.target.value));
+                    const isValidFormat = emailRegex.test(e.target.value);
+                    const domainValidation = validateEmailWithDomain(e.target.value);
+                    setIsValidEmail(isValidFormat && domainValidation.isValid);
                   }}
                   required
                 />

@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import sgMail from '@sendgrid/mail';
+import { validateEmailWithDomain } from '@/lib/emailValidation';
 
 const prisma = new PrismaClient();
 
@@ -36,6 +37,12 @@ export async function POST(req) {
 
     // Lowercase email for consistency
     const lowercasedEmail = email.toLowerCase().trim();
+
+    // Validate email domain
+    const domainValidation = validateEmailWithDomain(lowercasedEmail);
+    if (!domainValidation.isValid) {
+      return new Response(JSON.stringify({ error: domainValidation.error }), { status: 400 });
+    }
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({ where: { email: lowercasedEmail } });

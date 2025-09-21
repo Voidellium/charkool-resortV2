@@ -21,6 +21,7 @@ model User {
   image          String?
   redirectUrl   String?   @default("/guest/dashboard")
   emailVerified  DateTime?
+  googleId       String?   @unique  // <- for linking Google OAuth accounts
   bookings       Booking[]
   accounts       Account[]
   sessions       Session[]
