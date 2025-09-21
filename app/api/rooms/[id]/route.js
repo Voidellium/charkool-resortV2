@@ -17,7 +17,7 @@ export async function PUT(req, { params }) {
     const description = formData.get('description')?.toString() || '';
     const imageFile = formData.get('image');
 
-    const data = { name, type, price, quantity, description };
+    const data = { name, type, price, quantity };
 
     if (imageFile && imageFile instanceof File) {
       const uploadDir = path.join(process.cwd(), 'public/uploads');

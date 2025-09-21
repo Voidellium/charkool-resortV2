@@ -46,6 +46,11 @@ export default function Navbar() {
           </li>
           <li><Link href="/virtual-tour">Virtual Tour</Link></li>
           <li>
+            <Link href="/room">
+              Rooms
+            </Link>
+          </li>
+          <li>
             <Link href="/login" onClick={handleLoginClick}>
               Login
             </Link>

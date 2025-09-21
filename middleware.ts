@@ -27,7 +27,7 @@ export async function middleware(req: NextRequest) {
   const isLoginOrRegister = loginAndRegisterPaths.includes(pathname);
 
   // These are the paths that don't require authentication (e.g., home)
-  const publicPaths = ["/", "/login", "/register", "/api/public", "/virtual-tour"];
+  const publicPaths = ["/", "/login", "/register", "/api/public", "/virtual-tour", "/room"];
   const isPublicPath = publicPaths.includes(pathname);
 
   const token = await getToken({ req, secret: JWT_SECRET });
@@ -107,6 +107,14 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|.*\\.png$).*)",
+    /*
+     * Match all request paths except for the ones starting with:
+     * - api (API routes - CRITICAL for NextAuth)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - images (image folder)
+     */
+    '/((?!api/|_next/static|_next/image|favicon.ico|images/).*)' 
   ],
 };

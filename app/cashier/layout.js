@@ -69,7 +69,7 @@ export default function CashierLayout({ children }) {
             zIndex: 1000,
             width: '180px',
           }}>
-            <p>Are you sure you want to sign out?</p>
+            <p>Are you sure you want to sign out? {'('+session.user.name+')'} </p>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px' }}>
               <button
                 onClick={handleSignOut}

@@ -10,7 +10,7 @@ export default function Home() {
   const router = useRouter();
 
   const images = [
-    '/images/background.jpg',
+    '/images/background2.jpg',
     '/images/background4.jpg',
     '/images/background3.jpg',
     '/images/background6.jpg',
@@ -22,6 +22,8 @@ export default function Home() {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const timeoutRef = useRef(null);
 
+  const [is3DImageLoaded, setIs3DImageLoaded] = useState(false);
+
   const startSlideshow = () => {
     clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
@@ -32,9 +34,17 @@ export default function Home() {
   };
 
   useEffect(() => {
-  startSlideshow();
-  return () => clearTimeout(timeoutRef.current);
-}, [currentIndex, images]); // Corrected dependency arrayIndex, images.length]);
+    startSlideshow();
+    return () => clearTimeout(timeoutRef.current);
+  }, [currentIndex]);
+
+  useEffect(() => {
+    const img3D = new Image();
+    img3D.src = '/images/background3.jpg';
+    img3D.onload = () => {
+      setIs3DImageLoaded(true);
+    };
+  }, []);
 
   const handleBookNow = () => {
     if (!session) {
@@ -47,341 +57,697 @@ export default function Home() {
 
   return (
     <div className="landing">
+      {/* HERO / carousel */}
       <header className="hero">
-        <div className="background-images-container">
+        <div className="background-images-container" aria-hidden>
           {images.map((image, i) => (
             <div
-              key={image}
+              key={image + i}
               className={`background-image ${i === currentIndex ? 'active' : ''} ${i === prevIndex && isTransitioning ? 'previous' : ''}`}
-              style={{ backgroundImage: `url(${image})` }}
               onTransitionEnd={() => setIsTransitioning(false)}
-            ></div>
+            >
+              <img src={image} alt="" />
+            </div>
           ))}
-          <div className="image-overlay"></div>
+          <div className="hero-overlay" />
         </div>
 
-        {/* This motion.div and its content from the first version is a duplicate
-            and should be combined. The second version's structure is better,
-            so we'll use a single hero-content div.
-        */}
-        {/*
-         <motion.div
-          className="hero-content"
-          initial={{ opacity: 0, y: -40 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1 }}
-        ></motion.div>
-        */}
+        <div className="hero-inner">
+          <div className="hero-text">
+            <h1>Charkool Beach Resort</h1>
+            <p className="sub">Experience paradise with luxury rooms, pristine beaches, and world-class tour.</p>
 
-        <div className="hero-content">
-          <h1>Charkool Leisure Beach Resort</h1>
-          <h3>Experience paradise with luxury rooms, pristine beaches, and world-class amenities.</h3>
-          <div className="cta-buttons">
-            <button onClick={handleBookNow}>Book Now</button>
-            <Link href="/rooms"><button>Explore Rooms</button></Link>
-            <Link href="/virtual-tour"><button>Virtual Tour</button></Link>
+            <div className="hero-ctas">
+              <button onClick={handleBookNow} className="btn primary">Book Now</button>
+              <Link href="/room"><button className="btn ghost">Explore Rooms</button></Link>
+              <Link href="/virtual-tour"><button className="btn outline">Virtual Tour</button></Link>
+            </div>
           </div>
         </div>
       </header>
 
+      {/* WELCOME / About Us */}
+      <section className="welcome">
+        <div className="welcome-inner">
+          <h2>Welcome To Charkool Beach Resort</h2>
+          <p>
+            At Charkool Beach Resort, we believe in creating more than just a place to stay—we offer an escape where chill meets style. Our philosophy is simple: provide a comfortable, welcoming environment where you can truly relax and recharge. We've meticulously designed every aspect of our resort, from the cozy, modern rooms to the sprawling, vibrant landscapes, to ensure your stay is as seamless as it is serene.
+          </p>
+          <p>
+            Our team is dedicated to providing warm, personalized service that makes you feel right at home. We're here to help you discover the hidden gems of our island, arrange a perfect day at the beach, or simply ensure you have everything you need for a memorable visit.
+          </p>
+          <p>
+            But what truly sets us apart is the breathtaking scenery. Step outside and you'll find a view that actually deserves an exclamation mark. We are perfectly situated to offer stunning vistas of the pristine beaches and lush, tropical gardens, providing a picturesque backdrop for your entire vacation. Come and experience the paradise we've cultivated just for you.
+          </p>
+          <Link href="/about"><button className="btn ghost-white">About Us →</button></Link>
+        </div>
+      </section>
+
+      {/* EXPLORE USING 3D */}
+      <section className="explore-3d">
+        <img
+          src="/images/background3.jpg"
+          alt=""
+          className={`explore-bg ${is3DImageLoaded ? 'loaded' : ''}`}
+        />
+        <div className="explore-overlay"></div>
+        <div className="explore-inner">
+          <h2>Explore using 3D</h2>
+          <p className="explore-note">Take a virtual walk through our resort — check rooms, amenities, and layout before you arrive.</p>
+          <Link href="/virtual-tour"><button className="btn primary big">Start 3D Tour</button></Link>
+        </div>
+      </section>
+
+      {/* EXPLORE OUR ROOMS */}
       <motion.section
-        className="room-preview"
-        initial={{ opacity: 0, y: 60 }}
+        className="rooms"
+        initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8 }}
+        transition={{ duration: 0.6 }}
         viewport={{ once: true }}
       >
-        <h2>Accommodations</h2>
-        <div className="room-grid">
-          <div className="room-card">
-            <img src="/images/room1.jpg" alt="Standard Room" />
-            <h3>Standard Room</h3>
-            <p>Comfortable and cozy room ideal for solo travelers or couples.</p>
-            <Link href="/rooms/standard" className="see-more">See More</Link>
+        <div className="rooms-inner">
+          <h3 className="rooms-title">Explore Our Rooms</h3>
+
+          <div className="room-gallery">
+            <div className="room-card">
+              <img src="/images/Loft.jpg" alt="Loft Room" />
+              <div className="room-meta">
+                <h4>Loft Room</h4>
+                <p>Airconditioned · 2 Bed · Mini fridge</p>
+                <Link href="/room"><button className="see-room">See Room</button></Link>
+              </div>
+            </div>
+
+            <div className="room-card">
+              <img src="/images/Villa.jpg" alt="Villa Room" />
+              <div className="room-meta">
+                <h4>Villa</h4>
+                <p>Airconditioned · 10 Beds · Private Balcony</p>
+                <Link href="/room"><button className="see-room">See Room</button></Link>
+              </div>
+            </div>
+
+            <div className="room-card">
+              <img src="/images/Tepee.jpg" alt="Tepee Room" />
+              <div className="room-meta">
+                <h4>Tepee</h4>
+                <p>Airconditioned · 5 Beds · Group Friendly</p>
+                <Link href="/room"><button className="see-room">See Room</button></Link>
+              </div>
+            </div>
           </div>
-          <div className="room-card">
-            <img src="/images/room2.jpg" alt="Deluxe Room" />
-            <h3>Deluxe Room</h3>
-            <p>Spacious room with a balcony and luxurious amenities for families.</p>
-            <Link href="/rooms/deluxe" className="see-more">See More</Link>
+
+          <div className="room-indicators" aria-hidden>
+            <span className="dot" />
+            <span className="dot active" />
+            <span className="dot" />
           </div>
         </div>
       </motion.section>
 
+      {/* POLICIES */}
+      <section className="policies">
+        <div className="policies-inner">
+          <h2>Resort Policies</h2>
+          <p className="muted">Rules and regulations — quick, clear, and fair.</p>
 
-      <div className="flex-grow-spacer"></div>
+          <div className="policy-list">
+            <details>
+              <summary>Check-in and Check-out Times</summary>
+              <div className="detail-body">
+                <p>Check-in from 2:00 PM. Check-out by 12:00 PM. Early check-in or late check-out may be available on request.</p>
+              </div>
+            </details>
 
-      <footer className="contact">
-        <h2>Contact Us</h2>
-        <p>📍 Charkool Beach Resort, Paradise Island</p>
-        <p>📞 +63 912 345 6789</p>
-        <p>📧 contact@charkoolbeachresort.com</p>
-        <p>© 2025 Charkool Beach Resort. All Rights Reserved.</p>
+            <details>
+              <summary>Cancellations and Refunds</summary>
+              <div className="detail-body">
+                <p>Free cancellation up to 48 hours before arrival. Refunds processed within 7-10 business days.</p>
+              </div>
+            </details>
+
+            <details>
+              <summary>Corkage Policy</summary>
+              <div className="detail-body">
+                <p>Outside alcohol is allowed with a corkage fee; please check with reception for current rates and restrictions.</p>
+              </div>
+            </details>
+
+            <details>
+              <summary>Damage Liability</summary>
+              <div className="detail-body">
+                <p>Guests are responsible for damage to property caused by negligence. Charges will be applied as needed.</p>
+              </div>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      {/* FOOTER */}
+      <footer className="site-footer">
+        <div className="footer-top">
+          <div className="footer-about">
+            <h3>Charkool Beach Resort</h3>
+            <p>Relax, explore, and make memories. Located on Paradise Island.</p>
+          </div>
+
+          <div className="footer-links">
+            <h4>Quick Links</h4>
+            <ul>
+              <li><Link href="/room">Rooms</Link></li>
+              <li><Link href="/virtual-tour">3D Tour</Link></li>
+              <li><Link href="/about">About</Link></li>
+            </ul>
+          </div>
+
+          <div className="footer-contact">
+            <h4>Contact</h4>
+            <p>📍 Paradise Island</p>
+            <p>📞 +63 912 345 6789</p>
+            <p>📧 contact@charkoolbeachresort.com</p>
+          </div>
+        </div>
+
+        <div className="footer-bottom">
+          <p>© 2025 Charkool Beach Resort. All Rights Reserved.</p>
+        </div>
       </footer>
 
       <style jsx>{`
+        /* ---------- Global ---------- */
+        :global(body) {
+          margin: 0;
+          font-family: 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+        }
         .landing {
-          font-family: 'Poppins', sans-serif;
-          color: white;
-          text-align: center;
           display: flex;
           flex-direction: column;
           min-height: 100vh;
-          justify-content: space-between;
-          position: relative;
-          overflow: hidden;
+          color: #222;
+          background: #fff;
         }
-        /* ... all of the styles from your original file ... */
+
+        /* ---------- HERO / Carousel ---------- */
+        .hero {
+          position: relative;
+          height: 92vh;
+          min-height: 640px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          color: white;
+          background: linear-gradient(180deg, rgba(0,0,0,0.12), rgba(0,0,0,0.22));
+        }
+
         .background-images-container {
           position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
+          inset: 0;
           z-index: 0;
-          overflow: hidden;
         }
 
         .background-image {
           position: absolute;
-          top: 0;
-          left: 0;
+          inset: 0;
+          opacity: 0;
+          transform: translateX(0);
+          transition: opacity 1s ease-in-out, transform 1s ease-in-out;
+          will-change: opacity, transform;
+        }
+
+        .background-image img {
           width: 100%;
           height: 100%;
-          background-size: cover;
-          background-position: center;
-          opacity: 0;
-          transform: translateX(100%);
-          transition: transform 1s ease-in-out, opacity 1s ease-in-out;
-          z-index: 1;
+          object-fit: cover;
         }
 
         .background-image.active {
           opacity: 1;
-          transform: translateX(0%);
-          z-index: 2;
+          z-index: 1;
         }
 
         .background-image.previous {
-          transform: translateX(-100%);
           opacity: 0;
-          z-index: 1;
+          transform: translateX(-8%);
         }
 
-        .image-overlay {
+        .hero-overlay {
           position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          background: rgba(0, 0, 0, 0.6);
+          inset: 0;
+          background: linear-gradient(180deg, rgba(6, 40, 61, 0.35), rgba(6, 40, 61, 0.55));
+          z-index: 2;
+        }
+
+        .hero-inner {
+          position: relative;
           z-index: 3;
-        }
-
-        .hero, .flex-grow-spacer, .contact {
-          position: relative;
-          z-index: 4;
-        }
-
-        .hero {
-          position: relative;
-          height: 100vh;
+          width: 100%;
+          padding: 3rem 1.5rem;
           display: flex;
-          align-items: center;
           justify-content: center;
-          padding: 0 2rem;
-          text-align: center;
+        }
+
+        .hero-text {
+          max-width: 980px;
+          text-align: left;
+          padding: 2.5rem;
+          background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02));
+          border-radius: 10px;
         }
 
         .hero h1 {
-          font-size: 3rem;
-          margin-bottom: 1rem;
-          word-wrap: break-word;
-          overflow-wrap: break-word;
-          max-width: 100%;
-          margin-left: 0;
-          margin-right: auto;
+          margin: 0 0 0.6rem 0;
+          font-size: clamp(28px, 4.6vw, 52px);
+          line-height: 1.02;
+          font-weight: 700;
+          letter-spacing: -0.02em;
         }
 
-        .hero h3 {
-          font-size: 1.2rem;
-          margin-bottom: 2rem;
-          word-wrap: break-word;
-          overflow-wrap: break-word;
-          max-width: 100%;
-          margin-left: 0;
-          margin-right: auto;
+        .hero .sub {
+          margin: 0 0 1.2rem 0;
+          color: rgba(255,255,255,0.92);
+          font-size: clamp(14px, 1.6vw, 18px);
         }
 
-        .hero button {
-          background: #3498db;
-          color: white;
-          border: none;
-          padding: 1rem 2rem;
-          font-size: 1.1rem;
-          border-radius: 8px;
-          cursor: pointer;
-          transition: background 0.3s ease;
-        }
-
-        .hero button:hover {
-          background: #2980b9;
-        }
-
-        .cta-buttons {
+        .hero-ctas {
           display: flex;
-          gap: 1rem;
-          justify-content: center;
+          gap: 14px;
+          margin-top: 1rem;
           flex-wrap: wrap;
         }
 
-        .cta-buttons button {
-          background: #3498db;
-          color: white;
-          border: none;
-          padding: 1rem 2rem;
-          font-size: 1.1rem;
+        .btn {
+          border: 0;
+          padding: 10px 18px;
           border-radius: 8px;
           cursor: pointer;
-          transition: background 0.3s ease;
+          font-weight: 600;
+          font-size: 0.95rem;
+        }
+        .btn.primary { background: #FEBE54; color: #102a2a; }
+        .btn.ghost { background: rgba(255,255,255,0.12); color: white; }
+        .btn.outline { background: transparent; border: 1px solid rgba(255,255,255,0.15); color: white; }
+        .btn.big { padding: 14px 28px; font-size: 1.05rem; }
+        
+        /* Updated button styles */
+        .btn.ghost-white {
+          background: white; /* Solid white background */
+          color: #0b3a4a; /* Dark text color */
+          padding: 12px 28px; /* More padding for a larger pill shape */
+          border: 1px solid rgba(0,0,0,0.1); /* Subtle light border */
+          border-radius: 999px; /* Very high border-radius for pill shape */
+          cursor: pointer;
+          font-weight: 600;
+          font-size: 1rem;
+          display: inline-flex; /* Use inline-flex for proper content alignment and centering */
+          align-items: center;
+          gap: 8px;
+          text-decoration: none; /* Ensure no underline from Link */
+          transition: all 0.2s ease-in-out; /* Smooth transitions for hover */
+          box-shadow: 0 4px 12px rgba(0,0,0,0.08); /* Soft shadow */
+        }
+        .btn.ghost-white:hover {
+          background: #f8f8f8; /* Slightly darker on hover */
+          transform: translateY(-2px) scale(1.02); /* Lift and slightly enlarge */
+          box-shadow: 0 6px 16px rgba(0,0,0,0.12); /* Slightly more prominent shadow */
+          color: #05324b; /* Darker text on hover */
         }
 
-        .cta-buttons button:hover {
-          background: #2980b9;
-        }
+        .btn:hover { opacity: 0.95; transform: translateY(-2px); transition: 180ms; }
+        /* Keep existing hover for other buttons if they need it */
 
-        .hero-content {
-          z-index: 1;
+
+        /* ---------- WELCOME / About Us Section ---------- */
+        .welcome {
           position: relative;
-        }
-
-        .flex-grow-spacer {
-          flex-grow: 1;
-        }
-
-        .room-preview {
-          z-index: 4;
-          position: relative;
-          padding: 4rem 2rem;
+          color: #0b3a4a;
+          padding: 100px 30px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
           text-align: center;
-          background: #ffffff;
-          color: #333;
+          min-height: 480px;
+          background: linear-gradient(
+            180deg, 
+            #eef4f8 0%, 
+            #f6f8fb 100%
+          );
+        }
+        
+        .welcome-inner {
+          position: relative;
+          z-index: 1;
+          max-width: 920px;
           width: 100%;
-          isolation: isolate;
+          padding: 30px;
+          /* Removed background and blur for a cleaner look as per button style */
+          /* background: rgba(255, 255, 255, 0.7); */
+          /* backdrop-filter: blur(10px); */
+          border-radius: 12px;
+          box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+          /* Added display flex and center for the button */
+          display: flex;
+          flex-direction: column;
+          align-items: center; /* Centers items horizontally */
+          justify-content: center; /* Centers items vertically if height allows */
+        }
+        
+        .welcome-inner h2 {
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+          font-size: clamp(32px, 4vw, 56px);
+          margin: 0 0 20px 0;
+          font-weight: 700;
+          color: #0b3a4a;
+          line-height: 1.2;
+        }
+        .welcome-inner p {
+          font-size: clamp(1rem, 1.3vw, 1.15rem);
+          line-height: 1.6;
+          max-width: 780px;
+          margin: 0 auto 30px auto; /* Centering the paragraph */
+          color: #3b5157;
         }
 
-        .room-preview h2 {
-          font-size: 2rem;
-          margin-bottom: 2rem;
-          color: #2980b9;
+        .welcome-bg, .welcome-overlay {
+          display: none;
         }
 
-        .room-grid {
+        /* ---------- EXPLORE 3D ---------- */
+        .explore-3d {
+          position: relative;
+          color: white;
+          padding: 100px 30px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          z-index: 0;
+        }
+
+        .explore-bg {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          z-index: -2;
+          opacity: 0;
+          transition: opacity 0.7s ease-in-out;
+        }
+
+        .explore-bg.loaded {
+          opacity: 1;
+        }
+
+        .explore-overlay {
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(180deg, rgba(0,0,0,0.5), rgba(0,0,0,0.7));
+          z-index: -1;
+        }
+
+        .explore-inner {
+          position: relative;
+          z-index: 1;
+          max-width: 920px;
+          text-align: center;
+          padding: 50px;
+        }
+        .explore-inner h2 {
+          margin: 0 0 8px 0;
+          font-size: clamp(22px, 3.4vw, 36px);
+          color: #fff;
+          text-shadow: 0 6px 18px rgba(0,0,0,0.6);
+        }
+        .explore-note {
+          color: #f0f0f0;
+          margin: 0 0 24px 0;
+          font-size: 1.1rem;
+        }
+
+        /* ---------- ROOMS ---------- */
+        .rooms {
+          background: #d49b35;
+          padding: 60px 30px;
           display: flex;
           justify-content: center;
-          gap: 2rem;
-          flex-wrap: wrap;
+        }
+        .rooms-inner {
+          max-width: 1100px;
+          width: 100%;
+          color: #2b1f12;
+          text-align: center; /* This will center the title */
+        }
+        .rooms-title {
+          margin: 0 0 24px 0;
+          color: #2b1f12;
+          font-size: 1.4rem;
+          font-weight: 700;
+        }
+
+        .room-gallery {
+          display: flex;
+          gap: 18px;
+          justify-content: center; /* This will center the room cards */
+          align-items: center;
+          flex-wrap: nowrap;
+          padding: 20px 0 24px 0;
         }
 
         .room-card {
-          background: #ffffff;
-          color: #333;
-          border-radius: 10px;
+          background: #fff;
+          border-radius: 8px;
           overflow: hidden;
-          width: 300px;
-          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-          transition: transform 0.3s ease;
-        }
-
-        .room-card:hover {
-          transform: translateY(-5px);
-          box-shadow: 0 12px 24px rgba(0, 0, 0, 0.2);
+          width: 240px;
+          box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+          display: flex;
+          flex-direction: column;
+          align-items: stretch;
         }
 
         .room-card img {
           width: 100%;
-          height: 200px;
+          height: 140px;
           object-fit: cover;
         }
 
-        .room-card h3 {
-          margin: 1rem 0 0.5rem;
-           color: #333;
+        .room-meta {
+          padding: 12px;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          align-items: flex-start;
         }
 
-        .room-card p {
-          padding: 0 1rem;
-          font-size: 0.95rem;
-           color: #333;
+        .room-meta h4 {
+          margin: 0;
+          font-size: 1.05rem;
+          color: #102a2a;
         }
 
-        .see-more {
-          display: inline-block;
-          margin: 1rem auto 1.5rem;
-          padding: 0.5rem 1.2rem;
-          background: #3498db;
-          color: white;
-          border-radius: 5px;
+        .room-meta p {
+          margin: 0;
+          font-size: 0.88rem;
+          color: #4a6a6a;
+        }
+
+        .see-room {
+          margin-top: 8px;
+          padding: 8px 12px;
+          background: transparent;
+          border: 1px solid #d8a84a;
+          color: #2b1f12;
+          border-radius: 6px;
+          cursor: pointer;
+        }
+
+        .room-indicators {
+          margin-top: 18px;
+          display: flex;
+          gap: 8px;
+          justify-content: center;
+          align-items: center;
+        }
+
+        .dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 999px;
+          background: rgba(255,255,255,0.35);
+          border: 2px solid rgba(0,0,0,0.06);
+        }
+        .dot.active {
+          background: rgba(0,0,0,0.9);
+        }
+
+        /* ---------- POLICIES ---------- */
+.policies {
+  background: #f6f8fa;
+  padding: 60px 30px;
+  display: flex;
+  justify-content: center;
+}
+.policies-inner {
+  max-width: 880px;
+  width: 100%;
+  text-align: left;
+}
+.policies h2 {
+  margin: 0 0 12px 0;
+  color: #0b3a4a;
+  font-size: 1.35rem;
+}
+.policies .muted {
+  margin: 12px 0 28px 0;
+  color: #546b72;
+  font-size: 0.95rem;
+}
+
+.policy-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px 24px;
+  justify-content: center;
+}
+.policy-list details {
+  background: white;
+  padding: 14px 16px;
+  border-radius: 6px;
+  margin-bottom: 10px;
+  border: 1px solid #e6eaec;
+  transition: all 0.3s ease-in-out;
+}
+.policy-list details:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+}
+.policy-list summary {
+  cursor: pointer;
+  list-style: none; /* Hide the default triangle/arrow */
+  font-weight: 600;
+  color: #0b3a4a;
+  outline: none;
+  display: flex; /* Use flexbox to align content and icon */
+  justify-content: space-between; /* Push content and icon to opposite ends */
+  align-items: center; /* Vertically center them */
+}
+
+/* Styles for the animated plus/minus icon */
+.policy-list summary .icon {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: transform 0.3s ease-in-out;
+}
+
+.policy-list summary .icon::before,
+.policy-list summary .icon::after {
+  content: '';
+  position: absolute;
+  background-color: #0b3a4a;
+  transition: transform 0.3s ease-in-out;
+}
+
+/* Vertical line of the plus icon */
+.policy-list summary .icon::before {
+  width: 2px;
+  height: 12px;
+}
+
+/* Horizontal line of the plus icon */
+.policy-list summary .icon::after {
+  width: 12px;
+  height: 2px;
+}
+
+/* Rotate the icon when the details element is open to create the minus sign */
+.policy-list details[open] summary .icon {
+  transform: rotate(90deg); /* This rotation creates a minus sign */
+}
+
+/* Scale the vertical bar to 0 when open, leaving only the horizontal bar */
+.policy-list details[open] summary .icon::before {
+  transform: scaleY(0);
+}
+
+.policy-list .detail-body {
+  margin-top: 10px;
+  color: #3b5157;
+  line-height: 1.5;
+  font-size: 0.95rem;
+  padding-right: 20px; /* Add some space so the text isn't too close to the edge */
+}
+
+/* Responsiveness adjustments for a single column on smaller screens */
+@media (max-width: 900px) {
+  .policy-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+        /* ---------- FOOTER ---------- */
+        .site-footer {
+          background: #e8cfa3;
+          padding: 36px 20px 18px 20px;
+          color: #123238;
+        }
+        .footer-top {
+          max-width: 1100px;
+          margin: 0 auto;
+          display: flex;
+          gap: 40px;
+          flex-wrap: wrap;
+          justify-content: space-between;
+        }
+        .footer-about, .footer-links, .footer-contact {
+          min-width: 220px;
+        }
+        .footer-about h3 {
+          margin: 0 0 8px 0;
+        }
+        .footer-links ul {
+          padding: 0;
+          margin: 6px 0 0 0;
+          list-style: none;
+        }
+        .footer-links li {
+          margin: 6px 0;
+        }
+        .footer-links a, .footer-contact p {
+          color: inherit;
           text-decoration: none;
-          transition: background 0.3s ease;
         }
 
-        .see-more:hover {
-          background: #2980b9;
+        .footer-bottom {
+          max-width: 1100px;
+          margin: 18px auto 0;
+          text-align: center;
+          color: rgba(18,50,56,0.85);
+          font-size: 0.95rem;
         }
 
-        .contact {
-          background: #FEBE54;
-          padding: 1rem 1rem;
-          text-align: left;
+        /* ---------- Responsiveness ---------- */
+        @media (max-width: 900px) {
+          .hero-text { padding: 18px; }
+          .hero { height: auto; min-height: 640px; padding: 48px 0; }
+          .footer-top { gap: 18px; }
+          .room-gallery { gap: 12px; overflow-x: auto; padding-bottom: 8px; }
+          .policy-list { grid-template-columns: 1fr; }
         }
-
-        .contact h2 {
-          margin-bottom: 1rem;
-        }
-
-        .contact p {
-          margin: 0.5rem 0;
-          font-size: 1rem;
-        }
-
-        @media (max-width: 1024px) {
-          .hero {
-            padding: 10rem 3rem;
-            max-width: 100%;
-            margin: 0 auto;
-          }
-        }
-
-        @media (max-width: 768px) {
-          .hero {
-            padding: 5rem 1.5rem;
-          }
-          .hero h1 {
-            font-size: 2rem;
-          }
-          .hero h3 {
-            font-size: 1rem;
-          }
-          .hero button {
-            padding: 0.8rem 1.5rem;
-            font-size: 0.9rem;
-          }
-          .contact {
-            padding: 2rem 1rem;
-          }
-        }
-
-        @media (max-width: 480px) {
-          .hero {
-            padding: 3rem 1rem;
-          }
-          .hero h1 {
-            font-size: 1.5rem;
-          }
-          .hero h3 {
-            font-size: 0.9rem;
-          }
+        @media (max-width: 520px) {
+          .hero h1 { font-size: 28px; }
+          .hero .sub { font-size: 14px; }
+          .explore-3d { padding: 48px 14px; }
+          .welcome { padding: 48px 14px; min-height: 380px; }
+          .welcome-inner h2 { font-size: 28px; }
+          .welcome-inner p { font-size: 0.95rem; }
+          .room-card { width: 200px; }
         }
       `}</style>
     </div>

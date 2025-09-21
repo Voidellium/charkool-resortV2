@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 
-export default function CashierDashboard() {
+export default function CashierDashboard({ session }) {
   const [bookings, setBookings] = useState([]);
   const [paidPayments, setPaidPayments] = useState([]);
   const [selectedPayment, setSelectedPayment] = useState(null);
@@ -122,18 +122,33 @@ export default function CashierDashboard() {
   const isPaid = selectedPayment?.status === 'paid';
 
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem', padding: '1rem', fontFamily: 'Arial, sans-serif' }}>
-      {/* Left side: KPI cards and transaction tables */}
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem', padding: '1rem', fontFamily: 'Arial, sans-serif', backgroundColor: '#f4f4f9' }}>
+      {/* Account Name at the top */}
+      <div
+        style={{
+          padding: '1rem',
+          backgroundColor: '#f0f0f0',
+          textAlign: 'center',
+          fontWeight: 'bold',
+          fontSize: '1.2rem',
+          marginBottom: '1rem',
+        }}
+      >
+        Account: {session?.user?.name}
+      </div>
+
+      {/* Left: KPI and tables */}
       <div style={{ flex: '1 1 350px', maxWidth: '600px', minWidth: '300px' }}>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>Cashier Dashboard</h2>
-        <div>
-          <div style={{ backgroundColor: '#7c6fdd', color: 'white', padding: '1rem', borderRadius: '10px', marginBottom: '0.75rem', boxShadow: '0 2px 6px rgba(124, 111, 221, 0.4)' }}>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '0.25rem', color: '#4b4b7a' }}>Cashier Dashboard</h2>
+        {/* KPI Cards */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '2rem' }}>
+          <div style={{ backgroundColor: '#7c6fdd', color: 'white', padding: '1rem', borderRadius: '10px', boxShadow: '0 2px 6px rgba(124, 111, 221, 0.4)', textAlign: 'center' }}>
             <h3 style={{ margin: '0 0 0.5rem 0', fontWeight: '600' }}>Total Transactions Today</h3>
-            <p style={{ fontSize: '2.5rem', textAlign: 'center', fontWeight: '700' }}>{totalTransactions}</p>
-          </div>
-          <div style={{ backgroundColor: '#7c6fdd', color: 'white', padding: '1rem', borderRadius: '10px', boxShadow: '0 2px 6px rgba(124, 111, 221, 0.4)' }}>
-            <h3 style={{ margin: '0 0 0.5rem 0', fontWeight: '600' }}>Pending Transaction</h3>
-            <p style={{ fontSize: '2.5rem', textAlign: 'center', fontWeight: '700' }}>{pendingTransactions}</p>
+            <p style={{ fontSize: '2.5rem', margin: 0, fontWeight: '700' }}>{totalTransactions}</p>
+         </div>
+          <div style={{ backgroundColor: '#7c6fdd', color: 'white', padding: '1rem', borderRadius: '10px', boxShadow: '0 2px 6px rgba(124, 111, 221, 0.4)', textAlign: 'center' }}>
+           <h3 style={{ margin: '0 0 0.5rem 0', fontWeight: '600' }}>Pending Transaction</h3>
+           <p style={{ fontSize: '2.5rem', margin: 0, fontWeight: '700' }}>{pendingTransactions}</p>
           </div>
         </div>
 
@@ -159,9 +174,7 @@ export default function CashierDashboard() {
                 <td style={{ border: '1px solid #ccc', padding: '8px' }}>{payment.id}</td>
                 <td style={{ border: '1px solid #ccc', padding: '8px' }}>{payment.booking?.user?.name || payment.user?.name || 'N/A'}</td>
                 <td style={{ border: '1px solid #ccc', padding: '8px' }}>{payment.status}</td>
-                <td style={{ border: '1px solid #ccc', padding: '8px' }}>
-                  ₱{payment.amount ? (payment.amount / 100).toFixed(2) : '0.00'}
-                </td>
+                <td style={{ border: '1px solid #ccc', padding: '8px' }}>₱{(payment.amount / 100).toFixed(2)}</td>
                 <td style={{ border: '1px solid #ccc', padding: '8px' }}>{new Date(payment.createdAt).toLocaleDateString()}</td>
               </tr>
             ))}
@@ -190,9 +203,7 @@ export default function CashierDashboard() {
                 <td style={{ border: '1px solid #ccc', padding: '8px' }}>{payment.id}</td>
                 <td style={{ border: '1px solid #ccc', padding: '8px' }}>{payment.booking?.user?.name || payment.user?.name || 'N/A'}</td>
                 <td style={{ border: '1px solid #ccc', padding: '8px' }}>{payment.status}</td>
-                <td style={{ border: '1px solid #ccc', padding: '8px' }}>
-                  ₱{payment.amount ? (payment.amount / 100).toFixed(2) : '0.00'}
-                </td>
+                <td style={{ border: '1px solid #ccc', padding: '8px' }}>₱{(payment.amount / 100).toFixed(2)}</td>
                 <td style={{ border: '1px solid #ccc', padding: '8px' }}>{new Date(payment.createdAt).toLocaleDateString()}</td>
               </tr>
             ))}
@@ -200,34 +211,182 @@ export default function CashierDashboard() {
         </table>
       </div>
 
-      {/* Right side: Form of Payment */}
+      {/* Form of Payment */}
       <div style={{ flex: '1 1 300px', minWidth: '280px', background: '#fff', padding: '1rem', borderRadius: '10px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
         <h2 style={{ fontSize: '1.5rem', fontWeight: '700', marginBottom: '1rem', color: '#4b4b7a' }}>Form of Payment</h2>
-        <p><strong>Amount Tendered:</strong> ₱ <input type="text" value={amountTendered} onChange={(e) => setAmountTendered(e.target.value)} placeholder="Type here the amount .00" style={{ width: '100%' }} disabled={isPaid} /></p>
-        <p><strong>Payment Method:</strong>
-          <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} style={{ width: '100%' }} disabled={isPaid}>
+        {/* Using similar styled inputs */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <label><strong>Amount Tendered:</strong></label>
+          <input
+            type="text"
+            value={amountTendered}
+            onChange={(e) => setAmountTendered(e.target.value)}
+            placeholder="Type here the amount .00"
+            style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }}
+            disabled={Boolean(isPaid)}
+          />
+
+          <label><strong>Payment Method:</strong></label>
+          <select
+            value={paymentMethod}
+            onChange={(e) => setPaymentMethod(e.target.value)}
+            style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }}
+            disabled={Boolean(isPaid)}
+          >
             <option value="">Select Method</option>
             <option value="Cash">Cash</option>
             <option value="Card">Card</option>
             <option value="Online">Online</option>
           </select>
-        </p>
-        <p><strong>Reference No.:</strong> <input type="text" value={referenceNo} readOnly style={{ width: '100%' }} /></p>
-        <p><strong>Name:</strong> <input type="text" value={name} readOnly style={{ width: '100%' }} /></p>
-        <p><strong>Email:</strong> <input type="email" value={email} readOnly style={{ width: '100%' }} /></p>
-        <p><strong>Contact No.:</strong> <input type="text" value={contact} readOnly style={{ width: '100%' }} /></p>
-        <p><strong>Date paid:</strong> <input type="date" value={datePaid} onChange={(e) => setDatePaid(e.target.value)} style={{ width: '100%' }} disabled={isPaid} /></p>
-        <p><strong>Booking Type:</strong>
-          <select value={bookingType} onChange={(e) => setBookingType(e.target.value)} style={{ width: '100%' }} disabled={isPaid}>
+
+          <label><strong>Reference No.:</strong></label>
+          <input type="text" value={referenceNo} readOnly style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }} />
+
+          <label><strong>Name:</strong></label>
+          <input type="text" value={name} readOnly style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }} />
+
+          <label><strong>Email:</strong></label>
+          <input type="email" value={email} readOnly style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }} />
+
+          <label><strong>Contact No.:</strong></label>
+          <input type="text" value={contact} readOnly style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }} />
+
+          <label><strong>Date Paid:</strong></label>
+          <input
+            type="date"
+            value={datePaid}
+            onChange={(e) => setDatePaid(e.target.value)}
+            style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }}
+            disabled={Boolean(isPaid)}
+          />
+
+          <label><strong>Booking Type:</strong></label>
+          <select
+            value={bookingType}
+            onChange={(e) => setBookingType(e.target.value)}
+            style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }}
+            disabled={Boolean(isPaid)}
+          >
             <option value="Walk-in">Walk-in</option>
             <option value="Reservation">Reservation</option>
           </select>
-        </p>
-        <p><strong>Date of Check in:</strong> <input type="date" value={checkIn} onChange={(e) => setCheckIn(e.target.value)} style={{ width: '100%' }} disabled={isPaid} /></p>
-        <p><strong>Date of Check out:</strong> <input type="date" value={checkOut} onChange={(e) => setCheckOut(e.target.value)} style={{ width: '100%' }} disabled={isPaid} /></p>
-        <button style={{ backgroundColor: 'green', color: 'white', padding: '0.5rem 1rem', borderRadius: '5px', border: 'none', cursor: 'pointer', marginRight: '1rem' }} onClick={updatePaymentStatus} disabled={isPaid}>Confirm</button>
-        <button style={{ backgroundColor: 'gray', color: 'white', padding: '0.5rem 1rem', borderRadius: '5px', border: 'none', cursor: 'pointer' }} onClick={() => { setSelectedPayment(null); resetForm(); }}>Cancel</button>
+
+          <label><strong>Date of Check-in:</strong></label>
+          <input
+            type="date"
+            value={checkIn}
+            onChange={(e) => setCheckIn(e.target.value)}
+            style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }}
+            disabled={Boolean(isPaid)}
+          />
+
+          <label><strong>Date of Check-out:</strong></label>
+          <input
+            type="date"
+            value={checkOut}
+            onChange={(e) => setCheckOut(e.target.value)}
+            style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }}
+            disabled={Boolean(isPaid)}
+          />
+
+          {/* Buttons */}
+          <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+            <button
+              style={{ backgroundColor: 'green', color: 'white', padding: '0.5rem 1rem', borderRadius: '5px', border: 'none', cursor: 'pointer' }}
+              onClick={updatePaymentStatus}
+              disabled={Boolean(isPaid)}
+            >
+              Confirm
+            </button>
+            <button
+              style={{ backgroundColor: 'gray', color: 'white', padding: '0.5rem 1rem', borderRadius: '5px', border: 'none', cursor: 'pointer' }}
+              onClick={() => { setSelectedPayment(null); resetForm(); }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       </div>
+
+      {/* Styles for the entire component */}
+      <style jsx>{`
+        /* Container styles */
+        .dashboard-container {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 2rem;
+          padding: 1rem;
+          font-family: 'Arial, sans-serif';
+          background-color: #f4f4f9;
+        }
+        /* Header style */
+        .header {
+          padding: 1rem;
+          background-color: #f0f0f0;
+          text-align: center;
+          font-weight: bold;
+          font-size: 1.2rem;
+          margin-bottom: 1rem;
+        }
+        /* Section title style */
+        .section-title {
+          font-size: 1.5rem;
+          font-weight: 700;
+          margin-bottom: 1rem;
+          color: #4b4b7a;
+        }
+        /* KPI cards styles */
+        .kpi-cards {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+          margin-bottom: 2rem;
+        }
+        .kpi-card {
+          background-color: #7c6fdd;
+          color: #fff;
+          padding: 1rem;
+          border-radius: 10px;
+          box-shadow: 0 2px 6px rgba(124, 111, 221, 0.4);
+          text-align: center;
+        }
+        /* Tables styling */
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-top: 0.5rem;
+        }
+        th, td {
+          border: 1px solid #ccc;
+          padding: 8px;
+        }
+        thead {
+          background-color: #ddd;
+        }
+        tbody tr:hover {
+          background-color: #ffe5e5;
+        }
+        /* Form container styles */
+        .form-section {
+          flex: 1 1 300px;
+          min-width: 280px;
+          background: #fff;
+          padding: 1.5rem;
+          border-radius: 10px;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        /* Input styles inside form */
+        input, select {
+          padding: 0.5rem;
+          border: 1px solid #ccc;
+          border-radius: 4px;
+          width: 100%;
+        }
+        /* Buttons styles */
+        button {
+          cursor: pointer;
+        }
+      `}</style>
     </div>
   );
 }
