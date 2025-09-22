@@ -10,5 +10,22 @@ export const authOptions = {
     }),
     // ...add more providers here
   ],
-  // ...add other NextAuth options here (e.g., session, secret, callbacks)
+  secret: process.env.NEXTAUTH_SECRET,
+  // Add other NextAuth options here as needed
+  pages: {
+    signIn: '/login',
+    error: '/login',
+  },
+  callbacks: {
+    async jwt({ token, account, profile }) {
+      if (account) {
+        token.accessToken = account.access_token;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      session.accessToken = token.accessToken;
+      return session;
+    },
+  },
 };
