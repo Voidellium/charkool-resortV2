@@ -9,7 +9,8 @@ const ModelSelectorPanel = ({ isOpen, onClose, onModelSelect, currentModel }) =>
     { name: 'Teepee Model', path: '/models/Teepee.obj', icon: '⛺' },
     { name: 'Bilyaran Store Model', path: '/models/BilyaranStore.obj', icon: '🏪' },
     { name: 'Poolside Kubo Model', path: '/models/PoolsideKubo.obj', icon: '🏖️' },
-    { name: 'Stage Model', path: '/models/Stage.obj', icon: '🎭' }
+    { name: 'Stage Model', path: '/models/Stage.obj', icon: '🎭' },
+    { name: 'Villa Model', path: '/models/Villa.gltf', icon: '🏘️' }
   ];
 
   return (

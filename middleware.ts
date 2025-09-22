@@ -8,6 +8,11 @@ const MAINTENANCE_MODE = process.env.APP_MAINTENANCE === "true";
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // Allow public GET access to the chatbot API
+  if (pathname.startsWith('/api/chatbot') && req.method === 'GET') {
+    return NextResponse.next();
+  }
+
   // --- 0. Global Maintenance Mode ---
   if (MAINTENANCE_MODE) {
     // Allow access to login for you or devs only
@@ -27,7 +32,7 @@ export async function middleware(req: NextRequest) {
   const isLoginOrRegister = loginAndRegisterPaths.includes(pathname);
 
   // These are the paths that don't require authentication (e.g., home)
-  const publicPaths = ["/", "/login", "/register", "/api/public", "/virtual-tour", "/room"];
+  const publicPaths = ["/", "/login", "/register", "/api/public", "/virtual-tour", "/room", "/about-us"];
   const isPublicPath = publicPaths.includes(pathname);
 
   const token = await getToken({ req, secret: JWT_SECRET });
@@ -115,6 +120,6 @@ export const config = {
      * - favicon.ico (favicon file)
      * - images (image folder)
      */
-    '/((?!api/|_next/static|_next/image|favicon.ico|images/).*)' 
+    '/((?!api/auth/|_next/static|_next/image|favicon.ico|images/).*)'
   ],
 };

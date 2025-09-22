@@ -46,6 +46,7 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
   const menu = [
     { key: 'amenities', label: 'Amenities', path: '/super-admin/amenities' },
     { key: 'audit-trails', label: 'Audit Trails', path: '/super-admin/audit-trails' },
+    { key: 'chatbot', label: 'Chatbot Management', path: '/super-admin/chatbot' },
     { key: 'bookings', label: 'Bookings', path: '/super-admin/bookings' },
     { key: 'config', label: 'Configurations', path: '/super-admin/config' },
     { key: 'dashboard', label: 'Dashboard', path: '/super-admin/dashboard' },

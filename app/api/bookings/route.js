@@ -53,7 +53,9 @@ export const GET = async (req) => {
       include: {
         room: true,
         user: true,
-        amenities: { include: { amenity: true } },
+        optionalAmenities: { include: { optionalAmenity: true } },
+        rentalAmenities: { include: { rentalAmenity: true } },
+        cottage: { include: { cottage: true } },
       },
     });
 
@@ -64,21 +66,36 @@ export const GET = async (req) => {
   }
 };
 
-// POST: create a booking with amenities
+// POST: create a booking with the new amenity system
 export const POST = async (req) => {
   try {
     const body = await req.json();
-    const { userId, roomId, checkIn, checkOut, guestName, amenityIds = [], status = 'HELD', paymentStatus = 'UNPAID' } = body;
+    const {
+      userId,
+      roomId,
+      checkIn,
+      checkOut,
+      guestName,
+      optionalAmenities = {},
+      rentalAmenities = {},
+      cottage,
+      status = 'HELD',
+      paymentStatus = 'UNPAID',
+    } = body;
 
-    // Check for required fields for a walk-in booking
-    if (!roomId || !checkIn || !checkOut || !guestName) {
-      return NextResponse.json({ error: 'Missing required fields: roomId, checkIn, checkOut, guestName' }, { status: 400 });
+    if (!roomId || !checkIn || !checkOut) {
+      return NextResponse.json({ error: 'Missing required fields: roomId, checkIn, checkOut' }, { status: 400 });
     }
 
-    // Convert roomId to integer
-    const parsedRoomId = parseInt(roomId);
+    // --- Data Validation and Parsing ---
+    const parsedRoomId = parseInt(roomId, 10);
     if (isNaN(parsedRoomId)) {
-      return NextResponse.json({ error: 'Invalid roomId: must be a number' }, { status: 400 });
+        return NextResponse.json({ error: 'Invalid roomId format' }, { status: 400 });
+    }
+
+    const parsedUserId = userId ? parseInt(userId, 10) : null;
+    if (userId && isNaN(parsedUserId)) {
+        return NextResponse.json({ error: 'Invalid userId format' }, { status: 400 });
     }
 
     const room = await prisma.room.findUnique({ where: { id: parsedRoomId } });
@@ -86,109 +103,121 @@ export const POST = async (req) => {
 
     const checkInDate = new Date(checkIn);
     const checkOutDate = new Date(checkOut);
+    const nights = Math.max(1, (checkOutDate - checkInDate) / (1000 * 60 * 60 * 24));
 
-    if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
-      return NextResponse.json({ error: 'Invalid check-in or check-out date' }, { status: 400 });
-    }
+    // --- Server-side Price Calculation ---
+    let finalTotalPrice = room.price * nights;
 
-    // Check for room availability for the selected dates
-    const overlappingBookings = await prisma.booking.findMany({
-      where: {
-        roomId: parsedRoomId,
-        AND: [
-          { OR: [{ checkIn: { lte: checkOutDate }, checkOut: { gt: checkInDate } }] },
-          {
-            OR: [
-              { status: 'HELD' },
-              { status: 'PENDING' },
-              { status: 'CONFIRMED' },
-              { status: 'CHECKED_IN' }
-            ],
-          },
-        ],
-      },
+    // Rental Amenities Price
+    const rentalIds = Object.keys(rentalAmenities).map(id => parseInt(id));
+    const rentalAmenityDetails = await prisma.rentalAmenity.findMany({
+      where: { id: { in: rentalIds } },
     });
 
-    if (overlappingBookings.length >= room.quantity) {
-      return NextResponse.json({ error: 'Room fully booked or held for selected dates' }, { status: 400 });
+    const rentalCreations = [];
+    for (const amenity of rentalAmenityDetails) {
+      const selection = rentalAmenities[amenity.id];
+      if (!selection || selection.quantity === 0) continue;
+
+      const quantity = selection.quantity || 0;
+      const hours = selection.hoursUsed || 0;
+      let amenityPrice = 0;
+
+      if (hours > 0 && amenity.pricePerHour) {
+        amenityPrice = hours * amenity.pricePerHour;
+      } else {
+        amenityPrice = quantity * amenity.pricePerUnit;
+      }
+      finalTotalPrice += amenityPrice;
+
+      rentalCreations.push({
+        rentalAmenityId: amenity.id,
+        quantity,
+        hoursUsed: hours,
+        totalPrice: amenityPrice,
+      });
     }
 
-    const bookingData = {
-      checkIn: checkInDate,
-      checkOut: checkOutDate,
-      guestName: guestName,
-      status: status,
-      paymentStatus: paymentStatus,
-      room: { connect: { id: parsedRoomId } },
-    };
-
-    // Conditionally add amenities and user if they exist
-    if (amenityIds && amenityIds.length > 0) {
-      // Convert amenityIds to integers
-      const parsedAmenityIds = amenityIds.map(id => parseInt(id)).filter(id => !isNaN(id));
-
-      if (parsedAmenityIds.length !== amenityIds.length) {
-        return NextResponse.json({
-          error: 'Invalid amenity IDs: all must be numbers'
-        }, { status: 400 });
+    // Cottage Price
+    const cottageCreations = [];
+    if (cottage && cottage.quantity > 0) {
+      const cottageDetails = await prisma.cottage.findFirst();
+      if (cottageDetails) {
+        const cottagePrice = cottage.quantity * cottageDetails.price;
+        finalTotalPrice += cottagePrice;
+        cottageCreations.push({
+          cottageId: cottageDetails.id,
+          quantity: cottage.quantity,
+          totalPrice: cottagePrice,
+        });
       }
+    }
+    
+    // Optional Amenities (no price impact)
+    const optionalIds = Object.keys(optionalAmenities).map(id => parseInt(id));
+    const optionalCreations = optionalIds.map(id => ({
+        optionalAmenityId: id,
+        quantity: optionalAmenities[id],
+    }));
 
-      // Validate that all amenity IDs exist
-      const existingAmenities = await prisma.amenityInventory.findMany({
-        where: { id: { in: parsedAmenityIds } },
-        select: { id: true }
+    // --- Database Transaction ---
+    const result = await prisma.$transaction(async (tx) => {
+      // Verify room availability again inside the transaction
+      const overlappingBookings = await tx.booking.count({
+        where: {
+          roomId: parsedRoomId,
+          status: { in: ['HELD', 'PENDING', 'CONFIRMED', 'CHECKED_IN'] },
+          checkIn: { lt: checkOutDate },
+          checkOut: { gt: checkInDate },
+        },
       });
 
-      const existingIds = existingAmenities.map(a => a.id);
-      const invalidIds = parsedAmenityIds.filter(id => !existingIds.includes(id));
-
-      if (invalidIds.length > 0) {
-        return NextResponse.json({
-          error: `Invalid amenity IDs: ${invalidIds.join(', ')}`
-        }, { status: 400 });
+      if (overlappingBookings >= room.quantity) {
+        throw new Error('Room is no longer available for the selected dates.');
       }
 
-      bookingData.amenities = { create: parsedAmenityIds.map(id => ({ amenityInventoryId: id })) };
-    }
+      const newBooking = await tx.booking.create({
+        data: {
+          userId: parsedUserId,
+          roomId: parsedRoomId,
+          checkIn: checkInDate,
+          checkOut: checkOutDate,
+          guestName: guestName || 'Walk-in Guest',
+          status,
+          paymentStatus,
+          totalPrice: finalTotalPrice,
+          heldUntil: new Date(Date.now() + 15 * 60 * 1000), // 15 minute hold
+          optionalAmenities: {
+            create: optionalCreations,
+          },
+          rentalAmenities: {
+            create: rentalCreations,
+          },
+          cottage: {
+            create: cottageCreations,
+          },
+        },
+        include: {
+          room: true,
+          optionalAmenities: true,
+          rentalAmenities: true,
+          cottage: true,
+        },
+      });
 
-    if (userId) {
-      // Convert userId to integer
-      const parsedUserId = parseInt(userId);
-      if (isNaN(parsedUserId)) {
-        return NextResponse.json({ error: 'Invalid userId: must be a number' }, { status: 400 });
-      }
-
-      // Validate that the user exists
-      const user = await prisma.user.findUnique({ where: { id: parsedUserId } });
-      if (!user) {
-        return NextResponse.json({ error: 'User not found' }, { status: 404 });
-      }
-      bookingData.user = { connect: { id: parsedUserId } };
-    }
-
-    const booking = await prisma.booking.create({
-      data: bookingData,
-      include: {
-        room: true,
-        amenities: { include: { amenity: true } },
-      },
+      return newBooking;
     });
 
-    return NextResponse.json({ success: true, booking }, { status: 201 });
+    return NextResponse.json({ success: true, booking: result }, { status: 201 });
+
   } catch (error) {
     console.error('❌ Booking POST Error:', error);
-    console.error('❌ Error details:', {
-      message: error.message,
-      stack: error.stack,
-      code: error.code,
-      meta: error.meta,
-    });
-
-    // Return more detailed error for debugging (remove in production)
-    return NextResponse.json({
-      error: 'Internal server error',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
-      code: error.code || 'UNKNOWN_ERROR'
-    }, { status: 500 });
+    return NextResponse.json(
+      { 
+        error: 'Booking failed', 
+        details: error.message || 'Internal server error' 
+      }, 
+      { status: error.message.includes('longer available') ? 409 : 500 }
+    );
   }
 };

@@ -69,6 +69,8 @@ model Session {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+
+
 model Room {
   id        Int       @id @default(autoincrement())
   name      String    @unique
@@ -82,59 +84,6 @@ model Room {
   quantity  Int       @default(1)
   amenities Amenity[]
   bookings  Booking[]
-  defaultAmenities RoomTypeDefaultAmenity[]
-}
-
-// Default amenities that come with each room type
-model RoomTypeDefaultAmenity {
-  id          Int      @id @default(autoincrement())
-  roomType    RoomType
-  amenityName String
-  description String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  room        Room?    @relation(fields: [roomId], references: [id])
-  roomId      Int?
-
-  @@unique([roomType, amenityName])
-}
-
-// Optional amenities that can be added to bookings (with quantity limits)
-model OptionalAmenity {
-  id          Int      @id @default(autoincrement())
-  name        String   @unique
-  description String?
-  maxQuantity Int      @default(1) // Maximum quantity per booking
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  bookings    BookingOptionalAmenity[]
-}
-
-// Rental amenities that are paid per use/unit
-model RentalAmenity {
-  id          Int      @id @default(autoincrement())
-  name        String   @unique
-  description String?
-  pricePerUnit Int    // Price in cents (e.g., ₱200/hour = 20000)
-  pricePerHour Int?   // Alternative pricing per hour
-  unitType    String   // "hour", "unit", "song", "30minutes", etc.
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  bookings    BookingRentalAmenity[]
-}
-
-// Cottage add-on option
-model Cottage {
-  id        Int      @id @default(autoincrement())
-  name      String   @default("Cottage")
-  price     Int      @default(30000) // ₱300 in cents
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  bookings  BookingCottage[]
 }
 
 model Amenity {
@@ -183,47 +132,7 @@ model Booking {
   room          Room             @relation(fields: [roomId], references: [id])
   user          User?            @relation(fields: [userId], references: [id])
   amenities     BookingAmenity[]
-  optionalAmenities BookingOptionalAmenity[]
-  rentalAmenities   BookingRentalAmenity[]
-  cottage           BookingCottage[]
   payments      Payment[]
-}
-
-// Updated booking amenity models for the new system
-model BookingOptionalAmenity {
-  id                Int             @id @default(autoincrement())
-  bookingId         Int
-  optionalAmenityId Int
-  quantity          Int             @default(1)
-  optionalAmenity   OptionalAmenity @relation(fields: [optionalAmenityId], references: [id])
-  booking           Booking         @relation(fields: [bookingId], references: [id])
-
-  @@unique([bookingId, optionalAmenityId])
-}
-
-model BookingRentalAmenity {
-  id              Int           @id @default(autoincrement())
-  bookingId       Int
-  rentalAmenityId Int
-  quantity        Int           @default(1)
-  hoursUsed       Int?          // For hourly rentals
-  totalPrice      Int           // Calculated price for this rental
-  rentalAmenity   RentalAmenity @relation(fields: [rentalAmenityId], references: [id])
-  booking         Booking       @relation(fields: [bookingId], references: [id])
-
-  @@unique([bookingId, rentalAmenityId])
-}
-
-model BookingCottage {
-  id         Int      @id @default(autoincrement())
-  bookingId  Int
-  cottageId  Int
-  quantity   Int      @default(1)
-  totalPrice Int      // Calculated price for cottage
-  cottage    Cottage  @relation(fields: [cottageId], references: [id])
-  booking    Booking  @relation(fields: [bookingId], references: [id])
-
-  @@unique([bookingId, cottageId])
 }
 
 model BookingAmenity {
@@ -251,6 +160,7 @@ model Payment {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
+
 
 model Notification {
   id        Int      @id @default(autoincrement())
@@ -280,20 +190,4 @@ enum RoomType {
   LOFT
   FAMILY_LODGE
   VILLA
-}
-
-enum AmenityType {
-  DEFAULT
-  OPTIONAL
-  RENTAL
-}
-
-model ChatbotQA {
-  id          Int      @id @default(autoincrement())
-  category    String
-  question    String   @unique
-  answer      String   @db.Text
-  hasBookNow  Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 }

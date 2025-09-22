@@ -4,11 +4,21 @@ import React, { Suspense, useRef, useState, useEffect } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, useProgress, Html } from "@react-three/drei";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { useLoader } from "@react-three/fiber";
 
 function Model({ url }) {
-  const obj = useLoader(OBJLoader, url);
-  return <primitive object={obj} />;
+  // Determine file type based on extension
+  const isGLTF = url.toLowerCase().includes('.gltf') || url.toLowerCase().includes('.glb');
+
+  if (isGLTF) {
+    const gltf = useLoader(GLTFLoader, url);
+    return <primitive object={gltf.scene} />;
+  } else {
+    // Default to OBJ loader for .obj files
+    const obj = useLoader(OBJLoader, url);
+    return <primitive object={obj} />;
+  }
 }
 
 function Loader() {

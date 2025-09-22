@@ -1,34 +1,22 @@
-# Implementation Plan: Email Domain Restriction & Account Linking
+# Chatbot API Fix - Completed
 
-## Current Status: In Progress
+## ✅ Completed Tasks
 
-### ✅ Completed Steps:
-- [x] Database Changes - Add googleId field to User model
-- [x] Generate and apply Prisma migration
-- [x] Email Domain Restriction - Backend validation
-- [x] Email Domain Restriction - Frontend validation
-- [ ] Account Linking Enhancement - NextAuth callbacks
-- [ ] Testing - Domain validation
-- [ ] Testing - Account linking scenarios
+### 1. Fixed Main Chatbot Route (`app/api/chatbot/route.js`)
+- ✅ Changed `prisma.chatbotQuestion.findMany()` → `prisma.chatbotQA.findMany()`
+- ✅ Changed `showBookNowButton` → `hasBookNow` in POST endpoint
+- ✅ Changed `prisma.chatbotQuestion.create()` → `prisma.chatbotQA.create()`
 
-### 📋 Next Steps:
-1. **Database Changes**
-   - Add `googleId` field to User model in Prisma schema
-   - Generate and apply database migration
+### 2. Fixed Individual Chatbot Route (`app/api/chatbot/[id]/route.js`)
+- ✅ Changed `prisma.chatbotQuestion.update()` → `prisma.chatbotQA.update()`
+- ✅ Changed `showBookNowButton` → `hasBookNow` in PATCH endpoint
+- ✅ Changed `prisma.chatbotQuestion.delete()` → `prisma.chatbotQA.delete()`
 
-2. **Email Domain Restriction**
-   - Create utility function for domain validation
-   - Add domain validation to registration API
-   - Update frontend to show domain validation errors
+## 🧪 Testing Required
 
-3. **Account Linking Enhancement**
-   - Enhance NextAuth signIn callback for better account linking
-   - Ensure proper handling of existing local accounts with Google OAuth
+The fixes have been implemented. The chatbot API should now work correctly with the proper Prisma model name (`ChatbotQA`) and field names (`hasBookNow` instead of `showBookNowButton`).
 
-4. **Testing & Validation**
-   - Test registration with allowed domains
-   - Test registration with blocked domains
-   - Test Google OAuth account linking scenarios
-
-### 🎯 Current Task:
-Implementing account linking enhancement - NextAuth callbacks
+**Next Steps:**
+1. Test the API endpoints to ensure they work correctly
+2. Verify database connectivity and Prisma client initialization
+3. Check if any frontend components need updates to match the new field names

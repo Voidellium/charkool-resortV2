@@ -1,8 +1,9 @@
-'use client';
-import '../styles/global.css';
 import ClientNavbarWrapper from '../components/ClientNavbarWrapper';
 import { Poppins } from 'next/font/google';
-import { SessionProvider } from 'next-auth/react';
+import { getServerSession } from 'next-auth';
+import SessionWrapper from '../SessionWrapper';
+import { authOptions } from './auth'; // Import from the new shared file
+import Chatbot from '../components/Chatbot'; // Import the new Chatbot component
 
 // Load the Poppins font
 const poppins = Poppins({
@@ -11,27 +12,29 @@ const poppins = Poppins({
   display: 'swap',
 });
 
-export default function RootLayout({ children }) {
+export const metadata = {
+  title: 'Charkool Resort',
+  description: 'A resort for all your needs',
+};
+
+export default async function RootLayout({ children }) {
+  const session = await getServerSession(authOptions);
+
   return (
     <html lang="en">
       <body className={poppins.className}>
-        <SessionProvider
+        <SessionWrapper
+          session={session}
           refetchInterval={0} // Disable auto refetch
           basePath="/api/auth" // Use internal API routes in merged app
-          options={{
-            clientMaxAge: 0, // Keep session always fresh
-            keepAlive: 0,
-            fetchOptions: {
-              credentials: 'include', // Important for cookies
-            },
-          }}
         >
           {/* Navbar wrapper (renders navbar and handles client auth state) */}
           <ClientNavbarWrapper />
 
           {/* Page content */}
           <main>{children}</main>
-        </SessionProvider>
+          <Chatbot /> {/* Add the new Chatbot component here */}
+        </SessionWrapper>
       </body>
     </html>
   );

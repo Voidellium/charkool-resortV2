@@ -1,7 +1,14 @@
 'use client';
+import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
-export default function CashierDashboard({ session }) {
+export default function CashierDashboard() {
+  const { data: session, status } = useSession({
+    required: true,
+    onUnauthenticated() {
+      // This will redirect to the login page.
+    },
+  });
   const [bookings, setBookings] = useState([]);
   const [paidPayments, setPaidPayments] = useState([]);
   const [selectedPayment, setSelectedPayment] = useState(null);
@@ -20,9 +27,11 @@ export default function CashierDashboard({ session }) {
   const [checkOut, setCheckOut] = useState('');
 
   useEffect(() => {
-    fetchBookings();
-    fetchPaidPayments();
-  }, []);
+    if (status === 'authenticated') {
+      fetchBookings();
+      fetchPaidPayments();
+    }
+  }, [status]);
 
   async function fetchBookings() {
     try {
@@ -117,7 +126,10 @@ export default function CashierDashboard({ session }) {
   const totalTransactions = bookings.length + paidPayments.length;
   const pendingTransactions = bookings.length;
 
-  if (loading) return <p>Loading cashier dashboard...</p>;
+  // Show a loading state while the session is being fetched or data is loading.
+  if (status === 'loading' || loading) {
+    return <p>Loading cashier dashboard...</p>;
+  }
 
   const isPaid = selectedPayment?.status === 'paid';
 
