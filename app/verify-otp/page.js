@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
+import { generateBrowserFingerprint } from '../../src/lib/browser-fingerprint';
 
 export default function VerifyOTPPage() {
   const [otp, setOtp] = useState('');
@@ -27,12 +28,24 @@ export default function VerifyOTPPage() {
     setLoading(true);
 
     try {
+      // Get browser fingerprint from sessionStorage
+      const browserFingerprint = sessionStorage.getItem('browserFingerprint');
+      const userAgentInfo = {
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+      };
+
       const response = await fetch('/api/verify-session-otp', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ otp }),
+        body: JSON.stringify({
+          otp,
+          browserFingerprint,
+          userAgent: userAgentInfo.userAgent,
+          ipAddress: 'client-side'
+        }),
       });
 
       const data = await response.json();

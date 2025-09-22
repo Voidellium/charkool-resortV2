@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 
 export async function POST(req) {
   try {
-    const { otp } = await req.json();
+    const { otp, browserFingerprint, userAgent, ipAddress } = await req.json();
     const token = await getToken({ req });
 
     if (!token?.email || !otp) {
@@ -37,6 +37,31 @@ export async function POST(req) {
         emailVerified: new Date(),
       },
     });
+
+    // Mark browser as trusted if fingerprint is provided
+    if (browserFingerprint) {
+      const existingTrustedBrowser = await prisma.trustedBrowser.findUnique({
+        where: { browserFingerprint },
+      });
+
+      if (!existingTrustedBrowser) {
+        await prisma.trustedBrowser.create({
+          data: {
+            userId: token.id,
+            browserFingerprint,
+            userAgent,
+            ipAddress,
+            lastUsed: new Date(),
+          },
+        });
+      } else {
+        // Update last used time for existing trusted browser
+        await prisma.trustedBrowser.update({
+          where: { id: existingTrustedBrowser.id },
+          data: { lastUsed: new Date() },
+        });
+      }
+    }
 
     // Delete the OTP
     await prisma.OTP.delete({ where: { id: otpRecord.id } });

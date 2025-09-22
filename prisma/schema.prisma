@@ -25,6 +25,7 @@ model User {
   bookings       Booking[]
   accounts       Account[]
   sessions       Session[]
+  trustedBrowsers TrustedBrowser[]
 }
 
 model OTP {
@@ -296,4 +297,17 @@ model ChatbotQA {
   hasBookNow  Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model TrustedBrowser {
+  id            Int      @id @default(autoincrement())
+  userId        Int
+  browserFingerprint String @unique
+  userAgent     String?
+  ipAddress     String?
+  lastUsed      DateTime @default(now())
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

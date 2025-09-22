@@ -5,6 +5,35 @@ import type { NextRequest } from "next/server";
 const JWT_SECRET = process.env.NEXTAUTH_SECRET;
 const MAINTENANCE_MODE = process.env.APP_MAINTENANCE === "true";
 
+async function checkBrowserTrust(req: NextRequest, token: any) {
+  try {
+    // Get browser fingerprint from headers (will be set by client-side code)
+    const browserFingerprint = req.headers.get('x-browser-fingerprint');
+
+    if (!browserFingerprint) {
+      // If no fingerprint, assume it needs verification (new browser)
+      return true;
+    }
+
+    // Check if this browser is trusted for this user
+    const response = await fetch(`${req.nextUrl.origin}/api/check-trusted-browser`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token.accessToken || 'none'}`,
+      },
+      body: JSON.stringify({ browserFingerprint }),
+    });
+
+    const data = await response.json();
+    return !data.isTrusted;
+  } catch (error) {
+    console.error('Browser trust check error:', error);
+    // If there's an error checking, err on the side of caution and require OTP
+    return true;
+  }
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
@@ -108,14 +137,15 @@ export async function middleware(req: NextRequest) {
       }
 
       // Check if user needs OTP verification for this session
-      // For now, we'll skip OTP verification for existing sessions
-      // This can be enhanced to check session freshness or browser fingerprinting
-      const needsOtpVerification = false; // TODO: Implement session-based OTP logic
+      // Only check for role-based accounts (not guest)
+      if (token.role.toLowerCase() !== 'guest') {
+        const needsOtpVerification = await checkBrowserTrust(req, token);
 
-      if (needsOtpVerification) {
-        const otpUrl = new URL("/verify-otp", req.url);
-        otpUrl.searchParams.set("redirect", pathname);
-        return NextResponse.redirect(otpUrl);
+        if (needsOtpVerification) {
+          const otpUrl = new URL("/verify-otp", req.url);
+          otpUrl.searchParams.set("redirect", pathname);
+          return NextResponse.redirect(otpUrl);
+        }
       }
     }
   }
