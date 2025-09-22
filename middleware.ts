@@ -101,8 +101,21 @@ export async function middleware(req: NextRequest) {
   for (const route in roleProtectedRoutes) {
     if (pathname.startsWith(route)) {
       const requiredRole = roleProtectedRoutes[route];
+
+      // Check if user has the required role
       if (typeof token?.role !== "string" || token.role.toLowerCase() !== requiredRole) {
         return NextResponse.redirect(new URL("/unauthorized", req.url));
+      }
+
+      // Check if user needs OTP verification for this session
+      // For now, we'll skip OTP verification for existing sessions
+      // This can be enhanced to check session freshness or browser fingerprinting
+      const needsOtpVerification = false; // TODO: Implement session-based OTP logic
+
+      if (needsOtpVerification) {
+        const otpUrl = new URL("/verify-otp", req.url);
+        otpUrl.searchParams.set("redirect", pathname);
+        return NextResponse.redirect(otpUrl);
       }
     }
   }

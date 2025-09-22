@@ -1,22 +1,30 @@
-# Chatbot API Fix - Completed
+# OTP Authentication Fix
 
-## ✅ Completed Tasks
+## Plan Implementation Steps:
 
-### 1. Fixed Main Chatbot Route (`app/api/chatbot/route.js`)
-- ✅ Changed `prisma.chatbotQuestion.findMany()` → `prisma.chatbotQA.findMany()`
-- ✅ Changed `showBookNowButton` → `hasBookNow` in POST endpoint
-- ✅ Changed `prisma.chatbotQuestion.create()` → `prisma.chatbotQA.create()`
+### 1. Add Credentials Provider to auth.js ✅
+- [ ] Import CredentialsProvider from NextAuth
+- [ ] Configure credentials authentication with email/password
+- [ ] Add proper JWT callbacks to include user role in token
+- [ ] Integrate with existing OTP verification system
 
-### 2. Fixed Individual Chatbot Route (`app/api/chatbot/[id]/route.js`)
-- ✅ Changed `prisma.chatbotQuestion.update()` → `prisma.chatbotQA.update()`
-- ✅ Changed `showBookNowButton` → `hasBookNow` in PATCH endpoint
-- ✅ Changed `prisma.chatbotQuestion.delete()` → `prisma.chatbotQA.delete()`
+### 2. Create OTP Verification for Role-Based Access
+- [ ] Add OTP verification step for new browsers/sessions
+- [ ] Create API endpoint for session-based OTP verification
+- [ ] Update login flow to handle OTP verification
 
-## 🧪 Testing Required
+### 3. Update Login Flow
+- [ ] Modify login form to handle OTP verification step
+- [ ] Add session management for OTP verification
+- [ ] Fix the page refresh issue
 
-The fixes have been implemented. The chatbot API should now work correctly with the proper Prisma model name (`ChatbotQA`) and field names (`hasBookNow` instead of `showBookNowButton`).
+### 4. Add Database Integration
+- [ ] Connect credentials provider to Prisma User model
+- [ ] Add proper password hashing/verification
+- [ ] Ensure role-based access control works properly
 
-**Next Steps:**
-1. Test the API endpoints to ensure they work correctly
-2. Verify database connectivity and Prisma client initialization
-3. Check if any frontend components need updates to match the new field names
+## Testing Checklist:
+- [ ] Test login with existing credentials
+- [ ] Test OTP verification for new browsers
+- [ ] Verify role-based redirects work properly
+- [ ] Test with different user roles (customer, admin, etc.)
