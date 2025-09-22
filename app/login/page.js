@@ -19,10 +19,14 @@ function LoginForm() {
   // Redirect if already logged in
   useEffect(() => {
     if (status === 'authenticated') {
-      const redirectUrl = searchParams.get('redirect');
-      if (redirectUrl) {
+      const redirectUrl = searchParams.get('redirect') || searchParams.get('callbackUrl');
+      // If there's a redirect URL, and it's not the login page, redirect there.
+      // This prevents a loop when next-auth redirects back to the login page.
+      if (redirectUrl && !redirectUrl.includes('/login')) {
         router.push(redirectUrl);
       } else {
+        // Otherwise, if the user is authenticated and on the login page,
+        // redirect them based on their role. This is the fallback.
         redirectByRole(session?.user?.role);
       }
     }
@@ -57,29 +61,23 @@ function LoginForm() {
     e.preventDefault();
     setError('');
 
-    const result = await signIn('credentials', {
-      redirect: false,
+    // Let next-auth handle the redirect. On success, it will redirect to the
+    // `callbackUrl` or the current page. The middleware will then intercept
+    // and redirect to the correct dashboard based on user role. On failure,
+    // it will reload the page with an `error` query parameter.
+    await signIn('credentials', {
       email: email.toLowerCase(),
       password,
+      callbackUrl: searchParams.get('redirect') || searchParams.get('callbackUrl') || undefined,
     });
-
-    if (result?.error) {
-      setError(result.error || 'Invalid email or password');
-    } else {
-      // Redirect after successful login
-      const redirectUrl = searchParams.get('redirect') || '/guest/dashboard';
-      router.push(redirectUrl);
-    }
   };
 
   const handleOAuthLogin = async (provider) => {
-    try {
-      const redirectUrl = searchParams.get('redirect') || '/guest/dashboard';
-      await signIn(provider, { redirect: true, callbackUrl: redirectUrl });
-    } catch (err) {
-      console.error('OAuth login error:', err);
-      setError('OAuth login failed. Please try again.');
-    }
+    // Let next-auth handle the redirect. It will use the `redirect` search
+    // param as the callbackUrl if it exists.
+    await signIn(provider, {
+      callbackUrl: searchParams.get('redirect') || searchParams.get('callbackUrl') || undefined,
+    });
   };
 
   return (

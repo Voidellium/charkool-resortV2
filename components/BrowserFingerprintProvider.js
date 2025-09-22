@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { generateBrowserFingerprint, getUserAgentInfo } from '../src/lib/browser-fingerprint';
+import { generateBrowserFingerprint, getUserAgentInfo, isIncognitoMode } from '../src/lib/browser-fingerprint';
 
 export default function BrowserFingerprintProvider({ children }) {
   const { data: session, status } = useSession();
@@ -12,7 +12,7 @@ export default function BrowserFingerprintProvider({ children }) {
     const initializeFingerprint = async () => {
       try {
         // Check if in incognito mode
-        const incognito = await generateBrowserFingerprint.isIncognitoMode();
+        const incognito = await isIncognitoMode();
         setIsIncognito(incognito);
 
         // Generate browser fingerprint
@@ -23,6 +23,7 @@ export default function BrowserFingerprintProvider({ children }) {
         sessionStorage.setItem('browserFingerprint', fp);
 
         // If user is authenticated and not in incognito, register this browser
+        // Apply to ALL authenticated users (including guests)
         if (session?.user && !incognito) {
           const userAgentInfo = getUserAgentInfo();
 
@@ -47,28 +48,32 @@ export default function BrowserFingerprintProvider({ children }) {
     initializeFingerprint();
   }, [session]);
 
-  // Add fingerprint to headers for API calls
+  // Add fingerprint and incognito status to headers for API calls
   useEffect(() => {
     if (fingerprint && session) {
       const originalFetch = window.fetch;
       window.fetch = async (...args) => {
-        const [url, options = {}] = args;
+        const [resource, options = {}] = args;
 
-        // Add browser fingerprint to headers for our API calls
-        if (url.startsWith(window.location.origin) && !url.includes('/api/auth/')) {
+        // The first argument to fetch can be a URL string or a Request object.
+        const urlString = typeof resource === 'string' ? resource : resource?.url;
+
+        // Add browser fingerprint and incognito status to headers for our API calls
+        if (urlString && urlString.startsWith(window.location.origin) && !urlString.includes('/api/auth/')) {
           const headers = new Headers(options.headers);
           headers.set('x-browser-fingerprint', fingerprint);
+          headers.set('x-is-incognito', isIncognito.toString());
           options.headers = headers;
         }
 
-        return originalFetch(url, options);
+        return originalFetch(resource, options);
       };
 
       return () => {
         window.fetch = originalFetch;
       };
     }
-  }, [fingerprint, session]);
+  }, [fingerprint, session, isIncognito]);
 
   return children;
 }

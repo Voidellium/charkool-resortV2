@@ -7,8 +7,26 @@ const MAINTENANCE_MODE = process.env.APP_MAINTENANCE === "true";
 
 async function checkBrowserTrust(req: NextRequest, token: any) {
   try {
+    // --- DEV ONLY: Bypass OTP for specific origins for easier debugging ---
+    const trustedOrigins = [
+      'http://localhost:3000',
+      'https://charkool-resort.vercel.app'
+    ];
+    if (trustedOrigins.includes(req.nextUrl.origin)) {
+      // This log helps confirm the bypass is active during development.
+      console.log(`DEV_MODE: Bypassing OTP check for trusted origin: ${req.nextUrl.origin}`);
+      return false; // `false` means OTP is NOT needed, effectively trusting the browser.
+    }
+    // --- END DEV ONLY ---
+
     // Get browser fingerprint from headers (will be set by client-side code)
     const browserFingerprint = req.headers.get('x-browser-fingerprint');
+    const isIncognito = req.headers.get('x-is-incognito') === 'true';
+
+    // Always require OTP for incognito mode
+    if (isIncognito) {
+      return true;
+    }
 
     if (!browserFingerprint) {
       // If no fingerprint, assume it needs verification (new browser)
@@ -137,15 +155,13 @@ export async function middleware(req: NextRequest) {
       }
 
       // Check if user needs OTP verification for this session
-      // Only check for role-based accounts (not guest)
-      if (token.role.toLowerCase() !== 'guest') {
-        const needsOtpVerification = await checkBrowserTrust(req, token);
+      // Apply to ALL authenticated users (including guests) for new browsers or incognito
+      const needsOtpVerification = await checkBrowserTrust(req, token);
 
-        if (needsOtpVerification) {
-          const otpUrl = new URL("/verify-otp", req.url);
-          otpUrl.searchParams.set("redirect", pathname);
-          return NextResponse.redirect(otpUrl);
-        }
+      if (needsOtpVerification) {
+        const otpUrl = new URL("/verify-otp", req.url);
+        otpUrl.searchParams.set("redirect", pathname);
+        return NextResponse.redirect(otpUrl);
       }
     }
   }
@@ -163,6 +179,6 @@ export const config = {
      * - favicon.ico (favicon file)
      * - images (image folder)
      */
-    '/((?!api/auth/|_next/static|_next/image|favicon.ico|images/).*)'
+    '/((?!api/|_next/static|_next/image|favicon.ico|images/).*)'
   ],
 };

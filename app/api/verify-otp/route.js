@@ -7,7 +7,10 @@ export async function POST(req) {
     const { email, otp } = await req.json();
 
     if (!email || !otp) {
-      return new Response(JSON.stringify({ error: 'Email and OTP required' }), { status: 400 });
+      return new Response(JSON.stringify({ error: 'Email and OTP required' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
 
     // Find the latest OTP for the email
@@ -25,7 +28,10 @@ export async function POST(req) {
     });
 
     if (!otpRecord) {
-      return new Response(JSON.stringify({ error: 'Invalid or expired OTP' }), { status: 400 });
+      return new Response(JSON.stringify({ error: 'Invalid or expired OTP' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
 
     // Compute full name
@@ -52,6 +58,9 @@ export async function POST(req) {
     return new Response(JSON.stringify({ message: 'Email verified successfully', user: { id: newUser.id, name: newUser.name, email: newUser.email } }), { status: 200 });
   } catch (error) {
     console.error(error);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), { status: 500 });
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }

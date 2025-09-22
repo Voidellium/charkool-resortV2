@@ -36,7 +36,7 @@ export default function CashierLayout({ children }) {
         justifyContent: 'flex-end',
         alignItems: 'center',
         padding: '10px 20px',
-        background: '#1E293B',
+        background: '#FEBE52',
         color: '#fff',
         position: 'relative',
       }}>

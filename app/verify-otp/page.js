@@ -43,8 +43,7 @@ export default function VerifyOTPPage() {
         body: JSON.stringify({
           otp,
           browserFingerprint,
-          userAgent: userAgentInfo.userAgent,
-          ipAddress: 'client-side'
+          userAgent: userAgentInfo.userAgent
         }),
       });
 
@@ -154,7 +153,13 @@ export default function VerifyOTPPage() {
           </div>
 
           <div className="back-link">
-            <Link href="/login">← Back to Login</Link>
+            <button
+              type="button"
+              onClick={() => router.push('/login')}
+              className="back-button"
+            >
+              ← Back to Login
+            </button>
           </div>
         </div>
       </div>
@@ -299,6 +304,20 @@ export default function VerifyOTPPage() {
         }
 
         .back-link a:hover {
+          color: #374151;
+        }
+
+        .back-button {
+          background: none;
+          border: none;
+          color: #6b7280;
+          text-decoration: none;
+          font-size: 0.875rem;
+          cursor: pointer;
+          padding: 0;
+        }
+
+        .back-button:hover {
           color: #374151;
         }
 

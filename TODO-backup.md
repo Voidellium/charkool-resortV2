@@ -3,9 +3,9 @@
 ## Plan Implementation Steps:
 
 ### 1. Update Middleware (`middleware.ts`)
-- [x] Remove role-based restrictions for OTP verification
-- [x] Apply browser trust checks to ALL authenticated users (including guests)
-- [x] Only require OTP for new browsers or incognito mode
+- [ ] Remove role-based restrictions for OTP verification
+- [ ] Apply browser trust checks to ALL authenticated users (including guests)
+- [ ] Only require OTP for new browsers or incognito mode
 
 ### 2. Update Browser Trust Logic (`app/api/check-trusted-browser/route.js`)
 - [ ] Modify to handle all user types consistently

@@ -5,11 +5,16 @@ const prisma = new PrismaClient();
 
 export async function POST(req) {
   try {
-    const { otp, browserFingerprint, userAgent, ipAddress } = await req.json();
+    const { otp, browserFingerprint, userAgent } = await req.json();
+    const ipAddress = req.headers.get('x-forwarded-for') || req.ip;
+    const isIncognito = req.headers.get('x-is-incognito') === 'true';
     const token = await getToken({ req });
 
     if (!token?.email || !otp) {
-      return new Response(JSON.stringify({ error: 'Invalid request' }), { status: 400 });
+      return new Response(JSON.stringify({ error: 'Invalid request' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
 
     // Find the latest OTP for the user's email
@@ -27,7 +32,10 @@ export async function POST(req) {
     });
 
     if (!otpRecord) {
-      return new Response(JSON.stringify({ error: 'Invalid or expired OTP' }), { status: 400 });
+      return new Response(JSON.stringify({ error: 'Invalid or expired OTP' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
 
     // Update user with verified status
@@ -38,8 +46,8 @@ export async function POST(req) {
       },
     });
 
-    // Mark browser as trusted if fingerprint is provided
-    if (browserFingerprint) {
+    // Mark browser as trusted if fingerprint is provided and not in incognito mode
+    if (browserFingerprint && !isIncognito) {
       const existingTrustedBrowser = await prisma.trustedBrowser.findUnique({
         where: { browserFingerprint },
       });
@@ -77,6 +85,9 @@ export async function POST(req) {
     }), { status: 200 });
   } catch (error) {
     console.error('Session OTP verification error:', error);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), { status: 500 });
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }
