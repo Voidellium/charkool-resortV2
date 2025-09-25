@@ -112,11 +112,11 @@ export default function RentalAmenitiesSelector({
               <div className="pricing-info">
                 <div className="price-breakdown">
                   <span className="unit-price">
-                    ₱{amenity.pricePerUnit} per {amenity.unitType}
+                    ₱{(amenity.pricePerUnit / 100).toFixed(0)} per {amenity.unitType}
                   </span>
                   {amenity.pricePerHour && (
                     <span className="hourly-price">
-                      ₱{amenity.pricePerHour} per hour
+                      ₱{(amenity.pricePerHour / 100).toFixed(0)} per hour
                     </span>
                   )}
                 </div>
@@ -175,7 +175,7 @@ export default function RentalAmenitiesSelector({
                     )}
                   </div>
                   <div className="total-price">
-                    Total: ₱{totalPrice.toLocaleString()}
+                    Total: ₱{(totalPrice / 100).toFixed(0)}
                   </div>
                 </div>
               )}

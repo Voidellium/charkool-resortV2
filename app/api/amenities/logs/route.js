@@ -5,15 +5,14 @@ import prisma from "@/lib/prisma";
 export async function GET() {
   try {
     const logs = await prisma.amenityLog.findMany({
-      orderBy: { timestamp: "desc" },
-      include: { amenity: true }, // joins amenity details if available
+      orderBy: { timestamp: "desc" }
     });
 
     return NextResponse.json(
       logs.map((log) => ({
         id: log.id,
         action: log.action,
-        amenityName: log.amenity?.name || "Unknown",
+        amenityName: log.amenityName || "Unknown",
         user: log.user || "System",
         timestamp: log.timestamp,
       }))

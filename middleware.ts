@@ -55,8 +55,18 @@ async function checkBrowserTrust(req: NextRequest, token: any) {
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // Enhanced logging for debugging
+  console.log(`[MIDDLEWARE] ${req.method} ${pathname} - User Agent: ${req.headers.get('user-agent')?.substring(0, 100)}`);
+
   // Allow public GET access to the chatbot API
   if (pathname.startsWith('/api/chatbot') && req.method === 'GET') {
+    console.log(`[MIDDLEWARE] Allowing public access to chatbot API`);
+    return NextResponse.next();
+  }
+
+  // Skip middleware for NextAuth internal requests
+  if (pathname.startsWith('/api/auth/')) {
+    console.log(`[MIDDLEWARE] Skipping NextAuth route: ${pathname}`);
     return NextResponse.next();
   }
 
@@ -79,7 +89,7 @@ export async function middleware(req: NextRequest) {
   const isLoginOrRegister = loginAndRegisterPaths.includes(pathname);
 
   // These are the paths that don't require authentication (e.g., home)
-  const publicPaths = ["/", "/login", "/register", "/api/public", "/virtual-tour", "/room", "/about-us"];
+  const publicPaths = ["/", "/login", "/register", "/api/public", "/virtual-tour", "/room", "/about-us", "/booking"];
   const isPublicPath = publicPaths.includes(pathname);
 
   const token = await getToken({ req, secret: JWT_SECRET });
@@ -126,13 +136,15 @@ export async function middleware(req: NextRequest) {
 
   // --- 2. Handle unauthenticated users trying to access protected pages ---
   if (!token && !isPublicPath) {
-    const loginUrl = new URL("/login", req.url);
-    // Always redirect to /booking if the requested path is /booking or starts with /booking
-    if (pathname === "/booking" || pathname.startsWith("/booking/")) {
-      loginUrl.searchParams.set("redirect", "/booking");
-    } else {
-      loginUrl.searchParams.set("redirect", pathname);
-    }
+    const loginUrl = new URL("/login", req.url);    
+    loginUrl.searchParams.set("redirect", pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  // --- 2.5 Handle unauthenticated users trying to access /booking ---
+  if (!token && pathname.startsWith('/booking')) {
+    const loginUrl = new URL('/login', req.url);
+    loginUrl.searchParams.set('redirect', '/booking');
     return NextResponse.redirect(loginUrl);
   }
 
@@ -178,7 +190,8 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - images (image folder)
+     * - public (public assets)
      */
-    '/((?!api/|_next/static|_next/image|favicon.ico|images/).*)'
+    '/((?!api/|_next/static|_next/image|favicon.ico|images|public/).*)'
   ],
 };

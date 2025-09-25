@@ -8,7 +8,6 @@ export default function ChatbotManagementPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Form state
   const [editingQuestion, setEditingQuestion] = useState(null);
   const [formState, setFormState] = useState({
     question: '',
@@ -22,7 +21,6 @@ export default function ChatbotManagementPage() {
       setIsLoading(true);
       const res = await fetch('/api/chatbot');
       const data = await res.json();
-      // Flatten the grouped data for easier management
       const flattened = Object.values(data).flat();
       setQuestions(flattened);
     } catch (e) {
@@ -65,12 +63,8 @@ export default function ChatbotManagementPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formState),
       });
-
-      if (!res.ok) {
-        throw new Error(editingQuestion ? 'Failed to update question' : 'Failed to add question');
-      }
-
-      await fetchQuestions(); // Refresh list
+      if (!res.ok) throw new Error(editingQuestion ? 'Failed to update question' : 'Failed to add question');
+      await fetchQuestions();
       resetForm();
     } catch (err) {
       setError(err.message);
@@ -92,7 +86,7 @@ export default function ChatbotManagementPage() {
       try {
         const res = await fetch(`/api/chatbot/${id}`, { method: 'DELETE' });
         if (!res.ok) throw new Error('Failed to delete question');
-        await fetchQuestions(); // Refresh list
+        await fetchQuestions();
       } catch (err) {
         setError(err.message);
       }
@@ -110,13 +104,20 @@ export default function ChatbotManagementPage() {
   return (
     <SuperAdminLayout activePage="chatbot">
       <div className="container">
-        <h1>Chatbot Management</h1>
-        {error && <p className="error">{error}</p>}
+        <h1 className="page-title">Chatbot Management</h1>
+        {error && <p className="error-message">{error}</p>}
 
-        <div className="form-container">
-          <h2>{editingQuestion ? 'Edit Question' : 'Add New Question'}</h2>
-          <form onSubmit={handleSubmit}>
-            <select name="category" value={formState.category} onChange={handleInputChange} required>
+        {/* Form Section */}
+        <div className="form-card">
+          <h2 className="section-heading">{editingQuestion ? 'Edit Question' : 'Add New Question'}</h2>
+          <form onSubmit={handleSubmit} className="question-form">
+            <select
+              name="category"
+              value={formState.category}
+              onChange={handleInputChange}
+              className="input-select"
+              required
+            >
               {categories.map((cat) => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
@@ -127,6 +128,7 @@ export default function ChatbotManagementPage() {
               placeholder="Question"
               value={formState.question}
               onChange={handleInputChange}
+              className="input-field"
               required
             />
             <textarea
@@ -134,28 +136,35 @@ export default function ChatbotManagementPage() {
               placeholder="Answer"
               value={formState.answer}
               onChange={handleInputChange}
+              className="textarea"
               required
             />
-            <label>
+            <label className="checkbox-label">
               <input
                 type="checkbox"
                 name="showBookNowButton"
                 checked={formState.showBookNowButton}
                 onChange={handleInputChange}
+                className="checkbox-input"
               />
-              Show "Book Now" button with answer
+              <span className="checkbox-text">Show "Book Now" button with answer</span>
             </label>
-            <div className="form-actions">
-              <button type="submit">{editingQuestion ? 'Update' : 'Add'}</button>
-              {editingQuestion && <button type="button" onClick={resetForm}>Cancel</button>}
+            <div className="button-group">
+              <button type="submit" className="btn-primary">{editingQuestion ? 'Update' : 'Add'}</button>
+              {editingQuestion && (
+                <button type="button" className="btn-secondary" onClick={resetForm}>Cancel</button>
+              )}
             </div>
           </form>
         </div>
 
-        <div className="questions-list-container">
-          <h2>Existing Questions</h2>
-          {isLoading ? <p>Loading...</p> : (
-            <table>
+        {/* Questions List */}
+        <div className="list-card">
+          <h2 className="section-heading">Existing Questions</h2>
+          {isLoading ? (
+            <p className="loading-text">Loading questions...</p>
+          ) : (
+            <table className="questions-table">
               <thead>
                 <tr>
                   <th>Category</th>
@@ -166,11 +175,11 @@ export default function ChatbotManagementPage() {
               <tbody>
                 {questions.map((q) => (
                   <tr key={q.id}>
-                    <td>{q.category}</td>
-                    <td>{q.question}</td>
-                    <td className="actions">
-                      <button onClick={() => handleEdit(q)}>Edit</button>
-                      <button onClick={() => handleDelete(q.id)}>Delete</button>
+                    <td className="category-cell">{q.category}</td>
+                    <td className="question-cell">{q.question}</td>
+                    <td className="actions-cell">
+                      <button className="action-btn edit" onClick={() => handleEdit(q)}>Edit</button>
+                      <button className="action-btn delete" onClick={() => handleDelete(q.id)}>Delete</button>
                     </td>
                   </tr>
                 ))}
@@ -179,24 +188,199 @@ export default function ChatbotManagementPage() {
           )}
         </div>
       </div>
+
+      {/* Stylish, minimal CSS */}
       <style jsx>{`
-        .container { padding: 20px; }
-        h1, h2 { color: #333; }
-        .error { color: red; }
-        .form-container { background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 30px; }
-        form { display: flex; flex-direction: column; gap: 15px; }
-        input[type="text"], textarea, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
-        textarea { min-height: 100px; resize: vertical; }
-        label { display: flex; align-items: center; gap: 8px; }
-        .form-actions { display: flex; gap: 10px; }
-        button { padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; background-color: #0070f3; color: white; }
-        button[type="button"] { background-color: #666; }
-        .questions-list-container table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 12px; border: 1px solid #ddd; text-align: left; }
-        th { background-color: #f2f2f2; }
-        .actions { display: flex; gap: 10px; }
-        .actions button { padding: 5px 10px; font-size: 0.9em; }
-        .actions button:last-child { background-color: #e5484d; }
+        /* Layout & Typography */
+        .container {
+          max-width: 1000px;
+          margin: 0 auto;
+          padding: 40px 20px;
+          font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+          color: #222;
+        }
+
+        .page-title {
+          font-size: 2.5rem;
+          font-weight: 700;
+          text-align: center;
+          margin-bottom: 30px;
+          letter-spacing: 0.02em;
+        }
+
+        .section-heading {
+          font-size: 1.75rem;
+          margin-bottom: 15px;
+          font-weight: 600;
+          color: #444;
+        }
+
+        /* Error message */
+        .error-message {
+          color: #e5484d;
+          font-weight: 600;
+          margin-bottom: 20px;
+          text-align: center;
+        }
+
+        /* Cards (form & list) */
+        .form-card, .list-card {
+          background: #fff;
+          border-radius: 16px;
+          box-shadow: 0 8px 20px rgba(0,0,0,0.07);
+          padding: 30px 40px;
+          margin-bottom: 40px;
+          transition: box-shadow 0.3s ease;
+        }
+
+        .form-card:hover, .list-card:hover {
+          box-shadow: 0 12px 30px rgba(0,0,0,0.1);
+        }
+
+        /* Form styles */
+        .question-form {
+          display: flex;
+          flex-direction: column;
+          gap: 18px;
+        }
+
+        .input-select, .input-field, .textarea {
+          width: 100%;
+          padding: 14px 18px;
+          border-radius: 10px;
+          border: 1px solid #ddd;
+          font-size: 1rem;
+          transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .input-select:focus, .input-field:focus, .textarea:focus {
+          border-color: #6c63ff;
+          box-shadow: 0 0 8px rgba(108, 99, 255, 0.2);
+          outline: none;
+        }
+
+        /* Label & checkbox */
+        .checkbox-label {
+          display: flex;
+          align-items: center;
+          font-size: 0.95rem;
+        }
+
+        .checkbox-input {
+          margin-right: 10px;
+        }
+
+        /* Buttons */
+        .button-group {
+          display: flex;
+          gap: 15px;
+        }
+
+        .btn-primary {
+          background: linear-gradient(135deg, #6c63ff, #4a44e6);
+          color: #fff;
+          padding: 14px 24px;
+          border: none;
+          border-radius: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          font-size: 1rem;
+          transition: all 0.2s ease;
+        }
+
+        .btn-primary:hover {
+          background: linear-gradient(135deg, #5a52e0, #3b3bc2);
+          transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+          background-color: #bbb;
+          color: #fff;
+          padding: 14px 24px;
+          border: none;
+          border-radius: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          font-size: 1rem;
+          transition: all 0.2s ease;
+        }
+
+        .btn-secondary:hover {
+          background-color: #999;
+          transform: translateY(-2px);
+        }
+
+        /* List table styles */
+        .questions-table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+
+        th {
+          background-color: #f0f0f0;
+          padding: 16px;
+          font-weight: 600;
+          font-size: 0.95rem;
+          text-align: left;
+        }
+
+        td {
+          padding: 14px;
+          border-bottom: 1px solid #eee;
+        }
+
+        .category-cell {
+          font-weight: 600;
+          color: #555;
+        }
+
+        .question-cell {
+          color: #333;
+        }
+
+        /* Action buttons in table */
+        .actions-cell {
+          display: flex;
+          gap: 10px;
+        }
+
+        .action-btn {
+          padding: 8px 14px;
+          border: none;
+          border-radius: 8px;
+          font-size: 0.9rem;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          font-weight: 500;
+        }
+
+        .edit {
+          background-color: #4a90e2;
+          color: #fff;
+        }
+
+        .edit:hover {
+          background-color: #357ab8;
+          transform: translateY(-1px);
+        }
+
+        .delete {
+          background-color: #e5484d;
+          color: #fff;
+        }
+
+        .delete:hover {
+          background-color: #c14444;
+          transform: translateY(-1px);
+        }
+
+        /* Loading text */
+        .loading-text {
+          text-align: center;
+          font-style: italic;
+          color: #777;
+          margin-top: 20px;
+        }
       `}</style>
     </SuperAdminLayout>
   );

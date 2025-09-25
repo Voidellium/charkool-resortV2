@@ -5,7 +5,22 @@ import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
-const prisma = new PrismaClient();
+// Enhanced Prisma client with error handling
+const prisma = new PrismaClient({
+  log: ['error', 'warn'],
+  errorFormat: 'pretty',
+});
+
+// Global error handler for database operations
+async function safeDbOperation(operation, errorMessage = 'Database operation failed') {
+  try {
+    return await operation();
+  } catch (error) {
+    console.error(`${errorMessage}:`, error);
+    // Return a proper error response instead of throwing
+    throw new Error(`${errorMessage}: ${error.message}`);
+  }
+}
 
 export const authOptions = {
   adapter: PrismaAdapter(prisma),
@@ -13,6 +28,13 @@ export const authOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      authorization: {
+        params: {
+          prompt: "consent",
+          access_type: "offline",
+          response_type: "code"
+        }
+      }
     }),
     CredentialsProvider({
       name: 'credentials',
@@ -22,17 +44,27 @@ export const authOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
+          console.error('Missing credentials');
           return null;
         }
 
         try {
-          const user = await prisma.user.findUnique({
-            where: {
-              email: credentials.email.toLowerCase(),
-            },
-          });
+          const user = await safeDbOperation(
+            () => prisma.user.findUnique({
+              where: {
+                email: credentials.email.toLowerCase(),
+              },
+            }),
+            'Failed to find user during authentication'
+          );
 
-          if (!user || !user.password) {
+          if (!user) {
+            console.error('User not found:', credentials.email);
+            return null;
+          }
+
+          if (!user.password) {
+            console.error('User has no password set:', user.email);
             return null;
           }
 
@@ -42,9 +74,11 @@ export const authOptions = {
           );
 
           if (!isPasswordValid) {
+            console.error('Invalid password for user:', user.email);
             return null;
           }
 
+          console.log('Successful authentication for user:', user.email);
           return {
             id: user.id,
             email: user.email,
@@ -55,7 +89,7 @@ export const authOptions = {
             image: user.image,
           };
         } catch (error) {
-          console.error('Auth error:', error);
+          console.error('Authentication error:', error);
           return null;
         }
       },
@@ -63,6 +97,7 @@ export const authOptions = {
   ],
   session: {
     strategy: "jwt",
+    maxAge: 24 * 60 * 60, // 24 hours
   },
   secret: process.env.NEXTAUTH_SECRET,
   pages: {
@@ -70,28 +105,54 @@ export const authOptions = {
     error: "/login",
   },
   callbacks: {
-    // The session callback makes the user's ID and role available on the client-side session object
-    async session({ session, token }) {
-      if (token && session.user) {
-        session.user.id = token.id;
-        session.user.role = token.role;
-      }
-      session.accessToken = token.accessToken;
-      return session;
+    async signIn({ user, account, profile, email, credentials }) {
+      console.log('Sign in attempt:', { user: user?.email, provider: account?.provider });
+      return true;
     },
-    // The jwt callback is called first and enriches the token with the user's ID and role from the database
+    async session({ session, token }) {
+      try {
+        if (token && session.user) {
+          session.user.id = token.id;
+          session.user.role = token.role;
+        }
+        session.accessToken = token.accessToken;
+        return session;
+      } catch (error) {
+        console.error('Session callback error:', error);
+        return session;
+      }
+    },
     async jwt({ token, user, account }) {
-      if (account) {
-        token.accessToken = account.access_token;
+      try {
+        if (account) {
+          token.accessToken = account.access_token;
+        }
+        if (user) {
+          token.id = user.id;
+          token.role = user.role;
+        }
+        return token;
+      } catch (error) {
+        console.error('JWT callback error:', error);
+        return token;
       }
-      // On initial sign-in, the 'user' object from the database is available.
-      if (user) {
-        token.id = user.id;
-        token.role = user.role;
-      }
-      return token;
     },
   },
+  events: {
+    async signIn(message) {
+      console.log('User signed in:', message.user?.email);
+    },
+    async signOut(message) {
+      console.log('User signed out:', message.token?.email);
+    },
+    async createUser(message) {
+      console.log('User created:', message.user?.email);
+    },
+    async linkAccount(message) {
+      console.log('Account linked:', message.user?.email);
+    },
+  },
+  debug: process.env.NODE_ENV === 'development',
 };
 
 const handler = NextAuth(authOptions);

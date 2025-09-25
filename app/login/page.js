@@ -16,32 +16,23 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
 
-  // Redirect if already logged in
   useEffect(() => {
     if (status === 'authenticated') {
       const redirectUrl = searchParams.get('redirect') || searchParams.get('callbackUrl');
-      // If there's a redirect URL, and it's not the login page, redirect there.
-      // This prevents a loop when next-auth redirects back to the login page.
-      if (redirectUrl && !redirectUrl.includes('/login')) {
-        router.push(redirectUrl);
-      } else {
-        // Otherwise, if the user is authenticated and on the login page,
-        // redirect them based on their role. This is the fallback.
-        redirectByRole(session?.user?.role);
-      }
+      if (redirectUrl && !redirectUrl.includes('/login')) router.push(redirectUrl);
+      else redirectByRole(session?.user?.role);
     }
   }, [status, session, router, searchParams]);
 
-  // Map NextAuth errors
   useEffect(() => {
-    const errorQuery = searchParams.get('error');
-    if (errorQuery) {
-      const errorMap = {
+    const e = searchParams.get('error');
+    if (e) {
+      const m = {
         CredentialsSignin: 'Invalid email or password',
         OAuthSignin: 'OAuth sign-in failed.',
         default: 'Login failed. Please try again.',
       };
-      setError(errorMap[errorQuery] || errorMap.default);
+      setError(m[e] || m.default);
     }
   }, [searchParams]);
 
@@ -60,11 +51,6 @@ function LoginForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-
-    // Let next-auth handle the redirect. On success, it will redirect to the
-    // `callbackUrl` or the current page. The middleware will then intercept
-    // and redirect to the correct dashboard based on user role. On failure,
-    // it will reload the page with an `error` query parameter.
     await signIn('credentials', {
       email: email.toLowerCase(),
       password,
@@ -73,284 +59,224 @@ function LoginForm() {
   };
 
   const handleOAuthLogin = async (provider) => {
-    // Let next-auth handle the redirect. It will use the `redirect` search
-    // param as the callbackUrl if it exists.
     await signIn(provider, {
       callbackUrl: searchParams.get('redirect') || searchParams.get('callbackUrl') || undefined,
     });
   };
 
   return (
-    <div className="container">
-      <div className="card">
-        {/* Left Side - Logo and Tagline */}
-        <div className="left-column">
-          <Image
-            src="/images/logo.png"
-            alt="Charkool Leisure Beach Resort Logo"
-            width={300}
-            height={300}
-            style={{ objectFit: 'contain' }}
-          />
-          <p className="tagline">
-            Escape to Paradise at<br />
-            Charkool Leisure Beach Resort
-          </p>
-        </div>
-
-        {/* Right Side - Login Form */}
-        <div className="right-column">
-          <h2 className="title">Log In</h2>
-
-          <form onSubmit={handleSubmit} className="form-content">
-            {/* Username */}
-            <div className="input-group">
-              <label htmlFor="email">Username</label>
-              <input
-                type="email"
-                id="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-
-            {/* Password */}
-            <div className="input-group">
-              <label htmlFor="password">Password</label>
-              <div className="password-input">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  id="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="password-field"
-                />
-                <span
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="password-toggle"
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </span>
-              </div>
-              <Link href="/forgot-password" className="forgot-password">Forgot Password?</Link>
-            </div>
-
-            {/* Login Button */}
-            <button
-              type="submit"
-              className="login-button"
-            >
-              LOG IN
-            </button>
-          </form>
-
-          {/* Error Message */}
-          {error && <p className="error-message">{error}</p>}
-
-          {/* Google Login */}
-          <div className="social-login">
-            <button
-              type="button"
-              onClick={() => handleOAuthLogin('google')}
-              className="google-button"
-            >
-              <FaGoogle />
-              <span>Sign In with Google</span>
-            </button>
+    <>
+      <div className="login-wrapper">
+        <div className="login-card" role="dialog" aria-labelledby="login-title">
+          <div className="login-left">
+            <Image src="/images/logo.png" alt="Charkool Logo" width={150} height={150} className="logo-img"/>
+            <p className="tagline">Escape to Paradise at<br/>Charkool Leisure Beach Resort</p>
           </div>
-
-          {/* Signup Link */}
-          <div className="signup-link">
-            Don't have an account?{' '}
-            <Link href="/register">
-              Sign up
-            </Link> instead
+          <div className="login-right">
+            <h2 id="login-title" className="login-title">Welcome Back</h2>
+            <form onSubmit={handleSubmit} className="login-form" noValidate>
+              <label>
+                Email
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </label>
+              <label>
+                Password
+                <div className="password-box">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    inputMode="text"
+                  />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="toggle-eye" aria-label="Toggle password visibility">
+                    {showPassword ? <EyeOff size={18}/> : <Eye size={18}/> }
+                  </button>
+                </div>
+                <Link href="/forgot-password" className="forgot-link">Forgot Password?</Link>
+              </label>
+              <button type="submit" className="primary-btn">Log In</button>
+            </form>
+            {error && <p className="error-text">{error}</p>}
+            <button onClick={() => handleOAuthLogin('google')} className="google-btn" type="button">
+              <FaGoogle/> Sign in with Google
+            </button>
+            <p className="signup-text">
+              Don’t have an account? <Link href="/register">Sign up</Link>
+            </p>
           </div>
         </div>
       </div>
 
-      <style jsx>{`
-        .container {
-          display: flex;
-          min-height: 100vh;
-          align-items: center;
-          justify-content: center;
-          background-color: #e2e8f0; /* bg-sky-200 equivalent */
-          padding: 1rem;
+      <style jsx global>{`
+        :root, html, body, #__next {
+          height: 100%;
+          margin: 0;
+          padding: 0;
         }
-
-        .card {
-          display: flex;
-          width: 100%;
-          max-width: 960px; /* max-w-4xl equivalent */
-          background-color: white;
-          border-radius: 0.5rem;
-          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        * { box-sizing: border-box; }
+        body {
+          background: linear-gradient(135deg, #fcd34d 0%, #e6f4f8 100%);
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+          height: 100vh;
+          width: 100vw;
           overflow: hidden;
         }
+        #__next > div { height: 100%; }
+      `}</style>
 
-        .left-column {
-          display: none; /* Hidden on mobile */
-          padding: 2.5rem;
+      <style jsx>{`
+        .login-wrapper {
+          height: 100vh;
+          width: 100vw;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .login-card {
+          width: min(860px, 94%);
+          max-height: 100%;
+          display: flex;
+          flex-direction: column;
+          background: rgba(255,255,255,0.96);
+          border-radius: 12px;
+          overflow: hidden;
+          box-shadow: 0 14px 36px rgba(15,23,42,0.15);
+        }
+        .login-left {
           flex: 1;
+          display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
+          background: linear-gradient(180deg, rgba(255,246,230,1), rgba(255,242,213,1));
+          padding: 24px;
           text-align: center;
-          border-right: 1px solid #d1d5db; /* border-gray-300 equivalent */
         }
-        
-        @media (min-width: 768px) { /* md:flex equivalent */
-          .left-column {
-            display: flex;
-          }
-        }
-
-        .tagline {
-          margin-top: 1rem;
-          font-size: 0.875rem; /* text-sm equivalent */
-          line-height: 1.25rem;
-          color: #4b5563; /* text-gray-600 equivalent */
-        }
-
-        .right-column {
+        .logo-img { width: 150px; height: auto; margin-bottom: 12px; }
+        .tagline { font-size: 1rem; color: #374151; line-height: 1.4; }
+        .login-right {
           flex: 1;
-          padding: 2.5rem;
+          padding: 20px;
           display: flex;
           flex-direction: column;
           justify-content: center;
-          background-color: white;
+          background: #fff;
         }
-
-        .title {
-          font-size: 1.5rem; /* text-2xl equivalent */
+        @media (min-width: 768px) {
+          .login-card { flex-direction: row; }
+          .login-left { padding: 36px; }
+          .login-right { padding: 36px; }
+        }
+        .login-title {
+          font-size: 1.8rem;
           font-weight: 700;
           text-align: center;
-          margin-bottom: 1.5rem;
+          color: #0f172a;
+          margin: 0 0 18px 0;
         }
-
-        .form-content {
-          display: flex;
-          flex-direction: column;
-          gap: 1rem; /* space-y-4 equivalent */
-        }
-
-        .input-group {
-          position: relative;
-          display: flex;
-          flex-direction: column;
-          gap: 0.25rem;
-        }
-        
-        .input-group label {
-          font-size: 0.75rem; /* text-xs equivalent */
+        .login-form { display: flex; flex-direction: column; gap: 12px; }
+        .login-form label {
+          font-size: 0.9rem;
+          color: #334155;
           font-weight: 500;
-          color: #4b5563; /* text-gray-700 equivalent */
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
         }
-
-        .input-group input {
-          width: 100%;
-          border: 1px solid #d1d5db;
-          border-radius: 0.25rem;
-          padding: 0.5rem 0.75rem;
-          font-size: 0.875rem;
-          box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        .login-form input {
+          padding: 10px 12px;
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+          font-size: 0.95rem;
+          background: #fff;
+          transition: border-color 0.15s, box-shadow 0.15s;
         }
-
-        .password-input {
-          position: relative;
+        .login-form input:focus {
+          outline: none;
+          border-color: #f59e0b;
+          box-shadow: 0 0 0 4px rgba(245,158,11,0.08);
         }
-
-        .password-input input {
-          padding-right: 2.5rem;
-          margin-right: 0.5rem;
-        }
-        
-        .password-field {
-          width: 70%;
-        }
-
-        .password-toggle {
+        .password-box { position: relative; display: flex; align-items: center; }
+        .password-box input { width: 100%; padding-right: 40px; }
+        .toggle-eye {
           position: absolute;
-          right: 0.75rem;
+          right: 8px;
           top: 50%;
           transform: translateY(-50%);
+          background: transparent;
+          border: none;
+          padding: 6px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
           cursor: pointer;
-          color: #9ca3af; /* text-gray-400 equivalent */
+          color: #9ca3af;
         }
-
-        .forgot-password {
-          display: block;
-          margin-top: 0.25rem;
-          font-size: 0.75rem;
-          color: #0c4a6e; /* text-sky-600 equivalent */
-          text-decoration: none;
+        .toggle-eye:focus { outline: none; }
+        .forgot-link {
+          font-size: 0.85rem;
+          color: #065f46;
+          margin-top: 6px;
           text-align: right;
+          text-decoration: none;
         }
-
-        .login-button {
+        .primary-btn {
           width: 100%;
-          padding: 0.5rem 1rem;
-          border-radius: 0.25rem;
+          padding: 10px 12px;
+          background-color: #f59e0b;
+          color: white;
           font-weight: 600;
-          color: white;
-          background-color: #0ea5e9; /* bg-sky-500 equivalent */
           border: none;
+          border-radius: 8px;
+          font-size: 1rem;
           cursor: pointer;
+          transition: background 0.15s, transform 0.06s;
         }
-        
-        .login-button:hover {
-          background-color: #0284c7; /* hover:bg-sky-600 equivalent */
-        }
-
-        .error-message {
-          margin-top: 1rem;
+        .primary-btn:hover { background-color: #d97706; transform: translateY(-1px); }
+        .error-text {
+          margin-top: 8px;
           text-align: center;
-          font-size: 0.75rem;
-          color: #dc2626; /* text-red-600 equivalent */
+          color: #dc2626;
+          font-size: 0.9rem;
         }
-
-        .social-login {
-          margin-top: 1rem;
-          display: flex;
-          flex-direction: column;
-          gap: 0.75rem;
-        }
-
-        .google-button {
+        .google-btn {
+          margin-top: 10px;
           width: 100%;
-          padding: 0.5rem 1rem;
-          border: none;
-          border-radius: 0.25rem;
-          background-color: #DB4437; /* Google Red */
-          color: white;
+          padding: 10px 12px;
+          background: #fff;
+          color: #111827;
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+          font-size: 0.95rem;
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 0.5rem;
+          gap: 8px;
           cursor: pointer;
-          font-weight: 600;
         }
-        
-        .google-button:hover {
-          background-color: #a33224; /* Darker Google Red */
-        }
-        
-        .signup-link {
-          margin-top: 1.5rem;
+        .google-btn:hover { background: #f8fafc; }
+        .signup-text {
+          margin-top: 12px;
           text-align: center;
-          font-size: 0.75rem;
-          color: #4b5563;
+          font-size: 0.9rem;
+          color: #374151;
         }
-        
-        .signup-link a {
-          color: #0c4a6e; /* text-sky-600 equivalent */
-          text-decoration: none;
+        .signup-text a { color: #d97706; text-decoration: none; }
+        @media (max-width: 420px) {
+          .login-card { border-radius: 0; box-shadow: none; height: 100vh; }
+          .login-right { padding: 14px; }
+          .login-title { font-size: 1.4rem; margin-bottom: 12px; }
+          .logo-img { width: 120px; }
         }
       `}</style>
-    </div>
+    </>
   );
 }
 

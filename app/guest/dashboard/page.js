@@ -1,8 +1,9 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FaUser, FaBell } from 'react-icons/fa';
-import { MdCamera, MdChat } from 'react-icons/md';
+import BookingCalendar from '../../../components/BookingCalendar'; // Import calendar
+
+
 
 // Modal Component
 const Modal = ({ show, onClose, children }) => {
@@ -82,10 +83,58 @@ const Modal = ({ show, onClose, children }) => {
 
 // Booking History Card Component
 const BookingHistoryCard = ({ booking, guest }) => {
-  const [showModal, setShowModal] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [availabilityData, setAvailabilityData] = useState({});
+  const [newDates, setNewDates] = useState({ checkIn: null, checkOut: null });
 
-  const handleOpenModal = () => setShowModal(true);
-  const handleCloseModal = () => setShowModal(false);
+  const handleOpenDetailsModal = () => setShowDetailsModal(true);
+  const handleCloseDetailsModal = () => setShowDetailsModal(false);
+
+  const handleOpenRescheduleModal = async () => {
+    // Fetch availability for the calendar
+    try {
+      const res = await fetch('/api/availability');
+      if (res.ok) {
+        const data = await res.json();
+        setAvailabilityData(data.availability || {});
+      }
+    } catch (err) {
+      console.error('Failed to load availability for rescheduling:', err);
+    }
+    setShowRescheduleModal(true);
+  };
+
+  const handleCloseRescheduleModal = () => setShowRescheduleModal(false);
+
+  const handleDateChange = ({ checkInDate, checkOutDate }) => {
+    setNewDates({ checkIn: checkInDate, checkOut: checkOutDate });
+  };
+
+  const handleRescheduleSubmit = async () => {
+    if (!newDates.checkIn || !newDates.checkOut) {
+      alert('Please select new check-in and check-out dates.');
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/bookings/${booking.id}/reschedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ checkIn: newDates.checkIn, checkOut: newDates.checkOut }),
+      });
+
+      if (res.ok) {
+        alert('Your reschedule request has been submitted successfully!');
+      } else {
+        throw new Error('Failed to submit request.');
+      }
+    } catch (err) {
+      console.error('Reschedule submission error:', err);
+      alert('An error occurred. Please try again.');
+    }
+    handleCloseRescheduleModal();
+  };
 
   // Safely get the guest's full name with a more robust approach
   const guestFirstName = guest?.firstName || '';
@@ -105,13 +154,16 @@ const BookingHistoryCard = ({ booking, guest }) => {
         <p><strong>Check-out:</strong> {booking.checkOut}</p>
         <p><strong>Guests:</strong> {booking.guests}</p>
         <p><strong>Payment Status:</strong> {booking.payments && booking.payments.length > 0 ? 'Paid' : 'Pending'}</p>
-        <p><strong>Total Paid:</strong> ${booking.payments.reduce((sum, p) => sum + p.amount, 0).toFixed(2)}</p>
+        <p><strong>Total Paid:</strong> ₱{(booking.payments.reduce((sum, p) => sum + p.amount, 0) / 100).toFixed(0)}</p>
       </div>
-      <button className="view-details-btn" onClick={handleOpenModal}>
-        View Details
-      </button>
+      <div className="card-actions">
+        <button className="view-details-btn" onClick={handleOpenDetailsModal}>
+          View Details
+        </button>
+        <button className="reschedule-btn" onClick={handleOpenRescheduleModal}>Reschedule</button>
+      </div>
 
-      <Modal show={showModal} onClose={handleCloseModal}>
+      <Modal show={showDetailsModal} onClose={handleCloseDetailsModal}>
         <h2>Booking Details</h2>
         <div className="modal-details-content">
           <p><strong>Room:</strong> {booking.room.name} - {booking.room.type}</p>
@@ -120,6 +172,21 @@ const BookingHistoryCard = ({ booking, guest }) => {
           <p><strong>Guests:</strong> {guestName}</p>
           <p><strong>Status:</strong> {booking.status}</p>
         </div>
+      </Modal>
+
+      <Modal show={showRescheduleModal} onClose={handleCloseRescheduleModal}>
+        <h2>Request Reschedule</h2>
+        <p>Booking ID: {booking.id} ({booking.room.name})</p>
+        <p>Original Dates: {booking.checkIn} to {booking.checkOut}</p>
+        <div className="calendar-wrapper">
+          <BookingCalendar availabilityData={availabilityData} onDateChange={handleDateChange} />
+        </div>
+        <button 
+          className="submit-request-btn" 
+          onClick={handleRescheduleSubmit}
+          disabled={!newDates.checkIn || !newDates.checkOut}>
+          Submit Request
+        </button>
       </Modal>
 
       <style jsx>{`
@@ -158,17 +225,46 @@ const BookingHistoryCard = ({ booking, guest }) => {
           font-size: 0.95rem;
           color: #666;
         }
+        .card-actions {
+          display: flex;
+          gap: 10px;
+          margin-top: 1rem;
+        }
         .view-details-btn {
           background-color: #FEBE54;
           color: white;
           border: none;
-          padding: 0.75rem 1.5rem;
+          padding: 0.6rem 1.2rem;
           border-radius: 4px;
           cursor: pointer;
-          font-size: 1rem;
+          font-size: 0.9rem;
           font-weight: 600;
           transition: background-color 0.3s ease;
+        }
+        .reschedule-btn {
+          background-color: #5c6ac4;
+          color: white;
+          border: none;
+          padding: 0.6rem 1.2rem;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 0.9rem;
+          font-weight: 600;
+          transition: background-color 0.3s ease;
+        }
+        .reschedule-btn:hover {
+          background-color: #4a55a1;
+        }
+        .submit-request-btn {
           margin-top: 1rem;
+          width: 100%;
+          padding: 0.8rem;
+          background-color: #28a745;
+          color: white;
+          border: none;
+          border-radius: 6px;
+          font-size: 1rem;
+          cursor: pointer;
         }
         .view-details-btn:hover {
           background-color: #FEBE54;
@@ -194,7 +290,7 @@ const PaymentHistoryCard = ({ payment }) => {
         </span>
       </div>
       <div className="card-details">
-        <p><strong>Amount:</strong> ${payment.amount.toFixed(2)}</p>
+        <p><strong>Amount:</strong> ₱{(payment.amount / 100).toFixed(0)}</p>
         <p><strong>Method:</strong> {payment.method}</p>
         <p><strong>Date:</strong> {new Date(payment.createdAt).toLocaleDateString()}</p>
       </div>
@@ -205,7 +301,7 @@ const PaymentHistoryCard = ({ payment }) => {
       <Modal show={showModal} onClose={handleCloseModal}>
         <h2>Payment Details</h2>
         <div className="modal-details-content">
-          <p><strong>Amount:</strong> ${payment.amount.toFixed(2)}</p>
+          <p><strong>Amount:</strong> ₱{(payment.amount / 100).toFixed(0)}</p>
           <p><strong>Method:</strong> {payment.method}</p>
           <p><strong>Date:</strong> {new Date(payment.createdAt).toLocaleDateString()}</p>
           <p><strong>Status:</strong> {payment.status}</p>

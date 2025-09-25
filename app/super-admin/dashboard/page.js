@@ -20,9 +20,9 @@ export default function SuperAdminDashboard() {
       const data = await res.json();
 
       const total = data.length;
-      const confirmed = data.filter((b) => b.status.toLowerCase() === 'confirmed').length;
-      const pending = data.filter((b) => b.status.toLowerCase() === 'pending').length;
-      const cancelled = data.filter((b) => b.status.toLowerCase() === 'cancelled').length;
+      const confirmed = data.filter((b) => b.status === 'Confirmed').length;
+      const pending = data.filter((b) => b.status === 'Pending').length;
+      const cancelled = data.filter((b) => b.status === 'Cancelled').length;
 
       setStats({ total, confirmed, pending, cancelled });
     } catch (error) {
@@ -32,23 +32,49 @@ export default function SuperAdminDashboard() {
 
   return (
     <SuperAdminLayout activePage="dashboard">
-      <div style={{ padding: '2rem' }}>
-        <h1> Super Admin Dashboard Overview</h1>
-        <p style={{ marginBottom: '2rem', color: '#555' }}>
-          Quick insights on current bookings.
-        </p>
+      <div
+        style={{
+          padding: '4rem 2rem',
+          backgroundColor: '#fafafa',
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+        }}
+      >
+        {/* Header Section */}
+        <div style={{ maxWidth: '800px', textAlign: 'center', marginBottom: '3rem' }}>
+          <h1
+            style={{
+              fontSize: '3rem',
+              fontWeight: '700',
+              marginBottom: '0.5rem',
+              color: '#222',
+            }}
+          >
+            Welcome to the Dashboard
+          </h1>
+          <p style={{ fontSize: '1.25rem', color: '#555', lineHeight: '1.6' }}>
+            A quick glance at your current bookings and their statuses.
+          </p>
+        </div>
 
+        {/* Statistic Cards Container */}
         <div
           style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: '1.5rem',
+            display: 'flex',
+            gap: '2rem',
+            flexWrap: 'wrap',
+            justifyContent: 'center',
+            width: '100%',
+            maxWidth: '1000px',
+            padding: '0 1rem',
           }}
         >
-          <StatCard title="Total Bookings" value={stats.total} color="#007bff" />
-          <StatCard title="Confirmed" value={stats.confirmed} color="#28a745" />
-          <StatCard title="Pending" value={stats.pending} color="#ffc107" />
-          <StatCard title="Cancelled" value={stats.cancelled} color="#dc3545" />
+          <StatCard title="Total Bookings" value={stats.total} color="#4A90E2" />
+          <StatCard title="Confirmed" value={stats.confirmed} color="#7ED321" />
+          <StatCard title="Pending" value={stats.pending} color="#FEBE52" />
+          <StatCard title="Cancelled" value={stats.cancelled} color="#D0021B" />
         </div>
       </div>
     </SuperAdminLayout>
@@ -59,15 +85,47 @@ function StatCard({ title, value, color }) {
   return (
     <div
       style={{
-        background: '#fff',
-        padding: '1.5rem',
-        borderRadius: '12px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-        borderLeft: `6px solid ${color}`,
+        flex: '1 1 200px',
+        minWidth: '200px',
+        backgroundColor: '#fff',
+        borderRadius: '20px',
+        padding: '3rem 2rem',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
+        transition: 'transform 0.3s, box-shadow 0.3s',
+        cursor: 'pointer',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        textAlign: 'center',
+        borderLeft: `8px solid ${color}`,
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = 'translateY(-8px)';
+        e.currentTarget.style.boxShadow = '0 12px 24px rgba(0, 0, 0, 0.12)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = 'translateY(0)';
+        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.05)';
       }}
     >
-      <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#333' }}>{title}</h3>
-      <p style={{ margin: '0.5rem 0 0', fontSize: '1.8rem', fontWeight: 'bold', color }}>
+      <h3
+        style={{
+          fontSize: '1.2rem',
+          marginBottom: '1.2rem',
+          color: '#555',
+          letterSpacing: '0.5px',
+        }}
+      >
+        {title}
+      </h3>
+      <p
+        style={{
+          fontSize: '3rem',
+          fontWeight: '700',
+          color: '#222',
+          margin: 0,
+        }}
+      >
         {value}
       </p>
     </div>

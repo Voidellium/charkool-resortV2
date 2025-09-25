@@ -1,7 +1,9 @@
 import { PrismaClient } from '@prisma/client';
 import { getToken } from 'next-auth/jwt';
+import { Resend } from 'resend';
 
 const prisma = new PrismaClient();
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -50,14 +52,44 @@ export async function POST(req) {
       },
     });
 
-    // TODO: Send OTP via email/SMS
-    // For now, we'll just return success
-    console.log(`Session OTP for ${token.email}: ${otp}`);
+    // Send OTP email using Resend
+    try {
+      if (!process.env.RESEND_API_KEY) {
+        console.error('Resend API key is not configured.');
+        // We still return a success response to not leak server config details,
+        // but the OTP won't be sent.
+        return new Response(JSON.stringify({
+          message: 'OTP generated. Please check your email.',
+          warning: 'Email service is not configured.',
+          expiresIn: 10,
+        }), { status: 200 });
+      }
 
-    return new Response(JSON.stringify({
-      message: 'OTP sent successfully',
-      expiresIn: 10 // minutes
-    }), { status: 200 });
+      await resend.emails.send({
+        from: 'Charkool Resort <no-reply@charkoolresort.com>',
+        to: [token.email],
+        subject: 'Your Charkool Resort Session Verification Code',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2>Charkool Leisure Beach Resort</h2>
+            <p>Your session verification code is: <strong>${otp}</strong></p>
+            <p>This code will expire in 10 minutes.</p>
+            <p>If you didn't request this code, please ignore this email.</p>
+          </div>
+        `,
+      });
+
+      console.log(`Session OTP for ${token.email} sent successfully.`);
+
+      return new Response(JSON.stringify({
+        message: 'OTP sent successfully',
+        expiresIn: 10, // minutes
+      }), { status: 200 });
+    } catch (emailError) {
+      console.error('Resend email sending error:', emailError);
+      // Even if email fails, the OTP is in the DB. Don't block the user.
+      return new Response(JSON.stringify({ message: 'OTP generated successfully. Please check your email.' }), { status: 200 });
+    }
   } catch (error) {
     console.error('Send session OTP error:', error);
     return new Response(JSON.stringify({ error: 'Internal server error' }), { status: 500 });

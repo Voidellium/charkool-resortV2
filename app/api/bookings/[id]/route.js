@@ -11,6 +11,8 @@ export const GET = async (_, context) => {
         room: true,
         user: true,
         amenities: { include: { amenity: true } },
+        optionalAmenities: { include: { optionalAmenity: true } },
+        rentalAmenities: { include: { rentalAmenity: true } },
       },
     });
 

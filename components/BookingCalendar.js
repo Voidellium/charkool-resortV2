@@ -14,7 +14,12 @@ function getFirstDayOfMonth(year, month) {
 
 // Format date to yyyy-mm-dd string
 function formatDate(date) {
-  return date.toISOString().split('T')[0];
+  // Timezone-safe date formatting
+  if (!date) return null;
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const day = date.getDate().toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 export default function BookingCalendar({ availabilityData, onDateChange }) {
@@ -22,7 +27,7 @@ export default function BookingCalendar({ availabilityData, onDateChange }) {
   // onDateChange: callback with { checkInDate, checkOutDate }
 
   const today = new Date();
-  const maxMonth = new Date(today.getFullYear(), today.getMonth() + 3, 1); // max 3 months ahead
+  today.setHours(0, 0, 0, 0);
 
   const [currentYear, setCurrentYear] = useState(() => today.getFullYear());
   const [currentMonth, setCurrentMonth] = useState(() => today.getMonth());
@@ -50,7 +55,7 @@ export default function BookingCalendar({ availabilityData, onDateChange }) {
     // Disable past dates
     if (date < today) return;
 
-    if (!availabilityData || !availabilityData[dateStr]) return; // not available
+    if (availabilityData && availabilityData[dateStr] === false) return; // not available
 
     if (!checkInDate || (checkInDate && checkOutDate)) {
       // Start new selection
@@ -86,8 +91,6 @@ export default function BookingCalendar({ availabilityData, onDateChange }) {
     }
   }
   function nextMonth() {
-    const nextMonthDate = new Date(currentYear, currentMonth + 1, 1);
-    if (nextMonthDate > maxMonth) return; // limit to max 3 months ahead
 
     if (currentMonth === 11) {
       setCurrentYear(currentYear + 1);
@@ -101,7 +104,7 @@ export default function BookingCalendar({ availabilityData, onDateChange }) {
   const legendColors = {
     available: '#d0f0c0',      // light green
     checkIn: '#4a90e2',        // blue
-    checkOut: '#e94e77',       // pinkish red
+    checkOut: '#e94e77',       // pinkish-red
     stayPeriod: '#f5a623',     // yellow (kept for contrast)
     notAvailable: '#b0b0b0',  // medium gray
     invalid: '#f0e68c',        // khaki
@@ -127,7 +130,7 @@ export default function BookingCalendar({ availabilityData, onDateChange }) {
             return <div key={'empty-' + idx} className="day empty"></div>;
           }
           const dateStr = formatDate(date);
-          const isAvailable = availabilityData ? availabilityData[dateStr] : true;
+          const isAvailable = availabilityData ? (availabilityData.hasOwnProperty(dateStr) ? availabilityData[dateStr] : true) : true;
           const isCheckIn = checkInDate && formatDate(checkInDate) === dateStr;
           const isCheckOut = checkOutDate && formatDate(checkOutDate) === dateStr;
           const inStay = isInStayPeriod(date);
@@ -138,6 +141,7 @@ export default function BookingCalendar({ availabilityData, onDateChange }) {
           else if (isCheckIn) className += ' check-in';
           else if (isCheckOut) className += ' check-out';
           else if (inStay) className += ' stay-period';
+          else className += ' available'; // Add available class for styling
 
           return (
             <div
@@ -240,11 +244,11 @@ export default function BookingCalendar({ availabilityData, onDateChange }) {
           height: 36px;
           line-height: 36px;
           text-align: center;
-          border-radius: 4px;
           cursor: pointer;
           background-color: #fff;
           color: #333;
           border: 1px solid transparent;
+          border-radius: 4px;
           user-select: none;
           transition: background-color 0.3s ease;
         }
@@ -256,25 +260,28 @@ export default function BookingCalendar({ availabilityData, onDateChange }) {
           background: transparent;
           border: none;
         }
+        .day.available {
+          background-color: ${legendColors.available};
+        }
         .day.not-available {
-          background-color: #999;
+          background-color: ${legendColors.notAvailable};
           color: #eee;
           cursor: not-allowed;
         }
         .day.check-in {
-          background-color: #f5a623;
+          background-color: ${legendColors.checkIn};
           color: white;
           font-weight: bold;
-          border: 2px solid #d48806;
+          border: 2px solid #2f5bb7;
         }
         .day.check-out {
-          background-color: #f5a623;
+          background-color: ${legendColors.checkOut};
           color: white;
           font-weight: bold;
-          border: 2px solid #d48806;
+          border: 2px solid #b03a5a;
         }
         .day.stay-period {
-          background-color: #f5a623;
+          background-color: ${legendColors.stayPeriod};
           color: white;
           opacity: 0.7;
         }

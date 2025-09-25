@@ -6,7 +6,6 @@ export default function SuperAdminAmenityInventoryPage() {
   const [amenities, setAmenities] = useState([]);
   const [newAmenity, setNewAmenity] = useState({ name: '', quantity: '' });
   const [editingAmenity, setEditingAmenity] = useState(null);
-  
 
   // Fetch amenities from API
   const fetchAmenities = async () => {
@@ -21,21 +20,17 @@ export default function SuperAdminAmenityInventoryPage() {
 
   useEffect(() => {
     fetchAmenities();
-
     const interval = setInterval(fetchAmenities, 10000); // 10s polling
     return () => clearInterval(interval);
   }, []);
 
-  // Add or update amenity
   const handleSubmit = async (e) => {
     e.preventDefault();
     const quantityNumber = parseInt(newAmenity.quantity, 10);
-
     if (!newAmenity.name.trim() || isNaN(quantityNumber)) {
       alert('Please enter a valid name and quantity.');
       return;
     }
-
     try {
       if (editingAmenity) {
         await fetch(`/api/amenities/inventory/${editingAmenity.id}`, {
@@ -57,15 +52,13 @@ export default function SuperAdminAmenityInventoryPage() {
           }),
         });
       }
-
       setNewAmenity({ name: '', quantity: '' });
-      fetchAmenities(); // refresh list
+      fetchAmenities();
     } catch (err) {
       console.error('Failed to submit amenity:', err);
     }
   };
 
-  // Delete amenity
   const handleDelete = async (id) => {
     if (!confirm('Are you sure you want to delete this amenity?')) return;
     try {
@@ -76,7 +69,6 @@ export default function SuperAdminAmenityInventoryPage() {
     }
   };
 
-  // Edit amenity
   const handleEdit = (amenity) => {
     setEditingAmenity(amenity);
     setNewAmenity({ name: amenity.name, quantity: String(amenity.quantity) });
@@ -87,6 +79,7 @@ export default function SuperAdminAmenityInventoryPage() {
       <div style={styles.container}>
         <h1 style={styles.title}>Super Admin - Amenity Inventory</h1>
 
+        {/* Form for adding/updating amenities */}
         <form onSubmit={handleSubmit} style={styles.form}>
           <input
             style={styles.input}
@@ -104,7 +97,7 @@ export default function SuperAdminAmenityInventoryPage() {
             onChange={(e) => setNewAmenity({ ...newAmenity, quantity: e.target.value })}
             required
           />
-          <button type="submit" style={styles.button}>
+          <button type="submit" style={{ ...styles.button, backgroundColor: styles.primaryColor }}>
             {editingAmenity ? 'Update' : 'Add'}
           </button>
           {editingAmenity && (
@@ -121,8 +114,9 @@ export default function SuperAdminAmenityInventoryPage() {
           )}
         </form>
 
+        {/* Amenities list */}
         <div style={styles.cardsContainer}>
-          {amenities.length === 0 && <p>No amenities yet.</p>}
+          {amenities.length === 0 && <p style={styles.noDataText}>No amenities yet.</p>}
           {amenities.map((amenity) => (
             <div key={amenity.id} style={styles.card}>
               <h3 style={styles.cardTitle}>{amenity.name}</h3>
@@ -131,8 +125,12 @@ export default function SuperAdminAmenityInventoryPage() {
                 Last Updated: {new Date(amenity.updatedAt).toLocaleString()}
               </p>
               <div style={styles.actions}>
-                <button onClick={() => handleEdit(amenity)} style={styles.editBtn}>Edit</button>
-                <button onClick={() => handleDelete(amenity.id)} style={styles.deleteBtn}>Delete</button>
+                <button onClick={() => handleEdit(amenity)} style={styles.editBtn}>
+                  Edit
+                </button>
+                <button onClick={() => handleDelete(amenity.id)} style={styles.deleteBtn}>
+                  Delete
+                </button>
               </div>
             </div>
           ))}
@@ -142,18 +140,118 @@ export default function SuperAdminAmenityInventoryPage() {
   );
 }
 
-// Inline CSS
+// Enhanced, professional styles
 const styles = {
-  container: { padding: '20px', maxWidth: '900px', margin: '0 auto' },
-  title: { textAlign: 'center', marginBottom: '20px', color: '#333' },
-  form: { display: 'flex', gap: '10px', marginBottom: '30px', flexWrap: 'wrap' },
-  input: { flex: '1', padding: '10px', borderRadius: '5px', border: '1px solid #ccc' },
-  button: { padding: '10px 20px', backgroundColor: '#0070f3', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' },
-  cardsContainer: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(250px,1fr))', gap: '15px' },
-  card: { border: '1px solid #ddd', borderRadius: '8px', padding: '15px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' },
-  cardTitle: { margin: '0 0 5px 0', color: '#0070f3' },
-  cardDesc: { margin: '0 0 10px 0', color: '#555' },
-  actions: { display: 'flex', gap: '10px' },
-  editBtn: { flex: 1, padding: '5px', backgroundColor: '#ffc107', border: 'none', borderRadius: '5px', cursor: 'pointer' },
-  deleteBtn: { flex: 1, padding: '5px', backgroundColor: '#dc3545', border: 'none', borderRadius: '5px', color: 'white', cursor: 'pointer' },
+  primaryColor: '#FEBE52', // base color
+  container: {
+    padding: '40px 30px',
+    maxWidth: '1100px',
+    margin: '0 auto',
+    fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    backgroundColor: '#fafafa',
+    borderRadius: '16px',
+    boxShadow: '0 8px 24px rgba(0,0,0,0.05)',
+  },
+  title: {
+    textAlign: 'center',
+    marginBottom: '30px',
+    fontSize: '2.4em',
+    fontWeight: '700',
+    color: '#222',
+    letterSpacing: '-0.02em',
+  },
+  form: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '20px',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: '40px',
+  },
+  input: {
+    flex: '1',
+    minWidth: '200px',
+    padding: '14px 20px',
+    borderRadius: '8px',
+    border: '1px solid #ddd',
+    fontSize: '1.1em',
+    boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)',
+    transition: 'border-color 0.2s, box-shadow 0.2s',
+  },
+  button: {
+    padding: '14px 25px',
+    borderRadius: '8px',
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: '1.1em',
+    fontWeight: '600',
+    color: '#fff',
+    transition: 'background-color 0.3s, transform 0.2s',
+  },
+  cardsContainer: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+    gap: '25px',
+  },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: '16px',
+    padding: '20px',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+    transition: 'transform 0.2s, box-shadow 0.2s',
+  },
+  cardTitle: {
+    margin: '0 0 12px',
+    color: '#F9A825', // bright accent
+    fontSize: '1.5em',
+    fontWeight: '700',
+    letterSpacing: '-0.01em',
+  },
+  cardDesc: {
+    margin: '8px 0',
+    color: '#555',
+    fontSize: '1em',
+    lineHeight: '1.4',
+  },
+  actions: {
+    marginTop: '20px',
+    display: 'flex',
+    gap: '12px',
+  },
+  editBtn: {
+    flex: 1,
+    padding: '10px',
+    backgroundColor: '#FFC107',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '6px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    transition: 'background-color 0.3s, transform 0.2s',
+  },
+  deleteBtn: {
+    flex: 1,
+    padding: '10px',
+    backgroundColor: '#E53935',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '6px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    transition: 'background-color 0.3s, transform 0.2s',
+  },
+  // Hover states for buttons
+  buttonHover: {
+    filter: 'brightness(85%)',
+  },
+  cardHover: {
+    transform: 'translateY(-4px)',
+    boxShadow: '0 12px 24px rgba(0,0,0,0.1)',
+  },
+  noDataText: {
+    textAlign: 'center',
+    fontSize: '1.3em',
+    color: '#999',
+    marginTop: '50px',
+  },
 };

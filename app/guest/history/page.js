@@ -132,11 +132,11 @@ const BookingCard = ({ booking }) => {
                     font-weight: bold;
                     color: white;
                 }
-                .status-badge.active {
+                .status-badge.confirmed {
                     background-color: #28a745;
                 }
-                .status-badge.completed {
-                    background-color: #007bff;
+                .status-badge.pending {
+                    background-color: #FEBE52;
                 }
                 .status-badge.cancelled {
                     background-color: #dc3545;

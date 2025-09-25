@@ -29,8 +29,8 @@ export async function POST(req) {
     await prisma.booking.update({
       where: { id: payment.bookingId },
       data: {
-        status: 'CANCELLED',
-        paymentStatus: 'CANCELLED',
+        status: 'Cancelled',
+        paymentStatus: 'Pending',
         heldUntil: null,
       },
     });

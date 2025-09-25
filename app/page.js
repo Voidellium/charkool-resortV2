@@ -120,51 +120,43 @@ export default function Home() {
 
       {/* EXPLORE OUR ROOMS */}
       <motion.section
-        className="rooms"
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        viewport={{ once: true }}
-      >
-        <div className="rooms-inner">
-          <h3 className="rooms-title">Explore Our Rooms</h3>
+  className="rooms"
+  initial={{ opacity: 0, y: 20 }}
+  whileInView={{ opacity: 1, y: 0 }}
+  transition={{ duration: 0.6 }}
+  viewport={{ once: true }}
+>
+  <div className="rooms-inner">
+  <h3 className="rooms-title">Explore Our Rooms</h3>
+  <div className="room-gallery">
+    <div className="room-card">
+      <img src="/images/Loft.jpg" alt="Loft Room" />
+      <div className="room-meta">
+        <h4>Loft Room</h4>
+        <p>·Airconditioned · 2 Bed · Mini fridge</p>
+        <Link href="/room"><button className="see-room">See Room</button></Link>
+      </div>
+    </div>
+    <div className="room-card">
+      <img src="/images/Tepee.jpg" alt="Tepee Room" />
+      <div className="room-meta">
+        <h4>Tepee Room</h4>
+        <p>Airconditioned · 5 Beds · Group Friendly</p>
+        <Link href="/room"><button className="see-room">See Room</button></Link>
+      </div>
+    </div>
+    <div className="room-card">
+      <img src="/images/Villa.jpg" alt="Villa Room" />
+      <div className="room-meta">
+        <h4>Villa Room</h4>
+        <p>Airconditioned · 10 Beds · Private Balcony</p>
+        <Link href="/room"><button className="see-room">See Room</button></Link>
+      </div>
+    </div>
+  </div>
+</div>
+</motion.section>
 
-          <div className="room-gallery">
-            <div className="room-card">
-              <img src="/images/Loft.jpg" alt="Loft Room" />
-              <div className="room-meta">
-                <h4>Loft Room</h4>
-                <p>Airconditioned · 2 Bed · Mini fridge</p>
-                <Link href="/room"><button className="see-room">See Room</button></Link>
-              </div>
-            </div>
-
-            <div className="room-card">
-              <img src="/images/Villa.jpg" alt="Villa Room" />
-              <div className="room-meta">
-                <h4>Villa</h4>
-                <p>Airconditioned · 10 Beds · Private Balcony</p>
-                <Link href="/room"><button className="see-room">See Room</button></Link>
-              </div>
-            </div>
-
-            <div className="room-card">
-              <img src="/images/Tepee.jpg" alt="Tepee Room" />
-              <div className="room-meta">
-                <h4>Tepee</h4>
-                <p>Airconditioned · 5 Beds · Group Friendly</p>
-                <Link href="/room"><button className="see-room">See Room</button></Link>
-              </div>
-            </div>
-          </div>
-
-          <div className="room-indicators" aria-hidden>
-            <span className="dot" />
-            <span className="dot active" />
-            <span className="dot" />
-          </div>
-        </div>
-      </motion.section>
 
       {/* POLICIES */}
       <section className="policies">
@@ -491,98 +483,120 @@ export default function Home() {
 
         /* ---------- ROOMS ---------- */
         .rooms {
-          background: #d49b35;
-          padding: 60px 30px;
-          display: flex;
-          justify-content: center;
-        }
-        .rooms-inner {
-          max-width: 1100px;
-          width: 100%;
-          color: #2b1f12;
-          text-align: center; /* This will center the title */
-        }
-        .rooms-title {
-          margin: 0 0 24px 0;
-          color: #2b1f12;
-          font-size: 1.4rem;
-          font-weight: 700;
-        }
+  background: #f9fafb;
+  padding: 80px 40px;
+}
 
-        .room-gallery {
-          display: flex;
-          gap: 18px;
-          justify-content: center; /* This will center the room cards */
-          align-items: center;
-          flex-wrap: nowrap;
-          padding: 20px 0 24px 0;
-        }
+.rooms-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  text-align: center;
+}
 
-        .room-card {
-          background: #fff;
-          border-radius: 8px;
-          overflow: hidden;
-          width: 240px;
-          box-shadow: 0 6px 18px rgba(0,0,0,0.12);
-          display: flex;
-          flex-direction: column;
-          align-items: stretch;
-        }
+.rooms-title {
+  margin: 0 0 48px 0;
+  color: #2b1f12;
+  font-size: 2.5rem;
+  font-weight: 800;
+  text-align: center;
+}
 
-        .room-card img {
-          width: 100%;
-          height: 140px;
-          object-fit: cover;
-        }
+.room-gallery {
+  display: flex;
+  justify-content: center;
+  gap: 48px;
+  flex-wrap: wrap;
+}
 
-        .room-meta {
-          padding: 12px;
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-          align-items: flex-start;
-        }
+.room-card {
+  flex: 1 1 320px;
+  max-width: 380px;
+  background: #fff;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  margin-bottom: 40px;
+}
 
-        .room-meta h4 {
-          margin: 0;
-          font-size: 1.05rem;
-          color: #102a2a;
-        }
 
-        .room-meta p {
-          margin: 0;
-          font-size: 0.88rem;
-          color: #4a6a6a;
-        }
+.room-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.18);
+}
 
-        .see-room {
-          margin-top: 8px;
-          padding: 8px 12px;
-          background: transparent;
-          border: 1px solid #d8a84a;
-          color: #2b1f12;
-          border-radius: 6px;
-          cursor: pointer;
-        }
+.room-card img {
+  width: 100%;
+  height: 220px;
+  object-fit: cover;
+}
 
-        .room-indicators {
-          margin-top: 18px;
-          display: flex;
-          gap: 8px;
-          justify-content: center;
-          align-items: center;
-        }
+.room-meta {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
 
-        .dot {
-          width: 8px;
-          height: 8px;
-          border-radius: 999px;
-          background: rgba(255,255,255,0.35);
-          border: 2px solid rgba(0,0,0,0.06);
-        }
-        .dot.active {
-          background: rgba(0,0,0,0.9);
-        }
+.room-meta h4 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #102a2a;
+}
+
+.room-meta p {
+  margin: 0;
+  font-size: 1rem;
+  color: #4a6a6a;
+}
+
+.see-room {
+  margin-top: 10px;
+  padding: 12px 20px;
+  background: #f4ae40;
+  border: none;
+  color: #000;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 1rem;
+  transition: all 0.25s ease;
+}
+
+.see-room:hover {
+  background: #d8922e;
+  transform: scale(1.05);
+  box-shadow: 0 6px 14px rgba(0,0,0,0.15);
+  color: #000;
+}
+
+
+
+@media (max-width: 768px) {
+  .rooms-title {
+    font-size: 2rem;
+  }
+
+  .room-card img {
+    height: 180px;
+  }
+}
+
+@media (max-width: 520px) {
+  .rooms-title {
+    font-size: 1.6rem;
+  }
+
+  .room-card img {
+    height: 160px;
+  }
+}
+
+
 
         /* ---------- POLICIES ---------- */
 .policies {

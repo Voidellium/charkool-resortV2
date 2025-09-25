@@ -53,7 +53,7 @@ export async function POST(req) {
       data: {
         bookingId: parseInt(bookingId),
         amount: amountInCents,
-        status: 'pending',
+        status: 'Pending',
         provider: 'paymongo',
         referenceId: paymentIntent.id,
       },

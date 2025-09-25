@@ -9,7 +9,7 @@ export async function POST(_, { params }) {
   try {
     await prisma.booking.update({
       where: { id: bookingId },
-      data: { status: "confirmed", paymentStatus: "paid" },
+      data: { status: "Confirmed", paymentStatus: "Paid" },
     });
 
     return NextResponse.json({ success: true });

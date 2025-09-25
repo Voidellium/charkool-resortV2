@@ -1,26 +1,19 @@
-# Fix OTP Verification for New Browsers/Incognito Mode
+# Remove Centavos from Pricing Display
 
-## Plan Implementation Steps:
+## Steps to Complete:
 
-### 1. Update Middleware (`middleware.ts`)
-- [x] Remove role-based restrictions for OTP verification
-- [x] Apply browser trust checks to ALL authenticated users (including guests)
-- [x] Only require OTP for new browsers or incognito mode
+1. **Update app/cashier/page.js** ✅:
+   - Remove `.toFixed(2)` from all price displays
+   - Change to display whole numbers only
 
-### 2. Update Browser Trust Logic (`app/api/check-trusted-browser/route.js`)
-- [ ] Modify to handle all user types consistently
-- [ ] Add incognito mode detection to the trust check
+2. **Update app/checkout/page.js**:
+   - Remove `.toFixed(2)` from half payment calculation
+   - Ensure all price displays show whole numbers
 
-### 3. Update Browser Fingerprint Provider (`components/BrowserFingerprintProvider.js`)
-- [ ] Remove role-based browser registration logic
-- [ ] Register trusted browsers for all authenticated users
+3. **Update app/booking/page.js**:
+   - Change total price display to show whole numbers without decimals
+   - Update `₱{totalPrice.toLocaleString()}` to `₱{(totalPrice / 100).toFixed(0)}`
 
-### 4. Update Session OTP APIs
-- [ ] Ensure they work consistently for all user types
-- [ ] Add incognito mode consideration
-
-### 5. Testing
-- [ ] Test with different user roles
-- [ ] Test with new browsers and incognito mode
-- [ ] Verify existing trusted browsers still work
-- [ ] Check OTP flow works correctly for all scenarios
+4. **Test Changes**:
+   - Verify prices display without decimals across all pages
+   - Ensure calculations still work correctly

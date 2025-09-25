@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { BookingStatus } from '@prisma/client';
 
 // ✅ GET: All rooms or available rooms if checkIn/checkOut provided
 export const GET = async (req) => {
@@ -17,10 +18,14 @@ export const GET = async (req) => {
 
       const overlappingBookings = await prisma.booking.findMany({
         where: {
-          AND: [
-            { OR: [{ checkIn: { lte: checkOutDate }, checkOut: { gte: checkInDate } }] },
-            { OR: [{ status: 'HELD' }, { status: 'PENDING' }, { status: 'CONFIRMED' }] },
-            { OR: [{ heldUntil: null }, { heldUntil: { gt: now } }] },
+          checkIn: { lte: checkOutDate },
+          checkOut: { gte: checkInDate },
+          status: {
+            in: [BookingStatus.Pending, BookingStatus.Confirmed],
+          },
+          OR: [
+            { heldUntil: null },
+            { heldUntil: { gt: now } },
           ],
         },
         select: { roomId: true },

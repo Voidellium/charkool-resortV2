@@ -175,11 +175,11 @@ model Booking {
   roomId        Int
   checkIn       DateTime
   checkOut      DateTime
-  status        String           @default("pending")
+  status        BookingStatus    @default(Pending)
   createdAt     DateTime         @default(now())
   heldUntil     DateTime?
   guestName     String           @default("Walk-in Guest")
-  paymentStatus String           @default("unpaid")
+  paymentStatus PaymentStatus    @default(Pending)
   totalPrice    Int              @default(0)
   room          Room             @relation(fields: [roomId], references: [id])
   user          User?            @relation(fields: [userId], references: [id])
@@ -243,7 +243,7 @@ model Payment {
   amount       Int      // in cents (₱100 = 10000)
   currency     String   @default("PHP")
 
-  status       String   @default("pending") // pending, paid, failed, refunded
+  status       PaymentStatus @default(Pending) // pending, paid, failed, refunded
   provider     String   @default("paymongo")
 
   referenceId  String?  // PayMongo payment ID
@@ -260,6 +260,17 @@ model Notification {
   role      String
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+enum BookingStatus {
+  Confirmed
+  Pending
+  Cancelled
+}
+
+enum PaymentStatus {
+  Paid
+  Pending
 }
 
 enum Role {

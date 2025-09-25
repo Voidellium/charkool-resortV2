@@ -6,6 +6,15 @@ import { useRouter } from 'next/navigation';
 import BookingCalendar from '../../components/BookingCalendar';
 import RoomAmenitiesSelector from '../../components/RoomAmenitiesSelector'; // Import the new component
 
+// Timezone-safe date formatting utility
+function formatDate(date) {
+  if (!date) return '';
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const day = date.getDate().toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export default function BookingPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -45,8 +54,8 @@ export default function BookingPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            checkIn: startOfMonth.toISOString().split('T')[0],
-            checkOut: endOf3Months.toISOString().split('T')[0],
+            checkIn: formatDate(startOfMonth),
+            checkOut: formatDate(endOf3Months),
           }),
         });
         if (res.ok) {
@@ -78,6 +87,20 @@ export default function BookingPage() {
     }
     fetchAvailableRooms();
   }, [formData.checkIn, formData.checkOut]);
+
+  const getRoomCapacity = (roomType) => {
+    switch (roomType) {
+      case 'TEPEE':
+        return { min: 4, max: 5 };
+      case 'LOFT':
+        return { min: 2, max: 3 };
+      case 'VILLA':
+        return { min: 8, max: 10 };
+      default:
+        // Default capacity for other rooms, can be adjusted
+        return { min: 1, max: 100 }; 
+    }
+  };
 
   // --- Price Calculation ---
   useEffect(() => {
@@ -116,9 +139,11 @@ export default function BookingPage() {
   };
 
   const handleDateChange = ({ checkInDate, checkOutDate }) => {
-    const checkInStr = checkInDate ? checkInDate.toISOString().split('T')[0] : '';
-    const checkOutStr = checkOutDate ? checkOutDate.toISOString().split('T')[0] : '';
-    setFormData(prev => ({ ...prev, checkIn: checkInStr, checkOut: checkOutStr }));
+    setFormData(prev => ({ 
+      ...prev, 
+      checkIn: formatDate(checkInDate), 
+      checkOut: formatDate(checkOutDate) 
+    }));
   };
 
   const handleRoomSelect = (room) => {
@@ -201,6 +226,12 @@ export default function BookingPage() {
                 <label>Guests</label>
                 <input type="number" name="guests" min="1" value={formData.guests} onChange={handleChange} required />
               </div>
+              {(formData.checkIn || formData.checkOut) && (
+                <div className="date-display">
+                  <div><strong>Check-in:</strong> {formData.checkIn || '...'}</div>
+                  <div><strong>Check-out:</strong> {formData.checkOut || '...'}</div>
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -208,18 +239,39 @@ export default function BookingPage() {
             <motion.div key="step2" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               <div className="form-group">
                 <label>Select Room</label>
-                {loadingRooms ? <p>Loading rooms...</p> :
-                  availableRooms.length === 0 ? <p>No rooms available for the selected dates.</p> :
+                {loadingRooms ? (
+                  <p>Loading rooms...</p>
+                ) : availableRooms.length === 0 ? (
+                  <p>No rooms available for the selected dates.</p>
+                ) : (
                   <div className="room-selector">
-                    {availableRooms.map(room => (
-                      <div key={room.id} className={`room-option ${formData.roomType === room.name ? 'selected' : ''}`} onClick={() => handleRoomSelect(room)}>
-                        <img src={room.image || '/images/default.jpg'} alt={room.name} />
-                        <span>{room.name}</span>
-                        <span className="available-count">{room.remaining} left</span>
-                      </div>
-                    ))}
+                    {availableRooms.map((room) => {
+                      const capacity = getRoomCapacity(room.type);
+                      const isOverCapacity = formData.guests > capacity.max;
+                      const isFull = room.remaining <= 0;
+                      const isDisabled = isFull || isOverCapacity;
+
+                      return (
+                        <div
+                          key={room.id}
+                          className={`room-option ${formData.roomType === room.name ? 'selected' : ''} ${isDisabled ? 'disabled' : ''}`}
+                          onClick={() => !isDisabled && handleRoomSelect(room)}
+                        >
+                          <img src={room.image || '/images/default.jpg'} alt={room.name} />
+                          <span>{room.name}</span>
+                          {isFull ? (
+                            <span className="available-count full">Full</span>
+                          ) : (
+                            <span className="available-count">{room.remaining} left</span>
+                          )}
+                          {isOverCapacity && !isFull && (
+                             <div className="capacity-notice">Fits up to {capacity.max} guests</div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                }
+                )}
               </div>
             </motion.div>
           )}
@@ -231,6 +283,9 @@ export default function BookingPage() {
                     selectedAmenities={formData.selectedAmenities}
                     onAmenitiesChange={handleAmenitiesChange}
                 />
+                <div className="total-price-display">
+                    <strong>Total Price:</strong> ₱{totalPrice.toLocaleString()}
+                </div>
             </motion.div>
           )}
 
@@ -250,7 +305,7 @@ export default function BookingPage() {
 
           <div className="navigation-buttons">
             {step > 1 && <button type="button" onClick={handleBack}>Back</button>}
-            {step < 4 && <button type="button" onClick={handleNext} disabled={!formData.checkIn || (step === 2 && !formData.roomType)}>Next</button>}
+            {step < 4 && <button type="button" onClick={handleNext} disabled={!formData.checkIn || formData.guests < 1 || (step === 2 && !formData.roomType)}>Next</button>}
             {step === 4 && <button type="submit">Submit Booking</button>}
           </div>
         </form>
@@ -266,15 +321,22 @@ export default function BookingPage() {
         .form-group { margin-bottom: 20px; }
         label { display: block; margin-bottom: 8px; font-weight: 600; color: #334155; }
         input[type="number"] { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; }
+        .form-group input[name="guests"] { max-width: 120px; }
+        .date-display { display: flex; gap: 20px; margin-top: 10px; background: #f8f9fa; padding: 10px; border-radius: 8px; }
         .room-selector { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; }
         .room-option { border: 2px solid #d1d5db; border-radius: 10px; padding: 10px; cursor: pointer; transition: all 0.3s ease; text-align: center; position: relative; }
         .room-option img { width: 100%; height: 120px; object-fit: cover; border-radius: 8px; margin-bottom: 8px; }
         .room-option.selected { border-color: #2563eb; background-color: #eff6ff; box-shadow: 0 0 0 3px #bfdbfe; }
+        .room-option.disabled { cursor: not-allowed; opacity: 0.5; }
+        .room-option.disabled.selected { background-color: #fef2f2; border-color: #ef4444; }
         .available-count { position: absolute; top: 8px; right: 8px; background-color: #10b981; color: white; padding: 4px 8px; border-radius: 99px; font-size: 12px; font-weight: bold; }
+        .available-count.full { background-color: #ef4444; }
+        .capacity-notice { font-size: 0.75rem; color: #ef4444; margin-top: 4px; }
         .navigation-buttons { display: flex; justify-content: space-between; gap: 10px; margin-top: 20px; }
         button { flex: 1; padding: 14px; font-size: 16px; font-weight: 600; background-color: #2563eb; color: white; border: none; border-radius: 10px; cursor: pointer; transition: all 0.3s ease; }
         button:hover:not(:disabled) { background-color: #1d4ed8; transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15); }
         button:disabled { background-color: #9ca3af; cursor: not-allowed; }
+        .total-price-display { margin-top: 20px; text-align: left; font-size: 1.2rem; font-weight: bold; color: #1e3a8a; }
       `}</style>
     </div>
   );

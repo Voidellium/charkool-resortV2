@@ -16,7 +16,11 @@ export default function ReceptionistDashboard() {
     amenityIds: [],
   });
   const [allRooms, setAllRooms] = useState([]);
-  const [allAmenities, setAllAmenities] = useState([]);
+  const [allAmenities, setAllAmenities] = useState({
+    inventory: [],
+    optional: [],
+    rental: []
+  });
 
   const toggleDropdown = () => {
     setIsDropdownOpen(!isDropdownOpen);
@@ -76,7 +80,7 @@ export default function ReceptionistDashboard() {
     try {
       const bookingToUpdate = bookings.find(b => b.id === bookingId);
       if (!bookingToUpdate) throw new Error('Booking not found');
-      const updatedData = { ...bookingToUpdate, status: 'CONFIRMED' };
+      const updatedData = { ...bookingToUpdate, status: 'Confirmed' };
       const res = await fetch(`/api/bookings/${bookingId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -130,8 +134,8 @@ export default function ReceptionistDashboard() {
         checkOut: checkOutDate,
         roomId: newBooking.roomId,
         amenityIds: newBooking.amenityIds,
-        status: 'CONFIRMED',
-        paymentStatus: 'UNPAID',
+        status: 'Confirmed',
+        paymentStatus: 'Pending',
       };
       
       // Log the payload to debug before sending
@@ -181,8 +185,8 @@ export default function ReceptionistDashboard() {
   const upcomingReservations = bookings.filter(
     (b) => ['HELD', 'PENDING'].includes(b.status)
   );
-  const currentGuests = bookings.filter(
-    (b) => b.status === 'CONFIRMED' || b.status === 'CHECKED_IN'
+    const currentGuests = bookings.filter(
+    (b) => b.status === 'Confirmed'
   );
 
   if (loading) {
@@ -193,8 +197,8 @@ export default function ReceptionistDashboard() {
     );
   }
 
-  const occupiedRoomsCount = bookings.filter(
-    (b) => b.status === 'CONFIRMED' || b.status === 'CHECKED_IN'
+    const occupiedRoomsCount = bookings.filter(
+    (b) => b.status === 'Confirmed'
   ).length;
 
   const totalRoomsCount = allRooms.reduce((sum, room) => sum + room.quantity, 0);
@@ -302,11 +306,12 @@ export default function ReceptionistDashboard() {
                   ))}
                 </select>
               </div>
+              {/* Optional Amenities Section */}
               <div className="form-group">
-                <label className="form-label">Select Amenities:</label>
+                <label className="form-label">Optional Amenities (Extra/Optional):</label>
                 <div className="checkbox-container">
-                  {allAmenities.map(amenity => (
-                    <label key={amenity.id} className="checkbox-label">
+                  {allAmenities.optional.map(amenity => (
+                    <label key={`optional-${amenity.id}`} className="checkbox-label">
                       <input
                         type="checkbox"
                         checked={newBooking.amenityIds.includes(amenity.id)}
@@ -320,7 +325,33 @@ export default function ReceptionistDashboard() {
                           });
                         }}
                       />
-                      {amenity.name}
+                      {amenity.name} {amenity.description && `(${amenity.description})`}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Rental Amenities Section */}
+              <div className="form-group">
+                <label className="form-label">Rental Amenities (Paid per use):</label>
+                <div className="checkbox-container">
+                  {allAmenities.rental.map(amenity => (
+                    <label key={`rental-${amenity.id}`} className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={newBooking.amenityIds.includes(amenity.id)}
+                        onChange={(e) => {
+                          const { checked } = e.target;
+                          setNewBooking(prev => {
+                            const updatedAmenities = checked
+                              ? [...prev.amenityIds, amenity.id]
+                              : prev.amenityIds.filter(id => id !== amenity.id);
+                            return { ...prev, amenityIds: updatedAmenities };
+                          });
+                        }}
+                      />
+                      {amenity.name} - ₱{Math.floor(amenity.pricePerUnit/100)}/{amenity.unitType}
+                      {amenity.description && ` (${amenity.description})`}
                     </label>
                   ))}
                 </div>
@@ -346,7 +377,7 @@ export default function ReceptionistDashboard() {
                 <button
                   className="check-in-button green"
                   onClick={() => handleCheckIn(guest.id)}>
-                  Check In
+                  Confirm
                 </button>
               </div>
             ))}
@@ -367,7 +398,7 @@ export default function ReceptionistDashboard() {
                 <button
                   className="check-out-button red"
                   onClick={() => handleCheckOut(guest.id)}>
-                  Check Out
+                  Cancel
                 </button>
               </div>
             ))}

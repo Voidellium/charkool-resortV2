@@ -141,7 +141,7 @@ export default function CategorizationPage() {
 }
 
 const styles = {
-  container: { padding: '20px', maxWidth: '800px', margin: '0 auto' },
+  container: { padding: '20px', maxWidth: '800px', margin: '0 auto', background: '#FFF8E1', borderRadius: '8px' },
   title: { textAlign: 'center', marginBottom: '20px', color: '#333' },
   form: { display: 'flex', gap: '10px', marginBottom: '20px' },
   input: {

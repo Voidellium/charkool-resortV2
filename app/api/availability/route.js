@@ -1,14 +1,19 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, BookingStatus } from '@prisma/client';
 const prisma = new PrismaClient();
 
 function formatDate(date) {
-  return date.toISOString().split('T')[0];
+  // Timezone-safe date formatting
+  if (!date) return null;
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const day = date.getDate().toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function getDatesBetween(startDate, endDate) {
   const dates = [];
   let currentDate = new Date(startDate);
-  while (currentDate <= endDate) {
+  while (currentDate < endDate) {
     dates.push(new Date(currentDate));
     currentDate.setDate(currentDate.getDate() + 1);
   }
@@ -26,8 +31,8 @@ export async function POST(req) {
       });
     }
 
-    const checkInDate = new Date(checkIn);
-    const checkOutDate = new Date(checkOut);
+    const checkInDate = new Date(checkIn + 'T00:00:00');
+    const checkOutDate = new Date(checkOut + 'T00:00:00');
     const now = new Date();
 
   // Step 1: Get all rooms except BEACHFRONT for booking
@@ -38,15 +43,14 @@ export async function POST(req) {
     // Step 2: Get bookings overlapping with the date range
     const overlappingBookings = await prisma.booking.findMany({
       where: {
+        checkIn: { lte: checkOutDate },
+        checkOut: { gte: checkInDate },
+        status: {
+          in: [BookingStatus.Pending, BookingStatus.Confirmed],
+        },
         OR: [
-          {
-            checkIn: { lte: checkOutDate },
-            checkOut: { gte: checkInDate },
-          },
-        ],
-        AND: [
-          { OR: [{ status: 'HELD' }, { status: 'PENDING' }, { status: 'CONFIRMED' }] },
-          { OR: [{ heldUntil: null }, { heldUntil: { gt: now } }] },
+          { heldUntil: null },
+          { heldUntil: { gt: now } },
         ],
       },
       select: { roomId: true, checkIn: true, checkOut: true },

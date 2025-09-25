@@ -91,12 +91,10 @@ const Header = () => {
 const PaymentCard = ({ payment }) => {
     const getStatusColor = (status) => {
         switch (status.toLowerCase()) {
-            case 'completed':
+            case 'paid':
                 return 'green';
             case 'pending':
-                return 'orange';
-            case 'failed':
-                return 'red';
+                return '#FEBE52';
             default:
                 return 'gray';
         }

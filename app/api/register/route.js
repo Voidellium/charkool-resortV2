@@ -1,18 +1,15 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
-import sgMail from '@sendgrid/mail';
+import { Resend } from 'resend';
 import { validateEmailWithDomain } from '@/lib/emailValidation';
 
 const prisma = new PrismaClient();
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-// Set the SendGrid API Key
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-
-console.log("SendGrid API Key:", process.env.SENDGRID_API_KEY ? "Set" : "Not set");
-console.log("SendGrid Sender Email:", process.env.SENDGRID_SENDER_EMAIL ? "Set" : "Not set");
+console.log("Resend API Key:", process.env.RESEND_API_KEY ? "Set" : "Not set");
 
 function generateOTP() {
-  return Math.floor(100000 + Math.random() * 900000).toString(); // 6 digit OTP
+  return Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
 }
 
 export async function POST(req) {
@@ -23,7 +20,7 @@ export async function POST(req) {
     if (!firstName || !lastName || !birthdate || !contactNumber || !email || !password) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       });
     }
 
@@ -31,7 +28,7 @@ export async function POST(req) {
     if (contactNumber.length !== 11 || !/^\d+$/.test(contactNumber)) {
       return new Response(JSON.stringify({ error: 'Contact number must be exactly 11 digits.' }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       });
     }
 
@@ -40,7 +37,7 @@ export async function POST(req) {
     if (isNaN(birthDate.getTime()) || birthDate >= new Date()) {
       return new Response(JSON.stringify({ error: 'Please enter a valid birthdate.' }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       });
     }
 
@@ -52,7 +49,7 @@ export async function POST(req) {
     if (!domainValidation.isValid) {
       return new Response(JSON.stringify({ error: domainValidation.error }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       });
     }
 
@@ -61,7 +58,7 @@ export async function POST(req) {
     if (existingUser) {
       return new Response(JSON.stringify({ error: 'Email already registered' }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       });
     }
 
@@ -86,24 +83,23 @@ export async function POST(req) {
       },
     });
 
-    // Send OTP email using SendGrid with error handling
+    // Send OTP email using Resend
     try {
-      if (!process.env.SENDGRID_API_KEY || !process.env.SENDGRID_SENDER_EMAIL) {
-        console.error('SendGrid configuration missing');
+      if (!process.env.RESEND_API_KEY) {
+        console.error('Resend API key is not configured.');
         return new Response(JSON.stringify({
-          error: 'Email service not configured. Please contact support.',
-          message: 'OTP generated but email service is not configured'
+          error: 'Email service is not configured. Please contact support.',
+          message: 'OTP generated but email service is not configured',
         }), {
           status: 500,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json' },
         });
       }
 
-      const msg = {
-        to: lowercasedEmail,
-        from: process.env.SENDGRID_SENDER_EMAIL,
-        subject: 'Your OTP Code',
-        text: `Your OTP code is ${otp}. It expires in 10 minutes.`,
+      const { data, error: resendError } = await resend.emails.send({
+        from: 'Charkool Resort <no-reply@charkoolresort.com>',
+        to: [lowercasedEmail],
+        subject: 'Your Charkool Resort OTP Code',
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2>Charkool Leisure Beach Resort</h2>
@@ -112,32 +108,39 @@ export async function POST(req) {
             <p>If you didn't request this code, please ignore this email.</p>
           </div>
         `,
-      };
+      });
 
-      await sgMail.send(msg);
-      console.log('OTP email sent successfully to:', lowercasedEmail);
+      if (resendError) {
+        console.error('Resend API Error:', resendError);
+        // Still return a 200 so the user can proceed with OTP verification,
+        // but log the issue and inform them about the email problem.
+        return new Response(JSON.stringify({
+          message: 'OTP generated, but failed to send email. Please try again later or contact support.',
+          warning: 'There was an issue sending the email.',
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
 
+      console.log('OTP email sent successfully via Resend:', data);
       return new Response(JSON.stringify({ message: 'OTP sent to email' }), {
         status: 200,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       });
     } catch (emailError) {
-      console.error('SendGrid error:', emailError);
+      console.error('Unexpected error during Resend call:', emailError);
 
-      // Return success but log the email error - OTP is still saved in DB
       return new Response(JSON.stringify({
         message: 'OTP generated successfully. Please check your email.',
-        warning: 'There was an issue sending the email, but your OTP is ready for verification.'
+        warning: 'An unexpected error occurred while sending the email.',
       }), {
         status: 200,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       });
     }
   } catch (error) {
-    console.error(error);
+    console.error('POST /api/register error:', error);
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
     });
   }
 }

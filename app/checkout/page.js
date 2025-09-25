@@ -20,18 +20,19 @@ export default function CheckoutPage() {
     const storedBookingId = localStorage.getItem('bookingId');
     const storedAmount = localStorage.getItem('bookingAmount');
     if (storedBookingId) setBookingId(storedBookingId);
-    if (storedAmount) {
-      setAmount(storedAmount);
-      setEnteredAmount(storedAmount); // default entered amount to full amount
+    if (storedAmount) { // storedAmount is in cents
+      const amountInPesos = (parseFloat(storedAmount) / 100).toFixed(0);
+      setAmount(amountInPesos);
+      setEnteredAmount(amountInPesos); // default entered amount to full amount in pesos
     }
   }, []);
 
   // Calculate expected amount based on payment option
   const getExpectedAmount = () => {
-    const fullAmount = parseFloat(amount);
+    const fullAmount = parseFloat(amount); // amount is in pesos
     if (paymentOption === 'full') return fullAmount;
-    if (paymentOption === 'half') return fullAmount / 2;
-    if (paymentOption === 'reservation') return 1000;
+    if (paymentOption === 'half') return Math.round(fullAmount / 2);
+    if (paymentOption === 'reservation') return 1000; // 1000 pesos
     return fullAmount;
   };
 
@@ -39,7 +40,6 @@ export default function CheckoutPage() {
     setLoading(true);
     setMessage('');
     const expectedAmount = getExpectedAmount();
-
     if (parseFloat(enteredAmount) !== expectedAmount) {
       setMessage('Please enter the exact amount');
       setLoading(false);
@@ -50,13 +50,30 @@ export default function CheckoutPage() {
       if (paymentMethod === 'TEST') {
         // Development phase only: simulate payment success with TEST method
         // TODO: Remove this block before production deployment
+        let paymentStatus;
+        let bookingStatus;
+
+        // Set appropriate status based on payment option
+        if (paymentOption === 'reservation') {
+          paymentStatus = 'pending';
+          bookingStatus = 'pending';
+        } else if (paymentOption === 'half') {
+          paymentStatus = 'partial';
+          bookingStatus = 'confirmed';
+        } else {
+          paymentStatus = 'paid';
+          bookingStatus = 'confirmed';
+        }
+
         const res = await fetch('/api/payments/test', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             bookingId,
-            amount: parseFloat(enteredAmount),
-            status: 'paid',
+            amount: parseFloat(enteredAmount), // This is in pesos, which the test API expects
+            status: paymentStatus,
+            bookingStatus: bookingStatus,
+            paymentType: paymentOption,
             method: 'TEST',
           }),
         });
@@ -128,15 +145,15 @@ export default function CheckoutPage() {
   return (
     <div className="payment-gateway-container">
       <h2>Checkout</h2>
-      <p>Booking ID: {bookingId}</p>
-      <p>Original Amount: ${amount}</p>
+      <p>Booking ID: {bookingId || 'N/A'}</p>
+      <p>Original Amount: ₱{amount ? parseFloat(amount).toLocaleString() : '0'}</p>
 
       <div className="section">
         <label>
           Payment Option:
           <select value={paymentOption} onChange={e => {
             setPaymentOption(e.target.value);
-            const newAmount = e.target.value === 'full' ? amount : e.target.value === 'half' ? (parseFloat(amount) / 2).toFixed(2) : '1000';
+            const newAmount = e.target.value === 'full' ? amount : e.target.value === 'half' ? Math.round(parseFloat(amount) / 2).toString() : '1000';
             setEnteredAmount(newAmount);
             setMessage('');
           }}>
@@ -158,7 +175,7 @@ export default function CheckoutPage() {
               setMessage('');
             }}
             placeholder="Enter amount"
-            step="0.01"
+            step="1"
             min="0"
           />
         </label>
@@ -194,16 +211,6 @@ export default function CheckoutPage() {
             <input type="text" value={cvc} onChange={e => setCvc(e.target.value)} placeholder="123" />
           </label>
         </div>
-      )}
-
-      {paymentMethod === 'TEST' && (
-        <label>
-          Amount to Pay:
-          <input type="number" value={enteredAmount} onChange={e => {
-            setEnteredAmount(e.target.value);
-            setMessage('');
-          }} placeholder="Enter amount" />
-        </label>
       )}
 
       <button onClick={handlePayment} disabled={loading}>

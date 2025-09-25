@@ -99,10 +99,16 @@ export default function AmenityManagementPanel({ userRole }) {
 
       const method = editingItem ? 'PUT' : 'POST';
 
+      const body = {
+        ...rentalForm,
+        pricePerUnit: Math.round(parseFloat(rentalForm.pricePerUnit) * 100),
+        pricePerHour: rentalForm.pricePerHour ? Math.round(parseFloat(rentalForm.pricePerHour) * 100) : null,
+      };
+
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(rentalForm),
+        body: JSON.stringify(body),
       });
 
       if (response.ok) {
@@ -126,16 +132,16 @@ export default function AmenityManagementPanel({ userRole }) {
       setOptionalForm({
         name: item.name,
         description: item.description || '',
-        maxQuantity: item.maxQuantity
+        maxQuantity: item.maxQuantity,
       });
       setShowOptionalForm(true);
     } else {
       setRentalForm({
         name: item.name,
         description: item.description || '',
-        pricePerUnit: item.pricePerUnit,
-        pricePerHour: item.pricePerHour || '',
-        unitType: item.unitType
+        pricePerUnit: item.pricePerUnit / 100,
+        pricePerHour: item.pricePerHour ? item.pricePerHour / 100 : '',
+        unitType: item.unitType,
       });
       setShowRentalForm(true);
     }
@@ -283,9 +289,9 @@ export default function AmenityManagementPanel({ userRole }) {
                     <h5>{amenity.name}</h5>
                     <p>{amenity.description}</p>
                     <div className="pricing-info">
-                      <span>₱{amenity.pricePerUnit} per {amenity.unitType}</span>
+                      <span>₱{(amenity.pricePerUnit / 100).toFixed(0)} per {amenity.unitType}</span>
                       {amenity.pricePerHour && (
-                        <span>₱{amenity.pricePerHour} per hour</span>
+                        <span>₱{(amenity.pricePerHour / 100).toFixed(0)} per hour</span>
                       )}
                     </div>
                   </div>
@@ -407,8 +413,8 @@ export default function AmenityManagementPanel({ userRole }) {
                 <label>Price per Unit *</label>
                 <input
                   type="number"
-                  min="0"
-                  step="0.01"
+                  min="1"
+                  step="1"
                   value={rentalForm.pricePerUnit}
                   onChange={(e) => setRentalForm({...rentalForm, pricePerUnit: e.target.value})}
                   required
@@ -418,8 +424,8 @@ export default function AmenityManagementPanel({ userRole }) {
                 <label>Price per Hour</label>
                 <input
                   type="number"
-                  min="0"
-                  step="0.01"
+                  min="1"
+                  step="1"
                   value={rentalForm.pricePerHour}
                   onChange={(e) => setRentalForm({...rentalForm, pricePerHour: e.target.value})}
                 />

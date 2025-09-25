@@ -1,7 +1,7 @@
-'use client';
-import { useState } from 'react';
-import Navbar from '../../components/Navbar';
-import { FaUsers, FaSnowflake, FaBed, FaWifi, FaSwimmingPool, FaFire, FaUtensils } from 'react-icons/fa';
+'use client'
+import { useState } from 'react'
+import Navbar from '../../components/Navbar'
+import { FaUsers, FaSnowflake, FaBed, FaWifi, FaSwimmingPool, FaFire, FaUtensils } from 'react-icons/fa'
 
 const rooms = [
   {
@@ -17,13 +17,9 @@ const rooms = [
       { icon: <FaUtensils />, label: 'Mini Fridge' },
       { icon: <FaWifi />, label: 'Wi-Fi Access' },
       { icon: <FaSwimmingPool />, label: 'Pool Access' },
-      { icon: <FaFire />, label: 'Grill Access' },
+      { icon: <FaFire />, label: 'Grill Access' }
     ],
-    images: [
-      '/images/Loft.jpg',
-      '/images/Loft.jpg',
-      '/images/Loft.jpg',
-    ],
+    images: ['/images/Loft.jpg', '/images/Loft.jpg', '/images/Loft.jpg']
   },
   {
     id: 'tepee',
@@ -39,17 +35,13 @@ const rooms = [
       { icon: <FaWifi />, label: 'Wi-Fi Access' },
       { icon: <FaSwimmingPool />, label: 'Pool Access' },
       { icon: <FaUtensils />, label: 'Gas and Stove' },
-      { icon: <FaFire />, label: 'Grill Access' },
+      { icon: <FaFire />, label: 'Grill Access' }
     ],
-    images: [
-      '/images/Tepee.jpg',
-      '/images/Tepee.jpg',
-      '/images/Tepee.jpg',
-    ],
+    images: ['/images/Tepee.jpg', '/images/Tepee.jpg', '/images/Tepee.jpg']
   },
   {
     id: 'villa',
-    name: 'Villa',
+    name: 'Villa Room',
     shortDescription: 'Spacious room with a balcony and luxurious amenities for families.',
     description:
       'Our spacious Villa offers the ultimate group experience, perfect for family gatherings or company outings. With a full kitchen, multiple beds, and direct access to resort amenities, it’s your home away from home.',
@@ -61,71 +53,70 @@ const rooms = [
       { icon: <FaWifi />, label: 'Wi-Fi Access' },
       { icon: <FaSwimmingPool />, label: 'Pool Access' },
       { icon: <FaUtensils />, label: 'Gas and Stove' },
-      { icon: <FaFire />, label: 'Grill Access' },
+      { icon: <FaFire />, label: 'Grill Access' }
     ],
-    images: [
-      '/images/Villa.jpg',
-      '/images/Villa.jpg',
-      '/images/Villa.jpg',
-    ],
-  },
-];
+    images: ['/images/Villa.jpg', '/images/Villa.jpg', '/images/Villa.jpg']
+  }
+]
 
 export default function RoomPage() {
-  const [expandedRoomId, setExpandedRoomId] = useState(null);
-
-  const toggleExpand = (id) => {
-    setExpandedRoomId(expandedRoomId === id ? null : id);
-  };
+  const [selectedRoom, setSelectedRoom] = useState(null)
 
   return (
     <>
       <Navbar />
       <section className="hero">
         <div className="hero-overlay"></div>
-        <h1>Stay in Comfort, Wake up to Paradise</h1>
+        <h1>Experience comfort, awaken to paradise.</h1>
       </section>
 
-      <main className="room-grid">
-        {rooms.map((room) => (
+      <main className={`room-grid ${selectedRoom ? 'blurred' : ''}`}>
+        {rooms.map(room => (
           <article key={room.id} className="room-card">
             <img src={room.images[0]} alt={room.name} className="room-image" />
             <div className="room-content">
               <h2>{room.name}</h2>
               <p>{room.shortDescription}</p>
-              <button className="view-details-btn" onClick={() => toggleExpand(room.id)}>
-                {expandedRoomId === room.id ? 'Hide Details' : 'View Details'}
+              <button
+                className="view-details-btn"
+                onClick={() => setSelectedRoom(room)}
+              >
+                View Details
               </button>
-              {expandedRoomId === room.id && (
-                <div className="room-details">
-                  <div className="image-gallery">
-                    {room.images.map((img, idx) => (
-                      <img key={idx} src={img} alt={`${room.name} image ${idx + 1}`} />
-                    ))}
-                  </div>
-                  <p className="capacity"><FaUsers /> {room.capacity}</p>
-                  <p className="description">{room.description}</p>
-                  <ul className="amenities">
-                    {room.amenities.map((amenity, idx) => (
-                      <li key={idx} className="amenity-item">
-                        <span className="icon">{amenity.icon}</span> {amenity.label}
-                      </li>
-                    ))}
-                  </ul>
-                  <button className="book-room-btn">Book This Room</button>
-                </div>
-              )}
             </div>
           </article>
         ))}
       </main>
 
+      {selectedRoom && (
+        <div className="modal-overlay" onClick={() => setSelectedRoom(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="image-gallery">
+              {selectedRoom.images.map((img, idx) => (
+                <img key={idx} src={img} alt={`${selectedRoom.name} image ${idx + 1}`} />
+              ))}
+            </div>
+            <h2>{selectedRoom.name}</h2>
+            <p className="capacity"><FaUsers /> {selectedRoom.capacity}</p>
+            <p className="description">{selectedRoom.description}</p>
+            <ul className="amenities">
+              {selectedRoom.amenities.map((amenity, idx) => (
+                <li key={idx} className="amenity-item">
+                  <span className="icon">{amenity.icon}</span> {amenity.label}
+                </li>
+              ))}
+            </ul>
+            <button className="book-room-btn">Book This Room</button>
+            <button className="close-btn" onClick={() => setSelectedRoom(null)}>Close</button>
+          </div>
+        </div>
+      )}
+
       <section className="cta-banner">
-        <h2>Ready to Book Your Stay?</h2>
+        <h2>Begin Your Reservation Now!</h2>
         <button className="book-now-btn">Book Now</button>
       </section>
 
-      {/* Correct placement of the styled-jsx block */}
       <style jsx>{`
         :global(body) {
           margin: 0;
@@ -138,37 +129,40 @@ export default function RoomPage() {
           background-image: url('/images/resort-hero.jpg');
           background-size: cover;
           background-position: center;
-          height: 400px;
+          height: 100px;
           display: flex;
           align-items: center;
           justify-content: center;
           color: white;
           text-align: center;
-          font-size: 3rem;
-          font-weight: 700;
-          letter-spacing: 0.05em;
           padding: 0 1rem;
         }
         .hero-overlay {
           position: absolute;
           inset: 0;
-          background: rgba(0, 0, 0, 0.5);
+          background: rgba(0, 0, 0, 0.35);
           z-index: 0;
         }
         .hero h1 {
           position: relative;
           z-index: 1;
           margin: 0;
-          text-shadow: 0 2px 6px rgba(0,0,0,0.7);
-          font-size: clamp(2rem, 5vw, 3rem);
+          text-shadow: 0 2px 6px rgba(0,0,0,0.6);
+          font-size: clamp(1.8rem, 4vw, 2.5rem);
         }
         .room-grid {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
           gap: 2rem;
-          padding: 3rem 2rem;
+          padding: 3rem 2rem 6rem;
           max-width: 1200px;
           margin: 0 auto;
+          transition: filter 0.3s ease;
+        }
+        .room-grid.blurred {
+          filter: blur(5px);
+          pointer-events: none;
+          user-select: none;
         }
         .room-card {
           background: #fff;
@@ -177,9 +171,10 @@ export default function RoomPage() {
           overflow: hidden;
           display: flex;
           flex-direction: column;
-          transition: box-shadow 0.3s ease;
+          transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
         .room-card:hover {
+          transform: translateY(-5px);
           box-shadow: 0 12px 30px rgba(0,0,0,0.15);
         }
         .room-image {
@@ -216,16 +211,30 @@ export default function RoomPage() {
           font-weight: 600;
           cursor: pointer;
           align-self: flex-start;
-          transition: background-color 0.3s ease;
+          transition: background-color 0.3s ease, transform 0.2s ease;
         }
         .view-details-btn:hover {
           background-color: #e6ac3f;
+          transform: translateY(-2px);
         }
-        .room-details {
-          margin-top: 1rem;
-          border-top: 1px solid #eee;
-          padding-top: 1rem;
-          animation: fadeIn 0.3s ease forwards;
+        .modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0,0,0,0.6);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+        }
+        .modal-content {
+          background: #fff;
+          border-radius: 12px;
+          max-width: 600px;
+          width: 90%;
+          padding: 2rem;
+          box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+          max-height: 90vh;
+          overflow-y: auto;
         }
         .image-gallery {
           display: flex;
@@ -240,11 +249,6 @@ export default function RoomPage() {
           border-radius: 6px;
           flex-shrink: 0;
           box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-          transition: transform 0.3s ease;
-        }
-        .image-gallery img:hover {
-          transform: scale(1.05);
-          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
         .capacity {
           font-weight: 600;
@@ -266,102 +270,92 @@ export default function RoomPage() {
           margin: 0 0 1rem 0;
           display: flex;
           flex-wrap: wrap;
-          gap: 0.75rem;
+          gap: 1rem;
         }
         .amenity-item {
-          background-color: #FEBE54;
-          color: white;
-          padding: 0.4rem 0.8rem;
-          border-radius: 20px;
-          font-size: 0.9rem;
           display: flex;
           align-items: center;
-          gap: 0.4rem;
-          font-weight: 600;
-          box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+          color: #555;
         }
-        .amenity-item .icon {
-          display: flex;
-          align-items: center;
-          font-size: 1.1rem;
+        .icon {
+          margin-right: 0.5rem;
+          color: #FEBE54;
         }
         .book-room-btn {
           background-color: #FEBE54;
           color: white;
           border: none;
-          padding: 0.9rem 1.5rem;
-          border-radius: 8px;
-          font-weight: 700;
-          font-size: 1.1rem;
+          padding: 0.7rem 1.2rem;
+          border-radius: 6px;
+          font-weight: 600;
           cursor: pointer;
-          width: 100%;
-          transition: background-color 0.3s ease;
+          margin-right: 1rem;
         }
         .book-room-btn:hover {
           background-color: #e6ac3f;
         }
+        .close-btn {
+          background-color: #ccc;
+          color: #333;
+          border: none;
+          padding: 0.7rem 1.2rem;
+          border-radius: 6px;
+          font-weight: 600;
+          cursor: pointer;
+        }
+        .close-btn:hover {
+          background-color: #aaa;
+        }
         .cta-banner {
-          background: linear-gradient(90deg, #FEBE54 0%, #e6ac3f 100%);
-          padding: 3rem 1rem;
+          background-color: #FEBE54;
+          padding: 3rem 0.8rem;
           text-align: center;
           color: white;
-          border-radius: 12px;
-          max-width: 1200px;
-          margin: 3rem auto;
+          margin-top: 4rem;
         }
         .cta-banner h2 {
-          font-size: 2.5rem;
-          font-weight: 700;
-          margin-bottom: 1.5rem;
-          letter-spacing: 0.05em;
+          margin: 0 0 0.75rem 0;
+          font-size: 1.8rem;
         }
         .book-now-btn {
-          background: white;
+          background-color: white;
           color: #FEBE54;
           border: none;
-          padding: 1rem 3rem;
-          border-radius: 8px;
-          font-weight: 700;
-          font-size: 1.2rem;
+          padding: 0.7rem 1.3rem;
+          font-weight: 600;
+          border-radius: 6px;
           cursor: pointer;
-          transition: background-color 0.3s ease;
         }
         .book-now-btn:hover {
-          background-color: #f0d9a1;
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
+          background-color: #e6ac3f;
         }
         @media (max-width: 768px) {
           .hero {
-            height: 250px;
-            font-size: 2rem;
+            height: 200px;
           }
-          .room-grid {
-            padding: 2rem 1rem;
-            gap: 1.5rem;
+          .room-content h2 {
+            font-size: 1.4rem;
           }
+          .room-content p {
+            font-size: 0.95rem;
+          }
+        }
+        @media (max-width: 480px) {
           .room-image {
-            height: 180px;
+            height: 160px;
           }
-          .view-details-btn {
-            padding: 0.6rem 1rem;
-            font-size: 0.9rem;
+          .view-details-btn,
+          .book-room-btn,
+          .close-btn {
+            width: 100%;
+            margin-bottom: 0.5rem;
           }
-          .book-room-btn {
-            font-size: 1rem;
-            padding: 0.8rem 1.2rem;
-          }
-          .cta-banner h2 {
-            font-size: 1.8rem;
-          }
-          .book-now-btn {
-            font-size: 1rem;
-            padding: 0.8rem 2rem;
+          .image-gallery img {
+            width: 80px;
+            height: 60px;
           }
         }
       `}</style>
     </>
-  );
+  )
 }

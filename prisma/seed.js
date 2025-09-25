@@ -57,7 +57,7 @@ async function main() {
     create: {
       name: 'Loft',
       type: 'LOFT',
-      price: 1500,
+      price: 500000, // ₱5,000.00
       status: 'available',
     },
   });
@@ -68,7 +68,7 @@ async function main() {
     create: {
       name: 'Tepee',
       type: 'TEPEE',
-      price: 3000,
+      price: 600000, // ₱6,000.00
       status: 'available',
     },
   });
@@ -79,7 +79,7 @@ async function main() {
     create: {
       name: 'Villa',
       type: 'VILLA',
-      price: 4000,
+      price: 800000, // ₱8,000.00
       status: 'available',
     },
   });
@@ -90,7 +90,7 @@ async function main() {
     create: {
       name: 'Family Lodge',
       type: 'FAMILY_LODGE',
-      price: 5000,
+      price: 1600000, // ₱16,000.00
       status: 'available',
     },
   });
@@ -176,12 +176,12 @@ async function main() {
   console.log("💰 Seeding rental amenities...");
 
   const rentalAmenities = [
-    { name: 'ATV', description: 'All-terrain vehicle rental', pricePerUnit: 20000, unitType: 'hour' },
-    { name: 'Island Hopping', description: 'Boat trip to nearby islands', pricePerUnit: 60000, unitType: '3pax' },
-    { name: 'Billiard Access', description: 'Access to billiard table', pricePerUnit: 15000, unitType: 'hour' },
+    { name: 'ATV', description: 'All-terrain vehicle rental', pricePerUnit: 20000, unitType: 'Hour' }, // ₱200
+    { name: 'Island Hopping', description: 'Boat trip to nearby islands', pricePerUnit: 60000, unitType: '3pax' }, // ₱600
+    { name: 'Billiard Access', description: 'Access to billiard table', pricePerUnit: 15000, unitType: 'Hour' }, // ₱150
     { name: 'Karaoke', description: 'Karaoke machine rental', pricePerUnit: 500, unitType: 'song' },
-    { name: 'Banana Boat', description: 'Water recreation activity', pricePerUnit: 70000, unitType: '30minutes' },
-    { name: 'Transportation Service', description: 'Door-to-door transport service', pricePerUnit: 500000, unitType: 'trip' },
+    { name: 'Banana Boat', description: 'Water recreation activity', pricePerUnit: 70000, unitType: '30minutes' }, // ₱700
+    { name: 'Transportation Service', description: 'Door-to-door transport service', pricePerUnit: 500000, unitType: 'trip' }, // ₱5,000
     { name: 'Kayak Rental', description: 'Single kayak rental', pricePerUnit: 30000, unitType: 'hour' },
     { name: 'Snorkeling Gear', description: 'Complete snorkeling equipment', pricePerUnit: 25000, unitType: 'day' },
   ];

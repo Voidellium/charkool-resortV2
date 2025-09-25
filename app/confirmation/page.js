@@ -1,4 +1,3 @@
-
 // 'use client' directive is required for client components
 'use client';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -42,7 +41,40 @@ function ConfirmationPageInner() {
           <p><strong>Room:</strong> {booking.room?.name || booking.room}</p>
           <p><strong>Check-in:</strong> {new Date(booking.checkIn).toLocaleDateString()}</p>
           <p><strong>Check-out:</strong> {new Date(booking.checkOut).toLocaleDateString()}</p>
-          <p><strong>Amenities:</strong> {booking.amenities?.map(a => a.amenity.name).join(', ') || 'None'}</p>
+          <p><strong>Payment Status:</strong> <span style={{
+            color: booking.paymentStatus === 'Paid' ? 'green' : '#FEBE52'
+          }}>
+            {booking.paymentStatus}
+          </span></p>
+
+          <p><strong>Booking Status:</strong> <span style={{
+            color: booking.status === 'Confirmed' ? 'green' : booking.status === 'Pending' ? '#FEBE52' : 'red'
+          }}>
+            {booking.status}
+          </span></p>
+
+          <p><strong>Extra Amenities:</strong> {
+            booking.paymentStatus === 'Pending' ?
+              'Amenities reserved (payment pending)' :
+            [
+              ...(booking.optionalAmenities?.map(a => `${a.optionalAmenity.name} (x${a.quantity})`) || []),
+              ...(booking.rentalAmenities?.map(a => `${a.rentalAmenity.name} (x${a.quantity})`) || [])
+            ].join(', ') || 'None'
+          }</p>
+
+          {booking.paymentStatus === 'Pending' && (
+            <div style={{
+              backgroundColor: '#fff3cd',
+              border: '1px solid #ffeaa7',
+              borderRadius: '4px',
+              padding: '1rem',
+              margin: '1rem 0'
+            }}>
+              <p style={{ margin: 0, color: '#856404' }}>
+                <strong>Note:</strong> Your reservation is confirmed, but amenities will be activated once payment is completed.
+              </p>
+            </div>
+          )}
         </div>
       ) : (
         <p>Loading booking details...</p>

@@ -2,13 +2,46 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
-// ✅ GET: only return { id, name } for booking use
+// ✅ GET: Return all amenity types for booking use
 export async function GET() {
   try {
-    const amenities = await prisma.amenityInventory.findMany({
-      select: { id: true, name: true },
-      orderBy: { name: "asc" },
-    });
+    // Fetch all amenity types
+    const [inventoryAmenities, optionalAmenities, rentalAmenities] = await Promise.all([
+      prisma.amenityInventory.findMany({
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      }),
+      prisma.optionalAmenity.findMany({
+        where: { isActive: true },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          maxQuantity: true
+        },
+        orderBy: { name: "asc" },
+      }),
+      prisma.rentalAmenity.findMany({
+        where: { isActive: true },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          pricePerUnit: true,
+          pricePerHour: true,
+          unitType: true
+        },
+        orderBy: { name: "asc" },
+      })
+    ]);
+
+    // Structure the response with different amenity types
+    const amenities = {
+      inventory: inventoryAmenities,
+      optional: optionalAmenities,
+      rental: rentalAmenities
+    };
+
     return NextResponse.json(amenities);
   } catch (error) {
     console.error("❌ Failed to fetch amenities:", error);
