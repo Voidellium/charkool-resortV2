@@ -191,7 +191,8 @@ export const config = {
      * - favicon.ico (favicon file)
      * - images (image folder)
      * - public (public assets)
+     * - models (3D model files)
      */
-    '/((?!api/|_next/static|_next/image|favicon.ico|images|public/).*)'
+    '/((?!api/|_next/static|_next/image|favicon.ico|images|public/|models/).*)'
   ],
 };

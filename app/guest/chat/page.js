@@ -5,7 +5,6 @@ import ChatInterface from '../../../components/ChatInterface';
 export default function GuestChatPage() {
   return (
     <div className="guest-chat-page">
-      <h1>Chat with us!</h1>
       <ChatInterface isModal={false} />
 
       <style jsx>{`
@@ -13,14 +12,9 @@ export default function GuestChatPage() {
           padding: 20px;
           max-width: 800px;
           margin: 0 auto;
-          height: calc(100vh - 100px); /* Adjust height as needed */
+          height: calc(100vh - 100px);
           display: flex;
           flex-direction: column;
-        }
-        h1 {
-          color: #333;
-          margin-bottom: 20px;
-          text-align: center;
         }
       `}</style>
     </div>

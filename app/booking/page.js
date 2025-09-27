@@ -48,8 +48,8 @@ export default function BookingPage() {
     async function fetchAvailability() {
       try {
         const today = new Date();
-        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-        const endOf3Months = new Date(today.getFullYear(), today.getMonth() + 3, 0);
+        const startOfMonth = new Date(today);
+        const endOf3Months = new Date(today.getFullYear(), today.getMonth() + 4, 0);
         const res = await fetch('/api/availability', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -299,6 +299,7 @@ export default function BookingPage() {
               <p><strong>Total Price:</strong> ₱{totalPrice.toLocaleString()}</p>
               <div style={{ marginTop: '20px', padding: '10px', backgroundColor: '#e0f2fe', borderRadius: '8px', border: '1px solid #0ea5e9' }}>
                 <p><strong>Note:</strong> Upon submission, your room will be held for 15 minutes. You must complete payment within this time to confirm your booking.</p>
+                <p><strong>Cancellation Policy:</strong> Full refund if cancelled more than 24 hours before check-in, partial refund otherwise.</p>
               </div>
             </motion.div>
           )}

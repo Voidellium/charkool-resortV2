@@ -5,13 +5,9 @@ import { useState, useEffect } from 'react';
 export default function CheckoutPage() {
   const [bookingId, setBookingId] = useState('');
   const [amount, setAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('card'); // default payment method
+  const [paymentMethod, setPaymentMethod] = useState('TEST'); // default payment method
   const [paymentOption, setPaymentOption] = useState('full'); // full, half, reservation
   const [enteredAmount, setEnteredAmount] = useState('');
-  const [cardNumber, setCardNumber] = useState('');
-  const [expMonth, setExpMonth] = useState('');
-  const [expYear, setExpYear] = useState('');
-  const [cvc, setCvc] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -20,8 +16,8 @@ export default function CheckoutPage() {
     const storedBookingId = localStorage.getItem('bookingId');
     const storedAmount = localStorage.getItem('bookingAmount');
     if (storedBookingId) setBookingId(storedBookingId);
-    if (storedAmount) { // storedAmount is in cents
-      const amountInPesos = (parseFloat(storedAmount) / 100).toFixed(0);
+    if (storedAmount) {
+      const amountInPesos = parseFloat(storedAmount).toFixed(0);
       setAmount(amountInPesos);
       setEnteredAmount(amountInPesos); // default entered amount to full amount in pesos
     }
@@ -39,9 +35,21 @@ export default function CheckoutPage() {
   const handlePayment = async () => {
     setLoading(true);
     setMessage('');
+
+    // Validation
+    if (!bookingId) {
+      setMessage('Booking ID is missing. Please restart the booking process.');
+      setLoading(false);
+      return;
+    }
+    if (!enteredAmount || parseFloat(enteredAmount) <= 0) {
+      setMessage('Please enter a valid amount greater than 0.');
+      setLoading(false);
+      return;
+    }
     const expectedAmount = getExpectedAmount();
     if (parseFloat(enteredAmount) !== expectedAmount) {
-      setMessage('Please enter the exact amount');
+      setMessage(`Amount must match the expected amount: ₱${expectedAmount}`);
       setLoading(false);
       return;
     }
@@ -70,7 +78,7 @@ export default function CheckoutPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             bookingId,
-            amount: parseFloat(enteredAmount), // This is in pesos, which the test API expects
+            amount: parseFloat(enteredAmount) * 100, // in cents for backend
             status: paymentStatus,
             bookingStatus: bookingStatus,
             paymentType: paymentOption,
@@ -88,56 +96,10 @@ export default function CheckoutPage() {
         return;
       }
 
-      // Existing card payment flow (simplified for brevity)
-      // Create PaymentMethod
-      const paymentMethodRes = await fetch('/api/payments/method', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'card',
-          card: {
-            number: cardNumber,
-            exp_month: expMonth,
-            exp_year: expYear,
-            cvc: cvc,
-          },
-        }),
-      });
-      const paymentMethodData = await paymentMethodRes.json();
-      if (!paymentMethodRes.ok) {
-        setMessage('Failed to create payment method: ' + (paymentMethodData.error || 'Unknown error'));
-        setLoading(false);
-        return;
-      }
-
-      // Attach PaymentMethod to PaymentIntent and confirm
-      const confirmRes = await fetch('/api/payments/confirm', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          bookingId,
-          paymentMethodId: paymentMethodData.id,
-          amount: parseFloat(enteredAmount),
-        }),
-      });
-      const confirmData = await confirmRes.json();
-      if (!confirmRes.ok) {
-        setMessage('Payment confirmation failed: ' + (confirmData.error || 'Unknown error'));
-        setLoading(false);
-        return;
-      }
-
-      if (confirmData.status === 'succeeded') {
-        setMessage('Payment successful! Redirecting...');
-        window.location.href = `/confirmation?bookingId=${bookingId}`;
-      } else if (confirmData.next_action_url) {
-        // Redirect to next action URL if required (e.g., 3DS)
-        window.location.href = confirmData.next_action_url;
-      } else {
-        setMessage('Payment processing, please wait...');
-      }
+      // Card payment not available
+      setMessage('Card payment is not available at this time.');
     } catch (error) {
-      setMessage('Error processing payment: ' + error.message);
+      setMessage('An unexpected error occurred: ' + (error.message || 'Please try again.'));
     }
     setLoading(false);
   };
@@ -185,33 +147,10 @@ export default function CheckoutPage() {
         <label>
           Payment Method:
           <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}>
-            <option value="card">Card</option>
             <option value="TEST">TEST (Development only)</option>
           </select>
         </label>
       </div>
-
-      {paymentMethod === 'card' && (
-        <div className="card-details">
-          <label>
-            Card Number:
-            <input type="text" value={cardNumber} onChange={e => setCardNumber(e.target.value)} placeholder="4242424242424242" />
-
-          </label>
-          <label>
-            Expiry Month:
-            <input type="text" value={expMonth} onChange={e => setExpMonth(e.target.value)} placeholder="MM" />
-          </label>
-          <label>
-            Expiry Year:
-            <input type="text" value={expYear} onChange={e => setExpYear(e.target.value)} placeholder="YY" />
-          </label>
-          <label>
-            CVC:
-            <input type="text" value={cvc} onChange={e => setCvc(e.target.value)} placeholder="123" />
-          </label>
-        </div>
-      )}
 
       <button onClick={handlePayment} disabled={loading}>
         {loading ? 'Processing...' : 'Pay Now'}
@@ -263,9 +202,6 @@ export default function CheckoutPage() {
           border-color: #6200ee;
           outline: none;
           box-shadow: 0 0 5px rgba(98,0,238,0.5);
-        }
-        .card-details label {
-          margin-bottom: 1rem;
         }
         button {
           width: 100%;

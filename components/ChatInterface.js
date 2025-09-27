@@ -4,6 +4,138 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 
+const keywordSuggestions = {
+  pets: {
+    keywords: ['pet', 'dog', 'cat', 'animal'],
+    suggestions: [
+      { text: '🐾 Are pets allowed?', answer: 'Pets must wear diapers at all times within the resort. The resort is not liable for any incidents caused by pets. Owners will be held responsible for any damages or legal liabilities.' },
+      { text: '🐾 What are the pet policies?', answer: 'Pets must wear diapers at all times. The resort is not liable for pet behavior; owners are responsible for incidents and damages.' },
+    ]
+  },
+  rooms: {
+    keywords: ['room', 'villa', 'loft', 'teepee', 'accommodation'],
+    suggestions: [
+      { text: '🏡 What are the room types?', answer: 'We offer different room types such as Villa Rooms, Loft Rooms, and Teepee Rooms. Each room includes basic amenities such as pool access, beach access, and other inclusions depending on the room type.' },
+      { text: '💰 What are the room rates?', answer: 'Teepee Room — ₱6,000 / 22 hrs (max 5 pax)\nLoft Room — ₱5,000 / 22 hrs (2–4 pax)\nVilla Room — ₱8,000 / 22 hrs (max 8 pax)' },
+      { text: '🛏️ What are the room inclusions?', answer: 'Free amenities include the swimming pool, beach access, and free WiFi. You can also see the included amenities and available choices during the booking process for each room type.' },
+    ]
+  },
+  booking: {
+    keywords: ['book', 'reserve', 'reservation', 'check-in', 'down payment'],
+    suggestions: [
+      { text: '📅 How to Book a Room', answer: 'You can book online through our system by choosing your room, selecting your dates, and making a down payment via PayMongo. Walk-ins are also accepted, but online booking ensures availability.' },
+      { text: '💵 How much is the Down Payment?', answer: 'The standard down payment is ₱2,000 for reservation.' },
+      { text: '⏳ Can I book on the same day?', answer: 'Yes, same-day bookings are allowed as long as the rooms are still available. We recommend checking online before visiting.' },
+      { text: '🔒 What if two guests book the same room?', answer: 'Our system temporarily locks the room during payment to prevent double booking. If payment fails or times out, the room becomes available again.' },
+    ]
+  },
+  amenities: {
+    keywords: ['amenities', 'services', 'pool', 'wifi', 'cooking'],
+    suggestions: [
+      { text: '🌊 What amenities are free?', answer: 'Free amenities include the swimming pool, beach access, and free WiFi. You can also see the included amenities and available choices during the booking process for each room type.' },
+      { text: '🎱 What amenities have extra charges?', answer: 'Some special amenities or equipment may require additional fees. You can also see all amenities and extra activities during the booking process when selecting your room.' },
+      { text: '🍖 Are there grillers, billiards, and videoke?', answer: 'Yes, grillers, billiards, and videoke are available for guests. Grillers are part of the free amenities.' },
+    ]
+  },
+  activities: {
+    keywords: ['activity', 'fun', 'water', 'island', 'banana boat'],
+    suggestions: [
+      { text: '🚤 Banana Boat', answer: 'Banana boat rides can be arranged upon arrival with our staff.' },
+      { text: '🛶 Dragon Boat', answer: 'Dragon boat activities can be arranged upon arrival with our staff.' },
+      { text: '🏝️ Island Hopping', answer: 'Island hopping tours are available and can be selected during the booking process or arranged upon arrival.' },
+    ]
+  },
+  payments: {
+    keywords: ['payment', 'pay', 'gcash', 'bank', 'online'],
+    suggestions: [
+      { text: '💳 What payment methods are accepted?', answer: 'We accept online payments through PayMongo, which supports GCash, Maya, BPI, and other real-time payment options (except OTC payments). Walk-ins may pay in cash.' },
+      { text: '🌐 How do I pay online?', answer: 'Once you complete your booking details, you’ll be redirected to PayMongo where you can choose your preferred payment method. A receipt will appear, which you can download, and it will also be sent to your email or account.' },
+      { text: '🔄 What is the cancellation & rebooking policy?', answer: 'Down payment is non-refundable. Reschedule is allowed 2 weeks prior to the check-in date. No-shows are considered forfeited. However, in case of emergencies, you may rebook up to 2 times or contact management for special arrangements.' },
+    ]
+  },
+  location: {
+    keywords: ['location', 'address', 'map', 'where'],
+    suggestions: [
+      { text: '📍 What is the exact address?', answer: 'We are located at: Sitio Liwliwa, Brgy. Sto Niño, San Felipe, Zambales, Philippines.' },
+      { text: '🗺️ Do you have a Google Maps/Waze Link?', answer: 'Yes, you can find us on Google Maps or Waze under "Charkool Beach Resort" or "Charkool Leisure Beach Resort".' },
+    ]
+  },
+};
+
+const bubbleCategories = [
+  {
+    icon: '🏡',
+    title: 'Rooms & Rates',
+    questions: [
+      {
+        text: 'What types of rooms do you offer?',
+        answer: 'We offer different room types such as Villa Rooms, Loft Rooms, and Teepee Rooms. Each room includes basic amenities such as pool access, beach access, and other inclusions depending on the room type.',
+      },
+      {
+        text: 'What are your room rates?',
+        answer: 'Teepee Room — ₱6,000 / 22 hrs (max 5 pax)\nLoft Room — ₱5,000 / 22 hrs (2–4 pax)\nVilla Room — ₱8,000 / 22 hrs (max 8 pax)',
+        bookNow: true,
+      },
+      {
+        text: 'Do you offer promos or discounts?',
+        answer: 'Yes, we occasionally offer seasonal promotions. You can check our Facebook page, our website, or contact our staff for the latest deals.',
+      },
+    ],
+  },
+  {
+    icon: '📅',
+    title: 'Booking & Reservations',
+    questions: [
+      {
+        text: 'How do I book a room?',
+        answer: 'You can book online through our system by choosing your room, selecting your dates, and making a down payment via PayMongo. Walk-ins are also accepted, but online booking ensures availability.\nTo continue booking, you must log in with your email and password or sign up and fill out your details.',
+      },
+      {
+        text: 'How much is the down payment?',
+        answer: 'The standard down payment is ₱2,000 for reservation.',
+        bookNow: true,
+      },
+      {
+        text: 'Can I book on the same day?',
+        answer: 'Yes, same-day bookings are allowed as long as the rooms are still available.',
+      },
+      {
+        text: 'What happens if two guests try to book the same room?',
+        answer: 'Our system temporarily locks the room during payment to prevent double booking. If payment fails or times out, the room becomes available again.',
+      },
+    ],
+  },
+  {
+    icon: '🎉',
+    title: 'Amenities & Activities',
+    questions: [
+        { text: 'What amenities are free to use?', answer: 'Free amenities include the swimming pool, beach access, and free WiFi. You can also see the included amenities and available choices during the booking process for each room type.' },
+        { text: 'What amenities have extra charges?', answer: 'Some special amenities or equipment may require additional fees. You can also see all amenities and extra activities during the booking process when selecting your room.' },
+        { text: 'Do you have grillers, billiards, and videoke?', answer: 'Yes, grillers, billiards, and videoke are available for guests. Grillers are part of the free amenities.' },
+        { text: 'What activities do you offer?', answer: 'Guests can enjoy water activities such as banana boat rides, dragon boat, and island hopping. These can be arranged separately with our staff upon arrival or selected during the booking process.' },
+    ]
+  },
+  {
+    icon: '💳',
+    title: 'Payments & Cancellations',
+    questions: [
+        { text: 'What payment methods do you accept?', answer: 'We accept online payments through PayMongo, which supports GCash, Maya, BPI, and other real-time payment options (except OTC payments). Walk-ins may pay in cash.' },
+        { text: 'How do I pay online?', answer: 'Once you complete your booking details, you’ll be redirected to PayMongo where you can choose your preferred payment method. A receipt will appear, which you can download, and it will also be sent to your email or account.' },
+        { text: 'What is your cancellation policy?', answer: 'Down payment is non-refundable. Reschedule is allowed 2 weeks prior to the check-in date. No-shows are considered forfeited. However, in case of emergencies, you may rebook up to 2 times or contact management for special arrangements.' },
+    ]
+  },
+  {
+    icon: '📍',
+    title: 'Location & Policies',
+    questions: [
+        { text: 'Where is Charkool Beach Resort located?', answer: 'We are located at: Sitio Liwliwa, Brgy. Sto Niño, San Felipe, Zambales, Philippines. You can find us on Google Maps or Waze under Charkool Beach Resort or Charkool Leisure Beach Resort.' },
+        { text: 'Do you allow walk-in guests?', answer: 'Yes, we accept walk-in guests, but we recommend booking online first to secure your room and avoid unavailability.', bookNow: true },
+        { text: 'Do you have corkage fees?', answer: 'Yes. Corkage applies as follows:\n₱100.00 for hard liquor\n₱300.00 per beer case\n₱50.00 per bottle/in can' },
+        { text: 'Do you allow pets?', answer: 'Pets must wear diapers at all times within the resort. The resort is not liable for any incidents caused by pets. Owners will be held responsible for any damages or legal liabilities.' },
+    ]
+  }
+];
+
 const BookNowButton = () => {
   const router = useRouter();
   return (
@@ -15,11 +147,15 @@ const BookNowButton = () => {
           margin-top: 10px;
           padding: 8px 16px;
           background-color: #FEBE52;
-          color: white;
+          color: #333;
           border: none;
           border-radius: 6px;
           font-weight: 600;
           cursor: pointer;
+          transition: background-color 0.2s;
+        }
+        .book-now-btn:hover {
+            background-color: #e0a840;
         }
       `}</style>
     </button>
@@ -27,10 +163,15 @@ const BookNowButton = () => {
 };
 
 export default function ChatInterface({ isModal }) {
-  const [qaData, setQaData] = useState({});
-  const [loading, setLoading] = useState(true);
   const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const messagesEndRef = useRef(null);
+
+  useEffect(() => {
+    // Initial bot message
+    setMessages([{ sender: 'bot', text: 'Hello! How can I help you today?' }]);
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -38,44 +179,57 @@ export default function ChatInterface({ isModal }) {
 
   useEffect(scrollToBottom, [messages]);
 
-  useEffect(() => {
-    const fetchQA = async () => {
-      try {
-        const res = await fetch('/api/chatbot');
-        const data = await res.json();
-        setQaData(data);
-        setMessages([
-          {
-            sender: 'bot',
-            text: 'Hello! Please select a question from the list below.',
-          },
-        ]);
-      } catch (error) {
-        console.error('Failed to load chatbot data:', error);
-        setMessages([
-          {
-            sender: 'bot',
-            text: 'Sorry, I am currently unavailable. Please try again later.',
-          },
-        ]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchQA();
-  }, []);
+  const handleSendMessage = () => {
+    if (!input.trim()) return;
 
-  const handleQuestionClick = (qa) => {
-    const newMessages = [
-      ...messages,
-      { sender: 'user', text: qa.question },
-      {
-        sender: 'bot',
-        text: qa.answer,
-        hasBookNow: qa.hasBookNow,
-      },
-    ];
-    setMessages(newMessages);
+    const userMessage = { sender: 'user', text: input };
+    setMessages((prev) => [...prev, userMessage]);
+
+    const lowerInput = input.toLowerCase();
+    let suggestionsFound = false;
+
+    for (const category in keywordSuggestions) {
+      if (keywordSuggestions[category].keywords.some(kw => lowerInput.includes(kw))) {
+        const options = keywordSuggestions[category].suggestions;
+        setMessages((prev) => [
+          ...prev,
+          { sender: 'bot', text: 'Here are some suggestions based on your question:', isSuggestionPrompt: true },
+          ...options.map((opt) => ({ sender: 'bot', text: opt.text, answer: opt.answer, isSuggestion: true })),
+        ]);
+        suggestionsFound = true;
+        break;
+      }
+    }
+
+    if (!suggestionsFound) {
+      setMessages((prev) => [
+        ...prev,
+        { sender: 'bot', text: 'Sorry, I didn’t understand that. Please choose one topic below to continue:', isSuggestionPrompt: true },
+      ]);
+    }
+
+    setInput('');
+  };
+
+  const handleSuggestionClick = (suggestion) => {
+    const userClickedMessage = { sender: 'user', text: suggestion.text };
+    const botResponseMessage = { sender: 'bot', text: suggestion.answer, bookNow: suggestion.bookNow };
+    setMessages((prev) => {
+      // Filter out old suggestions
+      const filtered = prev.filter(m => !m.isSuggestion && !m.isSuggestionPrompt);
+      return [...filtered, userClickedMessage, botResponseMessage];
+    });
+  };
+
+  const handleBubbleClick = (category) => {
+    setMessages((prev) => {
+        const filtered = prev.filter(m => !m.isSuggestion && !m.isSuggestionPrompt);
+        return [
+            ...filtered,
+            { sender: 'bot', text: `Here are some questions about ${category.title}:`, isSuggestionPrompt: true },
+            ...category.questions.map((q) => ({ sender: 'bot', text: q.text, answer: q.answer, bookNow: q.bookNow, isSuggestion: true })),
+        ];
+    });
   };
 
   return (
@@ -88,37 +242,49 @@ export default function ChatInterface({ isModal }) {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            <div className="message-content">{msg.text}</div>
-            {msg.hasBookNow && <BookNowButton />}
+            <div className="message-content">
+              {msg.isSuggestion ? (
+                <button className="suggestion-btn" onClick={() => handleSuggestionClick(msg)}>
+                  {msg.text}
+                </button>
+              ) : (
+                <p style={{margin: 0, whiteSpace: 'pre-wrap'}}>{msg.text}</p>
+              )}
+              {msg.bookNow && !msg.isSuggestion && <BookNowButton />}
+            </div>
           </motion.div>
         ))}
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="questions-area">
-        {loading ? (
-          <p>Loading questions...</p>
-        ) : (
-          Object.entries(qaData).map(([category, qas]) => (
-            <div key={category} className="category-wrapper">
-              <h4 className="category-title">{category}</h4>
-              <div className="questions-grid">
-                {/* This is the key change to fix the error */}
-                {Array.isArray(qas) && qas.map((qa) => (
-                  <button key={qa.id} className="question-button" onClick={() => handleQuestionClick(qa)}>
-                    {qa.question}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))
-        )}
+      <div className="bubble-area">
+        {bubbleCategories.map((category, index) => (
+          <button
+            key={index}
+            className="bubble-btn"
+            onClick={() => handleBubbleClick(category)}
+          >
+            {category.icon} {category.title}
+          </button>
+        ))}
+      </div>
+
+      <div className="input-area">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+          placeholder="Type your message..."
+        />
+        <button onClick={handleSendMessage}>Send</button>
       </div>
 
       <style jsx>{`
         .chat-container {
           display: flex;
           flex-direction: column;
+          background: #f9f9f9;
           height: 100%;
         }
         .messages-area {
@@ -142,6 +308,7 @@ export default function ChatInterface({ isModal }) {
           border-radius: 20px;
           max-width: 80%;
           line-height: 1.5;
+          word-wrap: break-word;
         }
         .message.user .message-content {
           background-color: #FEBE52;
@@ -153,32 +320,64 @@ export default function ChatInterface({ isModal }) {
           color: #333;
           border-bottom-left-radius: 5px;
         }
-        .questions-area {
-          padding: 20px;
-          border-top: 1px solid #eee;
-          background: #fff;
-          overflow-y: auto;
-          max-height: ${isModal ? '45%' : '50%'};
-        }
-        .category-wrapper { margin-bottom: 15px; }
-        .category-title { color: #FEBE52; margin: 0 0 10px 0; }
-        .questions-grid {
+        .bubble-area {
           display: flex;
           flex-wrap: wrap;
-          gap: 10px;
+          justify-content: flex-start;
+          gap: 8px;
+          padding: 10px;
+          border-top: 1px solid #e0e0e0;
+          background: #fff;
         }
-        .question-button {
-          background: #f0f0f0;
-          border: 1px solid #ddd;
+        .bubble-btn {
           padding: 10px 15px;
+          background-color: #FEBE52;
+          color: white;
+          border: none;
           border-radius: 20px;
           cursor: pointer;
-          text-align: left;
           font-size: 14px;
           transition: background-color 0.2s;
         }
-        .question-button:hover {
-          background-color: #e0e0e0;
+        .bubble-btn:hover {
+          background-color: #e0a840;
+        }
+        .input-area {
+          display: flex;
+          padding: 10px;
+          border-top: 1px solid #e0e0e0;
+          background: #fff;
+        }
+        .input-area input {
+          flex: 1;
+          padding: 10px;
+          border: 1px solid #ddd;
+          border-radius: 20px;
+          margin-right: 10px;
+        }
+        .input-area button {
+          padding: 10px 20px;
+          background-color: #FEBE52;
+          color: white;
+          border: none;
+          border-radius: 20px;
+          cursor: pointer;
+        }
+        .input-area button:hover {
+            background-color: #e0a840;
+        }
+        .suggestion-btn {
+          width: 100%;
+          text-align: left;
+          padding: 10px 15px;
+          background-color: rgba(255, 255, 255, 0.7);
+          color: #333;
+          border: none;
+          border-radius: 10px;
+          cursor: pointer;
+          transition: background-color 0.2s;
+          font-size: 14px;
+          margin: 0;
         }
       `}</style>
     </div>

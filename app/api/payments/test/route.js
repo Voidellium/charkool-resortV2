@@ -12,12 +12,15 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    // Capitalize status to match enum
+    const capitalizedStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+
     // Create a payment record with appropriate status and method 'TEST'
     const payment = await prisma.payment.create({
       data: {
         bookingId: parseInt(bookingId),
         amount: Math.round(amount * 100), // store in cents
-        status,
+        status: capitalizedStatus,
         provider: method,
         referenceId: `test_${Date.now()}`,
       },
@@ -25,30 +28,30 @@ export async function POST(req) {
 
     // Update booking with appropriate payment status and booking status
     const updateData = {
-      paymentStatus: status,
+      paymentStatus: capitalizedStatus,
     };
 
     // Set booking status based on payment type
     if (bookingStatus) {
-      updateData.status = bookingStatus;
+      updateData.status = bookingStatus.charAt(0).toUpperCase() + bookingStatus.slice(1).toLowerCase();
     } else if (paymentType === 'reservation') {
-      updateData.status = 'pending';
+      updateData.status = 'Pending';
     } else if (paymentType === 'half') {
-      updateData.status = 'confirmed';
+      updateData.status = 'Confirmed';
     } else {
-      updateData.status = 'confirmed';
+      updateData.status = 'Confirmed';
     }
 
     // Handle amenities based on payment type
     if (paymentType === 'reservation') {
       // For reservation only, keep amenities but mark as pending
-      updateData.paymentStatus = 'pending';
+      updateData.paymentStatus = 'Pending';
     } else if (paymentType === 'half') {
       // For half payment, mark as partial payment
-      updateData.paymentStatus = 'partial';
+      updateData.paymentStatus = 'Partial';
     } else {
       // For full payment, mark as fully paid
-      updateData.paymentStatus = 'paid';
+      updateData.paymentStatus = 'Paid';
     }
 
     await prisma.booking.update({

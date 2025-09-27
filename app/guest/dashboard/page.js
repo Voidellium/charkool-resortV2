@@ -5,6 +5,82 @@ import BookingCalendar from '../../../components/BookingCalendar'; // Import cal
 
 
 
+// Move the modal to a higher level in the DOM
+const PortalModal = ({ show, onClose, children }) => {
+  useEffect(() => {
+    if (show) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [show]);
+
+  if (!show) {
+    return null;
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <button className="close-btn" onClick={onClose}>&times;</button>
+        <div className="modal-scroll-content">
+          {children}
+        </div>
+      </div>
+      <style jsx>{`
+        .modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background-color: rgba(0, 0, 0, 0.5);
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          z-index: 1000;
+          backdrop-filter: blur(5px); /* Add blur effect */
+        }
+        .modal-content {
+          background-color: #fff;
+          padding: 2rem;
+          border-radius: 8px;
+          position: relative;
+          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+          max-width: 90%;
+          max-height: 90%;
+          display: flex;
+          flex-direction: column;
+        }
+        .modal-scroll-content {
+          overflow-y: auto;
+          padding-right: 15px;
+        }
+        .close-btn {
+          position: absolute;
+          top: 10px;
+          right: 10px;
+          background: none;
+          border: none;
+          font-size: 2rem;
+          cursor: pointer;
+          color: #555;
+          z-index: 1;
+        }
+        @media (max-width: 768px) {
+          .modal-content {
+            padding: 1rem;
+          }
+        }
+      `}</style>
+    </div>
+  );
+};
+
 // Modal Component
 const Modal = ({ show, onClose, children }) => {
   useEffect(() => {
@@ -26,7 +102,7 @@ const Modal = ({ show, onClose, children }) => {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content">
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <button className="close-btn" onClick={onClose}>&times;</button>
         <div className="modal-scroll-content">
           {children}
@@ -81,7 +157,7 @@ const Modal = ({ show, onClose, children }) => {
   );
 };
 
-// Booking History Card Component
+// Booking History Section
 const BookingHistoryCard = ({ booking, guest }) => {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
@@ -141,6 +217,14 @@ const BookingHistoryCard = ({ booking, guest }) => {
   const guestLastName = guest?.lastName || '';
   const guestName = (guestFirstName || guestLastName) ? `${guestFirstName} ${guestLastName}`.trim() : 'N/A';
 
+  const isRescheduleAllowed = () => {
+    const now = new Date();
+    const checkInDate = new Date(booking.checkIn);
+    const checkOutDate = new Date(booking.checkOut);
+
+    return booking.status !== 'Cancelled' && now <= checkOutDate;
+  };
+
   return (
     <div className="booking-history-card">
       <div className="card-header">
@@ -160,10 +244,12 @@ const BookingHistoryCard = ({ booking, guest }) => {
         <button className="view-details-btn" onClick={handleOpenDetailsModal}>
           View Details
         </button>
-        <button className="reschedule-btn" onClick={handleOpenRescheduleModal}>Reschedule</button>
+        {isRescheduleAllowed() && (
+          <button className="reschedule-btn" onClick={handleOpenRescheduleModal}>Reschedule</button>
+        )}
       </div>
 
-      <Modal show={showDetailsModal} onClose={handleCloseDetailsModal}>
+      <PortalModal show={showDetailsModal} onClose={handleCloseDetailsModal}>
         <h2>Booking Details</h2>
         <div className="modal-details-content">
           <p><strong>Room:</strong> {booking.room.name} - {booking.room.type}</p>
@@ -172,9 +258,9 @@ const BookingHistoryCard = ({ booking, guest }) => {
           <p><strong>Guests:</strong> {guestName}</p>
           <p><strong>Status:</strong> {booking.status}</p>
         </div>
-      </Modal>
+      </PortalModal>
 
-      <Modal show={showRescheduleModal} onClose={handleCloseRescheduleModal}>
+      <PortalModal show={showRescheduleModal} onClose={handleCloseRescheduleModal}>
         <h2>Request Reschedule</h2>
         <p>Booking ID: {booking.id} ({booking.room.name})</p>
         <p>Original Dates: {booking.checkIn} to {booking.checkOut}</p>
@@ -187,7 +273,7 @@ const BookingHistoryCard = ({ booking, guest }) => {
           disabled={!newDates.checkIn || !newDates.checkOut}>
           Submit Request
         </button>
-      </Modal>
+      </PortalModal>
 
       <style jsx>{`
         .booking-history-card {
@@ -274,7 +360,7 @@ const BookingHistoryCard = ({ booking, guest }) => {
   );
 };
 
-// Payment History Card Component
+// Payment History Section
 const PaymentHistoryCard = ({ payment }) => {
   const [showModal, setShowModal] = useState(false);
 
@@ -284,26 +370,28 @@ const PaymentHistoryCard = ({ payment }) => {
   return (
     <div className="payment-history-card">
       <div className="card-header">
-        <h3>Payment for {payment.booking.room.name}</h3>
+        <h3>Payment for {payment.room?.name || 'N/A'}</h3>
         <span className="status-badge">
           {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
         </span>
       </div>
       <div className="card-details">
-        <p><strong>Amount:</strong> ₱{(payment.amount / 100).toFixed(0)}</p>
-        <p><strong>Method:</strong> {payment.method}</p>
-        <p><strong>Date:</strong> {new Date(payment.createdAt).toLocaleDateString()}</p>
+        <p><strong>Amount:</strong> ₱{payment.amount}</p>
+        <p><strong>Method:</strong> {payment.method || 'N/A'}</p>
+        <p><strong>Date:</strong> {payment.date}</p>
       </div>
-      <button className="view-details-btn" onClick={handleOpenModal}>
-        View Details
-      </button>
+      <div className="card-actions">
+        <button className="view-details-btn" onClick={() => handleOpenModal(payment)}>
+          View Details
+        </button>
+      </div>
 
       <Modal show={showModal} onClose={handleCloseModal}>
         <h2>Payment Details</h2>
         <div className="modal-details-content">
-          <p><strong>Amount:</strong> ₱{(payment.amount / 100).toFixed(0)}</p>
+          <p><strong>Amount:</strong> ₱{payment.amount}</p>
           <p><strong>Method:</strong> {payment.method}</p>
-          <p><strong>Date:</strong> {new Date(payment.createdAt).toLocaleDateString()}</p>
+          <p><strong>Date:</strong> {payment.date}</p>
           <p><strong>Status:</strong> {payment.status}</p>
         </div>
       </Modal>

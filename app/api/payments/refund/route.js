@@ -23,38 +23,52 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Only paid payments can be refunded' }, { status: 400 });
     }
 
-    // Refund via PayMongo
-    const paymongoRes = await fetch(`https://api.paymongo.com/v1/payment_intents/${payment.referenceId}/refunds`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${Buffer.from(process.env.PAYMONGO_SECRET_KEY).toString('base64')}`
-      },
-      body: JSON.stringify({
-        data: {
-          attributes: {
-            amount: payment.amount,
-            reason: reason || 'requested_by_customer',
-            metadata: {
-              paymentId: payment.id,
+    // Handle TEST payments differently
+    if (payment.provider === 'test') {
+      // For TEST payments, directly mark as refunded
+      await prisma.payment.update({
+        where: { id: payment.id },
+        data: { status: 'refunded' },
+      });
+    } else {
+      // Refund via PayMongo for real payments
+      const paymongoRes = await fetch(`https://api.paymongo.com/v1/payment_intents/${payment.referenceId}/refunds`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${Buffer.from(process.env.PAYMONGO_SECRET_KEY).toString('base64')}`
+        },
+        body: JSON.stringify({
+          data: {
+            attributes: {
+              amount: payment.amount,
+              reason: reason || 'requested_by_customer',
+              metadata: {
+                paymentId: payment.id,
+              },
             },
           },
-        },
-      }),
-    });
+        }),
+      });
 
-    const paymongoData = await paymongoRes.json();
+      const paymongoData = await paymongoRes.json();
 
-    if (!paymongoRes.ok) {
-      console.error('PayMongo Refund Error:', paymongoData);
-      return NextResponse.json({ error: 'Failed to process refund', details: paymongoData }, { status: 500 });
+      if (!paymongoRes.ok) {
+        console.error('PayMongo Refund Error:', paymongoData);
+        // Update to failed instead of throwing error
+        await prisma.payment.update({
+          where: { id: payment.id },
+          data: { status: 'failed' },
+        });
+        return NextResponse.json({ error: 'Failed to process refund', details: paymongoData }, { status: 500 });
+      }
+
+      // Update payment status to refunded
+      await prisma.payment.update({
+        where: { id: payment.id },
+        data: { status: 'refunded' },
+      });
     }
-
-    // Update payment status to refunded
-    await prisma.payment.update({
-      where: { id: payment.id },
-      data: { status: 'refunded' },
-    });
 
     // Optionally update booking status
     await prisma.booking.update({

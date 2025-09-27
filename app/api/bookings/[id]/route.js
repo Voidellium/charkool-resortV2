@@ -75,6 +75,85 @@ export const PUT = async (req, context) => {
       updateData.amenities = amenityUpdates;
     }
 
+    // Handle cancellation logic
+    if (data.status === 'Cancelled') {
+      const booking = await prisma.booking.findUnique({
+        where: { id: parseInt(id) },
+        include: { payments: true },
+      });
+
+      if (!booking) {
+        return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
+      }
+
+      // Check if already checked in (prevent cancellation)
+      const now = new Date();
+      if (booking.checkIn <= now) {
+        return NextResponse.json({ error: 'Cannot cancel booking that has already checked in' }, { status: 400 });
+      }
+
+      // Find paid payments
+      const paidPayments = booking.payments.filter(p => p.status === 'paid');
+
+      if (paidPayments.length > 0) {
+        // Process refunds for paid payments
+        for (const payment of paidPayments) {
+          try {
+            if (payment.provider === 'test') {
+              // For TEST payments, directly set to refunded
+              await prisma.payment.update({
+                where: { id: payment.id },
+                data: { status: 'Refunded' },
+              });
+            } else {
+              // For real payments, call refund API
+              const refundRes = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/payments/refund`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ paymentId: payment.id, reason: 'booking_cancelled' }),
+              });
+
+              if (!refundRes.ok) {
+                console.error('Refund failed for payment:', payment.id);
+                // Continue with other payments, but mark this one as failed
+                await prisma.payment.update({
+                  where: { id: payment.id },
+                  data: { status: 'Failed' },
+                });
+              }
+            }
+          } catch (error) {
+            console.error('Error processing refund for payment:', payment.id, error);
+          }
+        }
+      }
+
+      // Send notifications
+      try {
+        await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/notifications`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: `Booking #${id} for ${booking.guestName} has been cancelled.`,
+            type: 'booking_cancelled',
+            role: 'RECEPTIONIST',
+          }),
+        });
+
+        await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/notifications`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: `Booking #${id} for ${booking.guestName} has been cancelled.`,
+            type: 'booking_cancelled',
+            role: 'SUPERADMIN',
+          }),
+        });
+      } catch (error) {
+        console.error('Error sending cancellation notifications:', error);
+      }
+    }
+
     const updatedBooking = await prisma.booking.update({
       where: { id: parseInt(id) },
       data: updateData,

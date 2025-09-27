@@ -1,24 +1,74 @@
 "use client";
 
-import React, { Suspense, useRef, useState, useEffect } from "react";
+import React, { Suspense, useRef, useState, useEffect, useMemo, useCallback } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, useProgress, Html } from "@react-three/drei";
-import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { useLoader } from "@react-three/fiber";
+import { useSpring } from "@react-spring/three";
+import * as THREE from "three";
 
-function Model({ url }) {
-  // Determine file type based on extension
-  const isGLTF = url.toLowerCase().includes('.gltf') || url.toLowerCase().includes('.glb');
+function Model({ url, onObjectClick, onPositionsComputed }) {
+  const gltf = useLoader(GLTFLoader, url);
+  const sceneRef = useRef();
 
-  if (isGLTF) {
-    const gltf = useLoader(GLTFLoader, url);
-    return <primitive object={gltf.scene} />;
-  } else {
-    // Default to OBJ loader for .obj files
-    const obj = useLoader(OBJLoader, url);
-    return <primitive object={obj} />;
-  }
+  useEffect(() => {
+    if (gltf) {
+      gltf.scene.traverse((child) => {
+        if (child.isMesh) {
+          child.userData.clickable = true;
+          child.userData.name = child.name;
+        }
+      });
+    }
+  }, [gltf]);
+
+  const positions = useMemo(() => {
+    if (!gltf) return null;
+
+    const pos = {};
+    gltf.scene.traverse((child) => {
+      if (child.name && (child.isMesh || child.isGroup)) {
+        const box = new THREE.Box3().setFromObject(child);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        const radius = Math.max(size.x, size.y, size.z) / 2;
+        pos[child.name] = {
+          center: [center.x, center.y, center.z],
+          radius: radius * 1.5,
+        };
+      }
+    });
+
+    const overallBox = new THREE.Box3().setFromObject(gltf.scene);
+    const overallCenter = overallBox.getCenter(new THREE.Vector3());
+    const overallSize = overallBox.getSize(new THREE.Vector3());
+    const overallRadius = Math.max(overallSize.x, overallSize.y, overallSize.z) * 1.5;
+    pos.overall = {
+      center: [overallCenter.x, overallCenter.y, overallCenter.z],
+      radius: overallRadius,
+    };
+    return pos;
+  }, [gltf]);
+
+  useEffect(() => {
+    if (positions && onPositionsComputed) {
+      onPositionsComputed(positions);
+    }
+  }, [positions, onPositionsComputed]);
+
+  return (
+    <primitive
+      ref={sceneRef}
+      object={gltf.scene}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (e.object.userData.clickable) {
+          onObjectClick(e.object.userData.name);
+        }
+      }}
+    />
+  );
 }
 
 function Loader() {
@@ -26,49 +76,98 @@ function Loader() {
   return <Html center>{progress.toFixed(0)} % loaded</Html>;
 }
 
-function CustomControls({ isInteracting }) {
+function AnimatedControls({ target, position, isLocked }) {
   const { camera, gl } = useThree();
   const controlsRef = useRef();
+  const [isAnimating, setIsAnimating] = useState(false);
 
   useEffect(() => {
-    if (isInteracting) {
-      gl.domElement.style.cursor = 'none';
-    } else {
-      gl.domElement.style.cursor = 'crosshair';
+    setIsAnimating(true);
+    const timer = setTimeout(() => setIsAnimating(false), 1200);
+    return () => clearTimeout(timer);
+  }, [target, position]);
+
+  const springs = useSpring({
+    target: target,
+    position: position,
+    config: { duration: 1000 },
+  });
+
+  useFrame(() => {
+    if (isAnimating) {
+      const targetVec = new THREE.Vector3().fromArray(springs.target.get());
+      const positionVec = new THREE.Vector3().fromArray(springs.position.get());
+
+      if (controlsRef.current) {
+        controlsRef.current.target.lerp(targetVec, 0.1);
+        camera.position.lerp(positionVec, 0.1);
+        controlsRef.current.update();
+      }
     }
-  }, [isInteracting, gl.domElement]);
+  });
 
   return (
     <OrbitControls
       ref={controlsRef}
-      enablePan={false}
+      args={[camera, gl.domElement]}
+      enablePan={!isLocked}
       enableZoom={true}
-      enableRotate={isInteracting}
+      enableRotate={true}
       zoomSpeed={0.6}
       rotateSpeed={0.5}
-      minDistance={0.1}
-      maxDistance={100}
+      minDistance={1}
+      maxDistance={500}
+      maxPolarAngle={Math.PI / 2}
     />
   );
 }
 
-export default function EnhancedThreeDModelViewer({ modelPath }) {
-  const [isInteracting, setIsInteracting] = useState(false);
+export default function EnhancedThreeDModelViewer({ selectedObject, onSelectObject }) {
+  const [objectPositions, setObjectPositions] = useState({});
+  const [isLocked, setIsLocked] = useState(false);
   const canvasRef = useRef();
+  const modelPath = "/models/WholeMap_Separated_Textured.gltf";
 
-  const handleCanvasClick = () => {
-    setIsInteracting(!isInteracting);
-  };
+  useEffect(() => {
+    if (canvasRef.current) {
+      canvasRef.current.style.cursor = isLocked ? 'none' : 'auto';
+    }
+  }, [isLocked]);
 
-  const handleMouseMove = (event) => {
-    if (isInteracting && canvasRef.current) {
-      // Mouse movement is handled by OrbitControls when enabled
+  const handleObjectSelection = (objectName) => {
+    if (selectedObject === objectName) {
+      onSelectObject(null); // Deselect if same object is clicked
+      setIsLocked(false);
+    } else {
+      onSelectObject(objectName);
+      setIsLocked(true);
     }
   };
 
-  const handleMouseUp = () => {
-    setIsInteracting(false);
-  };
+  const getObjectPosition = useCallback((objectName) => {
+    const name = objectName || 'overall';
+    if (objectPositions[name]) {
+      const { center, radius } = objectPositions[name];
+      const newPosition = {
+        target: center,
+        position: [center[0], center[1] + radius * 0.5, center[2] + radius * 1.5],
+      };
+      if (name === 'overall') {
+        newPosition.position = [center[0], center[1] + radius * 0.5, center[2] + radius * 1.5];
+      }
+      return newPosition;
+    }
+    return {
+      target: [0, 0, 0],
+      position: [0, 10, 20],
+    };
+  }, [objectPositions]);
+
+  const handlePositionsComputed = useCallback((positions) => {
+    setObjectPositions(positions);
+  }, []);
+
+  const { target, position } = getObjectPosition(selectedObject);
 
   return (
     <div
@@ -77,28 +176,29 @@ export default function EnhancedThreeDModelViewer({ modelPath }) {
         width: '100%',
         height: '100%',
         position: 'relative',
-        cursor: isInteracting ? 'none' : 'crosshair',
-        overflow: 'hidden'
+        overflow: 'hidden',
       }}
-      onClick={handleCanvasClick}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
     >
       <Canvas
-        camera={{ position: [0, 0, 5], fov: 75 }}
+        camera={{ position: [0, 60, 120], fov: 75 }}
         style={{
-          background: 'linear-gradient(to bottom, #87CEEB, #98FB98)',
+          background: '#E09D28',
           width: '100%',
-          height: '100%'
+          height: '100%',
         }}
       >
-        <ambientLight intensity={0.6} />
-        <directionalLight position={[10, 10, 5]} intensity={1} />
-        <directionalLight position={[-10, -10, -5]} intensity={0.5} />
+        <ambientLight intensity={0.8} />
+        <hemisphereLight intensity={0.6} skyColor="#E09D28" groundColor="#000000" />
+        <directionalLight position={[10, 10, 5]} intensity={0.8} castShadow />
+        <directionalLight position={[-10, -10, -5]} intensity={0.3} />
 
         <Suspense fallback={<Loader />}>
-          <Model url={modelPath} />
-          <CustomControls isInteracting={isInteracting} />
+          <Model
+            url={modelPath}
+            onObjectClick={handleObjectSelection}
+            onPositionsComputed={handlePositionsComputed}
+          />
+          <AnimatedControls target={target} position={position} isLocked={isLocked} />
         </Suspense>
       </Canvas>
     </div>

@@ -266,11 +266,13 @@ enum BookingStatus {
   Confirmed
   Pending
   Cancelled
+  Held
 }
 
 enum PaymentStatus {
   Paid
   Pending
+  Partial
 }
 
 enum Role {

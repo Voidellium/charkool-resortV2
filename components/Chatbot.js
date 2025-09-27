@@ -1,18 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
+import ChatInterface from './ChatInterface';
 
 const Chatbot = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [questions, setQuestions] = useState({});
-  const [activeCategory, setActiveCategory] = useState(null);
-  const [activeQuestion, setActiveQuestion] = useState(null);
-  const [inputValue, setInputValue] = useState('');
-  const [cannedResponse, setCannedResponse] = useState('');
 
   const pathname = usePathname();
-  const router = useRouter();
 
   const visibleRoutes = ['/about-us', '/rooms', '/room', '/virtual-tour', '/'];
   const shouldShowIcon = visibleRoutes.includes(pathname);
@@ -20,7 +15,6 @@ const Chatbot = () => {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
-      fetchQuestions();
     } else {
       document.body.style.overflow = 'auto';
     }
@@ -28,37 +22,6 @@ const Chatbot = () => {
       document.body.style.overflow = 'auto';
     };
   }, [isOpen]);
-
-  const fetchQuestions = async () => {
-    try {
-      const res = await fetch('/api/chatbot');
-      const data = await res.json();
-      setQuestions(data);
-    } catch (error) {
-      console.error('Failed to fetch chatbot questions:', error);
-    }
-  };
-
-  const handleCategoryClick = (category) => {
-    setActiveCategory(activeCategory === category ? null : category);
-    setActiveQuestion(null); // Close any open question when a new category is clicked
-  };
-
-  const handleQuestionClick = (questionId) => {
-    setActiveQuestion(activeQuestion === questionId ? null : questionId);
-  };
-
-  const handleInputChange = (e) => {
-    setInputValue(e.target.value);
-    if (cannedResponse) setCannedResponse('');
-  };
-
-  const handleInputSubmit = (e) => {
-    e.preventDefault();
-    if (inputValue.trim()) {
-      setCannedResponse("I'm here to help with predefined questions only. Please select a question from the list above.");
-    }
-  };
 
   if (!shouldShowIcon) {
     return null;
@@ -73,8 +36,8 @@ const Chatbot = () => {
       </button>
 
       {isOpen && (
-        <div className="modal-backdrop">
-          <div className="modal-content">
+        <div className="modal-backdrop" onClick={() => setIsOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>How can we help?</h3>
               <button className="close-button" onClick={() => setIsOpen(false)}>
@@ -82,47 +45,7 @@ const Chatbot = () => {
               </button>
             </div>
             <div className="modal-body">
-              {Object.keys(questions).map((category) => (
-                <div key={category} className="category-group">
-                  <button className="category-header" onClick={() => handleCategoryClick(category)}>
-                    <span>{category}</span>
-                    <span className={`chevron ${activeCategory === category ? 'open' : ''}`}>&#9660;</span>
-                  </button>
-                  {activeCategory === category && (
-                    <div className="questions-list">
-                      {questions[category].map((q) => (
-                        <div key={q.id} className="question-item">
-                          <button className="question" onClick={() => handleQuestionClick(q.id)}>
-                            {q.question}
-                          </button>
-                          {activeQuestion === q.id && (
-                            <div className="answer">
-                              <p>{q.answer}</p>
-                              {q.showBookNowButton && (
-                                <button className="book-now-btn" onClick={() => router.push('/booking')}>
-                                  Book Now
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-            <div className="modal-footer">
-              <form onSubmit={handleInputSubmit}>
-                <input
-                  type="text"
-                  value={inputValue}
-                  onChange={handleInputChange}
-                  placeholder="Type your question here..."
-                />
-                <button type="submit">Send</button>
-              </form>
-              {cannedResponse && <p className="canned-response">{cannedResponse}</p>}
+              <ChatInterface isModal={true} />
             </div>
           </div>
         </div>
@@ -168,8 +91,9 @@ const Chatbot = () => {
           border-radius: 12px;
           box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
           width: 90%;
-          max-width: 500px;
-          height: 70vh;
+          max-width: 800px;
+          height: 80vh;
+          max-height: 1000px;
           display: flex;
           flex-direction: column;
           overflow: hidden;
@@ -203,73 +127,7 @@ const Chatbot = () => {
           flex-grow: 1;
           overflow-y: auto;
           padding: 20px;
-        }
-        .category-group {
-          margin-bottom: 12px;
-          border-bottom: 1px solid #eee;
-        }
-        .category-header {
-          width: 100%;
-          background: none;
-          border: none;
-          padding: 12px 0;
-          text-align: left;
-          font-size: 1rem;
-          font-weight: 600;
-          cursor: pointer;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-        .chevron {
-          transition: transform 0.2s;
-          display: inline-block;
-        }
-        .chevron.open {
-          transform: rotate(180deg);
-        }
-        .questions-list {
-          padding-left: 10px;
-        }
-        .question-item {
-          margin-bottom: 8px;
-        }
-        .question {
-          width: 100%;
-          background: none;
-          border: none;
-          text-align: left;
-          padding: 8px;
-          font-size: 0.9rem;
-          cursor: pointer;
-          color: #333;
-          border-radius: 6px;
-        }
-        .question:hover {
-          background-color: #f5f5f5;
-        }
-        .answer {
-          padding: 12px;
-          background-color: #f9f9f9;
-          border-radius: 6px;
-          margin-top: 4px;
-          font-size: 0.9rem;
-          line-height: 1.5;
-        }
-        .answer p {
-          margin: 0 0 10px 0;
-        }
-        .book-now-btn {
-          background-color: #FEBE52;
-          border: none;
-          border-radius: 6px;
-          padding: 6px 12px;
-          font-size: 0.8rem;
-          font-weight: 600;
-          cursor: pointer;
-        }
-        .book-now-btn:hover {
-          opacity: 0.9;
+          padding: 0; /* Remove padding to allow ChatInterface to fill */
         }
         .modal-footer {
           padding: 16px 20px;
