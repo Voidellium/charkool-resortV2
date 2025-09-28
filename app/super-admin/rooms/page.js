@@ -7,7 +7,7 @@ export default function SuperAdminRoomsPage() {
   const [newRoom, setNewRoom] = useState({
     name: '',
     type: '',
-    price: 0,
+    price: '',
     quantity: 1,
     image: null,
   });
@@ -110,7 +110,7 @@ export default function SuperAdminRoomsPage() {
   return (
     <SuperAdminLayout activePage="rooms">
       <div style={styles.container}>
-        <h2 style={styles.header}>🏨 Room Management</h2>
+  <h2 style={styles.header}>Room Management</h2>
 
         {/* Add Room Form with unified inputs */}
         <form onSubmit={handleAddRoom} style={styles.unifiedForm}>
@@ -166,31 +166,31 @@ export default function SuperAdminRoomsPage() {
           </div>
         </form>
         {/* Centered Add Room Button */}
-<div style={styles.addButtonContainer}>
-  <button
-    onClick={handleAddRoom}
-    style={{
-      padding: '10px 20px',
-      border: 'none',
-      borderRadius: '25px',
-      backgroundColor: '#007bff',
-      color: '#fff',
-      fontSize: '1rem',
-      fontWeight: 600,
-      cursor: 'pointer',
-      boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-      transition: 'background-color 0.2s, transform 0.2s',
-        display: 'flex',
-  justifyContent: 'center',
-  marginBottom: '20px',
-    }}
-    onMouseEnter={(e) => (e.target.style.backgroundColor = '#0069d9')}
-    onMouseLeave={(e) => (e.target.style.backgroundColor = '#007bff')}
-    type="button"
-  >
-    ➕ Add Room
-  </button>
-</div>
+        <div style={styles.addButtonContainer}>
+          <button
+            onClick={handleAddRoom}
+            style={{
+              padding: '10px 20px',
+              border: 'none',
+              borderRadius: '25px',
+              backgroundColor: '#007bff',
+              color: '#fff',
+              fontSize: '1rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+              transition: 'background-color 0.2s, transform 0.2s',
+              display: 'flex',
+              justifyContent: 'center',
+              marginBottom: '20px',
+            }}
+            onMouseEnter={(e) => (e.target.style.backgroundColor = '#0069d9')}
+            onMouseLeave={(e) => (e.target.style.backgroundColor = '#007bff')}
+            type="button"
+          >
+            Add Room
+          </button>
+        </div>
         {/* Rooms Table */}
         <div style={styles.tableWrapper}>
           <table style={styles.table}>
@@ -279,18 +279,18 @@ export default function SuperAdminRoomsPage() {
                             onChange={(e) => setEditingRoom({ ...editingRoom, quantity: Number(e.target.value) })}
                           />
                           <div style={styles.buttonGroup}>
-                            <button
-                              onClick={() => handleUpdateRoom(room.id)}
-                              style={{ ...buttonStyle, ...successBtn }}
-                            >
-                              💾 Save
-                            </button>
-                            <button
-                              onClick={() => setEditingRoom(null)}
-                              style={{ ...buttonStyle, ...dangerBtn }}
-                            >
-                              ❌ Cancel
-                            </button>
+                              <button
+                                onClick={() => handleUpdateRoom(room.id)}
+                                style={{ ...buttonStyle, ...successBtn }}
+                              >
+                                Save
+                              </button>
+                              <button
+                                onClick={() => setEditingRoom(null)}
+                                style={{ ...buttonStyle, ...dangerBtn }}
+                              >
+                                Cancel
+                              </button>
                           </div>
                         </div>
                       ) : (
@@ -299,13 +299,13 @@ export default function SuperAdminRoomsPage() {
                             onClick={() => setEditingRoom({ ...room, price: room.price / 100, quantity: room.quantity })}
                             style={{ ...buttonStyle, ...warningBtn }}
                           >
-                            ✏️ Edit
+                            Edit
                           </button>
                           <button
                             onClick={() => handleDeleteRoom(room.id)}
                             style={{ ...buttonStyle, ...secondaryBtn }}
                           >
-                            🗑️ Delete
+                            Delete
                           </button>
                         </>
                       )}

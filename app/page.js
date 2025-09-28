@@ -10,7 +10,8 @@ export default function Home() {
   const router = useRouter();
 
   const images = [
-    '/images/background2.jpg',
+    '/images/background.jpg',
+    '/images/background7.jpg',
     '/images/background4.jpg',
     '/images/background3.jpg',
     '/images/background6.jpg',
@@ -92,9 +93,6 @@ export default function Home() {
           <h2>Welcome To Charkool Beach Resort</h2>
           <p>
             At Charkool Beach Resort, we believe in creating more than just a place to stay—we offer an escape where chill meets style. Our philosophy is simple: provide a comfortable, welcoming environment where you can truly relax and recharge. We've meticulously designed every aspect of our resort, from the cozy, modern rooms to the sprawling, vibrant landscapes, to ensure your stay is as seamless as it is serene.
-          </p>
-          <p>
-            Our team is dedicated to providing warm, personalized service that makes you feel right at home. We're here to help you discover the hidden gems of our island, arrange a perfect day at the beach, or simply ensure you have everything you need for a memorable visit.
           </p>
           <p>
             But what truly sets us apart is the breathtaking scenery. Step outside and you'll find a view that actually deserves an exclamation mark. We are perfectly situated to offer stunning vistas of the pristine beaches and lush, tropical gardens, providing a picturesque backdrop for your entire vacation. Come and experience the paradise we've cultivated just for you.
@@ -202,6 +200,19 @@ export default function Home() {
           <div className="footer-about">
             <h3>Charkool Beach Resort</h3>
             <p>Relax, explore, and make memories. Located on Paradise Island.</p>
+            <div className="location-section">
+              <h4>Location:</h4>
+              <div className="location-links">
+                <a href="https://www.waze.com/live-map/directions/ph/central-luzon/san-felipe/charkool-beach-resort?to=place.ChIJeVtmpO3TlTMReawZJCvkIsg" target="_blank" rel="noopener noreferrer" className="location-link">
+                  <img src="/waze.svg" alt="Waze" className="location-icon" />
+                  <span>Waze</span>
+                </a>
+                <a href="https://www.google.com/maps/place/Charkool+Beach+Resort/@15.0432466,120.0557804,17z/data=!3m1!4b1!4m6!3m5!1s0x3395d3eda4665b79:0xc822e42b2419ac79!8m2!3d15.0432414!4d120.0583607!16s%2Fg%2F11lgrrh93b?entry=ttu&g_ep=EgoyMDI1MDkyNC4wIKXMDSoASAFQAw%3D%3D" target="_blank" rel="noopener noreferrer" className="location-link">
+                  <img src="/google-maps.svg" alt="Google Maps" className="location-icon" />
+                  <span>Google Maps</span>
+                </a>
+              </div>
+            </div>
           </div>
 
           <div className="footer-links">
@@ -736,6 +747,32 @@ export default function Home() {
         .footer-links a, .footer-contact p {
           color: inherit;
           text-decoration: none;
+        }
+
+        .location-section {
+          margin-top: 20px;
+        }
+        .location-section h4 {
+          margin: 0 0 8px 0;
+          font-size: 1rem;
+          font-weight: 600;
+        }
+        .location-links {
+          display: flex;
+          gap: 16px;
+        }
+
+        .location-link {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          color: inherit;
+          text-decoration: none;
+        }
+
+        .location-icon {
+          width: 20px;
+          height: 20px;
         }
 
         .footer-bottom {

@@ -64,9 +64,12 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // Skip middleware for NextAuth internal requests
-  if (pathname.startsWith('/api/auth/')) {
-    console.log(`[MIDDLEWARE] Skipping NextAuth route: ${pathname}`);
+  // Skip middleware for NextAuth internal requests and password reset routes
+  if (pathname.startsWith('/api/auth/') || 
+      pathname === '/api/auth/forgot-password' || 
+      pathname === '/api/auth/verify-reset-otp' || 
+      pathname === '/api/auth/reset-password') {
+    console.log(`[MIDDLEWARE] Skipping auth route: ${pathname}`);
     return NextResponse.next();
   }
 
@@ -85,11 +88,11 @@ export async function middleware(req: NextRequest) {
   }
 
   // These are the only paths a logged-in user should be redirected FROM
-  const loginAndRegisterPaths = ["/login", "/register"];
+  const loginAndRegisterPaths = ["/login", "/register", "/login/forgot-password"];
   const isLoginOrRegister = loginAndRegisterPaths.includes(pathname);
 
   // These are the paths that don't require authentication (e.g., home)
-  const publicPaths = ["/", "/login", "/register", "/api/public", "/virtual-tour", "/room", "/about-us", "/booking"];
+  const publicPaths = ["/", "/login", "/register", "/login/forgot-password", "/api/public", "/virtual-tour", "/room", "/about-us", "/booking"];
   const isPublicPath = publicPaths.includes(pathname);
 
   const token = await getToken({ req, secret: JWT_SECRET });

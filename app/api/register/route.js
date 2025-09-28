@@ -24,9 +24,9 @@ export async function POST(req) {
       });
     }
 
-    // Validate contact number (11 digits)
-    if (contactNumber.length !== 11 || !/^\d+$/.test(contactNumber)) {
-      return new Response(JSON.stringify({ error: 'Contact number must be exactly 11 digits.' }), {
+    // Validate contact number (should be 12 digits: 63 + 10-digit number)
+    if (contactNumber.length !== 12 || !/^639\d{9}$/.test(contactNumber)) {
+      return new Response(JSON.stringify({ error: 'Contact number must be a valid 12-digit number starting with 639.' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       });

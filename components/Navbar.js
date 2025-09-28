@@ -6,28 +6,9 @@ import { useSession } from 'next-auth/react';
 
 export default function Navbar() {
   const router = useRouter();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
 
-  const handleBookingClick = (e) => {
-    // If the user is not logged in, show an alert and redirect.
-    if (!session) {
-      e.preventDefault(); // Prevent default link behavior
-      const isConfirmed = window.confirm("You must be logged in to book. Click OK to go to the login page.");
-      if (isConfirmed) {
-        // Redirect to login page with a `redirect` query parameter
-        router.push('/login?redirect=/booking');
-      }
-    }
-  };
 
-  const handleLoginClick = (e) => {
-    if (session) {
-      // If the user is already logged in, prevent the link behavior
-      // and redirect to the guest dashboard.
-      e.preventDefault();
-      router.push('/guest/dashboard');
-    }
-  };
 
   return (
     <nav className="navbar">
@@ -38,12 +19,21 @@ export default function Navbar() {
           </Link>
         </div>
         <ul>
-          <li><Link href="/">Home</Link></li>
           <li>
-            <Link href="/booking" onClick={handleBookingClick}>
-              Booking
-            </Link>
+            <button onClick={() => {
+              if (!session) {
+                const isConfirmed = window.confirm("You must be logged in to book. Click OK to go to the login page.");
+                if (isConfirmed) {
+                  router.push('/login?redirect=/booking');
+                }
+              } else {
+                router.push('/booking');
+              }
+            }} className="book-now-btn">
+              Book Now!
+            </button>
           </li>
+          <li><Link href="/">Home</Link></li>
           <li><Link href="/virtual-tour">Virtual Tour</Link></li>
           <li>
             <Link href="/room">
@@ -51,9 +41,19 @@ export default function Navbar() {
             </Link>
           </li>
           <li>
-            <Link href="/login" onClick={handleLoginClick}>
-              Login
-            </Link>
+            {status === 'loading' ? (
+              <Link href="/login">
+                Login
+              </Link>
+            ) : session?.user?.role === 'CUSTOMER' ? (
+              <Link href="/guest/dashboard">
+                ← Dashboard
+              </Link>
+            ) : (
+              <Link href="/login">
+                Login
+              </Link>
+            )}
           </li>
         </ul>
       </div>
@@ -113,6 +113,40 @@ export default function Navbar() {
         }
 
         ul li :global(a):hover::after {
+          transform: scaleX(1);
+        }
+
+        .book-now-btn {
+          background: none;
+          border: none;
+          color: #333;
+          text-decoration: none;
+          font-size: 1rem;
+          font-weight: 500;
+          position: relative;
+          transition: color 0.3s ease, transform 0.3s ease;
+          cursor: pointer;
+        }
+
+        .book-now-btn::after {
+          content: "";
+          position: absolute;
+          left: 0;
+          bottom: -4px;
+          width: 100%;
+          height: 2px;
+          background-color: #fff;
+          transform: scaleX(0);
+          transform-origin: left;
+          transition: transform 0.3s ease;
+        }
+
+        .book-now-btn:hover {
+          color: #fff;
+          transform: translateY(-2px);
+        }
+
+        .book-now-btn:hover::after {
           transform: scaleX(1);
         }
 

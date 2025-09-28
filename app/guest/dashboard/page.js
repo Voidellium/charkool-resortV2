@@ -37,43 +37,97 @@ const PortalModal = ({ show, onClose, children }) => {
           top: 0;
           left: 0;
           width: 100%;
-          height: 100%;
-          background-color: rgba(0, 0, 0, 0.5);
+          height: 100vh;
+          background-color: rgba(0, 0, 0, 0.75);
           display: flex;
           justify-content: center;
           align-items: center;
           z-index: 1000;
-          backdrop-filter: blur(5px); /* Add blur effect */
+          backdrop-filter: blur(5px);
+          padding: 20px;
+          box-sizing: border-box;
         }
         .modal-content {
           background-color: #fff;
           padding: 2rem;
-          border-radius: 8px;
+          border-radius: 12px;
           position: relative;
-          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-          max-width: 90%;
-          max-height: 90%;
+          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+          width: 800px;
+          max-width: 100%;
+          height: auto;
+          max-height: 90vh;
           display: flex;
           flex-direction: column;
+          transform: translateZ(0);
+          will-change: transform;
+          animation: modalEnter 0.3s ease-out;
         }
         .modal-scroll-content {
           overflow-y: auto;
-          padding-right: 15px;
+          padding: 0 20px;
+          margin: 0 -20px;
+          flex: 1;
+          -webkit-overflow-scrolling: touch;
+        }
+        .modal-scroll-content::-webkit-scrollbar {
+          width: 8px;
+        }
+        .modal-scroll-content::-webkit-scrollbar-track {
+          background: #f1f1f1;
+          border-radius: 4px;
+        }
+        .modal-scroll-content::-webkit-scrollbar-thumb {
+          background: #888;
+          border-radius: 4px;
         }
         .close-btn {
           position: absolute;
-          top: 10px;
-          right: 10px;
-          background: none;
+          top: 15px;
+          right: 15px;
+          background: rgba(0, 0, 0, 0.1);
           border: none;
-          font-size: 2rem;
+          font-size: 24px;
           cursor: pointer;
-          color: #555;
+          color: #333;
           z-index: 1;
+          padding: 0;
+          width: 36px;
+          height: 36px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 50%;
+          transition: all 0.2s;
+        }
+        .close-btn:hover {
+          background-color: rgba(0, 0, 0, 0.2);
+          transform: scale(1.1);
+        }
+        @keyframes modalEnter {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
         }
         @media (max-width: 768px) {
+          .modal-overlay {
+            padding: 0;
+          }
           .modal-content {
-            padding: 1rem;
+            width: 100%;
+            height: 100vh;
+            max-height: 100vh;
+            border-radius: 0;
+            padding: 1.5rem;
+          }
+          .close-btn {
+            top: 10px;
+            right: 10px;
           }
         }
       `}</style>
@@ -90,7 +144,6 @@ const Modal = ({ show, onClose, children }) => {
       document.body.style.overflow = 'unset';
     }
 
-    // Cleanup function
     return () => {
       document.body.style.overflow = 'unset';
     };
@@ -114,42 +167,97 @@ const Modal = ({ show, onClose, children }) => {
           top: 0;
           left: 0;
           width: 100%;
-          height: 100%;
-          background-color: rgba(0, 0, 0, 0.5);
+          height: 100vh;
+          background-color: rgba(0, 0, 0, 0.75);
           display: flex;
           justify-content: center;
           align-items: center;
           z-index: 1000;
+          backdrop-filter: blur(5px);
+          padding: 20px;
+          box-sizing: border-box;
         }
         .modal-content {
           background-color: #fff;
           padding: 2rem;
-          border-radius: 8px;
+          border-radius: 12px;
           position: relative;
-          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-          max-width: 90%;
-          max-height: 90%;
+          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+          width: 800px;
+          max-width: 100%;
+          height: auto;
+          max-height: 90vh;
           display: flex;
           flex-direction: column;
+          transform: translateZ(0);
+          will-change: transform;
+          animation: modalEnter 0.3s ease-out;
         }
         .modal-scroll-content {
           overflow-y: auto;
-          padding-right: 15px; /* Add padding to prevent content from hiding behind scrollbar */
+          padding: 0 20px;
+          margin: 0 -20px;
+          flex: 1;
+          -webkit-overflow-scrolling: touch;
+        }
+        .modal-scroll-content::-webkit-scrollbar {
+          width: 8px;
+        }
+        .modal-scroll-content::-webkit-scrollbar-track {
+          background: #f1f1f1;
+          border-radius: 4px;
+        }
+        .modal-scroll-content::-webkit-scrollbar-thumb {
+          background: #888;
+          border-radius: 4px;
         }
         .close-btn {
           position: absolute;
-          top: 10px;
-          right: 10px;
-          background: none;
+          top: 15px;
+          right: 15px;
+          background: rgba(0, 0, 0, 0.1);
           border: none;
-          font-size: 2rem;
+          font-size: 24px;
           cursor: pointer;
-          color: #555;
-          z-index: 1; /* Ensure close button is above content */
+          color: #333;
+          z-index: 1;
+          padding: 0;
+          width: 36px;
+          height: 36px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 50%;
+          transition: all 0.2s;
+        }
+        .close-btn:hover {
+          background-color: rgba(0, 0, 0, 0.2);
+          transform: scale(1.1);
+        }
+        @keyframes modalEnter {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
         }
         @media (max-width: 768px) {
+          .modal-overlay {
+            padding: 0;
+          }
           .modal-content {
-            padding: 1rem;
+            width: 100%;
+            height: 100vh;
+            max-height: 100vh;
+            border-radius: 0;
+            padding: 1.5rem;
+          }
+          .close-btn {
+            top: 10px;
+            right: 10px;
           }
         }
       `}</style>
@@ -234,8 +342,25 @@ const BookingHistoryCard = ({ booking, guest }) => {
         </span>
       </div>
       <div className="card-details">
-        <p><strong>Check-in:</strong> {booking.checkIn}</p>
-        <p><strong>Check-out:</strong> {booking.checkOut}</p>
+        <p><strong>Check-in:</strong> {new Date(booking.checkIn).toLocaleDateString('en-US', { 
+          month: 'long', 
+          day: 'numeric', 
+          year: 'numeric'
+        })} at 2:00 PM</p>
+        <p><strong>Check-out:</strong> {new Date(booking.checkOut).toLocaleDateString('en-US', { 
+          month: 'long', 
+          day: 'numeric', 
+          year: 'numeric'
+        })} at 12:00 PM</p>
+        <p><strong>Booked on:</strong> {new Date(booking.createdAt).toLocaleDateString('en-US', { 
+          month: 'long', 
+          day: 'numeric', 
+          year: 'numeric',
+        })} at {new Date(booking.createdAt).toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        })}</p>
         <p><strong>Guests:</strong> {booking.guests}</p>
         <p><strong>Payment Status:</strong> {booking.payments && booking.payments.length > 0 ? 'Paid' : 'Pending'}</p>
         <p><strong>Total Paid:</strong> ₱{(booking.payments.reduce((sum, p) => sum + p.amount, 0) / 100).toFixed(0)}</p>
@@ -253,10 +378,28 @@ const BookingHistoryCard = ({ booking, guest }) => {
         <h2>Booking Details</h2>
         <div className="modal-details-content">
           <p><strong>Room:</strong> {booking.room.name} - {booking.room.type}</p>
-          <p><strong>Check-in:</strong> {booking.checkIn}</p>
-          <p><strong>Check-out:</strong> {booking.checkOut}</p>
-          <p><strong>Guests:</strong> {guestName}</p>
-          <p><strong>Status:</strong> {booking.status}</p>
+          <p><strong>Check-in:</strong> {new Date(booking.checkIn).toLocaleDateString('en-US', {
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric'
+          })} at 2:00 PM</p>
+          <p><strong>Check-out:</strong> {new Date(booking.checkOut).toLocaleDateString('en-US', {
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric'
+          })} at 12:00 PM</p>
+          <p><strong>Booked on:</strong> {new Date(booking.createdAt).toLocaleDateString('en-US', {
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric'
+          })} at {new Date(booking.createdAt).toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          })}</p>
+          <p><strong>Guest Name:</strong> {guestName}</p>
+          <p><strong>Number of Guests:</strong> {booking.guests}</p>
+          <p><strong>Booking Status:</strong> {booking.status}</p>
         </div>
       </PortalModal>
 
@@ -328,7 +471,7 @@ const BookingHistoryCard = ({ booking, guest }) => {
           transition: background-color 0.3s ease;
         }
         .reschedule-btn {
-          background-color: #5c6ac4;
+          background-color: #DBDB0F;
           color: white;
           border: none;
           padding: 0.6rem 1.2rem;
@@ -339,7 +482,7 @@ const BookingHistoryCard = ({ booking, guest }) => {
           transition: background-color 0.3s ease;
         }
         .reschedule-btn:hover {
-          background-color: #4a55a1;
+          background-color: #DBC20F;
         }
         .submit-request-btn {
           margin-top: 1rem;
@@ -353,7 +496,7 @@ const BookingHistoryCard = ({ booking, guest }) => {
           cursor: pointer;
         }
         .view-details-btn:hover {
-          background-color: #FEBE54;
+          background-color: #DBA90F;
         }
       `}</style>
     </div>
@@ -378,7 +521,15 @@ const PaymentHistoryCard = ({ payment }) => {
       <div className="card-details">
         <p><strong>Amount:</strong> ₱{payment.amount}</p>
         <p><strong>Method:</strong> {payment.method || 'N/A'}</p>
-        <p><strong>Date:</strong> {payment.date}</p>
+        <p><strong>Date:</strong> {new Date(payment.date).toLocaleDateString('en-US', {
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric'
+        })} at {new Date(payment.date).toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        })}</p>
       </div>
       <div className="card-actions">
         <button className="view-details-btn" onClick={() => handleOpenModal(payment)}>
@@ -391,8 +542,16 @@ const PaymentHistoryCard = ({ payment }) => {
         <div className="modal-details-content">
           <p><strong>Amount:</strong> ₱{payment.amount}</p>
           <p><strong>Method:</strong> {payment.method}</p>
-          <p><strong>Date:</strong> {payment.date}</p>
-          <p><strong>Status:</strong> {payment.status}</p>
+          <p><strong>Payment Date:</strong> {new Date(payment.date).toLocaleDateString('en-US', {
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric'
+          })} at {new Date(payment.date).toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          })}</p>
+          <p><strong>Payment Status:</strong> {payment.status}</p>
         </div>
       </Modal>
 

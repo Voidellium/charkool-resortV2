@@ -189,11 +189,10 @@ export default function ChatbotManagementPage() {
         </div>
       </div>
 
-      {/* Stylish, minimal CSS */}
+      {/* Minimal CSS for consistent sizing and spacing */}
       <style jsx>{`
-        /* Layout & Typography */
         .container {
-          max-width: 1000px;
+          max-width: 1200px; /* wider for more breathing room */
           margin: 0 auto;
           padding: 40px 20px;
           font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
@@ -233,6 +232,7 @@ export default function ChatbotManagementPage() {
           transition: box-shadow 0.3s ease;
         }
 
+        /* Add hover effect for depth */
         .form-card:hover, .list-card:hover {
           box-shadow: 0 12px 30px rgba(0,0,0,0.1);
         }
@@ -241,7 +241,7 @@ export default function ChatbotManagementPage() {
         .question-form {
           display: flex;
           flex-direction: column;
-          gap: 18px;
+          gap: 20px; /* consistent spacing between inputs */
         }
 
         .input-select, .input-field, .textarea {
@@ -253,13 +253,14 @@ export default function ChatbotManagementPage() {
           transition: border-color 0.2s, box-shadow 0.2s;
         }
 
+        /* Focus styles */
         .input-select:focus, .input-field:focus, .textarea:focus {
           border-color: #6c63ff;
           box-shadow: 0 0 8px rgba(108, 99, 255, 0.2);
           outline: none;
         }
 
-        /* Label & checkbox */
+        /* Label & checkbox styles */
         .checkbox-label {
           display: flex;
           align-items: center;
@@ -270,12 +271,14 @@ export default function ChatbotManagementPage() {
           margin-right: 10px;
         }
 
-        /* Buttons */
+        /* Buttons layout */
         .button-group {
           display: flex;
           gap: 15px;
+          margin-top: 20px;
         }
 
+        /* Primary button styling */
         .btn-primary {
           background: linear-gradient(135deg, #6c63ff, #4a44e6);
           color: #fff;
@@ -293,6 +296,7 @@ export default function ChatbotManagementPage() {
           transform: translateY(-2px);
         }
 
+        /* Secondary button styling */
         .btn-secondary {
           background-color: #bbb;
           color: #fff;
@@ -310,7 +314,7 @@ export default function ChatbotManagementPage() {
           transform: translateY(-2px);
         }
 
-        /* List table styles */
+        /* Table styles */
         .questions-table {
           width: 100%;
           border-collapse: collapse;

@@ -16,7 +16,6 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
   const notifRef = useRef(null);
   const router = useRouter();
 
-  // Sidebar state
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const [animateSidebar, setAnimateSidebar] = useState(false);
 
@@ -98,27 +97,26 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
     <>
       {/* Font imports */}
       <Head>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Poppins&display=swap" rel="stylesheet" />
-        {/* Header font */}
-        <link
-          href="https://fonts.googleapis.com/css2?family=Playfair+Display&display=swap"
-          rel="stylesheet"
-        />
-        {/* Body font */}
-        <link
-          href="https://fonts.googleapis.com/css2?family=Roboto&display=swap"
-          rel="stylesheet"
-        />
+        {/* existing links */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin />
+        <link href="https://fonts.googleapis.com/css2?family=Poppins&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Playfair+Display&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet" />
+        {/* set global font-family */}
+        <style>{`
+          body {
+            font-family: 'Poppins', sans-serif;
+          }
+        `}</style>
       </Head>
 
-      {/* Container with global font */}
+      {/* Container with global font and flex layout */}
       <div
         style={{
           display: 'flex',
           minHeight: '100vh',
-          fontFamily: `'Poppins', sans-serif`, // Set the default font for all children
+          fontFamily: `'Poppins', sans-serif`,
           backgroundColor: '#f9f9f9',
         }}
       >
@@ -131,11 +129,12 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
             left: '10px',
             zIndex: 1100,
             padding: '8px 12px',
-            backgroundColor: '#0070f3',
+            backgroundColor: '#36080885',
             color: '#fff',
             border: 'none',
             borderRadius: '4px',
             cursor: 'pointer',
+            fontSize: '0.9rem',
           }}
         >
           {sidebarVisible ? 'Hide Sidebar' : 'Show Sidebar'}
@@ -148,7 +147,7 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
               width: '240px',
               background: '#FEBE52',
               color: '#fff',
-              padding: '30px 20px',
+              padding: '2rem',
               height: '100vh',
               position: 'fixed',
               top: 0,
@@ -159,7 +158,7 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'start',
-              transition: 'transform 1.0s ease',
+              transition: 'transform 0.3s ease',
               transform: sidebarVisible ? 'translateX(0)' : 'translateX(-100%)',
             }}
           >
@@ -167,7 +166,8 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
             <h2
               style={{
                 marginBottom: '2.5rem',
-                fontSize: '1.5',
+                fontSize: '1.7rem',
+                color: '#000000ff',
                 fontWeight: '700',
                 textAlign: 'center',
                 fontFamily: `'Poppins'`,
@@ -190,10 +190,10 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                             borderRadius: '8px',
                             textDecoration: 'none',
                             backgroundColor: activePage === item.key ? '#00000049' : 'transparent',
-                            color: activePage === item.key ? '#0070f3' : '#555',
+                            color: activePage === item.key ? '#fff' : '#555',
                             fontWeight: activePage === item.key ? 'bold' : '400',
                             fontFamily: `'Poppins'`,
-                            fontSize: '1.2rem',
+                            fontSize: '1rem',
                             transition: 'background-color 0.2s, color 0.2s',
                           }}
                           onClick={(e) => {
@@ -208,7 +208,7 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                           }}
                           onMouseLeave={(e) => {
                             e.currentTarget.style.backgroundColor =
-                              activePage === 'reports' ? '#0070f3' : 'transparent';
+                              activePage === 'reports' ? '#00000049' : 'transparent';
                             e.currentTarget.style.color =
                               activePage === 'reports' ? '#fff' : '#333';
                           }}
@@ -260,7 +260,7 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                           color: activePage === item.key ? '#fff' : '#333',
                           fontWeight: activePage === item.key ? 'bold' : '400',
                           fontFamily: `Poppins`,
-                          fontSize: '1.2rem',
+                          fontSize: '1rem',
                           transition: 'background-color 0.2s, color 0.2s',
                         }}
                         onMouseEnter={(e) => {
@@ -283,13 +283,18 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
           </aside>
         )}
 
-        {/* Main Content */}
+        {/* Main Content Area */}
         <div
           style={{
-            marginLeft: sidebarVisible ? '240px' : '0',
-            width: sidebarVisible ? 'calc(100% - 240px)' : '100%',
+            marginLeft: sidebarVisible ? (typeof window !== 'undefined' && window.innerWidth <= 1024 ? (window.innerWidth <= 768 ? '0' : '200px') : '220px') : '0',
+            width: sidebarVisible ? (typeof window !== 'undefined' && window.innerWidth <= 1024 ? '100%' : 'calc(100% - 220px)') : '100%',
             minHeight: '100vh',
             transition: 'margin-left 0.3s ease, width 0.3s ease',
+            padding: typeof window !== 'undefined' && window.innerWidth <= 768 ? '10px' : '32px',
+            boxSizing: 'border-box',
+            maxWidth: '1600px',
+            marginRight: 'auto',
+            marginTop: '0',
           }}
         >
           {/* Top right icons: notifications & profile */}
@@ -441,22 +446,6 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                     style={{
                       padding: '8px',
                       borderRadius: '6px',
-                      background: '#f0f0f0',
-                      cursor: 'pointer',
-                      marginBottom: '8px',
-                      transition: 'background 0.2s',
-                      fontFamily: `'Poppins', sans-serif`,
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#e0e0e0')}
-                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#f0f0f0')}
-                    onClick={handleSwitchAccount}
-                  >
-                    Switch Account
-                  </div>
-                  <div
-                    style={{
-                      padding: '8px',
-                      borderRadius: '6px',
                       background: '#ffe0e0',
                       color: 'red',
                       cursor: 'pointer',
@@ -482,11 +471,50 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
           </div>
 
           {/* Main Content */}
-          <div style={{ padding: '20px', marginTop: '80px' }}>
+          <div style={{ marginTop: '80px', padding: '20px', maxWidth: '1200px', marginLeft: 'auto', marginRight: 'auto' }}>
             {children}
           </div>
         </div>
       </div>
+
+      {/* Responsive CSS */}
+      <style jsx>{`
+        @media (max-width: 1024px) {
+          /* Collapse sidebar into a menu button */
+          aside {
+            width: 200px;
+            padding: 1.5rem;
+          }
+          /* Main content width adjusts automatically */
+          div[style*='marginLeft'] {
+            margin-left: 0 !important;
+            width: 100% !important;
+            padding: 10px;
+          }
+        }
+
+        @media (max-width: 768px) {
+          /* Hide sidebar by default on small screens, toggle with button */
+          aside {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100%;
+            z-index: 999;
+            transition: transform 0.3s ease;
+            transform: translateX(-100%);
+          }
+          aside[style*='transform: translateX(0)'] {
+            transform: translateX(0);
+          }
+          /* Main content takes full width */
+          div[style*='marginLeft'] {
+            margin-left: 0 !important;
+            width: 100% !important;
+            padding: 10px;
+          }
+        }
+      `}</style>
     </>
   );
 }

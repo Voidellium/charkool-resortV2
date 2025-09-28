@@ -77,7 +77,7 @@ export default function BookingsPage() {
 
   return (
     <SuperAdminLayout activePage="bookings">
-      <div style={{ maxWidth: 1200, margin: '20px auto', fontFamily: 'Arial, sans-serif' }}>
+      <div style={{ maxWidth: 'none', margin: '20px auto', fontFamily: 'Arial, sans-serif' }}>
         <h1 style={{ textAlign: 'center', marginBottom: '20px', fontSize: '2rem', fontWeight: 'bold' }}>Booking Management</h1>
 
         {/* Feedback Message */}
@@ -172,7 +172,7 @@ export default function BookingsPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '800px' }}>
             <thead>
               <tr style={{ backgroundColor: '#f4f4f4' }}>
-                <th style={{ padding: '12px', border: '1px solid #ccc', position: 'sticky', top: 0, backgroundColor: '#f9f9f9' }}>Guest Name</th>
+                <th style={{ padding: '12px', border: '1px solid #ccc', position  : 'sticky', top: 0, backgroundColor: '#f9f9f9' }}>Guest Name</th>
                 <th style={{ padding: '12px', border: '1px solid #ccc', position: 'sticky', top: 0, backgroundColor: '#f9f9f9' }}>Check-in</th>
                 <th style={{ padding: '12px', border: '1px solid #ccc', position: 'sticky', top: 0, backgroundColor: '#f9f9f9' }}>Check-out</th>
                 <th style={{ padding: '12px', border: '1px solid #ccc', position: 'sticky', top: 0, backgroundColor: '#f9f9f9' }}>Room</th>

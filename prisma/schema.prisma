@@ -19,9 +19,11 @@ model User {
   password       String?           // <- optional for OAuth users
   role           Role      @default(CUSTOMER)
   image          String?
-  redirectUrl   String?   @default("/guest/dashboard")
+  redirectUrl    String?   @default("/guest/dashboard")
   emailVerified  DateTime?
   googleId       String?   @unique  // <- for linking Google OAuth accounts
+  resetToken     String?   // for password reset OTP
+  resetTokenExpiry DateTime? // expiry time for reset OTP
   bookings       Booking[]
   accounts       Account[]
   sessions       Session[]

@@ -190,7 +190,7 @@ export default function BookingPage() {
 
       // Store booking details for checkout page
       localStorage.setItem('bookingId', data.booking.id);
-      localStorage.setItem('bookingAmount', data.booking.totalPrice);
+      localStorage.setItem('bookingAmount', data.booking.totalPrice / 100);
 
       // Redirect to checkout page
       router.push('/checkout');
@@ -284,7 +284,7 @@ export default function BookingPage() {
                     onAmenitiesChange={handleAmenitiesChange}
                 />
                 <div className="total-price-display">
-                    <strong>Total Price:</strong> ₱{totalPrice.toLocaleString()}
+                    <strong>Total Price:</strong> ₱{(totalPrice / 100).toLocaleString()}
                 </div>
             </motion.div>
           )}
@@ -296,9 +296,9 @@ export default function BookingPage() {
               <p><strong>Check-out:</strong> {formData.checkOut}</p>
               <p><strong>Guests:</strong> {formData.guests}</p>
               <p><strong>Room:</strong> {formData.roomType}</p>
-              <p><strong>Total Price:</strong> ₱{totalPrice.toLocaleString()}</p>
+              <p><strong>Total Price:</strong> ₱{(totalPrice / 100).toLocaleString()}</p>
               <div style={{ marginTop: '20px', padding: '10px', backgroundColor: '#e0f2fe', borderRadius: '8px', border: '1px solid #0ea5e9' }}>
-                <p><strong>Note:</strong> Upon submission, your room will be held for 15 minutes. You must complete payment within this time to confirm your booking.</p>
+                <p><strong>Note:</strong> Upon submission, your room will be held for 3 hours. You must complete payment within this time to confirm your booking.</p>
                 <p><strong>Cancellation Policy:</strong> Full refund if cancelled more than 24 hours before check-in, partial refund otherwise.</p>
               </div>
             </motion.div>

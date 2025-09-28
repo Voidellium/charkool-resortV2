@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Navbar from '../../components/Navbar'
 import { FaUsers, FaSnowflake, FaBed, FaWifi, FaSwimmingPool, FaFire, FaUtensils } from 'react-icons/fa'
 
@@ -19,7 +20,7 @@ const rooms = [
       { icon: <FaSwimmingPool />, label: 'Pool Access' },
       { icon: <FaFire />, label: 'Grill Access' }
     ],
-    images: ['/images/Loft.jpg', '/images/Loft.jpg', '/images/Loft.jpg']
+    images: ['/images/Loft.jpg', '/images/LoftInterior1.jpg', '/images/LoftInterior2.jpg']
   },
   {
     id: 'tepee',
@@ -37,7 +38,7 @@ const rooms = [
       { icon: <FaUtensils />, label: 'Gas and Stove' },
       { icon: <FaFire />, label: 'Grill Access' }
     ],
-    images: ['/images/Tepee.jpg', '/images/Tepee.jpg', '/images/Tepee.jpg']
+    images: ['/images/Tepee.jpg', '/images/TepeeInterior1.jpg', '/images/TepeeInterior2.jpg']
   },
   {
     id: 'villa',
@@ -55,12 +56,14 @@ const rooms = [
       { icon: <FaUtensils />, label: 'Gas and Stove' },
       { icon: <FaFire />, label: 'Grill Access' }
     ],
-    images: ['/images/Villa.jpg', '/images/Villa.jpg', '/images/Villa.jpg']
+    images: ['/images/Villa.jpg', '/images/VillaInterior1.jpg', '/images/VillaInterior2.jpg']
   }
 ]
 
 export default function RoomPage() {
   const [selectedRoom, setSelectedRoom] = useState(null)
+  const [selectedImage, setSelectedImage] = useState(null)
+  const router = useRouter()
 
   return (
     <>
@@ -93,7 +96,7 @@ export default function RoomPage() {
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="image-gallery">
               {selectedRoom.images.map((img, idx) => (
-                <img key={idx} src={img} alt={`${selectedRoom.name} image ${idx + 1}`} />
+                <img key={idx} src={img} alt={`${selectedRoom.name} image ${idx + 1}`} onClick={() => setSelectedImage(img)} style={{cursor: 'pointer'}} />
               ))}
             </div>
             <h2>{selectedRoom.name}</h2>
@@ -106,15 +109,24 @@ export default function RoomPage() {
                 </li>
               ))}
             </ul>
-            <button className="book-room-btn">Book This Room</button>
+            <button className="book-room-btn" onClick={() => router.push('/booking')}>Book This Room</button>
             <button className="close-btn" onClick={() => setSelectedRoom(null)}>Close</button>
+          </div>
+        </div>
+      )}
+
+      {selectedImage && (
+        <div className="image-modal-overlay" onClick={() => setSelectedImage(null)}>
+          <div className="image-modal-content" onClick={e => e.stopPropagation()}>
+            <img src={selectedImage} alt="Full view" className="full-image" />
+            <button className="close-image-btn" onClick={() => setSelectedImage(null)}>Close</button>
           </div>
         </div>
       )}
 
       <section className="cta-banner">
         <h2>Begin Your Reservation Now!</h2>
-        <button className="book-now-btn">Book Now</button>
+        <button className="book-now-btn" onClick={() => router.push('/booking')}>Book Now</button>
       </section>
 
       <style jsx>{`
@@ -243,8 +255,8 @@ export default function RoomPage() {
           margin-bottom: 1rem;
         }
         .image-gallery img {
-          width: 100px;
-          height: 70px;
+          width: 170px;
+          height: 100px;
           object-fit: cover;
           border-radius: 6px;
           flex-shrink: 0;
@@ -354,6 +366,44 @@ export default function RoomPage() {
             width: 80px;
             height: 60px;
           }
+        }
+        .image-modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0,0,0,0.8);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1100;
+        }
+        .image-modal-content {
+          background: #fff;
+          border-radius: 12px;
+          max-width: 90%;
+          max-height: 90%;
+          padding: 1rem;
+          box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+        }
+        .full-image {
+          max-width: 100%;
+          max-height: 80vh;
+          object-fit: contain;
+          border-radius: 6px;
+        }
+        .close-image-btn {
+          margin-top: 1rem;
+          background-color: #ccc;
+          color: #333;
+          border: none;
+          padding: 0.5rem 1rem;
+          border-radius: 6px;
+          cursor: pointer;
+        }
+        .close-image-btn:hover {
+          background-color: #aaa;
         }
       `}</style>
     </>

@@ -74,6 +74,9 @@ export default function GuestHeader() {
 
         {/* Center Section - Navigation */}
         <nav className="nav-links">
+          <Link href="/" className={pathname === '/' ? 'active' : ''}>
+            <span>Home</span>
+          </Link>
           <Link href="/guest/dashboard" className={pathname === '/guest/dashboard' ? 'active' : ''}>
             <span>Dashboard</span>
           </Link>

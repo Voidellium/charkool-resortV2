@@ -182,19 +182,28 @@ export default function ChatInterface({ isModal }) {
   const handleSendMessage = () => {
     if (!input.trim()) return;
 
-    const userMessage = { sender: 'user', text: input };
-    setMessages((prev) => [...prev, userMessage]);
-
     const lowerInput = input.toLowerCase();
     let suggestionsFound = false;
+
+    // Add user message first
+    setMessages((prev) => [
+      ...prev,
+      { sender: 'bot', text: input, isUserMessage: true }
+    ]);
 
     for (const category in keywordSuggestions) {
       if (keywordSuggestions[category].keywords.some(kw => lowerInput.includes(kw))) {
         const options = keywordSuggestions[category].suggestions;
         setMessages((prev) => [
           ...prev,
-          { sender: 'bot', text: 'Here are some suggestions based on your question:', isSuggestionPrompt: true },
-          ...options.map((opt) => ({ sender: 'bot', text: opt.text, answer: opt.answer, isSuggestion: true })),
+          { sender: 'bot', text: 'Here are some suggestions based on your question:', isSuggestionPrompt: true, isBotMessage: true },
+          ...options.map((opt) => ({
+            sender: 'bot',
+            text: opt.text,
+            answer: opt.answer,
+            isSuggestion: true,
+            isBotMessage: true
+          })),
         ]);
         suggestionsFound = true;
         break;
@@ -204,7 +213,7 @@ export default function ChatInterface({ isModal }) {
     if (!suggestionsFound) {
       setMessages((prev) => [
         ...prev,
-        { sender: 'bot', text: 'Sorry, I didn’t understand that. Please choose one topic below to continue:', isSuggestionPrompt: true },
+        { sender: 'bot', text: 'Sorry, I didn’t understand that. Please choose one topic below to continue:', isSuggestionPrompt: true, isBotMessage: true },
       ]);
     }
 
@@ -212,12 +221,12 @@ export default function ChatInterface({ isModal }) {
   };
 
   const handleSuggestionClick = (suggestion) => {
-    const userClickedMessage = { sender: 'user', text: suggestion.text };
-    const botResponseMessage = { sender: 'bot', text: suggestion.answer, bookNow: suggestion.bookNow };
+    const userMessage = { sender: 'bot', text: suggestion.text, isUserMessage: true };
+    const botResponseMessage = { sender: 'bot', text: suggestion.answer, bookNow: suggestion.bookNow, isBotMessage: true };
     setMessages((prev) => {
       // Filter out old suggestions
       const filtered = prev.filter(m => !m.isSuggestion && !m.isSuggestionPrompt);
-      return [...filtered, userClickedMessage, botResponseMessage];
+      return [...filtered, userMessage, botResponseMessage];
     });
   };
 
@@ -226,8 +235,15 @@ export default function ChatInterface({ isModal }) {
         const filtered = prev.filter(m => !m.isSuggestion && !m.isSuggestionPrompt);
         return [
             ...filtered,
-            { sender: 'bot', text: `Here are some questions about ${category.title}:`, isSuggestionPrompt: true },
-            ...category.questions.map((q) => ({ sender: 'bot', text: q.text, answer: q.answer, bookNow: q.bookNow, isSuggestion: true })),
+            { sender: 'bot', text: `Here are some questions about ${category.title}:`, isSuggestionPrompt: true, isBotMessage: true },
+            ...category.questions.map((q) => ({ 
+              sender: 'bot', 
+              text: q.text, 
+              answer: q.answer, 
+              bookNow: q.bookNow, 
+              isSuggestion: true,
+              isBotMessage: true 
+            })),
         ];
     });
   };
@@ -238,19 +254,23 @@ export default function ChatInterface({ isModal }) {
         {messages.map((msg, index) => (
           <motion.div
             key={index}
-            className={`message ${msg.sender}`}
+            className={`message ${msg.sender} ${msg.isUserMessage ? 'isUserMessage' : ''} ${msg.isBotMessage ? 'isBotMessage' : ''}`}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
           >
             <div className="message-content">
               {msg.isSuggestion ? (
-                <button className="suggestion-btn" onClick={() => handleSuggestionClick(msg)}>
-                  {msg.text}
-                </button>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  <button className="suggestion-btn" onClick={() => handleSuggestionClick(msg)}>
+                    {msg.text}
+                  </button>
+                </div>
               ) : (
-                <p style={{margin: 0, whiteSpace: 'pre-wrap'}}>{msg.text}</p>
+                <>
+                  <p style={{margin: 0, whiteSpace: 'pre-wrap'}}>{msg.text}</p>
+                  {msg.bookNow && <BookNowButton />}
+                </>
               )}
-              {msg.bookNow && !msg.isSuggestion && <BookNowButton />}
             </div>
           </motion.div>
         ))}
@@ -296,29 +316,70 @@ export default function ChatInterface({ isModal }) {
         .message {
           margin-bottom: 15px;
           display: flex;
+          align-items: flex-start;
+          gap: 8px;
         }
-        .message.user {
-          justify-content: flex-end;
+        .message.user, .message.isUserMessage {
+          flex-direction: row;
+          margin-right: auto;
+          max-width: 85%;
         }
-        .message.bot {
-          justify-content: flex-start;
+        .message.bot:not(.isUserMessage), .message.isBotMessage {
+          flex-direction: row-reverse;
+          margin-left: auto;
+          max-width: 85%;
         }
         .message-content {
           padding: 12px 18px;
           border-radius: 20px;
-          max-width: 80%;
           line-height: 1.5;
           word-wrap: break-word;
+          position: relative;
+          max-width: 100%;
         }
-        .message.user .message-content {
-          background-color: #FEBE52;
-          color: white;
-          border-bottom-right-radius: 5px;
-        }
-        .message.bot .message-content {
+        .message.user .message-content, .message.isUserMessage .message-content {
           background-color: #e5e5e5;
           color: #333;
-          border-bottom-left-radius: 5px;
+          border-bottom-left-radius: 4px;
+          margin-left: 8px;
+        }
+        .message.bot .message-content, .message.isBotMessage .message-content {
+          background-color: #FEBE52;
+          color: white;
+          border-bottom-right-radius: 4px;
+          margin-right: 8px;
+        }
+        .message.bot .suggestion-btn, .message.isBotMessage .suggestion-btn {
+          text-align: left;
+          padding: 10px 15px;
+          background-color: #f0f0f0;
+          color: #333;
+          border: none;
+          border-radius: 15px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          font-size: 14px;
+          margin: 2px 0;
+          width: auto;
+          display: inline-block;
+        }
+        .message.user .message-content::before,
+        .message.bot .message-content::before,
+        .message.isUserMessage .message-content::before,
+        .message.isBotMessage .message-content::before {
+          content: '';
+          position: absolute;
+          bottom: 0;
+          width: 12px;
+          height: 12px;
+        }
+        .message.user .message-content::before, .message.isUserMessage .message-content::before {
+          left: -6px;
+          background: radial-gradient(circle at top right, transparent 12px, #e5e5e5 0);
+        }
+        .message.bot .message-content::before, .message.isBotMessage .message-content::before {
+          right: -6px;
+          background: radial-gradient(circle at top left, transparent 12px, #FEBE52 0);
         }
         .bubble-area {
           display: flex;
@@ -370,14 +431,20 @@ export default function ChatInterface({ isModal }) {
           width: 100%;
           text-align: left;
           padding: 10px 15px;
-          background-color: rgba(255, 255, 255, 0.7);
+          background-color: #f0f0f0;
           color: #333;
           border: none;
-          border-radius: 10px;
+          border-radius: 15px;
           cursor: pointer;
-          transition: background-color 0.2s;
+          transition: all 0.2s ease;
           font-size: 14px;
-          margin: 0;
+          margin: 2px 0;
+          position: relative;
+          overflow: hidden;
+        }
+        .suggestion-btn:hover {
+          background-color: #e8e8e8;
+          transform: translateY(-1px);
         }
       `}</style>
     </div>

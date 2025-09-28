@@ -43,10 +43,10 @@ export default function Payments() {
 
   function filterPayments() {
     return payments.filter((p) => {
-      const statusMatch = filters.status ? p.status === filters.status : true;
       const createdAt = new Date(p.createdAt);
       const startDateMatch = filters.startDate ? createdAt >= new Date(filters.startDate) : true;
       const endDateMatch = filters.endDate ? createdAt <= new Date(filters.endDate) : true;
+      const statusMatch = filters.status ? p.status === filters.status : true;
       return statusMatch && startDateMatch && endDateMatch;
     });
   }
@@ -61,10 +61,8 @@ export default function Payments() {
 
   if (loading) return <p style={styles.loadingText}>Loading payments...</p>;
 
-  // Determine if detail view is open
   const isDetailOpen = Boolean(selectedPayment);
 
-  // Dynamic layout style
   const layoutStyle = {
     display: 'flex',
     flexDirection: isDetailOpen ? 'row' : 'column',
@@ -75,7 +73,7 @@ export default function Payments() {
 
   const tableContainerStyle = {
     flex: 1,
-    maxWidth: isDetailOpen ? '60%' : '100%',
+    maxWidth: isDetailOpen ? '65%' : '100%',
   };
 
   const detailContainerStyle = {
@@ -83,152 +81,184 @@ export default function Payments() {
     maxWidth: '35%',
   };
 
-  const content = (
-    <div style={styles.container}>
-      {/* Title */}
-      <h1 style={styles.title}>Super Admin Payment Oversight</h1>
-
-      {/* KPIs */}
-      {report && (
-        <div style={styles.kpiContainer}>
-          <div style={{ ...styles.kpiCard, backgroundColor: '#4caf50' }}>
-            <h3 style={styles.kpiTitle}>Total Revenue</h3>
-            <p style={styles.kpiValue}>₱ {(report.totalRevenue / 100).toFixed(2)}</p>
-          </div>
-          <div style={{ ...styles.kpiCard, backgroundColor: '#2196f3' }}>
-            <h3 style={styles.kpiTitle}>Total Transactions</h3>
-            <p style={styles.kpiValue}>{report.totalTransactions}</p>
-          </div>
-          <div style={{ ...styles.kpiCard, backgroundColor: '#ff9800' }}>
-            <h3 style={styles.kpiTitle}>Pending Payments</h3>
-            <p style={styles.kpiValue}>{report.pendingTransactions}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Filters */}
-      <div style={styles.filtersContainer}>
-        {/* Status Filter */}
-        <div style={styles.filterGroup}>
-          <label style={styles.label}>Status:</label>
-          <select
-            value={filters.status}
-            onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-            style={styles.select}
-          >
-            <option value="">All</option>
-            <option value="Pending">Pending</option>
-            <option value="Paid">Paid</option>
-          </select>
-        </div>
-        {/* Start Date Filter */}
-        <div style={styles.filterGroup}>
-          <label style={styles.label}>Start Date:</label>
-          <input
-            type="date"
-            value={filters.startDate}
-            onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
-            style={styles.input}
-          />
-        </div>
-        {/* End Date Filter */}
-        <div style={styles.filterGroup}>
-          <label style={styles.label}>End Date:</label>
-          <input
-            type="date"
-            value={filters.endDate}
-            onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
-            style={styles.input}
-          />
-        </div>
-      </div>
-
-      {/* Main content: table and details side by side or stacked */}
-      <div style={layoutStyle}>
-        {/* Payments Table */}
-        <div style={tableContainerStyle}>
-          <div style={styles.tableWrapper}>
-            <table style={styles.table}>
-              <thead style={styles.thead}>
-                <tr>
-                  <th style={styles.th}>ID</th>
-                  <th style={styles.th}>Booking ID</th>
-                  <th style={styles.th}>Guest</th>
-                  <th style={styles.th}>Amount (₱)</th>
-                  <th style={styles.th}>Status</th>
-                  <th style={styles.th}>Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filterPayments().map((payment) => (
-                  <tr
-                    key={payment.id}
-                    onClick={() => selectPayment(payment)}
-                    style={{
-                      ...styles.tr,
-                      backgroundColor: selectedPayment?.id === payment.id ? '#d0eaff' : 'white',
-                    }}
-                  >
-                    <td style={styles.td}>{payment.id}</td>
-                    <td style={styles.td}>{payment.bookingId}</td>
-                    <td style={styles.td}>{payment.booking?.user?.name || 'N/A'}</td>
-                    <td style={styles.td}>{(payment.amount / 100).toFixed(2)}</td>
-                    <td style={styles.td}>{payment.status}</td>
-                    <td style={styles.td}>{new Date(payment.createdAt).toLocaleDateString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Payment Details Sidebar */}
-        {selectedPayment && (
-          <div style={styles.detailBox}>
-            <h3 style={styles.sectionTitle}>Payment Details</h3>
-            <p><strong>ID:</strong> {selectedPayment.id}</p>
-            <p><strong>Booking ID:</strong> {selectedPayment.bookingId}</p>
-            <p>
-              <strong>Guest:</strong> {selectedPayment.booking?.user?.name || 'N/A'}
-            </p>
-            <p>
-              <strong>Amount:</strong> ₱ {(selectedPayment.amount / 100).toFixed(2)}
-            </p>
-            <p><strong>Status:</strong> {selectedPayment.status}</p>
-            <p>
-              <strong>Date:</strong> {new Date(selectedPayment.createdAt).toLocaleString()}
-            </p>
-            <button style={styles.closeButton} onClick={clearSelection}>
-              Close
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
   return (
     <SuperAdminLayout activePage="payments" user={session?.user}>
-      {content}
+      <div style={styles.container}>
+        <h1 style={styles.title}>Super Admin Payment Oversight</h1>
+
+        {/* KPIs */}
+        {report && (
+          <div style={styles.kpiContainer}>
+            <div
+              style={{ ...styles.kpiCard, backgroundColor: '#4CAF50' }}
+              onMouseEnter={e => {
+                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.boxShadow = '0 8px 24px rgba(76,175,80,0.18)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = styles.kpiCard.boxShadow;
+              }}
+            >
+              <h3 style={styles.kpiTitle}>Total Revenue</h3>
+              <p style={styles.kpiValue}>₱ {(report.totalRevenue / 100).toFixed(2)}</p>
+            </div>
+            <div
+              style={{ ...styles.kpiCard, backgroundColor: '#2196F3' }}
+              onMouseEnter={e => {
+                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.boxShadow = '0 8px 24px rgba(33,150,243,0.18)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = styles.kpiCard.boxShadow;
+              }}
+            >
+              <h3 style={styles.kpiTitle}>Total Transactions</h3>
+              <p style={styles.kpiValue}>{report.totalTransactions}</p>
+            </div>
+            <div
+              style={{ ...styles.kpiCard, backgroundColor: '#FFC107' }}
+              onMouseEnter={e => {
+                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.boxShadow = '0 8px 24px rgba(255,193,7,0.18)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = styles.kpiCard.boxShadow;
+              }}
+            >
+              <h3 style={styles.kpiTitle}>Pending Payments</h3>
+              <p style={styles.kpiValue}>{report.pendingTransactions}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Filters */}
+        <div style={styles.filtersContainer}>
+          {/* Status Filter */}
+          <div style={styles.filterGroup}>
+            <label style={styles.label}>Status:</label>
+            <select
+              value={filters.status}
+              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+              style={styles.select}
+            >
+              <option value="">All</option>
+              <option value="Pending">Pending</option>
+              <option value="Paid">Paid</option>
+            </select>
+          </div>
+          {/* Start Date Filter */}
+          <div style={styles.filterGroup}>
+            <label style={styles.label}>Start Date:</label>
+            <input
+              type="date"
+              value={filters.startDate}
+              onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+              style={styles.input}
+            />
+          </div>
+          {/* End Date Filter */}
+          <div style={styles.filterGroup}>
+            <label style={styles.label}>End Date:</label>
+            <input
+              type="date"
+              value={filters.endDate}
+              onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+              style={styles.input}
+            />
+          </div>
+        </div>
+
+        {/* Main layout: table and details side-by-side or stacked */}
+        <div style={layoutStyle}>
+          {/* Payments Table */}
+          <div style={tableContainerStyle}>
+            <div style={styles.tableWrapper}>
+              <table style={styles.table}>
+                <thead style={styles.thead}>
+                  <tr>
+                    <th style={styles.th}>ID</th>
+                    <th style={styles.th}>Booking ID</th>
+                    <th style={styles.th}>Guest</th>
+                    <th style={styles.th}>Amount (₱)</th>
+                    <th style={styles.th}>Status</th>
+                    <th style={styles.th}>Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filterPayments().map((payment) => (
+                    <tr
+                      key={payment.id}
+                      onClick={() => selectPayment(payment)}
+                      style={{
+                        ...styles.tr,
+                        backgroundColor: selectedPayment?.id === payment.id ? '#E0F7FA' : 'white',
+                        transition: 'background-color 0.2s',
+                      }}
+                    >
+                      <td style={styles.td}>{payment.id}</td>
+                      <td style={styles.td}>{payment.bookingId}</td>
+                      <td style={styles.td}>{payment.booking?.user?.name || 'N/A'}</td>
+                      <td style={styles.td}>{(payment.amount / 100).toFixed(2)}</td>
+                      <td style={{ ...styles.td, ...statusStyles(payment.status) }}>{payment.status}</td>
+                      <td style={styles.td}>{new Date(payment.createdAt).toLocaleDateString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Payment Details Sidebar */}
+          {selectedPayment && (
+            <div style={styles.detailBox}>
+              <h3 style={styles.sectionTitle}>Payment Details</h3>
+              <p><strong>ID:</strong> {selectedPayment.id}</p>
+              <p><strong>Booking ID:</strong> {selectedPayment.bookingId}</p>
+              <p><strong>Guest:</strong> {selectedPayment.booking?.user?.name || 'N/A'}</p>
+              <p><strong>Amount:</strong> ₱ {(selectedPayment.amount / 100).toFixed(2)}</p>
+              <p><strong>Status:</strong> {selectedPayment.status}</p>
+              <p><strong>Date:</strong> {new Date(selectedPayment.createdAt).toLocaleString()}</p>
+              <button style={styles.closeButton} onClick={clearSelection}>Close</button>
+            </div>
+          )}
+        </div>
+      </div>
     </SuperAdminLayout>
   );
 }
 
-// Styles object
+// Helper for status color coding
+const statusStyles = (status) => {
+  switch (status) {
+    case 'Pending':
+      return { color: '#FFC107', fontWeight: 'bold' }; // Amber for pending
+    case 'Paid':
+      return { color: '#4CAF50', fontWeight: 'bold' }; // Green for success
+    case 'Failed':
+      return { color: '#F44336', fontWeight: 'bold' }; // Red for errors
+    default:
+      return {};
+  }
+};
+
+// Styles object for modern look
 const styles = {
   container: {
     padding: '2rem',
+    maxWidth: '1200px',
+    margin: '0 auto',
     fontFamily: `'Helvetica Neue', Helvetica, Arial, sans-serif`,
     lineHeight: 1.6,
     color: '#333',
-    maxWidth: '1200px',
-    margin: '0 auto',
   },
   title: {
     textAlign: 'center',
     fontSize: '2rem',
     marginBottom: '2rem',
-    fontWeight: 600,
+    fontWeight: 700,
     color: '#222',
   },
   loadingText: {
@@ -247,20 +277,21 @@ const styles = {
   kpiCard: {
     flex: '1 1 200px',
     padding: '1rem',
-    borderRadius: '10px',
-    boxShadow: '0 4px 8px rgba(0,0,0,0.05)',
+    borderRadius: '12px',
+    boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
     textAlign: 'center',
+    color: '#fff',
+    transition: 'transform 0.2s, box-shadow 0.2s',
+    cursor: 'pointer',
   },
   kpiTitle: {
     marginBottom: '0.5rem',
     fontSize: '1rem',
     fontWeight: 600,
-    color: '#555',
   },
   kpiValue: {
     fontSize: '1.2rem',
     fontWeight: 700,
-    color: '#222',
   },
   filtersContainer: {
     display: 'flex',
@@ -300,19 +331,21 @@ const styles = {
   },
   tableWrapper: {
     overflowX: 'auto',
+    borderRadius: '8px',
+    boxShadow: '0 4px 8px rgba(0,0,0,0.05)',
   },
   table: {
     width: '100%',
     borderCollapse: 'collapse',
     fontFamily: `'Helvetica Neue', Helvetica, Arial, sans-serif`,
-    fontSize: '0.9rem',
+    fontSize: '0.95rem',
   },
   thead: {
-    backgroundColor: '#f9f9f9',
+    backgroundColor: '#f0f0f0',
   },
   th: {
     padding: '12px',
-    border: '1px solid #ccc',
+    border: '1px solid #ddd',
     textAlign: 'center',
     fontWeight: 600,
     fontSize: '0.95rem',
@@ -324,35 +357,32 @@ const styles = {
   },
   td: {
     padding: '12px',
-    border: '1px solid #ccc',
+    border: '1px solid #eee',
     textAlign: 'center',
-    fontSize: '0.95rem',
-    color: '#333',
   },
   detailBox: {
     backgroundColor: '#fff',
     padding: '1.5rem',
-    borderRadius: '10px',
-    boxShadow: '0 4px 10px rgba(0,0,0,0.05)',
+    borderRadius: '12px',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
     maxWidth: '600px',
     width: '100%',
     marginTop: '1rem',
-    position: 'sticky', // Sticky position
-    top: '20px', // Distance from top
-    alignSelf: 'flex-start', // Align at the start within flex container
-    height: 'fit-content',
+    position: 'sticky',
+    top: '20px',
+    alignSelf: 'flex-start',
     zIndex: 1000,
   },
   sectionTitle: {
     fontSize: '1.2rem',
     marginBottom: '1rem',
-    fontWeight: 600,
+    fontWeight: 700,
     color: '#222',
   },
   closeButton: {
     marginTop: '1.5rem',
     padding: '0.75rem 1.5rem',
-    backgroundColor: '#2980b9',
+    backgroundColor: '#007BFF',
     color: '#fff',
     border: 'none',
     borderRadius: '8px',

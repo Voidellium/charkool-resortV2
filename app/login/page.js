@@ -98,7 +98,7 @@ function LoginForm() {
                     {showPassword ? <EyeOff size={18}/> : <Eye size={18}/> }
                   </button>
                 </div>
-                <Link href="/forgot-password" className="forgot-link">Forgot Password?</Link>
+                <Link href="/login/forgot-password" className="forgot-link">Forgot Password?</Link>
               </label>
               <button type="submit" className="primary-btn">Log In</button>
             </form>

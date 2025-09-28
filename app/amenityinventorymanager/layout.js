@@ -199,25 +199,6 @@ export default function AmenityManagerLayout({ children }) {
                   padding: '12px 24px',
                   textAlign: 'left',
                   fontSize: '1rem',
-                  color: '#42351F',
-                  cursor: 'pointer',
-                  borderBottom: '1px solid #f0f0f0',
-                }}
-                onClick={() => {
-                  document.getElementById('user-dropdown-menu').style.display = 'none';
-                  router.push('/amenityinventorymanager/profile');
-                }}
-              >
-                Edit Profile
-              </button>
-              <button
-                style={{
-                  width: '100%',
-                  background: 'none',
-                  border: 'none',
-                  padding: '12px 24px',
-                  textAlign: 'left',
-                  fontSize: '1rem',
                   color: '#B00020',
                   cursor: 'pointer',
                 }}

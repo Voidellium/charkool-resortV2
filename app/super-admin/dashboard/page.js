@@ -34,7 +34,7 @@ export default function SuperAdminDashboard() {
     <SuperAdminLayout activePage="dashboard">
       <div
         style={{
-          padding: '4rem 2rem',
+          padding: '2rem 0.5rem',
           backgroundColor: '#fafafa',
           minHeight: '100vh',
           display: 'flex',
@@ -43,18 +43,18 @@ export default function SuperAdminDashboard() {
         }}
       >
         {/* Header Section */}
-        <div style={{ maxWidth: '800px', textAlign: 'center', marginBottom: '3rem' }}>
+        <div style={{ maxWidth: '700px', textAlign: 'center', marginBottom: '2rem' }}>
           <h1
             style={{
-              fontSize: '3rem',
-              fontWeight: '700',
-              marginBottom: '0.5rem',
+              fontSize: '2rem',
+              fontWeight: '600',
+              marginBottom: '0.25rem',
               color: '#222',
             }}
           >
             Welcome to the Dashboard
           </h1>
-          <p style={{ fontSize: '1.25rem', color: '#555', lineHeight: '1.6' }}>
+          <p style={{ fontSize: '1rem', color: '#555', lineHeight: '1.5' }}>
             A quick glance at your current bookings and their statuses.
           </p>
         </div>
@@ -63,12 +63,12 @@ export default function SuperAdminDashboard() {
         <div
           style={{
             display: 'flex',
-            gap: '2rem',
+            gap: '1rem',
             flexWrap: 'wrap',
             justifyContent: 'center',
             width: '100%',
-            maxWidth: '1000px',
-            padding: '0 1rem',
+            maxWidth: '800px',
+            padding: '0 0.5rem',
           }}
         >
           <StatCard title="Total Bookings" value={stats.total} color="#4A90E2" />
@@ -85,19 +85,19 @@ function StatCard({ title, value, color }) {
   return (
     <div
       style={{
-        flex: '1 1 200px',
-        minWidth: '200px',
+        flex: '1 1 160px',
+        minWidth: '160px',
         backgroundColor: '#fff',
-        borderRadius: '20px',
-        padding: '3rem 2rem',
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
+        borderRadius: '10px',
+        padding: '1.5rem 1rem',
+        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
         transition: 'transform 0.3s, box-shadow 0.3s',
         cursor: 'pointer',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         textAlign: 'center',
-        borderLeft: `8px solid ${color}`,
+        borderLeft: `5px solid ${color}`,
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = 'translateY(-8px)';
@@ -110,18 +110,18 @@ function StatCard({ title, value, color }) {
     >
       <h3
         style={{
-          fontSize: '1.2rem',
-          marginBottom: '1.2rem',
+          fontSize: '1rem',
+          marginBottom: '0.7rem',
           color: '#555',
-          letterSpacing: '0.5px',
+          letterSpacing: '0.3px',
         }}
       >
         {title}
       </h3>
       <p
         style={{
-          fontSize: '3rem',
-          fontWeight: '700',
+          fontSize: '2rem',
+          fontWeight: '600',
           color: '#222',
           margin: 0,
         }}

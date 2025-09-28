@@ -12,8 +12,9 @@ export async function POST(req) {
     // Convert to centavos (PayMongo requires this)
     const amountInCents = Math.round(amount * 100);
 
-    // Create PaymentIntent in PayMongo
-    const paymongoRes = await fetch('https://api.paymongo.com/v1/payment_intents', {
+    // Create a Source for GCash/PayMaya in PayMongo
+    const paymentType = req.body.paymentMethod === 'gcash' ? 'gcash' : 'grab_pay';
+    const sourceRes = await fetch('https://api.paymongo.com/v1/sources', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -23,30 +24,28 @@ export async function POST(req) {
         data: {
           attributes: {
             amount: amountInCents,
-            payment_method_allowed: ['gcash', 'paymaya', 'card'],
             currency: 'PHP',
-            description: `Booking #${bookingId}`,
-            metadata: {
-              bookingId: bookingId.toString()
+            redirect: {
+              success: `${process.env.NEXTAUTH_URL}/api/payments/redirect?status=success&bookingId=${bookingId}`,
+              failed: `${process.env.NEXTAUTH_URL}/api/payments/redirect?status=failed&bookingId=${bookingId}`,
             },
-            // Add success and cancel URLs to redirect user after payment
-            success_url: `${process.env.NEXTAUTH_URL}/confirmation?bookingId=${bookingId}`,
-            cancel_url: `${process.env.NEXTAUTH_URL}/booking`
+            type: paymentType,
+            description: `Booking #${bookingId}`,
           }
         }
       })
     });
 
-    const paymongoData = await paymongoRes.json();
+    const sourceData = await sourceRes.json();
 
-    console.log('PayMongo response:', JSON.stringify(paymongoData, null, 2));
+    console.log('PayMongo Source response:', JSON.stringify(sourceData, null, 2));
 
-    if (!paymongoRes.ok) {
-      console.error('❌ PayMongo Error:', paymongoData);
-      return NextResponse.json({ error: 'Failed to create PaymentIntent', details: paymongoData }, { status: 500 });
+    if (!sourceRes.ok) {
+      console.error('❌ PayMongo Error:', sourceData);
+      return NextResponse.json({ error: 'Failed to create payment source', details: sourceData }, { status: 500 });
     }
 
-    const paymentIntent = paymongoData.data;
+    const source = sourceData.data;
 
     // Save Payment record in Prisma
     await prisma.payment.create({
@@ -55,16 +54,20 @@ export async function POST(req) {
         amount: amountInCents,
         status: 'Pending',
         provider: 'paymongo',
-        referenceId: paymentIntent.id,
+        referenceId: source.id,
+        method: req.body.paymentMethod,
       },
     });
 
-    // Return the redirect URL from PayMongo's next_action or fallback to null
-    const redirectUrl = paymentIntent.attributes.next_action?.redirect?.url || null;
+    // The checkout_url is where the user needs to be redirected to complete the payment
+    const redirectUrl = source.attributes.redirect.checkout_url;
+
+    if (!redirectUrl) {
+      return NextResponse.json({ error: 'No checkout URL received from payment provider' }, { status: 500 });
+    }
 
     return NextResponse.json({
-      clientKey: paymentIntent.attributes.client_key,
-      paymentIntentId: paymentIntent.id,
+      sourceId: source.id,
       redirectUrl,
     });
   } catch (error) {
