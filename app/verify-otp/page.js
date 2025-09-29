@@ -1,7 +1,7 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { generateBrowserFingerprint } from '../../src/lib/browser-fingerprint';
 
@@ -10,6 +10,8 @@ export default function VerifyOTPPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const otpRef = useRef(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
@@ -22,14 +24,37 @@ export default function VerifyOTPPage() {
     }
   }, [status, router]);
 
+  useEffect(() => {
+    if (otpRef.current) {
+      otpRef.current.focus();
+    }
+  }, []);
+
+  useEffect(() => {
+    if (status === 'authenticated') {
+      // Generate browser fingerprint if not already present
+      let browserFingerprint = sessionStorage.getItem('browserFingerprint');
+      if (!browserFingerprint) {
+        browserFingerprint = generateBrowserFingerprint();
+        sessionStorage.setItem('browserFingerprint', browserFingerprint);
+      }
+      // Auto-send OTP
+      handleSendOTP(false);
+    }
+  }, [status]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
     try {
-      // Get browser fingerprint from sessionStorage
-      const browserFingerprint = sessionStorage.getItem('browserFingerprint');
+      // Get or generate browser fingerprint
+      let browserFingerprint = sessionStorage.getItem('browserFingerprint');
+      if (!browserFingerprint) {
+        browserFingerprint = generateBrowserFingerprint();
+        sessionStorage.setItem('browserFingerprint', browserFingerprint);
+      }
       const userAgentInfo = {
         userAgent: navigator.userAgent,
         platform: navigator.platform,
@@ -63,32 +88,53 @@ export default function VerifyOTPPage() {
     }
   };
 
-  const handleResendOTP = async () => {
+  const handleSendOTP = async (showAlert = true) => {
     setError('');
     setResendLoading(true);
 
     try {
+      // Get or generate browser fingerprint
+      let browserFingerprint = sessionStorage.getItem('browserFingerprint');
+      if (!browserFingerprint) {
+        browserFingerprint = generateBrowserFingerprint();
+        sessionStorage.setItem('browserFingerprint', browserFingerprint);
+      }
+      const userAgentInfo = {
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+      };
+
       const response = await fetch('/api/send-session-otp', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          browserFingerprint,
+          userAgent: userAgentInfo.userAgent
+        }),
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        setError('');
-        alert('OTP sent successfully! Please check your email.');
+        setOtpSent(true);
+        if (showAlert) {
+          alert('OTP sent successfully! Please check your email.');
+        }
       } else {
         setError(data.error || 'Failed to send OTP');
       }
     } catch (error) {
-      console.error('Resend OTP error:', error);
+      console.error('Send OTP error:', error);
       setError('An error occurred. Please try again.');
     } finally {
       setResendLoading(false);
     }
+  };
+
+  const handleResendOTP = async () => {
+    handleSendOTP(true);
   };
 
   if (status === 'loading') {
@@ -111,13 +157,14 @@ export default function VerifyOTPPage() {
         <div className="content">
           <h2 className="title">Verify Your Identity</h2>
           <p className="description">
-            For security purposes, please enter the OTP sent to your email to access this section.
+            {otpSent ? 'OTP sent to your email. Please enter the code below.' : 'For security purposes, please enter the OTP sent to your email to access this section.'}
           </p>
 
           <form onSubmit={handleSubmit} className="form">
             <div className="input-group">
               <label htmlFor="otp">Enter OTP</label>
               <input
+                ref={otpRef}
                 type="text"
                 id="otp"
                 value={otp}
@@ -141,7 +188,7 @@ export default function VerifyOTPPage() {
           {error && <p className="error-message">{error}</p>}
 
           <div className="resend-section">
-            <p>Didn't receive the OTP?</p>
+            <p>{otpSent ? 'Need another code?' : 'Did not receive the OTP?'}</p>
             <button
               type="button"
               onClick={handleResendOTP}
@@ -155,7 +202,7 @@ export default function VerifyOTPPage() {
           <div className="back-link">
             <button
               type="button"
-              onClick={() => router.push('/login')}
+              onClick={() => signOut({ callbackUrl: '/login' })}
               className="back-button"
             >
               ← Back to Login

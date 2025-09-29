@@ -11,11 +11,24 @@ function generateOTP() {
 
 export async function POST(req) {
   try {
+    const body = await req.json();
+    const { browserFingerprint, userAgent } = body;
     const token = await getToken({ req });
 
     if (!token?.email) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
+
+    // Invalidate existing non-expired session OTPs
+    await prisma.OTP.deleteMany({
+      where: {
+        email: token.email,
+        password: 'session-verification',
+        expiresAt: {
+          gt: new Date(),
+        },
+      },
+    });
 
     // Generate OTP
     const otp = generateOTP();
@@ -48,6 +61,8 @@ export async function POST(req) {
         lastName: user.lastName,
         birthdate: user.birthdate,
         contactNumber: user.contactNumber,
+        browserFingerprint: browserFingerprint || null,
+        userAgent: userAgent || null,
         password: 'session-verification', // Placeholder for session OTP
       },
     });

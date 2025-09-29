@@ -41,6 +41,8 @@ model OTP {
   lastName       String
   birthdate      DateTime
   contactNumber  String
+  browserFingerprint String?
+  userAgent      String?
   password       String
 }
 

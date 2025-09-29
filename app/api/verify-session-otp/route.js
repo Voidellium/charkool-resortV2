@@ -17,11 +17,12 @@ export async function POST(req) {
       });
     }
 
-    // Find the latest OTP for the user's email
+    // Find the latest session OTP for the user's email
     const otpRecord = await prisma.OTP.findFirst({
       where: {
         email: token.email,
         otp,
+        password: 'session-verification',
         expiresAt: {
           gt: new Date(),
         },
@@ -38,15 +39,23 @@ export async function POST(req) {
       });
     }
 
-    // Update user with verified status
-    await prisma.user.update({
-      where: { email: token.email },
-      data: {
-        emailVerified: new Date(),
-      },
-    });
+    // Validate browser fingerprint if provided and stored
+    if (browserFingerprint && otpRecord.browserFingerprint && browserFingerprint !== otpRecord.browserFingerprint) {
+      return new Response(JSON.stringify({ error: 'Device fingerprint mismatch. Please try resending the OTP.' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
 
-    // Mark browser as trusted if fingerprint is provided and not in incognito mode
+    // Validate user agent if provided and stored
+    if (userAgent && otpRecord.userAgent && userAgent !== otpRecord.userAgent) {
+      return new Response(JSON.stringify({ error: 'Browser mismatch. Please try resending the OTP.' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Mark browser as trusted if fingerprint is provided and not in incognito mode (only if matched)
     if (browserFingerprint && !isIncognito) {
       const existingTrustedBrowser = await prisma.trustedBrowser.findUnique({
         where: { browserFingerprint },
