@@ -14,7 +14,7 @@
     "@prisma/client": "^6.9.0",
     "@react-email/render": "^1.2.3",
     "@react-spring/three": "^10.0.3",
-    "@react-three/drei": "^10.7.6",
+    "@react-three/drei": "^9.120.0",
     "@react-three/fiber": "^8.16.8",
     "@sendgrid/mail": "^8.1.5",
     "@stripe/react-stripe-js": "^4.0.2",
