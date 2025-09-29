@@ -6,6 +6,11 @@ const JWT_SECRET = process.env.NEXTAUTH_SECRET;
 const MAINTENANCE_MODE = process.env.APP_MAINTENANCE === "true";
 
 async function checkBrowserTrust(req: NextRequest, token: any) {
+  // If the session token already confirms the browser is trusted, skip the check.
+  if (token?.isBrowserTrusted) {
+    return false; // `false` means OTP is NOT needed.
+  }
+
   try {
     // --- DEV ONLY: Bypass OTP for specific origins for easier debugging ---
     const trustedOrigins = [

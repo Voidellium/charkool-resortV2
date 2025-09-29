@@ -14,7 +14,7 @@ export default function VerifyOTPPage() {
   const otpRef = useRef(null);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { data: session, status } = useSession();
+  const { data: session, status, update } = useSession();
 
   const redirectUrl = searchParams.get('redirect') || '/guest/dashboard';
 
@@ -75,8 +75,10 @@ export default function VerifyOTPPage() {
       const data = await response.json();
 
       if (response.ok) {
-        // OTP verified successfully, redirect to intended page
-        window.location.href = redirectUrl;
+        // OTP verified successfully, now update the session to set the trusted flag
+        await update({ trigger: "otpVerified" });
+        // Now, redirect to the intended page
+        router.push(redirectUrl);
       } else {
         setError(data.error || 'Invalid OTP');
       }

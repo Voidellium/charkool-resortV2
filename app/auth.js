@@ -68,13 +68,19 @@ export const authOptions = {
     error: '/login',
   },
   callbacks: {
-    async jwt({ token, user, account, profile }) {
+    async jwt({ token, user, account, trigger }) {
       if (account) {
         token.accessToken = account.access_token;
       }
       if (user) {
         token.role = user.role;
         token.id = user.id;
+        // Initialize the flag
+        token.isBrowserTrusted = false;
+      }
+      // When the session is updated with the 'otpVerified' trigger, set the flag
+      if (trigger === "otpVerified") {
+        token.isBrowserTrusted = true;
       }
       return token;
     },
@@ -82,6 +88,8 @@ export const authOptions = {
       session.accessToken = token.accessToken;
       session.user.id = token.id;
       session.user.role = token.role;
+      // Expose the flag to the client-side session
+      session.user.isBrowserTrusted = token.isBrowserTrusted;
       return session;
     },
   },
