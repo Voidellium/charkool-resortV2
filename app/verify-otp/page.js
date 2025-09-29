@@ -76,7 +76,7 @@ export default function VerifyOTPPage() {
 
       if (response.ok) {
         // OTP verified successfully, redirect to intended page
-        router.push(redirectUrl);
+        window.location.href = redirectUrl;
       } else {
         setError(data.error || 'Invalid OTP');
       }
@@ -217,7 +217,7 @@ export default function VerifyOTPPage() {
           min-height: 100vh;
           align-items: center;
           justify-content: center;
-          background-color: #e2e8f0;
+          background: linear-gradient(135deg, #fcd34d 0%, #e6f4f8 100%);
           padding: 1rem;
         }
 
@@ -279,7 +279,7 @@ export default function VerifyOTPPage() {
 
         .otp-input:focus {
           outline: none;
-          border-color: #0ea5e9;
+          border-color: #FEBE52;
           box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
         }
 
@@ -288,7 +288,7 @@ export default function VerifyOTPPage() {
           padding: 0.75rem 1rem;
           border: none;
           border-radius: 0.375rem;
-          background-color: #0ea5e9;
+          background-color: #FEBE52;
           color: white;
           font-weight: 600;
           cursor: pointer;
@@ -296,7 +296,7 @@ export default function VerifyOTPPage() {
         }
 
         .verify-button:hover:not(:disabled) {
-          background-color: #0284c7;
+          background-color: #F0790C;
         }
 
         .verify-button:disabled {
