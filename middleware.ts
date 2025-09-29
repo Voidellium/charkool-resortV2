@@ -15,7 +15,8 @@ async function checkBrowserTrust(req: NextRequest, token: any) {
     // --- DEV ONLY: Bypass OTP for specific origins for easier debugging ---
     const trustedOrigins = [
       'http://localhost:3000',
-      'https://charkool-resort.vercel.app'
+      'https://charkool-resort.vercel.app',
+       'https://charkoolresort.com'
     ];
     if (trustedOrigins.includes(req.nextUrl.origin)) {
       // This log helps confirm the bypass is active during development.
