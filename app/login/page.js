@@ -69,7 +69,15 @@ function LoginForm() {
       <div className="login-wrapper">
         <div className="login-card" role="dialog" aria-labelledby="login-title">
           <div className="login-left">
-            <Image src="/images/logo.png" alt="Charkool Logo" width={150} height={150} className="logo-img"/>
+            <Image
+              src="/images/logo.png"
+              alt="Charkool Logo"
+              width={280}
+              height={280}
+              className="logo-img"
+              style={{ objectFit: 'contain', aspectRatio: '1 / 1', width: '280px', height: '280px', borderRadius: '20px' }}
+              priority
+            />
             <p className="tagline">Escape to Paradise at<br/>Charkool Leisure Beach Resort</p>
           </div>
           <div className="login-right">
@@ -164,6 +172,7 @@ function LoginForm() {
         .login-right {
           flex: 1;
           padding: 20px;
+          max-width: 100%
           display: flex;
           flex-direction: column;
           justify-content: center;

@@ -16,24 +16,31 @@ export const GET = async (req) => {
       const checkOutDate = new Date(checkOut);
       const now = new Date();
 
-      const overlappingBookings = await prisma.booking.findMany({
+      // Query BookingRoom with booking filters to get booked quantities per room
+      const bookedRooms = await prisma.bookingRoom.findMany({
         where: {
-          checkIn: { lte: checkOutDate },
-          checkOut: { gte: checkInDate },
-          status: {
-            in: [BookingStatus.Pending, BookingStatus.Confirmed],
+          booking: {
+            checkIn: { lte: checkOutDate },
+            checkOut: { gte: checkInDate },
+            status: {
+              in: [BookingStatus.Pending, BookingStatus.Confirmed],
+            },
+            OR: [
+              { heldUntil: null },
+              { heldUntil: { gt: now } },
+            ],
           },
-          OR: [
-            { heldUntil: null },
-            { heldUntil: { gt: now } },
-          ],
         },
-        select: { roomId: true },
+        select: {
+          roomId: true,
+          quantity: true,
+        },
       });
 
+      // Aggregate booked quantities per roomId
       const bookedCounts = {};
-      overlappingBookings.forEach(b => {
-        bookedCounts[b.roomId] = (bookedCounts[b.roomId] || 0) + 1;
+      bookedRooms.forEach(br => {
+        bookedCounts[br.roomId] = (bookedCounts[br.roomId] || 0) + br.quantity;
       });
 
       rooms = rooms.map(r => {

@@ -1,13 +1,26 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
-// POST: Calculate the total price for a selection of amenities
+// POST: Calculate the total price for a selection of rooms and amenities
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { optionalAmenities = {}, rentalAmenities = {}, cottage, roomPrice = 0, nights = 1 } = body;
+    const { selectedRooms = {}, optionalAmenities = {}, rentalAmenities = {}, cottage, nights = 1 } = body;
 
-    let total = roomPrice * nights;
+    let total = 0;
+
+    // Calculate room costs
+    if (Object.keys(selectedRooms).length > 0) {
+      const roomIds = Object.keys(selectedRooms).map(id => parseInt(id));
+      const roomDetails = await prisma.room.findMany({
+        where: { id: { in: roomIds } },
+      });
+
+      for (const room of roomDetails) {
+        const qty = selectedRooms[room.id] || 0;
+        total += room.price * qty * nights;
+      }
+    }
 
     // Calculate rental amenities cost
     if (Object.keys(rentalAmenities).length > 0) {

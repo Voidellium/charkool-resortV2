@@ -6,7 +6,11 @@ export async function GET() {
     const bookings = await prisma.booking.findMany({
       include: {
         user: true,
-        room: true,
+        rooms: {
+          include: {
+            room: true,
+          },
+        },
         payments: true,
         amenities: {
           include: {
@@ -48,7 +52,7 @@ export async function POST(request) {
       guestName,
       checkIn,
       checkOut,
-      roomId,
+      selectedRooms,
       optional,
       rental,
       cottage,
@@ -57,9 +61,9 @@ export async function POST(request) {
       userId = null
     } = data;
 
-    if (!guestName || !checkIn || !checkOut || !roomId) {
+    if (!guestName || !checkIn || !checkOut || !selectedRooms || Object.keys(selectedRooms).length === 0) {
       return NextResponse.json(
-        { error: 'Missing required fields: guestName, checkIn, checkOut, roomId' },
+        { error: 'Missing required fields: guestName, checkIn, checkOut, selectedRooms' },
         { status: 400 }
       );
     }
@@ -71,16 +75,20 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Invalid date format' }, { status: 400 });
     }
 
-    const room = await prisma.room.findUnique({
-      where: { id: parseInt(roomId) },
+    const nights = Math.ceil((checkOutDate - checkInDate) / (1000 * 60 * 60 * 24)) || 1; // 24-hour blocks
+
+    // Fetch room details for selected rooms
+    const roomIds = Object.keys(selectedRooms).map(id => parseInt(id));
+    const rooms = await prisma.room.findMany({
+      where: { id: { in: roomIds } }
     });
 
-    if (!room) {
-      return NextResponse.json({ error: 'Room not found' }, { status: 404 });
+    // Calculate total price
+    let calculatedTotalPrice = 0;
+    for (const room of rooms) {
+      const qty = selectedRooms[room.id] || 0;
+      calculatedTotalPrice += room.price * qty * nights;
     }
-
-    const nights = Math.ceil((checkOutDate - checkInDate) / (1000 * 60 * 60 * 24)) || 1;
-    let calculatedTotalPrice = room.price * nights;
 
     const optionalAmenitiesToCreate = [];
     if (optional && Object.keys(optional).length > 0) {
@@ -111,7 +119,6 @@ export async function POST(request) {
         } else {
           amenityPrice = selection.quantity * amenity.pricePerUnit;
         }
-        calculatedTotalPrice += amenityPrice;
         rentalAmenitiesToCreate.push({
           rentalAmenityId: amenity.id,
           quantity: selection.quantity,
@@ -129,11 +136,11 @@ export async function POST(request) {
         guestName,
         checkIn: checkInDate,
         checkOut: checkOutDate,
-        roomId: parseInt(roomId),
         status,
         paymentStatus,
         totalPrice: calculatedTotalPrice,
         userId: userId ? parseInt(userId) : null,
+        ...(status === 'Pending' && { heldUntil: new Date(Date.now() + 3 * 60 * 60 * 1000) }),
         optionalAmenities: {
           create: optionalAmenitiesToCreate,
         },
@@ -143,9 +150,15 @@ export async function POST(request) {
         cottage: {
           create: cottageToCreate,
         },
+        rooms: {
+          create: rooms.map(room => ({
+            roomId: room.id,
+            quantity: selectedRooms[room.id] || 0,
+          })),
+        },
       },
       include: {
-        room: true,
+        rooms: { include: { room: true } },
         optionalAmenities: { include: { optionalAmenity: true } },
         rentalAmenities: { include: { rentalAmenity: true } },
         cottage: { include: { cottage: true } },

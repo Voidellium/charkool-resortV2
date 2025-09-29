@@ -336,7 +336,7 @@ const BookingHistoryCard = ({ booking, guest }) => {
   return (
     <div className="booking-history-card">
       <div className="card-header">
-        <h3>{booking.room.name} - {booking.room.type}</h3>
+        <h3>{booking.rooms && booking.rooms[0] ? `${booking.rooms[0].room.name} - ${booking.rooms[0].room.type}` : 'N/A'}</h3>
         <span className="status-badge">
           {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
         </span>
@@ -377,7 +377,7 @@ const BookingHistoryCard = ({ booking, guest }) => {
       <PortalModal show={showDetailsModal} onClose={handleCloseDetailsModal}>
         <h2>Booking Details</h2>
         <div className="modal-details-content">
-          <p><strong>Room:</strong> {booking.room.name} - {booking.room.type}</p>
+          <p><strong>Room:</strong> {booking.rooms && booking.rooms[0] ? `${booking.rooms[0].room.name} - ${booking.rooms[0].room.type}` : 'N/A'}</p>
           <p><strong>Check-in:</strong> {new Date(booking.checkIn).toLocaleDateString('en-US', {
             month: 'long',
             day: 'numeric',
@@ -405,7 +405,7 @@ const BookingHistoryCard = ({ booking, guest }) => {
 
       <PortalModal show={showRescheduleModal} onClose={handleCloseRescheduleModal}>
         <h2>Request Reschedule</h2>
-        <p>Booking ID: {booking.id} ({booking.room.name})</p>
+        <p>Booking ID: {booking.id} ({booking.rooms && booking.rooms[0] ? booking.rooms[0].room.name : 'N/A'})</p>
         <p>Original Dates: {booking.checkIn} to {booking.checkOut}</p>
         <div className="calendar-wrapper">
           <BookingCalendar availabilityData={availabilityData} onDateChange={handleDateChange} />
@@ -504,7 +504,7 @@ const BookingHistoryCard = ({ booking, guest }) => {
 };
 
 // Payment History Section
-const PaymentHistoryCard = ({ payment }) => {
+const PaymentHistoryCard = ({ booking }) => {
   const [showModal, setShowModal] = useState(false);
 
   const handleOpenModal = () => setShowModal(true);
@@ -513,26 +513,26 @@ const PaymentHistoryCard = ({ payment }) => {
   return (
     <div className="payment-history-card">
       <div className="card-header">
-        <h3>Payment for {payment.room?.name || 'N/A'}</h3>
+        <h3>Payment for {booking.rooms && booking.rooms[0] ? booking.rooms[0].room.name : 'N/A'}</h3>
         <span className="status-badge">
-          {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
+          {booking.paymentStatus.charAt(0).toUpperCase() + booking.paymentStatus.slice(1)}
         </span>
       </div>
       <div className="card-details">
-        <p><strong>Amount:</strong> ₱{payment.amount}</p>
-        <p><strong>Method:</strong> {payment.method || 'N/A'}</p>
-        <p><strong>Date:</strong> {new Date(payment.date).toLocaleDateString('en-US', {
+        <p><strong>Amount:</strong> ₱{booking.totalPrice / 100}</p>
+        <p><strong>Method:</strong> {booking.payments && booking.payments[0] ? booking.payments[0].method : 'N/A'}</p>
+        <p><strong>Date:</strong> {new Date(booking.createdAt).toLocaleDateString('en-US', {
           month: 'long',
           day: 'numeric',
           year: 'numeric'
-        })} at {new Date(payment.date).toLocaleTimeString('en-US', {
+        })} at {new Date(booking.createdAt).toLocaleTimeString('en-US', {
           hour: '2-digit',
           minute: '2-digit',
           hour12: true
         })}</p>
       </div>
       <div className="card-actions">
-        <button className="view-details-btn" onClick={() => handleOpenModal(payment)}>
+        <button className="view-details-btn" onClick={() => handleOpenModal(booking)}>
           View Details
         </button>
       </div>
@@ -540,18 +540,18 @@ const PaymentHistoryCard = ({ payment }) => {
       <Modal show={showModal} onClose={handleCloseModal}>
         <h2>Payment Details</h2>
         <div className="modal-details-content">
-          <p><strong>Amount:</strong> ₱{payment.amount}</p>
-          <p><strong>Method:</strong> {payment.method}</p>
-          <p><strong>Payment Date:</strong> {new Date(payment.date).toLocaleDateString('en-US', {
+          <p><strong>Amount:</strong> ₱{booking.totalPrice / 100}</p>
+          <p><strong>Method:</strong> {booking.payments && booking.payments[0] ? booking.payments[0].method : 'N/A'}</p>
+          <p><strong>Payment Date:</strong> {new Date(booking.createdAt).toLocaleDateString('en-US', {
             month: 'long',
             day: 'numeric',
             year: 'numeric'
-          })} at {new Date(payment.date).toLocaleTimeString('en-US', {
+          })} at {new Date(booking.createdAt).toLocaleTimeString('en-US', {
             hour: '2-digit',
             minute: '2-digit',
             hour12: true
           })}</p>
-          <p><strong>Payment Status:</strong> {payment.status}</p>
+          <p><strong>Payment Status:</strong> {booking.paymentStatus}</p>
         </div>
       </Modal>
 
@@ -661,7 +661,6 @@ const NotificationItem = ({ notification }) => {
 export default function GuestDashboard() {
   const [guest, setGuest] = useState(null);
   const [bookings, setBookings] = useState([]);
-  const [payments, setPayments] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const router = useRouter();
 
@@ -688,21 +687,6 @@ export default function GuestDashboard() {
       }
     }
 
-    async function fetchPayments() {
-      try {
-        const res = await fetch('/api/guest/payment', {
-          method: 'GET',
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          setPayments(data || []);
-        }
-      } catch (err) {
-        console.error('Error fetching payments:', err);
-      }
-    }
-
     async function fetchNotifications() {
       try {
         const res = await fetch('/api/notifications?role=CUSTOMER', {
@@ -719,7 +703,6 @@ export default function GuestDashboard() {
     }
 
     fetchData();
-    fetchPayments();
     fetchNotifications();
   }, [router]);
 
@@ -758,8 +741,8 @@ export default function GuestDashboard() {
         <section className="section-payments">
           <h2>Payment History</h2>
           <div className="payment-list">
-            {payments.length > 0 ? (
-              payments.map(p => <PaymentHistoryCard key={p.id} payment={p} />)
+            {bookings.length > 0 ? (
+              bookings.map(b => <PaymentHistoryCard key={b.id} booking={b} />)
             ) : (
               <p className="no-data">No payment history.</p>
             )}

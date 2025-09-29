@@ -4,11 +4,11 @@ import prisma from '@/lib/prisma';
 // GET booking by ID
 export const GET = async (_, context) => {
   try {
-    const { id } = context.params;
+    const { id } = await context.params;
     const booking = await prisma.booking.findUnique({
       where: { id: parseInt(id) },
       include: {
-        room: true,
+        rooms: { include: { room: true } },
         user: true,
         amenities: { include: { amenity: true } },
         optionalAmenities: { include: { optionalAmenity: true } },
@@ -30,7 +30,7 @@ export const GET = async (_, context) => {
 // PUT update booking
 export const PUT = async (req, context) => {
   try {
-    const { id } = context.params;
+    const { id } = await context.params;
     const data = await req.json();
 
     const updateData = {};
@@ -54,11 +54,7 @@ export const PUT = async (req, context) => {
     if (data.paymentStatus !== undefined) updateData.paymentStatus = data.paymentStatus;
     if (data.totalPrice !== undefined) updateData.totalPrice = data.totalPrice;
 
-    if (data.room !== undefined) {
-      updateData.roomId = data.room.id;
-    } else if (data.roomId !== undefined) {
-      updateData.roomId = data.roomId;
-    }
+
 
     // User is optional, only update if provided
     if (data.userId !== undefined) {
@@ -170,7 +166,7 @@ export const PUT = async (req, context) => {
 // DELETE booking
 export const DELETE = async (_, context) => {
   try {
-    const { id } = context.params;
+    const { id } = await context.params;
     
     // First, delete all associated booking amenities
     await prisma.bookingAmenity.deleteMany({

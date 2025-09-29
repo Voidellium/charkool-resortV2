@@ -86,7 +86,7 @@ model Room {
   image     String?
   quantity  Int       @default(1)
   amenities Amenity[]
-  bookings  Booking[]
+  bookings  BookingRoom[]
   defaultAmenities RoomTypeDefaultAmenity[]
 }
 
@@ -176,7 +176,6 @@ model AmenityLog {
 model Booking {
   id            Int              @id @default(autoincrement())
   userId        Int?
-  roomId        Int
   checkIn       DateTime
   checkOut      DateTime
   status        BookingStatus    @default(Pending)
@@ -185,8 +184,8 @@ model Booking {
   guestName     String           @default("Walk-in Guest")
   paymentStatus PaymentStatus    @default(Pending)
   totalPrice    Int              @default(0)
-  room          Room             @relation(fields: [roomId], references: [id])
   user          User?            @relation(fields: [userId], references: [id])
+  rooms         BookingRoom[]
   amenities     BookingAmenity[]
   optionalAmenities BookingOptionalAmenity[]
   rentalAmenities   BookingRentalAmenity[]
@@ -229,6 +228,16 @@ model BookingCottage {
   booking    Booking  @relation(fields: [bookingId], references: [id])
 
   @@unique([bookingId, cottageId])
+}
+
+model BookingRoom {
+  bookingId Int
+  roomId    Int
+  quantity  Int     @default(1)
+  room      Room    @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@id([bookingId, roomId])
 }
 
 model BookingAmenity {

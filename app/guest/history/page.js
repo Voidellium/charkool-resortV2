@@ -89,18 +89,38 @@ const Header = () => {
 };
 
 const BookingCard = ({ booking }) => {
+    // Safely get the first room from rooms array
+    const firstRoom = booking.rooms && booking.rooms.length > 0 ? booking.rooms[0].room : null;
+
+    // Format dates for display
+    const checkInDate = new Date(booking.checkIn).toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+    const checkOutDate = new Date(booking.checkOut).toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+
+    // Calculate total paid from payments if available
+    const totalPaid = booking.payments && booking.payments.length > 0
+      ? (booking.payments.reduce((sum, p) => sum + p.amount, 0) / 100).toFixed(0)
+      : '0';
+
     return (
         <div className="booking-card">
             <div className="card-header">
-                <h3>{booking.room.name}</h3>
+                <h3>{firstRoom ? firstRoom.name : 'Room info not available'}</h3>
                 <span className={`status-badge ${booking.status.toLowerCase()}`}>
                     {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                 </span>
             </div>
             <div className="card-details">
-                <p><strong>Check-in:</strong> {booking.checkIn}</p>
-                <p><strong>Check-out:</strong> {booking.checkOut}</p>
-                <p><strong>Total:</strong> ${booking.totalAmount}</p>
+                <p><strong>Check-in:</strong> {checkInDate}</p>
+                <p><strong>Check-out:</strong> {checkOutDate}</p>
+                <p><strong>Total Paid:</strong> ₱{totalPaid}</p>
             </div>
             <style jsx>{`
                 .booking-card {

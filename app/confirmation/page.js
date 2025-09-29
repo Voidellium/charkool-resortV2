@@ -17,6 +17,11 @@ function ConfirmationPageInner() {
         if (res.ok) {
           const data = await res.json();
           setBooking(data);
+          // Clear localStorage for completed bookings to allow new bookings
+          if (data.status === 'Confirmed' || data.paymentStatus === 'Paid') {
+            localStorage.removeItem('bookingId');
+            localStorage.removeItem('bookingAmount');
+          }
         }
       } catch (error) {
         console.error('Failed to fetch booking:', error);

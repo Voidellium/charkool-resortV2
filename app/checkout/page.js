@@ -13,12 +13,34 @@ export default function CheckoutPage() {
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('error'); // 'error' or 'success'
   const [paymentWindow, setPaymentWindow] = useState(null);
+  const [paymentCompleted, setPaymentCompleted] = useState(false);
 
   // Load bookingId and amount from localStorage on mount
   useEffect(() => {
     const storedBookingId = localStorage.getItem('bookingId');
     const storedAmount = localStorage.getItem('bookingAmount');
-    if (storedBookingId) setBookingId(storedBookingId);
+    if (storedBookingId) {
+      // Check if booking still exists and is not cancelled
+      fetch(`/api/bookings/${storedBookingId}`)
+        .then(res => {
+          if (!res.ok) {
+            throw new Error('Booking not found');
+          }
+          return res.json();
+        })
+        .then(data => {
+          if (data.status === 'Cancelled') {
+            throw new Error('Booking cancelled');
+          }
+          setBookingId(storedBookingId);
+        })
+        .catch(err => {
+          console.error('Booking check error:', err);
+          localStorage.removeItem('bookingId');
+          localStorage.removeItem('bookingAmount');
+          window.location.href = '/booking';
+        });
+    }
     if (storedAmount) {
       const amountInPesos = parseFloat(storedAmount).toFixed(0);
       setAmount(amountInPesos);
@@ -43,6 +65,9 @@ export default function CheckoutPage() {
         if (event.data.type === 'PAYMENT_COMPLETED') {
           setPaymentWindow(null);
           if (event.data.status === 'success') {
+            setPaymentCompleted(true);
+            localStorage.removeItem('bookingId');
+            localStorage.removeItem('bookingAmount');
             window.location.href = `/confirmation?bookingId=${event.data.bookingId}`;
           } else {
             setMessageType('error');
@@ -71,6 +96,19 @@ export default function CheckoutPage() {
       };
     }
   }, [paymentWindow]);
+
+  // Before unload warning if payment not completed
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (!paymentCompleted && bookingId) {
+        e.preventDefault();
+        e.returnValue = 'Leaving this page will cancel your pending booking. Are you sure?';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [paymentCompleted, bookingId]);
 
   // Function to check payment status
   const checkPaymentStatus = async (bookingId) => {
@@ -160,6 +198,9 @@ export default function CheckoutPage() {
           setLoading(false);
           return;
         }
+        setPaymentCompleted(true);
+        localStorage.removeItem('bookingId');
+        localStorage.removeItem('bookingAmount');
         setMessageType('success');
         setMessage('Test payment successful! Redirecting...');
         setTimeout(() => {
@@ -230,8 +271,7 @@ export default function CheckoutPage() {
             <h2 className="checkout-title">Complete Your Payment</h2>
             
             <div className="booking-info">
-              <p>Booking ID: <strong>{bookingId || 'N/A'}</strong></p>
-              <p>Amount: <strong>₱{amount ? parseFloat(amount).toLocaleString() : '0'}</strong></p>
+              <p>Total Cost: <strong>₱{amount ? parseFloat(amount).toLocaleString() : '0'}</strong></p>
             </div>
 
             <div className="payment-form">

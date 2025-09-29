@@ -17,7 +17,7 @@ export const GET = async (req) => {
       where: { userId },
       orderBy: { checkIn: 'desc' },
       include: {
-        room: true,
+        rooms: { include: { room: true } },
         amenities: { include: { amenity: true } },
         payments: true,
       },

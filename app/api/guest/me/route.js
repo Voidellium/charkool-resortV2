@@ -24,7 +24,7 @@ export const GET = async (req) => {
 
     const bookings = await prisma.booking.findMany({
       where: { userId: session.user.id },
-      include: { room: true, payments: true },
+      include: { rooms: { include: { room: true } }, payments: true },
       orderBy: { createdAt: 'desc' },
     });
 
