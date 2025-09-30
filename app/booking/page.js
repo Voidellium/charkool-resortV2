@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
+
 import { motion } from 'framer-motion';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
@@ -28,6 +29,9 @@ export default function BookingPage() {
   const [showPendingPrompt, setShowPendingPrompt] = useState(false);
   const [pendingBooking, setPendingBooking] = useState(null);
   const submittingRef = useRef(false);
+
+  // New state for animated dots in processing button
+  const [dotCount, setDotCount] = useState(1);
 
   // NEW: warnings & locks
   const [dateWarning, setDateWarning] = useState(''); // for single-date validation
@@ -262,6 +266,18 @@ export default function BookingPage() {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
   };
+
+  // Animate dots in processing button
+  useEffect(() => {
+    if (!submitting) {
+      setDotCount(1);
+      return;
+    }
+    const interval = setInterval(() => {
+      setDotCount((prev) => (prev >= 3 ? 1 : prev + 1));
+    }, 500);
+    return () => clearInterval(interval);
+  }, [submitting]);
 
   const handleDateChange = ({ checkInDate, checkOutDate }) => {
     setFormData(prev => ({
@@ -604,24 +620,48 @@ export default function BookingPage() {
               </div>
             </motion.div>
           )}
-          <div style={{ textAlign: 'right', fontWeight: 'bold', fontSize: '1.2rem', color: '#1e3a8a', marginTop: '10px', marginBottom: '10px' }}>
+          <div style={{ textAlign: 'right', fontWeight: 'bold', fontSize: '1.2rem', color: '#ED7709', marginTop: '10px', marginBottom: '10px' }}>
             Total Price: ₱{(totalPrice / 100).toLocaleString()}
           </div>
 
           <div className="navigation-buttons">
-            {step > 1 && <button type="button" onClick={handleBack}>Back</button>}
-            {step < 3 && <button type="button" onClick={handleNext} disabled={
-              // Next disabled if date invalid (single date) OR guests invalid OR capacity insufficient when on step1
-              !formData.checkIn ||
-              !formData.checkOut ||
-              formData.checkIn === formData.checkOut ||
-              formData.guests < 1 ||
-              (step === 1 && (() => {
-                const totalCapacity = computeTotalCapacity();
-                return totalCapacity < formData.guests;
-              })())
-            }>Next</button>}
-            {step === 3 && <button type="submit" disabled={submitting || submittingRef.current || !formData.checkIn || formData.guests < 1 || Object.keys(formData.selectedRooms).length === 0}>{submitting ? 'Submitting...' : 'Submit Booking'}</button>}
+            {submitting ? (
+              <button
+                type="button"
+                disabled
+                style={{
+                  flex: 1,
+                  textAlign: 'center',
+                  fontWeight: 'bold',
+                  fontSize: '1.2rem',
+                  color: '#6b7280',
+                  backgroundColor: '#e5e7eb',
+                  border: 'none',
+                  borderRadius: '10px',
+                  padding: '14px',
+                  cursor: 'not-allowed',
+                }}
+              >
+                Processing
+                {'.'.repeat(dotCount)}
+              </button>
+            ) : (
+              <>
+                {step > 1 && <button type="button" onClick={handleBack}>Back</button>}
+                {step < 3 && <button type="button" onClick={handleNext} disabled={
+                  // Next disabled if date invalid (single date) OR guests invalid OR capacity insufficient when on step1
+                  !formData.checkIn ||
+                  !formData.checkOut ||
+                  formData.checkIn === formData.checkOut ||
+                  formData.guests < 1 ||
+                  (step === 1 && (() => {
+                    const totalCapacity = computeTotalCapacity();
+                    return totalCapacity < formData.guests;
+                  })())
+                }>Next</button>}
+                {step === 3 && <button type="submit" disabled={submitting || submittingRef.current || !formData.checkIn || formData.guests < 1 || Object.keys(formData.selectedRooms).length === 0}>{submitting ? 'Submitting...' : 'Submit Booking'}</button>}
+              </>
+            )}
           </div>
         </form>
       </div>
@@ -630,7 +670,19 @@ export default function BookingPage() {
         <div className="pending-prompt-overlay">
           <div className="pending-prompt">
             <h3>Pending Booking Found</h3>
-            <p>A pending booking (ID: {pendingBooking.id}) for {pendingBooking.checkIn} to {pendingBooking.checkOut} was detected.</p>
+            <p>
+              A pending booking created at{' '}
+              {new Date(pendingBooking.createdAt).toLocaleString(undefined, {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+              })}{' '}
+              for {new Date(pendingBooking.checkIn).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })} to{' '}
+              {new Date(pendingBooking.checkOut).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })} was detected.
+            </p>
             <p>What would you like to do?</p>
             <div className="prompt-buttons">
               <button 
@@ -666,11 +718,11 @@ export default function BookingPage() {
 
       {/* Styles */}
       <style jsx>{`
-        .container { min-height: 100vh; display: flex; justify-content: center; align-items: flex-start; background: #f0f4f8; padding: 20px; }
+        .container { min-height: 100vh; display: flex; justify-content: center; align-items: flex-start; background: linear-gradient(135deg, #fcd34d 0%, #e6f4f8 100%); padding: 20px; }
         .booking-card { background: #fff; padding: 40px; border-radius: 15px; box-shadow: 0 8px 24px rgba(0,0,0,0.1); width: 100%; max-width: 700px; }
         .progress-bar { background-color: #e0e0e0; border-radius: 10px; overflow: hidden; height: 10px; margin-bottom: 20px; }
         .progress { height: 100%; background-color: #2563eb; transition: width 0.3s ease-in-out; }
-        h2, h3 { text-align: center; color: #1e3a8a; }
+        h2, h3 { text-align: center; color: #FEBE52; }
         .form-group { margin-bottom: 20px; }
         label { display: block; margin-bottom: 8px; font-weight: 600; color: #334155; }
         input[type="number"] { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; }
@@ -680,14 +732,14 @@ export default function BookingPage() {
         .room-option-container { position: relative; }
         .room-option { border: 2px solid #d1d5db; border-radius: 10px; padding: 10px; cursor: pointer; transition: all 0.3s ease; text-align: center; position: relative; }
         .room-option img { width: 100%; height: 120px; object-fit: cover; border-radius: 8px; margin-bottom: 8px; }
-        .room-option.selected { border-color: #2563eb; background-color: #eff6ff; box-shadow: 0 0 0 3px #bfdbfe; }
+        .room-option.selected { border-color: #FEBE52; background-color: #FEBE52; box-shadow: 0 0 0 3px #FEBE52; }
         .room-option.disabled { cursor: not-allowed; opacity: 0.5; pointer-events: none; }
         .room-option.disabled.selected { background-color: #fef2f2; border-color: #ef4444; pointer-events: auto; } /* allow deselect if it was disabled but selected */
-        .available-count { position: absolute; top: 8px; right: 8px; background-color: #10b981; color: white; padding: 4px 8px; border-radius: 99px; font-size: 12px; font-weight: bold; }
+        .available-count { position: absolute; top: 8px; right: 8px; background-color: #ED7709; color: white; padding: 4px 8px; border-radius: 99px; font-size: 12px; font-weight: bold; }
         .available-count.full { background-color: #ef4444; }
         .quantity-controls { display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 8px; }
-        .quantity-controls button { width: 28px; height: 28px; border: none; background-color: #2563eb; color: white; border-radius: 50%; cursor: pointer; font-size: 16px; font-weight: bold; display: flex; align-items: center; justify-content: center; }
-        .quantity-controls button:hover { background-color: #1d4ed8; }
+        .quantity-controls button { width: 11px; height: 15px; border: none; background-color: #FEBE52; color: white; border-radius: 50%; cursor: pointer; font-size: 16px; font-weight: bold; display: flex; align-items: center; justify-content: center; }
+        .quantity-controls button:hover { background-color: #EDEC09; }
         .quantity-controls button:disabled {
           background-color: #9ca3af;
           cursor: not-allowed;
@@ -697,10 +749,10 @@ export default function BookingPage() {
         .room-description { font-size: 12px; color: #6b7280; margin: 4px 0 0 0; text-align: center; }
         .capacity-warning { color: #ef4444; font-weight: bold; margin-top: 10px; padding: 10px; background-color: #fef2f2; border-radius: 8px; border: 1px solid #fecaca; }
         .navigation-buttons { display: flex; justify-content: space-between; gap: 10px; margin-top: 20px; }
-        button { flex: 1; padding: 14px; font-size: 16px; font-weight: 600; background-color: #2563eb; color: white; border: none; border-radius: 10px; cursor: pointer; transition: all 0.3s ease; }
-        button:hover:not(:disabled) { background-color: #1d4ed8; transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15); }
+        button { flex: 1; padding: 14px; font-size: 16px; font-weight: 600; background-color: #FEBE52; color: white; border: none; border-radius: 10px; cursor: pointer; transition: all 0.3s ease; }
+        button:hover:not(:disabled) { background-color: #EDB509; transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15); }
         button:disabled { background-color: #9ca3af; cursor: not-allowed; }
-        .total-price-display { margin-top: 20px; text-align: left; font-size: 1.2rem; font-weight: bold; color: #1e3a8a; }
+        .total-price-display { margin-top: 20px; text-align: left; font-size: 1.2rem; font-weight: bold; color: #FEBE52; }
 
         .pending-prompt-overlay {
           position: fixed;
@@ -723,7 +775,7 @@ export default function BookingPage() {
           text-align: center;
         }
         .pending-prompt h3 {
-          color: #1e3a8a;
+          color: #FEBE52;
           margin-bottom: 10px;
         }
         .pending-prompt p {

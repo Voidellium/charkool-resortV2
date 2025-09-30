@@ -1,2 +1,2 @@
-- [ ] Update handleRoomQuantityChange to prevent increasing quantity beyond room.remaining
-- [ ] Modify the disabled condition for the + button to include selectedQty >= room.remaining
+- [x] Remove Home button from guest navbar in components/GuestHeader.js
+- [x] Add redirection logic in app/page.js for logged-in customers to guest dashboard

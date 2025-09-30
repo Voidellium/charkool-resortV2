@@ -47,6 +47,12 @@ export default function Home() {
     };
   }, []);
 
+  useEffect(() => {
+    if (session?.user?.role === 'customer') {
+      router.push('/guest/dashboard');
+    }
+  }, [session, router]);
+
   const handleBookNow = () => {
     if (!session) {
       alert('You must be logged in to book.');

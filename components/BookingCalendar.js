@@ -199,7 +199,7 @@ export default function BookingCalendar({ availabilityData, onDateChange }) {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          background-color: #0071bc;
+          background-color: #FEBE52;
           color: white;
           padding: 8px 12px;
           border-radius: 4px;
@@ -287,7 +287,7 @@ export default function BookingCalendar({ availabilityData, onDateChange }) {
         }
         .check-times {
           margin-top: 12px;
-          background-color: #0071bc;
+          background-color: #FEBE52;
           color: white;
           padding: 6px 12px;
           border-radius: 4px;
