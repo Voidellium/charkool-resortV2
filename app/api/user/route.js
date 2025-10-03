@@ -33,6 +33,20 @@ export async function POST(req) {
       data: { firstName, middleName, lastName, birthdate: new Date(birthdate), contactNumber, name, email: lowercasedEmail, password: hashedPassword, role },
       select: { id: true, firstName: true, middleName: true, lastName: true, birthdate: true, contactNumber: true, name: true, email: true, role: true },
     });
+
+    // Create notification for superadmin
+    try {
+      await prisma.notification.create({
+        data: {
+          message: `New user account created: ${newUser.name} (${newUser.email}) with role ${newUser.role}`,
+          type: 'user_created',
+          role: 'superadmin',
+        },
+      });
+    } catch (notifError) {
+      console.error('Failed to create notification:', notifError);
+    }
+
     return new Response(JSON.stringify(newUser), { status: 201 });
   } catch (err) {
     return new Response(JSON.stringify({ error: err.message }), { status: 500 });

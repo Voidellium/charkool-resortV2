@@ -63,9 +63,15 @@ function ConfirmationPageInner() {
                 </div>
 
                 <div className="status-section">
-                  <div className={`status-badge ${booking.paymentStatus.toLowerCase()}`}>
-                    Payment Status: {booking.paymentStatus}
-                  </div>
+                <div className={`status-badge ${booking.paymentStatus.toLowerCase()}`}>
+                  Payment Status: {
+                    booking.paymentStatus === 'Paid' ? 
+                      `Paid (Full Payment) - ₱${(booking.payments?.reduce((sum, p) => sum + p.amount, 0) / 100).toFixed(0)}` :
+                    booking.paymentStatus === 'Partial' ?
+                      `Paid (Partial Payment) - ₱${(booking.payments?.reduce((sum, p) => sum + p.amount, 0) / 100).toFixed(0)} | To be paid: ₱${((booking.totalPrice - (booking.payments?.reduce((sum, p) => sum + p.amount, 0) || 0)) / 100).toFixed(0)}` :
+                    'Pending'
+                  }
+                </div>
                   <div className={`status-badge ${booking.status.toLowerCase()}`}>
                     Booking Status: {booking.status}
                   </div>

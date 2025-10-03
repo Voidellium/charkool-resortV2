@@ -13,7 +13,7 @@ export default function InventoryPage() {
 
   const fetchInventory = async () => {
     try {
-      const res = await fetch('http://localhost:3000/api/amenities/inventory', { cache: 'no-store' });
+      const res = await fetch('/api/amenities/inventory', { cache: 'no-store' });
       const data = await res.json();
       setInventory(data);
     } catch (error) {
@@ -33,8 +33,8 @@ export default function InventoryPage() {
     }
 
     const endpoint = editingId
-  ? `http://localhost:3000/api/amenities/inventory/${editingId}`
-  : `http://localhost:3000/api/amenities/inventory`;
+  ? `/api/amenities/inventory/${editingId}`
+  : `/api/amenities/inventory`;
     const method = editingId ? 'PUT' : 'POST';
 
     try {
@@ -65,7 +65,7 @@ export default function InventoryPage() {
     if (!confirm('Are you sure you want to delete this amenity?')) return;
 
     try {
-      const res = await fetch(`http://localhost:3000/api/amenities/inventory/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/amenities/inventory/${id}`, { method: 'DELETE' });
 
       if (res.ok) {
         setInventory((prev) => prev.filter((item) => item.id !== id));

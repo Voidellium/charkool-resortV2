@@ -18,10 +18,30 @@ export default function GuestHeader() {
   const profileDropdownRef = useRef(null);
   const notificationDropdownRef = useRef(null);
 
-  const notifications = [];
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [bellColor, setBellColor] = useState('white');
 
-  // ✅ Fixed useEffect to avoid dependency array size mismatch error
+  // Fetch notifications for CUSTOMER role and update bell color and count
   useEffect(() => {
+    async function fetchNotifications() {
+      try {
+        const res = await fetch('/api/notifications?role=CUSTOMER', {
+          method: 'GET',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setNotifications(data || []);
+          const unread = (data || []).filter(n => !n.read).length;
+          setUnreadCount(unread);
+          setBellColor(unread > 0 ? '#ef4444' : 'white'); // red if unread, else white
+        }
+      } catch (err) {
+        console.error('Error fetching notifications:', err);
+      }
+    }
+    fetchNotifications();
+
     function handleClickOutside(event) {
       if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target)) {
         setIsProfileDropdownOpen(false);
@@ -94,8 +114,8 @@ export default function GuestHeader() {
               onClick={() => setIsNotificationDropdownOpen(!isNotificationDropdownOpen)}
               aria-label="Notifications"
             >
-              <Bell size={20} color="white" />
-              {hasNotifications && <span className="notification-dot" />}
+              <Bell size={20} color={bellColor} />
+              {unreadCount > 0 && <span className="notification-count">{unreadCount}</span>}
             </button>
             {isNotificationDropdownOpen && (
               <div className="notification-dropdown">
@@ -246,14 +266,18 @@ export default function GuestHeader() {
           justify-content: center;
         }
 
-        .notification-dot {
+        .notification-count {
           position: absolute;
-          top: 8px;
-          right: 8px;
-          height: 8px;
-          width: 8px;
+          top: 4px;
+          right: 4px;
           background-color: #ef4444;
+          color: white;
           border-radius: 50%;
+          padding: 2px 6px;
+          font-size: 0.75rem;
+          font-weight: bold;
+          min-width: 16px;
+          text-align: center;
         }
 
         .notification-dropdown {

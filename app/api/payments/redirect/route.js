@@ -16,14 +16,12 @@ export async function GET(req) {
             if (window.opener) {
               window.opener.postMessage({
                 type: 'PAYMENT_COMPLETED',
-                status: '${status}',
+                status: 'returned',
                 bookingId: '${bookingId}'
               }, '*');
               window.close();
             } else {
-              window.location.href = '${status === 'success' 
-                ? `/confirmation?bookingId=${bookingId}` 
-                : `/checkout?error=failed&bookingId=${bookingId}`}';
+              window.location.href = '/checkout?error=returned&bookingId=${bookingId}';
             }
           };
         </script>

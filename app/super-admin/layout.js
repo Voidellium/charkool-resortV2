@@ -21,32 +21,28 @@ export default async function RootLayout({ children }) {
   const session = await getServerSession(authOptions);
 
   return (
-    <html lang="en">
-      <body className={poppins.className}>
-        <SessionWrapper
-          session={session}
-          refetchInterval={0}
-          basePath="/api/auth"
+    <SessionWrapper
+      session={session}
+      refetchInterval={0}
+      basePath="/api/auth"
+    >
+      <BrowserFingerprintProvider>
+        <ClientNavbarWrapper />
+        <main
+          style={{
+            maxWidth: '1100px',
+            margin: '0 auto',
+            padding: '1rem',
+            boxSizing: 'border-box',
+            minHeight: '80vh',
+            fontSize: '0.85rem', // Further reduce base font size
+            lineHeight: '1',
+          }}
         >
-          <BrowserFingerprintProvider>
-            <ClientNavbarWrapper />
-            <main
-              style={{
-                maxWidth: '1100px',
-                margin: '0 auto',
-                padding: '1rem',
-                boxSizing: 'border-box',
-                minHeight: '80vh',
-                fontSize: '0.85rem', // Further reduce base font size
-                lineHeight: '1',
-              }}
-            >
-              <div style={{ fontSize: 'inherit' }}>{children}</div>
-            </main>
-            <Chatbot />
-          </BrowserFingerprintProvider>
-        </SessionWrapper>
-      </body>
-    </html>
+          <div style={{ fontSize: 'inherit' }}>{children}</div>
+        </main>
+        <Chatbot />
+      </BrowserFingerprintProvider>
+    </SessionWrapper>
   );
 }

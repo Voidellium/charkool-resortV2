@@ -16,7 +16,7 @@ export default function SuperAdminDashboard() {
 
   async function fetchStats() {
     try {
-      const res = await fetch('http://localhost:3000/api/bookings');
+      const res = await fetch('/api/bookings');
       const data = await res.json();
 
       const total = data.length;

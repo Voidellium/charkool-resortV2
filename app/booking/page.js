@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-
+import { useFormStatus } from 'react-dom';
+  
 import { motion } from 'framer-motion';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
@@ -25,13 +26,37 @@ export default function BookingPage() {
   const [step, setStep] = useState(1);
   const [availabilityData, setAvailabilityData] = useState({});
   const [totalPrice, setTotalPrice] = useState(0);
-  const [submitting, setSubmitting] = useState(false);
   const [showPendingPrompt, setShowPendingPrompt] = useState(false);
   const [pendingBooking, setPendingBooking] = useState(null);
   const submittingRef = useRef(false);
 
-  // New state for animated dots in processing button
+  // Modal state to prevent spam clicks
+  const [showSubmitModal, setShowSubmitModal] = useState(false);
+
+  // New state for animated dots in modal
   const [dotCount, setDotCount] = useState(1);
+
+  // SubmitButton component using useFormStatus
+  function SubmitButton({ disabled, children, ...props }) {
+    const { pending } = useFormStatus();
+    return (
+      <button type="submit" disabled={pending || disabled} {...props}>
+        {pending ? 'Submitting...' : children}
+      </button>
+    );
+  }
+
+  // Animate dots in modal
+  useEffect(() => {
+    if (!showSubmitModal) {
+      setDotCount(1);
+      return;
+    }
+    const interval = setInterval(() => {
+      setDotCount((prev) => (prev >= 3 ? 1 : prev + 1));
+    }, 500);
+    return () => clearInterval(interval);
+  }, [showSubmitModal]);
 
   // NEW: warnings & locks
   const [dateWarning, setDateWarning] = useState(''); // for single-date validation
@@ -267,17 +292,7 @@ export default function BookingPage() {
     }
   };
 
-  // Animate dots in processing button
-  useEffect(() => {
-    if (!submitting) {
-      setDotCount(1);
-      return;
-    }
-    const interval = setInterval(() => {
-      setDotCount((prev) => (prev >= 3 ? 1 : prev + 1));
-    }, 500);
-    return () => clearInterval(interval);
-  }, [submitting]);
+
 
   const handleDateChange = ({ checkInDate, checkOutDate }) => {
     setFormData(prev => ({
@@ -371,7 +386,7 @@ export default function BookingPage() {
     }
 
     submittingRef.current = true;
-    setSubmitting(true);
+    setShowSubmitModal(true);
     try {
       const res = await fetch('/api/bookings', {
         method: 'POST',
@@ -406,7 +421,7 @@ export default function BookingPage() {
       localStorage.removeItem('bookingAmount');
     } finally {
       submittingRef.current = false;
-      setSubmitting(false);
+      setShowSubmitModal(false);
     }
   };
 
@@ -424,6 +439,7 @@ export default function BookingPage() {
         </div>
         <h2>Book Your Stay</h2>
 
+        {!showSubmitModal && (
         <form onSubmit={handleSubmit}>
           {step === 1 && (
             <motion.div key="step1" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -439,8 +455,8 @@ export default function BookingPage() {
                   </div>
                   {(formData.checkIn || formData.checkOut) && (
                     <div className="date-display">
-                      <div><strong>Check-in:</strong> {formData.checkIn || '...'}</div>
-                      <div><strong>Check-out:</strong> {formData.checkOut || '...'}</div>
+                    <div><strong>Check-in:</strong> {formData.checkIn ? new Date(formData.checkIn).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '...'}</div>
+                    <div><strong>Check-out:</strong> {formData.checkOut ? new Date(formData.checkOut).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '...'}</div>
                     </div>
                   )}
 
@@ -543,8 +559,8 @@ export default function BookingPage() {
           {step === 3 && (
             <motion.div key="step3" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               <h3>Review Booking</h3>
-              <p><strong>Check-in:</strong> {formData.checkIn}</p>
-              <p><strong>Check-out:</strong> {formData.checkOut}</p>
+              <p><strong>Check-in:</strong> {new Date(formData.checkIn).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+              <p><strong>Check-out:</strong> {new Date(formData.checkOut).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
               <p><strong>Guests:</strong> {formData.guests}</p>
               <p><strong>Selected Rooms:</strong></p>
               <ul>
@@ -625,45 +641,22 @@ export default function BookingPage() {
           </div>
 
           <div className="navigation-buttons">
-            {submitting ? (
-              <button
-                type="button"
-                disabled
-                style={{
-                  flex: 1,
-                  textAlign: 'center',
-                  fontWeight: 'bold',
-                  fontSize: '1.2rem',
-                  color: '#6b7280',
-                  backgroundColor: '#e5e7eb',
-                  border: 'none',
-                  borderRadius: '10px',
-                  padding: '14px',
-                  cursor: 'not-allowed',
-                }}
-              >
-                Processing
-                {'.'.repeat(dotCount)}
-              </button>
-            ) : (
-              <>
-                {step > 1 && <button type="button" onClick={handleBack}>Back</button>}
-                {step < 3 && <button type="button" onClick={handleNext} disabled={
-                  // Next disabled if date invalid (single date) OR guests invalid OR capacity insufficient when on step1
-                  !formData.checkIn ||
-                  !formData.checkOut ||
-                  formData.checkIn === formData.checkOut ||
-                  formData.guests < 1 ||
-                  (step === 1 && (() => {
-                    const totalCapacity = computeTotalCapacity();
-                    return totalCapacity < formData.guests;
-                  })())
-                }>Next</button>}
-                {step === 3 && <button type="submit" disabled={submitting || submittingRef.current || !formData.checkIn || formData.guests < 1 || Object.keys(formData.selectedRooms).length === 0}>{submitting ? 'Submitting...' : 'Submit Booking'}</button>}
-              </>
-            )}
+            {step > 1 && <button type="button" onClick={handleBack}>Back</button>}
+            {step < 3 && <button type="button" onClick={handleNext} disabled={
+              // Next disabled if date invalid (single date) OR guests invalid OR capacity insufficient when on step1
+              !formData.checkIn ||
+              !formData.checkOut ||
+              formData.checkIn === formData.checkOut ||
+              formData.guests < 1 ||
+              (step === 1 && (() => {
+                const totalCapacity = computeTotalCapacity();
+                return totalCapacity < formData.guests;
+              })())
+            }>Next</button>}
+            {step === 3 && <SubmitButton disabled={!formData.checkIn || formData.guests < 1 || Object.keys(formData.selectedRooms).length === 0}>Submit Booking</SubmitButton>}
           </div>
         </form>
+        )}
       </div>
 
       {showPendingPrompt && pendingBooking && (
@@ -680,8 +673,8 @@ export default function BookingPage() {
                 minute: '2-digit',
                 second: '2-digit',
               })}{' '}
-              for {new Date(pendingBooking.checkIn).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })} to{' '}
-              {new Date(pendingBooking.checkOut).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })} was detected.
+              for {new Date(pendingBooking.checkIn).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} to{' '}
+              {new Date(pendingBooking.checkOut).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} was detected.
             </p>
             <p>What would you like to do?</p>
             <div className="prompt-buttons">
@@ -712,6 +705,16 @@ export default function BookingPage() {
                 Cancel Booking
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showSubmitModal && (
+        <div className="submit-modal-overlay">
+          <div className="submit-modal">
+            <h3>Processing Your Booking{'.'.repeat(dotCount)}</h3>
+            <p>Please wait while we process your booking request. Do not close this window or navigate away.</p>
+            <div className="spinner"></div>
           </div>
         </div>
       )}
@@ -830,6 +833,48 @@ export default function BookingPage() {
           margin-top: 10px;
           font-weight: 600;
           text-align: center;
+        }
+
+        .submit-modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.7);
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          z-index: 2000;
+        }
+        .submit-modal {
+          background: white;
+          padding: 30px;
+          border-radius: 15px;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+          max-width: 400px;
+          text-align: center;
+        }
+        .submit-modal h3 {
+          color: #FEBE52;
+          margin-bottom: 15px;
+        }
+        .submit-modal p {
+          color: #334155;
+          margin-bottom: 20px;
+        }
+        .spinner {
+          border: 4px solid #f3f3f3;
+          border-top: 4px solid #FEBE52;
+          border-radius: 50%;
+          width: 40px;
+          height: 40px;
+          animation: spin 1s linear infinite;
+          margin: 0 auto;
+        }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
         }
       `}</style>
     </div>

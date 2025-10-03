@@ -37,7 +37,11 @@ export async function GET(req) {
         user: userType && userType !== "All" ? { role: userType } : {},
       },
       include: {
-        room: true,
+        rooms: {
+          include: {
+            room: true,
+          },
+        },
         user: true,
         amenities: {
           include: {

@@ -359,11 +359,30 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                   }}
                 >
                   {notifications.length > 0 ? (
-                    notifications.map((n, i) => (
-                      <div key={i} style={{ padding: '10px', borderBottom: '1px solid #eee' }}>
-                        {n.message}
-                      </div>
-                    ))
+                    notifications.map((n, i) => {
+                      let displayMessage = n.message;
+
+                      // Format messages based on type
+                      if (n.type === 'booking_created') {
+                        // Extract date from message if possible
+                        const dateMatch = n.message.match(/from (.+) to (.+)$/);
+                        if (dateMatch) {
+                          displayMessage = `New booking created: ${dateMatch[1]}`;
+                        }
+                      } else if (n.type === 'payment_made') {
+                        // Example message: "First Last name + role (CUSTOMER) has paid this booking"
+                        displayMessage = n.message; // Assuming backend sends formatted message
+                      } else if (n.type === 'booking_checked_out') {
+                        // Example: "The check-in for (date range) has successfully checked-out"
+                        displayMessage = n.message;
+                      }
+
+                      return (
+                        <div key={i} style={{ padding: '10px', borderBottom: '1px solid #eee' }}>
+                          {displayMessage}
+                        </div>
+                      );
+                    })
                   ) : (
                     <div style={{ padding: '10px', textAlign: 'center' }}>No new notifications</div>
                   )}

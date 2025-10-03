@@ -246,31 +246,31 @@ async function main() {
 
   const sampleBooking = await prisma.booking.create({
     data: {
-      userId: guest.id,
-      roomId: beachfrontRoom.id,
+      user: { connect: { id: guest.id } },
+      rooms: { create: [{ room: { connect: { id: beachfrontRoom.id } }, quantity: 1 }] },
       checkIn: new Date('2025-07-01'),
       checkOut: new Date('2025-07-05'),
-      status: 'confirmed',
-      paymentStatus: 'paid',
+      status: 'Confirmed',
+      paymentStatus: 'Paid',
       totalPrice: 10000,
       // Add optional amenities
       optionalAmenities: {
         create: [
-          { optionalAmenityId: 1, quantity: 1 }, // Broom & Dustpan
-          { optionalAmenityId: 3, quantity: 2 }, // Extra Pillows
+          { optionalAmenity: { connect: { id: 1 } }, quantity: 1 }, // Broom & Dustpan
+          { optionalAmenity: { connect: { id: 3 } }, quantity: 2 }, // Extra Pillows
         ],
       },
       // Add rental amenities
       rentalAmenities: {
         create: [
-          { rentalAmenityId: 1, quantity: 2, hoursUsed: 2, totalPrice: 40000 }, // ATV for 2 hours
-          { rentalAmenityId: 3, quantity: 1, hoursUsed: 1, totalPrice: 15000 }, // Billiard for 1 hour
+          { rentalAmenity: { connect: { id: 1 } }, quantity: 2, hoursUsed: 2, totalPrice: 40000 }, // ATV for 2 hours
+          { rentalAmenity: { connect: { id: 3 } }, quantity: 1, hoursUsed: 1, totalPrice: 15000 }, // Billiard for 1 hour
         ],
       },
       // Add cottage
       cottage: {
         create: [
-          { cottageId: cottage.id, quantity: 1, totalPrice: 30000 },
+          { cottage: { connect: { id: cottage.id } }, quantity: 1, totalPrice: 30000 },
         ],
       },
       // Legacy amenities (keeping for backward compatibility)

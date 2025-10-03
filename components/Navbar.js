@@ -89,12 +89,12 @@ export default function Navbar() {
 
         /* Style the auto-generated anchor tags */
         ul li :global(a) {
-          color: #111;
+          color: #333;
           text-decoration: none;
           font-size: 1rem;
           font-weight: 500;
           position: relative;
-          transition: color 0.3s, transform 0.3s;
+          transition: color 0.3s ease, transform 0.3s ease;
         }
 
         ul li :global(a)::after {
@@ -107,17 +107,15 @@ export default function Navbar() {
           background-color: #fff;
           transform: scaleX(0);
           transform-origin: left;
-          transition: transform 0.3s;
+          transition: transform 0.3s ease;
         }
 
-        ul li :global(a):hover,
-        ul li :global(a):focus {
-          color: #fff;
+        ul li :global(a):hover {
+          color: #f59e0b;
           transform: translateY(-2px);
         }
 
-        ul li :global(a):hover::after,
-        ul li :global(a):focus::after {
+        ul li :global(a):hover::after {
           transform: scaleX(1);
         }
 

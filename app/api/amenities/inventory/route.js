@@ -35,6 +35,19 @@ export async function POST(req) {
       },
     });
 
+    // Create notification for superadmin
+    try {
+      await prisma.notification.create({
+        data: {
+          message: `New amenity added: ${created.name} (Quantity: ${created.quantity})`,
+          type: 'amenity_added',
+          role: 'superadmin',
+        },
+      });
+    } catch (notifError) {
+      console.error('Failed to create notification:', notifError);
+    }
+
     return NextResponse.json(created);
   } catch (error) {
     console.error('POST amenities error:', error);

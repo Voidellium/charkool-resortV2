@@ -20,7 +20,7 @@ export const GET = async (_, context) => {
       return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
     }
 
-    return NextResponse.json(booking);
+    return NextResponse.json(serializeBigInt(booking));
   } catch (error) {
     console.error('❌ Booking GET Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -53,6 +53,7 @@ export const PUT = async (req, context) => {
     if (data.status !== undefined) updateData.status = data.status;
     if (data.paymentStatus !== undefined) updateData.paymentStatus = data.paymentStatus;
     if (data.totalPrice !== undefined) updateData.totalPrice = data.totalPrice;
+    if (data.cancellationRemarks !== undefined) updateData.cancellationRemarks = data.cancellationRemarks;
 
 
 
@@ -86,6 +87,11 @@ export const PUT = async (req, context) => {
       const now = new Date();
       if (booking.checkIn <= now) {
         return NextResponse.json({ error: 'Cannot cancel booking that has already checked in' }, { status: 400 });
+      }
+
+      // Check if cancellation remarks provided
+      if (!data.cancellationRemarks || data.cancellationRemarks.trim() === '') {
+        return NextResponse.json({ error: 'Cancellation remarks are required' }, { status: 400 });
       }
 
       // Find paid payments
@@ -126,25 +132,43 @@ export const PUT = async (req, context) => {
 
       // Send notifications
       try {
-        await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/notifications`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: `Booking #${id} for ${booking.guestName} has been cancelled.`,
+        const checkInMonth = new Date(booking.checkIn).toLocaleString('default', { month: 'long' });
+        const checkOutMonth = new Date(booking.checkOut).toLocaleString('default', { month: 'long' });
+        const checkInDay = new Date(booking.checkIn).getDate();
+        const checkOutDay = new Date(booking.checkOut).getDate();
+        const message = `The booking from ${checkInMonth} ${checkInDay} to ${checkOutMonth} ${checkOutDay} was cancelled.`;
+
+        await prisma.notification.create({
+          data: {
+            message,
             type: 'booking_cancelled',
             role: 'RECEPTIONIST',
-          }),
+            bookingId: parseInt(id),
+          },
         });
 
-        await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/notifications`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: `Booking #${id} for ${booking.guestName} has been cancelled.`,
+        await prisma.notification.create({
+          data: {
+            message,
             type: 'booking_cancelled',
             role: 'SUPERADMIN',
-          }),
+            bookingId: parseInt(id),
+          },
         });
+
+        // Send to customer if userId exists
+        if (booking.userId) {
+          const messageWithRemarks = `${message} Remarks: ${data.cancellationRemarks || 'No remarks provided.'}`;
+          await prisma.notification.create({
+            data: {
+              message: messageWithRemarks,
+              type: 'booking_cancelled',
+              role: 'CUSTOMER',
+              bookingId: parseInt(id),
+              userId: booking.userId,
+            },
+          });
+        }
       } catch (error) {
         console.error('Error sending cancellation notifications:', error);
       }
@@ -156,7 +180,50 @@ export const PUT = async (req, context) => {
       include: { amenities: { include: { amenity: true } } },
     });
 
-    return NextResponse.json(updatedBooking);
+    // Create notifications for superadmin based on changes
+    try {
+      if (data.status && data.status !== 'Cancelled') { // Cancelled already handled above
+        await prisma.notification.create({
+          data: {
+            message: `Booking from ${new Date(updatedBooking.checkIn).toLocaleDateString('default', { month: 'long', day: 'numeric', year: 'numeric' })} to ${new Date(updatedBooking.checkOut).toLocaleDateString('default', { month: 'long', day: 'numeric', year: 'numeric' })} status updated to ${data.status} for ${updatedBooking.guestName}`,
+            type: 'booking_status_updated',
+            role: 'superadmin',
+          },
+        });
+
+        // Notify customer if status is Confirmed and userId exists
+        if (data.status === 'Confirmed' && updatedBooking.userId) {
+          const checkInStr = new Date(updatedBooking.checkIn).toLocaleDateString('default', { month: 'long', day: 'numeric', year: 'numeric' });
+          const checkOutStr = new Date(updatedBooking.checkOut).toLocaleDateString('default', { month: 'long', day: 'numeric', year: 'numeric' });
+          const message = `Your booking from ${checkInStr} to ${checkOutStr} has been confirmed.`;
+
+          await prisma.notification.create({
+            data: {
+              message,
+              type: 'booking_confirmed',
+              role: 'CUSTOMER',
+              bookingId: parseInt(id),
+              userId: updatedBooking.userId,
+            },
+          });
+        }
+      }
+      if (data.checkIn || data.checkOut) {
+        const checkInStr = data.checkIn ? new Date(data.checkIn).toLocaleDateString() : new Date(updatedBooking.checkIn).toLocaleDateString();
+        const checkOutStr = data.checkOut ? new Date(data.checkOut).toLocaleDateString() : new Date(updatedBooking.checkOut).toLocaleDateString();
+        await prisma.notification.create({
+          data: {
+            message: `Booking #${id} dates updated: ${checkInStr} to ${checkOutStr} for ${updatedBooking.guestName}`,
+            type: 'booking_dates_updated',
+            role: 'superadmin',
+          },
+        });
+      }
+    } catch (notifError) {
+      console.error('Failed to create notification:', notifError);
+    }
+
+    return NextResponse.json(serializeBigInt(updatedBooking));
   } catch (error) {
     console.error('❌ Booking PUT Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

@@ -362,8 +362,8 @@ const BookingHistoryCard = ({ booking, guest }) => {
           hour12: true
         })}</p>
         <p><strong>Guests:</strong> {booking.guests}</p>
-        <p><strong>Payment Status:</strong> {booking.payments && booking.payments.length > 0 ? 'Paid' : 'Pending'}</p>
-        <p><strong>Total Paid:</strong> ₱{(booking.payments.reduce((sum, p) => sum + p.amount, 0) / 100).toFixed(0)}</p>
+        <p><strong>Payment Status:</strong> {booking.paymentStatus}</p>
+        <p><strong>Total Paid:</strong> ₱{(booking.payments?.reduce((sum, p) => sum + Number(p.amount), 0) / 100).toFixed(0)}</p>
       </div>
       <div className="card-actions">
         <button className="view-details-btn" onClick={handleOpenDetailsModal}>
@@ -519,7 +519,7 @@ const PaymentHistoryCard = ({ booking }) => {
         </span>
       </div>
       <div className="card-details">
-        <p><strong>Amount:</strong> ₱{booking.totalPrice / 100}</p>
+        <p><strong>Amount:</strong> ₱{Number(booking.totalPrice) / 100}</p>
         <p><strong>Method:</strong> {booking.payments && booking.payments[0] ? booking.payments[0].method : 'N/A'}</p>
         <p><strong>Date:</strong> {new Date(booking.createdAt).toLocaleDateString('en-US', {
           month: 'long',
@@ -540,7 +540,7 @@ const PaymentHistoryCard = ({ booking }) => {
       <Modal show={showModal} onClose={handleCloseModal}>
         <h2>Payment Details</h2>
         <div className="modal-details-content">
-          <p><strong>Amount:</strong> ₱{booking.totalPrice / 100}</p>
+          <p><strong>Amount:</strong> ₱{Number(booking.totalPrice) / 100}</p>
           <p><strong>Method:</strong> {booking.payments && booking.payments[0] ? booking.payments[0].method : 'N/A'}</p>
           <p><strong>Payment Date:</strong> {new Date(booking.createdAt).toLocaleDateString('en-US', {
             month: 'long',
@@ -664,6 +664,10 @@ export default function GuestDashboard() {
   const [notifications, setNotifications] = useState([]);
   const router = useRouter();
 
+  // State for notification bell count and color
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [bellColor, setBellColor] = useState('black');
+
   useEffect(() => {
     async function fetchData() {
       try {
@@ -696,6 +700,10 @@ export default function GuestDashboard() {
         if (res.ok) {
           const data = await res.json();
           setNotifications(data || []);
+          // Update unread count and bell color
+          const unread = (data || []).filter(n => !n.read).length;
+          setUnreadCount(unread);
+          setBellColor(unread > 0 ? 'red' : 'black');
         }
       } catch (err) {
         console.error('Error fetching notifications:', err);
@@ -750,11 +758,30 @@ export default function GuestDashboard() {
         </section>
       </main>
 
+      {/* Notification Bell */}
+      {/* Removed notification bell from guest dashboard as it is now in GuestHeader */}
+      {/* <div className="notification-bell" aria-label="Notifications" title="Notifications">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill={bellColor}
+          viewBox="0 0 24 24"
+          strokeWidth={1.5}
+          stroke="currentColor"
+          style={{ width: '24px', height: '24px', cursor: 'pointer' }}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+        </svg>
+        {unreadCount > 0 && (
+          <span className="notification-count" aria-live="polite" aria-atomic="true">{unreadCount}</span>
+        )}
+      </div> */}
+
       <style jsx>{`
         .dashboard-container {
           background-color: #f0f2f5;
           min-height: 100vh;
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+          position: relative;
         }
         .main-content {
           padding: 2rem;
@@ -787,6 +814,35 @@ export default function GuestDashboard() {
           font-style: italic;
           text-align: center;
           padding: 2rem;
+        }
+        .notification-bell {
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          background-color: white;
+          border-radius: 50%;
+          padding: 6px;
+          box-shadow: 0 0 8px rgba(0,0,0,0.15);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1001;
+        }
+        .notification-count {
+          position: absolute;
+          top: 12px;
+          right: 12px;
+          background-color: red;
+          color: white;
+          font-size: 0.75rem;
+          font-weight: bold;
+          border-radius: 50%;
+          width: 18px;
+          height: 18px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          pointer-events: none;
         }
         @media (max-width: 768px) {
           .main-content {

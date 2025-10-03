@@ -19,7 +19,7 @@ export async function POST(req) {
     const payment = await prisma.payment.create({
       data: {
         bookingId: parseInt(bookingId),
-        amount: Math.round(amount * 100), // store in cents
+        amount: Math.round(amount * 100), // store in ten-thousandths to be consistent with other payment methods
         status: capitalizedStatus,
         provider: method,
         referenceId: `test_${Date.now()}`,
@@ -61,7 +61,9 @@ export async function POST(req) {
 
     return NextResponse.json({
       success: true,
-      payment,
+      payment: JSON.parse(JSON.stringify(payment, (key, value) =>
+        typeof value === 'bigint' ? value.toString() : value
+      )),
       message: `Payment processed successfully. Status: ${status}, Booking Status: ${updateData.status}`
     });
   } catch (error) {

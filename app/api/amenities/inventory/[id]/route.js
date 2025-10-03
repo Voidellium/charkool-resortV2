@@ -14,6 +14,20 @@ export async function PUT(req, { params }) {
       where: { id },
       data: { name: data.name, quantity: Number(data.quantity) },
     });
+
+    // Create notification for superadmin
+    try {
+      await prisma.notification.create({
+        data: {
+          message: `Amenity updated: ${updated.name} (New Quantity: ${updated.quantity})`,
+          type: 'amenity_updated',
+          role: 'superadmin',
+        },
+      });
+    } catch (notifError) {
+      console.error('Failed to create notification:', notifError);
+    }
+
     return NextResponse.json(updated);
   } catch (error) {
     console.error('PUT error:', error);

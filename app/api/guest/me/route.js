@@ -6,6 +6,13 @@ import { authOptions } from '@/app/auth';
 
 const JWT_SECRET = process.env.NEXTAUTH_SECRET;
 
+// Helper function to serialize BigInt values
+function serializeBigInt(obj) {
+  return JSON.parse(JSON.stringify(obj, (key, value) =>
+    typeof value === 'bigint' ? value.toString() : value
+  ));
+}
+
 // GET: fetch logged-in guest info and bookings
 export const GET = async (req) => {
   try {
@@ -28,7 +35,7 @@ export const GET = async (req) => {
       orderBy: { createdAt: 'desc' },
     });
 
-    return NextResponse.json({ guest, bookings });
+    return NextResponse.json(serializeBigInt({ guest, bookings }));
   } catch (error) {
     console.error('❌ Guest Me GET Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

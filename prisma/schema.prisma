@@ -184,6 +184,8 @@ model Booking {
   guestName     String           @default("Walk-in Guest")
   paymentStatus PaymentStatus    @default(Pending)
   totalPrice    Int              @default(0)
+  isDeleted     Boolean          @default(false)
+  cancellationRemarks String?
   user          User?            @relation(fields: [userId], references: [id])
   rooms         BookingRoom[]
   amenities     BookingAmenity[]
@@ -253,7 +255,7 @@ model Payment {
   bookingId    Int
   booking      Booking  @relation(fields: [bookingId], references: [id])
 
-  amount       Int      // in cents (₱100 = 10000)
+  amount       BigInt   // in cents (₱100 = 10000)
   currency     String   @default("PHP")
 
   status       PaymentStatus @default(Pending) // pending, paid, failed, refunded
@@ -271,6 +273,8 @@ model Notification {
   message   String
   type      String
   role      String
+  bookingId Int?
+  userId    Int?
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
 }

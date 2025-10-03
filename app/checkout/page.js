@@ -59,16 +59,51 @@ export default function CheckoutPage() {
 
   // Function to handle payment window status
   useEffect(() => {
-    if (paymentWindow) {
+      if (paymentWindow) {
       // Listen for message from popup window
       const handleMessage = (event) => {
         if (event.data.type === 'PAYMENT_COMPLETED') {
           setPaymentWindow(null);
-          if (event.data.status === 'success') {
-            setPaymentCompleted(true);
-            localStorage.removeItem('bookingId');
-            localStorage.removeItem('bookingAmount');
-            window.location.href = `/confirmation?bookingId=${event.data.bookingId}`;
+          if (event.data.status === 'returned' || event.data.status === 'success') {
+            // Poll payment status until confirmed or failed
+            setMessageType('info');
+            setMessage('Verifying payment status, please wait...');
+            setLoading(true);
+
+            let attempts = 0;
+            const maxAttempts = 30; // 30 attempts * 2 seconds = 60 seconds max
+            const interval = setInterval(async () => {
+              attempts++;
+              try {
+                const res = await fetch(`/api/payments/status?bookingId=${event.data.bookingId}`);
+                const data = await res.json();
+                if (data.status === 'paid') {
+                  clearInterval(interval);
+                  setPaymentCompleted(true);
+                  localStorage.removeItem('bookingId');
+                  localStorage.removeItem('bookingAmount');
+                  setMessageType('success');
+                  setMessage('Payment successful! Redirecting...');
+                  setLoading(false);
+                  window.location.href = `/confirmation?bookingId=${event.data.bookingId}`;
+                } else if (data.status === 'failed') {
+                  clearInterval(interval);
+                  setMessageType('error');
+                  setMessage('Payment failed. Please try again.');
+                  setLoading(false);
+                } else if (attempts >= maxAttempts) {
+                  clearInterval(interval);
+                  setMessageType('error');
+                  setMessage('Payment verification timed out. Please check your payment status later.');
+                  setLoading(false);
+                }
+              } catch (error) {
+                clearInterval(interval);
+                setMessageType('error');
+                setMessage('Error verifying payment status. Please contact support.');
+                setLoading(false);
+              }
+            }, 2000);
           } else {
             setMessageType('error');
             setMessage('Payment was not completed. Please try again.');
@@ -163,51 +198,51 @@ export default function CheckoutPage() {
     }
 
     try {
-      if (paymentMethod === 'TEST') {
-        // Development phase only: simulate payment success with TEST method
-        let paymentStatus;
-        let bookingStatus;
+        if (paymentMethod === 'TEST') {
+          // Development phase only: simulate payment success with TEST method
+          let paymentStatus;
+          let bookingStatus;
 
-        if (paymentOption === 'reservation') {
-          paymentStatus = 'pending';
-          bookingStatus = 'pending';
-        } else if (paymentOption === 'half') {
-          paymentStatus = 'partial';
-          bookingStatus = 'confirmed';
-        } else {
-          paymentStatus = 'paid';
-          bookingStatus = 'confirmed';
-        }
+          if (paymentOption === 'reservation') {
+            paymentStatus = 'pending';
+            bookingStatus = 'pending';
+          } else if (paymentOption === 'half') {
+            paymentStatus = 'partial';
+            bookingStatus = 'pending'; // keep booking status pending as requested
+          } else {
+            paymentStatus = 'paid';
+            bookingStatus = 'pending'; // keep booking status pending as requested
+          }
 
-        const res = await fetch('/api/payments/test', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            bookingId,
-            amount: parseFloat(enteredAmount) * 100,
-            status: paymentStatus,
-            bookingStatus: bookingStatus,
-            paymentType: paymentOption,
-            method: 'TEST',
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          setMessageType('error');
-          setMessage('Test payment failed: ' + (data.error || 'Unknown error'));
-          setLoading(false);
+          const res = await fetch('/api/payments/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              bookingId,
+              amount: parseFloat(enteredAmount) * 100,
+              status: paymentStatus,
+              bookingStatus: bookingStatus,
+              paymentType: paymentOption,
+              method: 'TEST',
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            setMessageType('error');
+            setMessage('Test payment failed: ' + (data.error || 'Unknown error'));
+            setLoading(false);
+            return;
+          }
+          setPaymentCompleted(true);
+          localStorage.removeItem('bookingId');
+          localStorage.removeItem('bookingAmount');
+          setMessageType('success');
+          setMessage('Test payment successful! Redirecting...');
+          setTimeout(() => {
+            window.location.href = `/confirmation?bookingId=${bookingId}`;
+          }, 2000);
           return;
         }
-        setPaymentCompleted(true);
-        localStorage.removeItem('bookingId');
-        localStorage.removeItem('bookingAmount');
-        setMessageType('success');
-        setMessage('Test payment successful! Redirecting...');
-        setTimeout(() => {
-          window.location.href = `/confirmation?bookingId=${bookingId}`;
-        }, 2000);
-        return;
-      }
 
       // Handle GCash or PayMaya payment
       const res = await fetch('/api/payments/create', {

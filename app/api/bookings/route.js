@@ -1,44 +1,92 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
+// Helper function to serialize BigInt values
+function serializeBigInt(obj) {
+  return JSON.parse(JSON.stringify(obj, (key, value) =>
+    typeof value === 'bigint' ? value.toString() : value
+  ));
+}
+
 export async function GET() {
   try {
+    // First, move completed bookings to history
+    const now = new Date();
+    await prisma.booking.updateMany({
+      where: {
+        isDeleted: false,
+        checkOut: { lt: now },
+        status: { in: ['Confirmed', 'Pending', 'Cancelled', 'Held'] },
+      },
+      data: { isDeleted: true },
+    });
+
     const bookings = await prisma.booking.findMany({
       include: {
         user: true,
-        rooms: {
-          include: {
-            room: true,
-          },
-        },
+        rooms: { include: { room: true } },
         payments: true,
-        amenities: {
-          include: {
-            amenity: true,
-          },
-        },
-        optionalAmenities: {
-          include: {
-            optionalAmenity: true,
-          },
-        },
-        rentalAmenities: {
-          include: {
-            rentalAmenity: true,
-          },
-        },
-        cottage: {
-          include: {
-            cottage: true,
-          },
-        },
+        amenities: { include: { amenity: true } },
+        optionalAmenities: { include: { optionalAmenity: true } },
+        rentalAmenities: { include: { rentalAmenity: true } },
+        cottage: { include: { cottage: true } },
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: { createdAt: 'desc' },
     });
 
-    return NextResponse.json(bookings);
+    // Calculate total cost including rental amenities and cottages for each booking
+    bookings.forEach(booking => {
+      let rentalTotal = 0;
+      if (booking.rentalAmenities && booking.rentalAmenities.length > 0) {
+        rentalTotal = booking.rentalAmenities.reduce((sum, ra) => {
+          const val = typeof ra.totalPrice === 'bigint' ? Number(ra.totalPrice) : ra.totalPrice || 0;
+          return sum + val;
+        }, 0);
+      }
+
+      let cottageTotal = 0;
+      if (booking.cottage && booking.cottage.length > 0) {
+        cottageTotal = booking.cottage.reduce((sum, c) => {
+          const val = typeof c.totalPrice === 'bigint' ? Number(c.totalPrice) : c.totalPrice || 0;
+          return sum + val;
+        }, 0);
+      }
+
+      const basePrice = typeof booking.totalPrice === 'bigint' ? Number(booking.totalPrice) : booking.totalPrice || 0;
+      booking.totalCostWithAddons = basePrice + rentalTotal + cottageTotal;
+
+      // Determine payment option based on total paid amount
+      const totalPaid = booking.payments?.reduce((sum, p) => {
+        const amt = typeof p.amount === 'bigint' ? Number(p.amount) : p.amount;
+        return p.status.toLowerCase() === 'paid' ? sum + amt : sum;
+      }, 0) || 0;
+
+      const totalPrice = typeof booking.totalCostWithAddons === 'bigint'
+        ? Number(booking.totalCostWithAddons)
+        : booking.totalCostWithAddons;
+
+      const reservationFee = 200000; // example reservation fee in cents
+
+      if (totalPaid >= totalPrice) {
+        booking.paymentOption = 'Full Payment';
+      } else if (totalPaid >= Math.floor(totalPrice / 2)) {
+        booking.paymentOption = 'Half Payment';
+      } else if (totalPaid >= reservationFee) {
+        booking.paymentOption = 'Reservation';
+      } else {
+        booking.paymentOption = 'Unpaid';
+      }
+
+      // Extract payment methods used
+      booking.paymentMethods = [...new Set(booking.payments?.map(p => p.provider) || [])];
+
+      // Calculate balance paid and balance to pay
+      booking.balancePaid = totalPaid;
+      booking.balanceToPay = totalPrice - totalPaid;
+      booking.totalPaid = totalPaid;
+    });
+
+    return NextResponse.json(serializeBigInt(bookings));
   } catch (error) {
     console.error('Fetch Bookings Error:', error);
     return NextResponse.json({ error: 'Failed to fetch bookings' }, { status: 500 });
@@ -87,7 +135,8 @@ export async function POST(request) {
     let calculatedTotalPrice = 0;
     for (const room of rooms) {
       const qty = selectedRooms[room.id] || 0;
-      calculatedTotalPrice += room.price * qty * nights;
+      const price = typeof room.price === 'bigint' ? Number(room.price) : room.price;
+      calculatedTotalPrice += price * qty * nights;
     }
 
     const optionalAmenitiesToCreate = [];
@@ -97,9 +146,10 @@ export async function POST(request) {
         where: { id: { in: amenityIds } },
       });
       for (const amenity of amenitiesDetails) {
+        const qty = optional[amenity.id];
         optionalAmenitiesToCreate.push({
           optionalAmenityId: amenity.id,
-          quantity: optional[amenity.id],
+          quantity: qty,
         });
       }
     }
@@ -115,9 +165,11 @@ export async function POST(request) {
         const selection = rental[amenity.id];
         let amenityPrice = 0;
         if (selection.hoursUsed > 0 && amenity.pricePerHour) {
-          amenityPrice = selection.hoursUsed * amenity.pricePerHour;
+          const perHour = typeof amenity.pricePerHour === 'bigint' ? Number(amenity.pricePerHour) : amenity.pricePerHour;
+          amenityPrice = selection.hoursUsed * perHour;
         } else {
-          amenityPrice = selection.quantity * amenity.pricePerUnit;
+          const perUnit = typeof amenity.pricePerUnit === 'bigint' ? Number(amenity.pricePerUnit) : amenity.pricePerUnit;
+          amenityPrice = selection.quantity * perUnit;
         }
         rentalAmenitiesToCreate.push({
           rentalAmenityId: amenity.id,
@@ -129,7 +181,23 @@ export async function POST(request) {
     }
 
     const cottageToCreate = [];
-    // Cottage logic can be added here if needed in the future
+    if (cottage && Object.keys(cottage).length > 0) {
+      const cottageIds = Object.keys(cottage).map(id => parseInt(id));
+      const cottageDetails = await prisma.cottage.findMany({
+        where: { id: { in: cottageIds } },
+      });
+      for (const cot of cottageDetails) {
+        const qty = cottage[cot.id];
+        const price = typeof cot.price === 'bigint' ? Number(cot.price) : cot.price;
+        const totalPrice = price * qty;
+        calculatedTotalPrice += totalPrice;
+        cottageToCreate.push({
+          cottageId: cot.id,
+          quantity: qty,
+          totalPrice,
+        });
+      }
+    }
 
     const booking = await prisma.booking.create({
       data: {
@@ -141,15 +209,9 @@ export async function POST(request) {
         totalPrice: calculatedTotalPrice,
         userId: userId ? parseInt(userId) : null,
         ...(status === 'Pending' && { heldUntil: new Date(Date.now() + 3 * 60 * 60 * 1000) }),
-        optionalAmenities: {
-          create: optionalAmenitiesToCreate,
-        },
-        rentalAmenities: {
-          create: rentalAmenitiesToCreate,
-        },
-        cottage: {
-          create: cottageToCreate,
-        },
+        optionalAmenities: { create: optionalAmenitiesToCreate },
+        rentalAmenities: { create: rentalAmenitiesToCreate },
+        cottage: { create: cottageToCreate },
         rooms: {
           create: rooms.map(room => ({
             roomId: room.id,
@@ -165,7 +227,20 @@ export async function POST(request) {
       },
     });
 
-    return NextResponse.json({ booking }, { status: 201 });
+    // Create notification for superadmin
+    try {
+      await prisma.notification.create({
+        data: {
+          message: `New booking created for ${booking.guestName} from ${new Date(booking.checkIn).toLocaleDateString()} to ${new Date(booking.checkOut).toLocaleDateString()}`,
+          type: 'booking_created',
+          role: 'superadmin',
+        },
+      });
+    } catch (notifError) {
+      console.error('Failed to create notification:', notifError);
+    }
+
+    return NextResponse.json({ booking: serializeBigInt(booking) }, { status: 201 });
   } catch (error) {
     console.error('Create Booking Error:', error);
     return NextResponse.json({ error: 'Failed to create booking' }, { status: 500 });
