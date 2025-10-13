@@ -53,7 +53,7 @@ export default function CheckoutPage() {
     const fullAmount = parseFloat(amount); // amount is in pesos
     if (paymentOption === 'full') return fullAmount;
     if (paymentOption === 'half') return Math.round(fullAmount / 2);
-    if (paymentOption === 'reservation') return 1000; // 1000 pesos
+    if (paymentOption === 'reservation') return 2000; // 1000 pesos
     return fullAmount;
   };
 
@@ -204,7 +204,7 @@ export default function CheckoutPage() {
           let bookingStatus;
 
           if (paymentOption === 'reservation') {
-            paymentStatus = 'pending';
+            paymentStatus = 'reservation';
             bookingStatus = 'pending';
           } else if (paymentOption === 'half') {
             paymentStatus = 'partial';
@@ -317,7 +317,7 @@ export default function CheckoutPage() {
                     value={paymentOption} 
                     onChange={e => {
                       setPaymentOption(e.target.value);
-                      const newAmount = e.target.value === 'full' ? amount : e.target.value === 'half' ? Math.round(parseFloat(amount) / 2).toString() : '1000';
+                      const newAmount = e.target.value === 'full' ? amount : e.target.value === 'half' ? Math.round(parseFloat(amount) / 2).toString() : '2000';
                       setEnteredAmount(newAmount);
                       setMessage('');
                     }}
@@ -331,7 +331,7 @@ export default function CheckoutPage() {
 
               <div className="section">
                 <label>
-                  Amount to Pay
+                  ₱ Amount to Pay
                   <input
                     type="number"
                     value={enteredAmount}
@@ -351,7 +351,7 @@ export default function CheckoutPage() {
                   Payment Method
                   <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}>
                     <option value="gcash">GCash</option>
-                    <option value="paymaya">PayMaya</option>
+                    <option value="grab_pay">Maya</option>
                     <option value="TEST">TEST (Development only)</option>
                   </select>
                 </label>

@@ -53,7 +53,7 @@ export async function POST(req) {
           { heldUntil: { gt: now } },
         ],
       },
-      select: { roomId: true, checkIn: true, checkOut: true },
+      select: { rooms: { select: { roomId: true } }, checkIn: true, checkOut: true },
     });
 
     // Step 3: Build a map of date string to number of booked rooms
@@ -151,7 +151,7 @@ export async function POST(req) {
     });
 
     // Step 7: Also return available rooms as before
-    const bookedRoomIds = overlappingBookings.map(b => b.roomId);
+    const bookedRoomIds = overlappingBookings.flatMap(b => b.rooms.map(r => r.roomId));
     const availableRooms = rooms.filter(r => !bookedRoomIds.includes(r.id));
 
     // Step 8: Handle pending bookings that have passed their check-in and check-out dates

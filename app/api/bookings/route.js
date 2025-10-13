@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { recordAudit } from '@/src/lib/audit';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/auth';
 
 // Helper function to serialize BigInt values
 function serializeBigInt(obj) {
@@ -57,8 +60,12 @@ export async function GET() {
 
       // Determine payment option based on total paid amount
       const totalPaid = booking.payments?.reduce((sum, p) => {
-        const amt = typeof p.amount === 'bigint' ? Number(p.amount) : p.amount;
-        return p.status.toLowerCase() === 'paid' ? sum + amt : sum;
+        let amt = typeof p.amount === 'bigint' ? Number(p.amount) : p.amount;
+        // Normalize payment amount to cents (₱1 = 100 units) if stored in ten-thousandths (₱1 = 10000 units)
+        if (amt > 1000000) { // heuristic threshold to detect large values
+          amt = Math.floor(amt / 100);
+        }
+        return (p.status.toLowerCase() === 'paid' || p.status.toLowerCase() === 'partial' || p.status.toLowerCase() === 'reservation') ? sum + amt : sum;
       }, 0) || 0;
 
       const totalPrice = typeof booking.totalCostWithAddons === 'bigint'
@@ -75,6 +82,11 @@ export async function GET() {
         booking.paymentOption = 'Reservation';
       } else {
         booking.paymentOption = 'Unpaid';
+      }
+
+      // Update paymentStatus to include Reservation if applicable
+      if (booking.paymentStatus.toLowerCase() === 'pending' && totalPaid >= reservationFee) {
+        booking.paymentStatus = 'Reservation';
       }
 
       // Extract payment methods used
@@ -238,6 +250,27 @@ export async function POST(request) {
       });
     } catch (notifError) {
       console.error('Failed to create notification:', notifError);
+    }
+
+    // Record audit trail for the booking creation
+    try {
+      // Attempt to resolve server session to capture who created the booking
+      const session = await getServerSession(authOptions);
+      const detailsObj = {
+        summary: `Created booking for ${booking.guestName}`,
+        after: booking,
+      };
+      await recordAudit({
+        actorId: session?.user?.id || null,
+        actorName: session?.user?.name || session?.user?.email || booking.guestName,
+        actorRole: session?.user?.role || 'GUEST',
+        action: 'CREATE',
+        entity: 'Booking',
+        entityId: String(booking.id),
+        details: JSON.stringify(detailsObj),
+      });
+    } catch (auditErr) {
+      console.error('Failed to record audit for booking creation:', auditErr);
     }
 
     return NextResponse.json({ booking: serializeBigInt(booking) }, { status: 201 });

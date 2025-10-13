@@ -1,13 +1,48 @@
 import prisma from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 
-// ✅ GET all amenities
+// ✅ GET all optional amenities with calculated available quantity
 export async function GET() {
   try {
-    const amenities = await prisma.amenityInventory.findMany({
+    // Fetch all active optional amenities
+    const optionalAmenities = await prisma.optionalAmenity.findMany({
+      where: { isActive: true },
       orderBy: { name: 'asc' },
     });
-    return NextResponse.json(amenities);
+
+    // For each optional amenity, calculate quantity available = default quantity - sum of quantities used in active bookings
+    const amenitiesWithQuantity = await Promise.all(
+      optionalAmenities.map(async (amenity) => {
+        // Sum quantities used in bookings where booking.checkOut is in the future (active bookings)
+        const usedQuantityResult = await prisma.bookingOptionalAmenity.aggregate({
+          _sum: {
+            quantity: true,
+          },
+          where: {
+            optionalAmenityId: amenity.id,
+            booking: {
+              checkOut: {
+                gt: new Date(),
+              },
+            },
+          },
+        });
+
+        const usedQuantity = usedQuantityResult._sum.quantity || 0;
+        const availableQuantity = Math.max(
+          0,
+          50 - usedQuantity
+        );
+
+        return {
+          name: amenity.name,
+          category: 'Optional amenity',
+          quantity: availableQuantity,
+        };
+      })
+    );
+
+    return NextResponse.json(amenitiesWithQuantity);
   } catch (error) {
     console.error('GET amenities error:', error);
     return NextResponse.json(

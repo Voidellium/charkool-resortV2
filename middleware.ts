@@ -7,7 +7,8 @@ const MAINTENANCE_MODE = process.env.APP_MAINTENANCE === "true";
 
 async function checkBrowserTrust(req: NextRequest, token: any) {
   // If the session token already confirms the browser is trusted, skip the check.
-  if (token?.isBrowserTrusted) {
+  if (token?.isBrowserTrusted || req.cookies.get('isBrowserTrusted')?.value === 'true') {
+    console.log(`[MIDDLEWARE] Browser already trusted for user ${token?.email}`);
     return false; // `false` means OTP is NOT needed.
   }
 
@@ -20,22 +21,24 @@ async function checkBrowserTrust(req: NextRequest, token: any) {
     ];
     if (trustedOrigins.includes(req.nextUrl.origin)) {
       // This log helps confirm the bypass is active during development.
-      console.log(`DEV_MODE: Bypassing OTP check for trusted origin: ${req.nextUrl.origin}`);
+      console.log(`[MIDDLEWARE] DEV_MODE: Bypassing OTP check for trusted origin: ${req.nextUrl.origin}`);
       return false; // `false` means OTP is NOT needed, effectively trusting the browser.
     }
     // --- END DEV ONLY ---
 
-    // Get browser fingerprint from headers (will be set by client-side code)
-    const browserFingerprint = req.headers.get('x-browser-fingerprint');
-    const isIncognito = req.headers.get('x-is-incognito') === 'true';
+    // Get browser fingerprint from cookies (set by client-side code)
+    const browserFingerprint = req.cookies.get('browserFingerprint')?.value;
+    const isIncognito = req.cookies.get('isIncognito')?.value === 'true';
 
     // Always require OTP for incognito mode
     if (isIncognito) {
+      console.log(`[MIDDLEWARE] Incognito mode detected, requiring OTP`);
       return true;
     }
 
     if (!browserFingerprint) {
       // If no fingerprint, assume it needs verification (new browser)
+      console.log(`[MIDDLEWARE] No browser fingerprint, requiring OTP`);
       return true;
     }
 
@@ -50,6 +53,7 @@ async function checkBrowserTrust(req: NextRequest, token: any) {
     });
 
     const data = await response.json();
+    console.log(`[MIDDLEWARE] Trusted browser check result: ${data.isTrusted}`);
     return !data.isTrusted;
   } catch (error) {
     console.error('Browser trust check error:', error);
@@ -178,6 +182,7 @@ export async function middleware(req: NextRequest) {
       // Check if user needs OTP verification for this session
       // Apply to ALL authenticated users (including guests) for new browsers or incognito
       const needsOtpVerification = await checkBrowserTrust(req, token);
+      console.log(`[MIDDLEWARE] OTP required for ${pathname}: ${needsOtpVerification}`);
 
       if (needsOtpVerification) {
         const otpUrl = new URL("/verify-otp", req.url);

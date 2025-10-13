@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import BookingCalendar from '../../../components/BookingCalendar'; // Import calendar
+import PromotionPopup from '../../../components/PromotionPopup';
 
 
 
@@ -662,6 +663,7 @@ export default function GuestDashboard() {
   const [guest, setGuest] = useState(null);
   const [bookings, setBookings] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [promotions, setPromotions] = useState([]);
   const router = useRouter();
 
   // State for notification bell count and color
@@ -710,9 +712,25 @@ export default function GuestDashboard() {
       }
     }
 
+    async function fetchPromotions() {
+      try {
+        const res = await fetch('/api/promotions', {
+          method: 'GET',
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setPromotions(data || []);
+        }
+      } catch (err) {
+        console.error('Error fetching promotions:', err);
+      }
+    }
+
     fetchData();
     fetchNotifications();
-  }, [router]);
+    fetchPromotions();
+  }, []);
 
   if (!guest) return (
     <div className="loading-container">
@@ -775,6 +793,8 @@ export default function GuestDashboard() {
           <span className="notification-count" aria-live="polite" aria-atomic="true">{unreadCount}</span>
         )}
       </div> */}
+
+      <PromotionPopup promotions={promotions} />
 
       <style jsx>{`
         .dashboard-container {

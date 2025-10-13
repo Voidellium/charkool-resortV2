@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { BookingStatus } from '@prisma/client';
+import { recordAudit } from '@/src/lib/audit';
+import { getToken } from 'next-auth/jwt';
+
+const JWT_SECRET = process.env.NEXTAUTH_SECRET;
 
 // ✅ GET: All rooms or available rooms if checkIn/checkOut provided
 export const GET = async (req) => {
@@ -82,6 +86,22 @@ export const POST = async (req) => {
     const newRoom = await prisma.room.create({
       data: { name, type, price, quantity, description, image: imageUrl },
     });
+
+    // Record audit for room creation
+    try {
+      const token = await getToken({ req, secret: JWT_SECRET });
+      await recordAudit({
+        actorId: token?.sub ? parseInt(token.sub) : null,
+        actorName: token?.name || token?.email || 'Unknown',
+        actorRole: token?.role || 'ADMIN',
+        action: 'CREATE',
+        entity: 'Room',
+        entityId: String(newRoom.id),
+        details: `Created room "${newRoom.name}"`,
+      });
+    } catch (auditErr) {
+      console.error('Failed to record audit for room creation', auditErr);
+    }
 
     return NextResponse.json(newRoom, { status: 201 });
   } catch (error) {

@@ -7,7 +7,7 @@ export default function LogsPage() {
 
   async function fetchLogs() {
     try {
-  const res = await fetch('/api/amenities/logs', {
+      const res = await fetch('/api/amenities/usage-logs', {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
       });

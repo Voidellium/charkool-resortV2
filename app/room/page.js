@@ -80,12 +80,7 @@ export default function RoomPage() {
             <div className="room-content">
               <h2>{room.name}</h2>
               <p>{room.shortDescription}</p>
-              <button
-                className="view-details-btn"
-                onClick={() => setSelectedRoom(room)}
-              >
-                View Details
-              </button>
+              <button className="view-details-btn" onClick={() => setSelectedRoom(room)}>View Details</button>
             </div>
           </article>
         ))}
@@ -96,7 +91,7 @@ export default function RoomPage() {
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="image-gallery">
               {selectedRoom.images.map((img, idx) => (
-                <img key={idx} src={img} alt={`${selectedRoom.name} image ${idx + 1}`} onClick={() => setSelectedImage(img)} style={{cursor: 'pointer'}} />
+                <img key={idx} src={img} alt={`${selectedRoom.name} image ${idx + 1}`} onClick={() => setSelectedImage(img)} style={{ cursor: 'pointer' }} />
               ))}
             </div>
             <h2>{selectedRoom.name}</h2>
@@ -129,6 +124,12 @@ export default function RoomPage() {
         <button className="book-now-btn" onClick={() => router.push('/booking')}>Book Now</button>
       </section>
 
+      <footer className="footer">
+        <div className="divider"></div>
+        <p>© 2025 Charkool Beach Resort. All Rights Reserved.</p>
+      </footer>
+
+
       <style jsx>{`
         :global(body) {
           margin: 0;
@@ -148,6 +149,7 @@ export default function RoomPage() {
           color: white;
           text-align: center;
           padding: 0 1rem;
+          background-color: #FEBE54; /* Updated background color */
         }
         .hero-overlay {
           position: absolute;
@@ -164,10 +166,10 @@ export default function RoomPage() {
         }
         .room-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-          gap: 2rem;
-          padding: 3rem 2rem 6rem;
-          max-width: 1200px;
+          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); /* Adjusted min width */
+          gap: 1.5rem; /* Reduced gap */
+          padding: 2rem; /* Adjusted padding */
+          max-width: 100%; /* Maximized width */
           margin: 0 auto;
           transition: filter 0.3s ease;
         }
@@ -184,6 +186,7 @@ export default function RoomPage() {
           display: flex;
           flex-direction: column;
           transition: transform 0.3s ease, box-shadow 0.3s ease;
+          height: 400px; /* Increased height for taller cards */
         }
         .room-card:hover {
           transform: translateY(-5px);
@@ -318,8 +321,8 @@ export default function RoomPage() {
         .close-btn:hover {
           background-color: #aaa;
         }
-        .cta-banner {
-          background-color: #FEBE54;
+         .cta-banner {
+          background-color: #e8cfa3;
           padding: 3rem 0.8rem;
           text-align: center;
           color: white;
@@ -328,10 +331,11 @@ export default function RoomPage() {
         .cta-banner h2 {
           margin: 0 0 0.75rem 0;
           font-size: 1.8rem;
+          color: #fff;
         }
         .book-now-btn {
-          background-color: white;
-          color: #FEBE54;
+          background-color: #febe54;
+          color: #fff;
           border: none;
           padding: 0.7rem 1.3rem;
           font-weight: 600;
@@ -341,16 +345,18 @@ export default function RoomPage() {
         .book-now-btn:hover {
           background-color: #e6ac3f;
         }
-        @media (max-width: 768px) {
-          .hero {
-            height: 200px;
-          }
-          .room-content h2 {
-            font-size: 1.4rem;
-          }
-          .room-content p {
-            font-size: 0.95rem;
-          }
+        .footer {
+          background-color: #e8cfa3;
+          text-align: center;
+          padding: 1.5rem 0;
+          color: rgba(18, 50, 56, 0.85);
+          font-size: 0.9rem;
+        }
+        .divider {
+          width: 80%;
+          height: 1px;
+          background-color: #d3b885;
+          margin: 1.5rem auto;
         }
         @media (max-width: 480px) {
           .room-image {

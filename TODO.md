@@ -1,10 +1,37 @@
-# Payment Flow Update TODO
+# Receptionist Module Enhancements - Implementation Plan
 
-## Tasks
-- [x] Modify `app/api/payments/redirect/route.js` to send 'returned' status instead of 'success' or 'failed'
-- [x] Update `app/checkout/page.js` to handle 'returned' status by polling payment status until confirmed
-- [x] Add polling logic in checkout page to check payment status every 2 seconds, up to 30 seconds
-- [x] Update UI messages to show "Verifying payment..." during polling
-- [x] Ensure popup closes automatically and redirect only on successful payment verification
-- [x] Fix BigInt serialization issues in API responses
-- [ ] Test the updated payment flow
+## Current Status: In Progress
+
+### Completed Tasks
+- [x] Analyze existing code structure and identify integration points
+- [x] Create comprehensive enhancement plan
+- [x] Get user approval for plan
+
+### Pending Tasks
+- [ ] Add booking adjustment controls (edit guest info, dates, amenities only)
+- [ ] Implement booking remarks section for notes/special requests
+- [ ] Enhance status shortcuts with required reason modals
+- [ ] Improve guest profile lookup/autofill functionality
+- [ ] Create comprehensive notification panel
+- [ ] Add shift summary report (count-based only)
+- [ ] Implement printable booking summary feature
+- [ ] Enhance guest quick view mini popup
+- [ ] Update UI/UX for better receptionist workflow
+- [ ] Test all new features integration
+
+### Implementation Order
+1. Booking adjustment controls modal
+2. Booking remarks functionality
+3. Enhanced status shortcuts with reason modals
+4. Improved guest lookup/autofill
+5. Notification panel with categorization
+6. Shift summary report modal
+7. Printable booking summary
+8. Enhanced guest quick view popup
+9. UI/UX refinements
+10. Integration testing
+
+### Notes
+- All features must maintain receptionist-only access (no financial data, no superadmin features)
+- Focus on role-appropriate functionality for front desk operations
+- Ensure proper error handling and user feedback throughout

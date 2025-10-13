@@ -157,12 +157,10 @@ export default function ThreeDView() {
               zIndex: 10
             }}>
               <h4 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>3D Viewer Controls</h4>
-              <p style={{ margin: '5px 0' }}>• Click model to enable mouse look</p>
               <p style={{ margin: '5px 0' }}>• Hold left mouse button to rotate</p>
               <p style={{ margin: '5px 0' }}>• Scroll to zoom in/out</p>
-              <p style={{ margin: '5px 0', fontSize: '12px', opacity: 0.8 }}>
-                Direct clicks on models will select and focus them
-              </p>
+              <p style={{ margin: '5px 0' }}>• Double-click model to zoom to it</p>
+              <p style={{ margin: '5px 0' }}>• Use W/A/S/D to move in free view</p>
             </div>
           </div>
         </div>

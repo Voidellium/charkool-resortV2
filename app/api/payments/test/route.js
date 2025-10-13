@@ -19,7 +19,7 @@ export async function POST(req) {
     const payment = await prisma.payment.create({
       data: {
         bookingId: parseInt(bookingId),
-        amount: Math.round(amount * 100), // store in ten-thousandths to be consistent with other payment methods
+        amount: Math.round(amount * 1), // store in ten-thousandths to be consistent with other payment methods
         status: capitalizedStatus,
         provider: method,
         referenceId: `test_${Date.now()}`,
@@ -44,8 +44,8 @@ export async function POST(req) {
 
     // Handle amenities based on payment type
     if (paymentType === 'reservation') {
-      // For reservation only, keep amenities but mark as pending
-      updateData.paymentStatus = 'Pending';
+      // For reservation only, keep amenities but mark as reservation
+      updateData.paymentStatus = 'Reservation';
     } else if (paymentType === 'half') {
       // For half payment, mark as partial payment
       updateData.paymentStatus = 'Partial';

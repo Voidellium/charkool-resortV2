@@ -8,63 +8,70 @@ export default function Navbar() {
   const router = useRouter();
   const { data: session, status } = useSession();
 
-
-
   return (
     <nav className="navbar">
       <div className="navbar-container">
+        {/* === Brand / Logo Section === */}
         <div className="navbar-brand">
-          <Link href="/">
-            <Image src="/images/logo.png" alt="Charkool Beach Logo" width={100} height={70} />
+          <Link href="/" className="logo-link">
+            <Image
+              src="/images/logo.png"
+              alt="Charkool Beach Logo"
+              width={100}
+              height={70}
+              className="logo-img"
+            />
+            <span className="brand-text">Charkool</span>
           </Link>
         </div>
+
+        {/* === Nav Links === */}
         <ul>
           <li>
-            <button onClick={() => {
-              if (!session) {
-                const isConfirmed = window.confirm("You must be logged in to book. Click OK to go to the login page.");
-                if (isConfirmed) {
-                  router.push('/login?redirect=/booking');
+            <button
+              onClick={() => {
+                if (!session) {
+                  const isConfirmed = window.confirm(
+                    'You must be logged in to book. Click OK to go to the login page.'
+                  );
+                  if (isConfirmed) {
+                    router.push('/login?redirect=/booking');
+                  }
+                } else {
+                  router.push('/booking');
                 }
-              } else {
-                router.push('/booking');
-              }
-            }} className="book-now-btn">
+              }}
+              className="book-now-btn"
+            >
               Book Now
             </button>
           </li>
           <li><Link href="/">Home</Link></li>
           <li><Link href="/virtual-tour">Virtual Tour</Link></li>
-          <li>
-            <Link href="/room">
-              Rooms
-            </Link>
-          </li>
+          <li><Link href="/room">Rooms</Link></li>
           <li>
             {status === 'loading' ? (
-              <Link href="/login">
-                Login
-              </Link>
+              <Link href="/login">Login</Link>
             ) : session?.user?.role === 'CUSTOMER' ? (
-              <Link href="/guest/dashboard">
-                ← Dashboard
-              </Link>
+              <Link href="/guest/dashboard">← Dashboard</Link>
             ) : (
-              <Link href="/login">
-                Login
-              </Link>
+              <Link href="/login">Login</Link>
             )}
           </li>
         </ul>
       </div>
+
+      {/* === Styles === */}
       <style jsx>{`
+        /* NAVBAR CONTAINER */
         .navbar {
-          background: #FEBE54;
-          padding: 1rem 0;
+          background: #febe54;
+          padding: 0.8rem 0;
           box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
           position: sticky;
           top: 0;
           z-index: 1000;
+          height: 80px; /* ✅ consistent height */
         }
 
         .navbar-container {
@@ -74,9 +81,49 @@ export default function Navbar() {
           max-width: 1200px;
           margin: 0 auto;
           padding: 0 1rem;
+          height: 100%;
           flex-wrap: wrap;
         }
 
+        /* LOGO + TEXT */
+        .navbar-brand {
+          display: flex;
+          align-items: center;
+          position: relative;
+        }
+
+        .logo-link {
+          display: flex;
+          align-items: center;
+          gap: 0.6rem;
+          text-decoration: none;
+          position: relative;
+        }
+
+        .logo-img {
+          display: block;
+          height: 70px;
+          width: auto;
+        }
+
+        .brand-text {
+          position: absolute;
+          left: 100%; /* right of logo */
+          top: 50%;
+          transform: translateY(-50%);
+          margin-left: 0.7rem;
+          font-size: 1.8rem;
+          font-weight: 700;
+          color: #fff;
+          letter-spacing: 0.5px;
+          white-space: nowrap;
+        }
+
+        .logo-link:hover .brand-text {
+          color: #f59e0b;
+        }
+
+        /* NAV LINKS */
         ul {
           list-style: none;
           display: flex;
@@ -87,18 +134,17 @@ export default function Navbar() {
           flex-wrap: wrap;
         }
 
-        /* Style the auto-generated anchor tags */
         ul li :global(a) {
-          color: #333;
+          color: #fff;
           text-decoration: none;
-          font-size: 1rem;
-          font-weight: 500;
+          font-size: 1.1rem;
+          font-weight: 600;
           position: relative;
           transition: color 0.3s ease, transform 0.3s ease;
         }
 
         ul li :global(a)::after {
-          content: "";
+          content: '';
           position: absolute;
           left: 0;
           bottom: -4px;
@@ -119,8 +165,9 @@ export default function Navbar() {
           transform: scaleX(1);
         }
 
+        /* BOOK NOW BUTTON */
         .book-now-btn {
-          background: color: #ffffff;
+          background: #fff;
           border: none;
           color: #febe52;
           font-size: 1rem;
@@ -128,17 +175,16 @@ export default function Navbar() {
           padding: 0.45em 1.2em;
           border-radius: 999px;
           box-shadow: 0 2px 8px 0 rgba(245, 158, 11, 0.13);
-          position: relative;
           cursor: pointer;
           transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
-          outline: none;
           letter-spacing: 0.01em;
           margin-right: 0.2rem;
           min-width: 110px;
           display: inline-block;
         }
 
-        .book-now-btn:hover, .book-now-btn:focus {
+        .book-now-btn:hover,
+        .book-now-btn:focus {
           background: linear-gradient(90deg, #fbbf24 0%, #f59e0b 100%);
           color: #fff;
           transform: translateY(-1px) scale(1.03);
@@ -147,9 +193,10 @@ export default function Navbar() {
 
         .book-now-btn:active {
           transform: scale(0.98);
-          box-shadow: 0 1px 4px 0 rgba(245, 158, 11, 0.10);
+          box-shadow: 0 1px 4px 0 rgba(245, 158, 11, 0.1);
         }
 
+        /* RESPONSIVE */
         @media (max-width: 900px) {
           .navbar-container {
             flex-direction: column;
@@ -162,7 +209,6 @@ export default function Navbar() {
             flex-wrap: wrap;
           }
           .navbar-brand {
-            display: flex;
             justify-content: center;
             margin-bottom: 0.5rem;
           }
@@ -170,6 +216,7 @@ export default function Navbar() {
 
         @media (max-width: 600px) {
           .navbar {
+            height: 70px; /* smaller navbar height for mobile */
             padding: 0.5rem 0;
           }
           .navbar-container {
@@ -182,6 +229,9 @@ export default function Navbar() {
             font-size: 0.95rem;
             padding: 0.38em 0.9em;
             min-width: 90px;
+          }
+          .brand-text {
+            font-size: 1.3rem;
           }
         }
       `}</style>

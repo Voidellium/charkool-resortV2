@@ -11,6 +11,7 @@ export default function VerifyOTPPage() {
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
+  const [otpRequested, setOtpRequested] = useState(false);
   const otpRef = useRef(null);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -31,7 +32,7 @@ export default function VerifyOTPPage() {
   }, []);
 
   useEffect(() => {
-    if (status === 'authenticated') {
+    if (status === 'authenticated' && !otpRequested) {
       // Generate browser fingerprint if not already present
       let browserFingerprint = sessionStorage.getItem('browserFingerprint');
       if (!browserFingerprint) {
@@ -40,8 +41,9 @@ export default function VerifyOTPPage() {
       }
       // Auto-send OTP
       handleSendOTP(false);
+      setOtpRequested(true);
     }
-  }, [status]);
+  }, [status, otpRequested]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -75,10 +77,37 @@ export default function VerifyOTPPage() {
       const data = await response.json();
 
       if (response.ok) {
-        // OTP verified successfully, now update the session to set the trusted flag
-        await update({ trigger: "otpVerified" });
-        // Now, redirect to the intended page
-        router.push(redirectUrl);
+        try {
+          // OTP verified successfully, now update the session to set the trusted flag
+          await update({ trigger: "otpVerified" });
+          // Determine final redirect URL
+          let finalRedirect = redirectUrl;
+          if (finalRedirect === '/guest/dashboard') {
+            // Fallback to role-based redirect if default is used
+            const role = data.user.role.toLowerCase();
+            switch (role) {
+              case 'superadmin':
+                finalRedirect = '/super-admin/dashboard';
+                break;
+              case 'receptionist':
+                finalRedirect = '/receptionist';
+                break;
+              case 'cashier':
+                finalRedirect = '/cashier';
+                break;
+              case 'amenityinventorymanager':
+                finalRedirect = '/amenityinventorymanager/dashboard';
+                break;
+              default:
+                finalRedirect = '/guest/dashboard';
+            }
+          }
+          // Now, redirect to the intended page
+          router.push(finalRedirect);
+        } catch (updateError) {
+          console.error('Session update error:', updateError);
+          setError('Session update failed. Please try again.');
+        }
       } else {
         setError(data.error || 'Invalid OTP');
       }

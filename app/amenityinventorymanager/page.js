@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 
 export default function AmenityInventoryDashboard() {
-  const API_URL = 'http://localhost:3000/api/amenities/inventory';
+  const API_URL = '/api/amenities/inventory';
 
   const [amenities, setAmenities] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -56,7 +56,6 @@ export default function AmenityInventoryDashboard() {
         <table style={styles.table}>
           <thead>
             <tr>
-              <th style={styles.th}>ID</th>
               <th style={styles.th}>Name</th>
               <th style={styles.th}>Category</th>
               <th style={styles.th}>Quantity</th>
@@ -64,9 +63,8 @@ export default function AmenityInventoryDashboard() {
           </thead>
           <tbody>
             {amenities.length > 0 ? (
-              amenities.map((a) => (
-                <tr key={a.id} style={styles.tr}>
-                  <td style={styles.td}>{a.id}</td>
+              amenities.map((a, index) => (
+                <tr key={index} style={styles.tr}>
                   <td style={styles.td}>{a.name}</td>
                   <td style={styles.td}>{a.category}</td>
                   <td style={styles.td}>{a.quantity}</td>
@@ -74,7 +72,9 @@ export default function AmenityInventoryDashboard() {
               ))
             ) : (
               <tr>
-                <td colSpan="4" style={{ textAlign: 'center', padding: '20px' }}>No amenities found</td>
+                <td colSpan="3" style={{ textAlign: 'center', padding: '20px' }}>
+                  No amenities found
+                </td>
               </tr>
             )}
           </tbody>

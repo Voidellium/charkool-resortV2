@@ -117,8 +117,8 @@ export default function SuperAdminAmenityInventoryPage() {
         {/* Amenities list */}
         <div style={styles.cardsContainer}>
           {amenities.length === 0 && <p style={styles.noDataText}>No amenities yet.</p>}
-          {amenities.map((amenity) => (
-            <div key={amenity.id} style={styles.card}>
+          {amenities.map((amenity, i) => (
+            <div key={amenity?.id ?? `amenity-${i}-${(amenity && amenity.name) || ''}` } style={styles.card}>
               <h3 style={styles.cardTitle}>{amenity.name}</h3>
               <p style={styles.cardDesc}>Quantity: {amenity.quantity}</p>
               <p style={styles.cardDesc}>

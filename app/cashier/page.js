@@ -89,9 +89,10 @@ export default function CashierDashboard() {
     try {
       const res = await fetch('/api/payments/today');
       const data = await res.json();
-      setPaidPayments(data || []);
+      setPaidPayments(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Error fetching paid payments:', err);
+      setPaidPayments([]);
     } finally {
       setLoading(false);
     }

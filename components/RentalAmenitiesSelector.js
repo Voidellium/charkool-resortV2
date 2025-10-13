@@ -120,6 +120,9 @@ export default function RentalAmenitiesSelector({
                     </span>
                   )}
                 </div>
+                {amenity.unitNote && (
+                  <p className="unit-note">{amenity.unitNote}</p>
+                )}
               </div>
 
               <div className="rental-controls">
@@ -263,6 +266,13 @@ export default function RentalAmenitiesSelector({
         .hourly-price {
           font-size: 12px;
           color: #666;
+        }
+
+        .unit-note {
+          font-size: 12px;
+          color: #666;
+          font-style: italic;
+          margin-top: 4px;
         }
 
         .rental-controls {

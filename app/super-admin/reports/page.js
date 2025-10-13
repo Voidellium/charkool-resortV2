@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useRef } from "react";
 import SuperAdminLayout from "@/components/SuperAdminLayout";
+import css from './reports.module.css';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
   CartesianGrid, Legend, LineChart, Line 
@@ -9,6 +10,37 @@ import {
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
+
+function CustomTooltip({ active, payload, label }) {
+  if (!active || !payload || !payload.length) return null;
+  const formatByKey = (p) => {
+    // prefer dataKey if available (recharts payload sometimes provides it)
+    const key = p.dataKey || (p.name || '').toString().toLowerCase();
+    const val = p.value;
+    if (key === 'revenue' || key.toString().includes('revenue')) {
+      return typeof val === 'number' ? '₱' + val.toLocaleString() : val;
+    }
+    // bookings and counts are plain numbers
+    if (key === 'bookings' || key === 'count' || key.toString().includes('booking') || key.toString().includes('count')) {
+      return typeof val === 'number' ? val.toLocaleString() : val;
+    }
+    // fallback: if number, show with separators
+    return typeof val === 'number' ? val.toLocaleString() : val;
+  };
+
+  return (
+    <div style={{ background: '#fff', padding: 10, borderRadius: 8, boxShadow: '0 6px 18px rgba(2,6,23,0.12)', border: '1px solid #eef2f7' }}>
+      <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 6 }}>{label}</div>
+      {payload.map((p, i) => (
+        <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ width: 10, height: 10, background: p.color || '#000', borderRadius: 3 }} />
+          <div style={{ fontWeight: 700 }}>{p.name}: </div>
+          <div style={{ color: '#111' }}>{formatByKey(p)}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function ReportsPage() {
   const [report, setReport] = useState(null);
@@ -85,7 +117,7 @@ export default function ReportsPage() {
       Date: new Date(b.createdAt).toLocaleDateString(),
       Customer: b.user?.name || "N/A",
       Room: b.room?.name || "N/A",
-      "Total Price": b.totalPrice,
+      "Total Price": "₱" + b.totalPrice,
       Status: b.status,
     })));
     const wb = XLSX.utils.book_new();
@@ -107,37 +139,37 @@ export default function ReportsPage() {
         { label: "Detailed Bookings", onClick: () => scrollToSection(tableRef) },
       ]}
     >
-      <div style={styles.pageContainer}>
-        <h1 style={styles.pageTitle}>Reports</h1>
+  <div className={css.container}>
+  <h1 className={css.centerTitle}>Reports</h1>
 
         {/* Control Bar */}
-        <div style={styles.controlBar}>
+  <div className={css.controlBar}>
           {/* Filters */}
-          <div style={styles.filtersContainer}>
-            <div style={styles.filterItem}>
-              <label style={styles.label}>Start Date</label>
+          <div className={css.filters}>
+            <div className={css.filterItem}>
+              <label className={css.label}>Start Date</label>
               <input
                 type="date"
                 value={dateRange.start}
                 onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-                style={styles.smallInput}
+                className={css.smallInput}
               />
             </div>
-            <div style={styles.filterItem}>
-              <label style={styles.label}>End Date</label>
+            <div className={css.filterItem}>
+              <label className={css.label}>End Date</label>
               <input
                 type="date"
                 value={dateRange.end}
                 onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-                style={styles.smallInput}
+                className={css.smallInput}
               />
             </div>
-            <div style={styles.filterItem}>
-              <label style={styles.label}>User Type</label>
+            <div className={css.filterItem}>
+              <label className={css.label}>User Type</label>
               <select
                 value={filters.userType}
                 onChange={(e) => setFilters({ ...filters, userType: e.target.value })}
-                style={styles.smallSelect}
+                className={css.smallSelect}
               >
                 <option>All</option>
                 <option>Customer</option>
@@ -145,12 +177,12 @@ export default function ReportsPage() {
                 <option>SuperAdmin</option>
               </select>
             </div>
-            <div style={styles.filterItem}>
-              <label style={styles.label}>Status</label>
+            <div className={css.filterItem}>
+              <label className={css.label}>Status</label>
               <select
                 value={filters.status}
                 onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-                style={styles.smallSelect}
+                className={css.smallSelect}
               >
                 <option>All</option>
                 <option>Pending</option>
@@ -160,43 +192,49 @@ export default function ReportsPage() {
             </div>
           </div>
           {/* Buttons */}
-          <div style={styles.buttonsContainer}>
-            <button style={styles.primaryButton} onClick={handleGenerate}>Generate</button>
-            <button style={styles.secondaryButton} onClick={exportPDF}>Export PDF</button>
-            <button style={styles.secondaryButton} onClick={exportExcel}>Export Excel</button>
+          <div className={css.btnRow}>
+            <button className={css.btnPrimary} onClick={handleGenerate}>Generate</button>
+            <button className={css.btnSecondary} onClick={exportPDF}>Export PDF</button>
+            <button className={css.btnSecondary} onClick={exportExcel}>Export Excel</button>
           </div>
         </div>
 
         {/* Summary Cards */}
         {report && (
           <div style={styles.cardsContainer}>
-            <div style={styles.card}>
-              <h3 style={styles.cardTitle}>Total Bookings</h3>
-              <p style={styles.cardValue}>{report.totalBookings}</p>
-            </div>
-            <div style={styles.card}>
-              <h3 style={styles.cardTitle}>Total Revenue</h3>
-              <p style={styles.cardValue}>₱{report.totalRevenue}</p>
-            </div>
-            <div style={styles.card}>
-              <h3 style={styles.cardTitle}>Occupancy Rate</h3>
-              <p style={styles.cardValue}>{report.occupancyRate.toFixed(2)}%</p>
-            </div>
+              <div className={css.card}>
+                <h3 className={css.cardTitle}>Total Bookings</h3>
+                <p className={css.cardValue}>{report.totalBookings}</p>
+              </div>
+              <div className={css.card}>
+                <h3 className={css.cardTitle}>Total Revenue</h3>
+                <p className={css.cardValue}>₱{report.totalRevenue}</p>
+              </div>
+              <div className={css.card}>
+                <h3 className={css.cardTitle}>Occupancy Rate</h3>
+                <p className={css.cardValue}>{report.occupancyRate.toFixed(2)}%</p>
+              </div>
           </div>
         )}
 
         {/* Revenue Chart */}
         {report?.monthlyReport && (
-          <div ref={revenueRef} style={styles.chartSection}>
-            <h2 style={styles.chartTitle}>Revenue by Month</h2>
+          <div ref={revenueRef} className={css.chartSection}>
+            <h2 className={css.chartTitle}>Revenue by Month</h2>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={report.monthlyReport} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#dee2e6" />
+                <defs>
+                  <linearGradient id="gradRevenue" x1="0" x2="1">
+                    <stop offset="0%" stopColor="#ffb347" />
+                    <stop offset="100%" stopColor="#febd52" />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f1f1" />
                 <XAxis dataKey="month" tickLine={false} style={styles.axisText} />
                 <YAxis tickLine={false} style={styles.axisText} />
-                <Tooltip contentStyle={styles.tooltip} />
+                <Tooltip content={<CustomTooltip />} />
                 <Legend />
-                <Bar dataKey="revenue" fill="#007bff" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="revenue" fill="url(#gradRevenue)" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -204,16 +242,16 @@ export default function ReportsPage() {
 
         {/* Bookings Trend */}
         {report?.monthlyReport && (
-          <div ref={bookingsTrendRef} style={styles.chartSection}>
-            <h2 style={styles.chartTitle}>Bookings Trend</h2>
+          <div ref={bookingsTrendRef} className={css.chartSection}>
+            <h2 className={css.chartTitle}>Bookings Trend</h2>
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={report.monthlyReport} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#dee2e6" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f1f1" />
                 <XAxis dataKey="month" style={styles.axisText} />
                 <YAxis style={styles.axisText} />
-                <Tooltip contentStyle={styles.tooltip} />
+                <Tooltip content={<CustomTooltip />} />
                 <Legend />
-                <Line type="monotone" dataKey="bookings" stroke="#17a2b8" strokeWidth={3} dot={false} />
+                <Line type="monotone" dataKey="bookings" stroke="#06b6d4" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 6 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -221,15 +259,21 @@ export default function ReportsPage() {
 
         {/* Amenities Usage */}
         {report?.amenityReport && (
-          <div ref={amenitiesRef} style={styles.chartSection}>
-            <h2 style={styles.chartTitle}>Amenities Usage</h2>
+          <div ref={amenitiesRef} className={css.chartSection}>
+            <h2 className={css.chartTitle}>Amenities Usage</h2>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={report.amenityReport} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#dee2e6" />
+                <defs>
+                  <linearGradient id="gradAmenity" x1="0" x2="1">
+                    <stop offset="0%" stopColor="#8b5cf6" />
+                    <stop offset="100%" stopColor="#6f42c1" />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f1f1" />
                 <XAxis dataKey="amenity" style={styles.axisText} />
                 <YAxis style={styles.axisText} />
-                <Tooltip contentStyle={styles.tooltip} />
-                <Bar dataKey="count" fill="#6f42c1" radius={[4, 4, 0, 0]} />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar dataKey="count" fill="url(#gradAmenity)" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -237,8 +281,8 @@ export default function ReportsPage() {
 
         {/* Detailed Bookings Table */}
         {report && (
-          <div ref={tableRef} style={styles.tableContainer}>
-            <h2 style={styles.tableTitle}>Detailed Bookings</h2>
+          <div ref={tableRef} className={css.tableWrap}>
+            <h2 className={css.tableTitle}>Detailed Bookings</h2>
             <table style={styles.table}>
               <thead>
                 <tr>

@@ -61,7 +61,7 @@ function Model({ url, onObjectClick, onPositionsComputed }) {
     <primitive
       ref={sceneRef}
       object={gltf.scene}
-      onClick={(e) => {
+      onDoubleClick={(e) => {
         e.stopPropagation();
         if (e.object.userData.clickable) {
           onObjectClick(e.object.userData.name);
@@ -80,12 +80,29 @@ function AnimatedControls({ target, position, isLocked }) {
   const { camera, gl } = useThree();
   const controlsRef = useRef();
   const [isAnimating, setIsAnimating] = useState(false);
+  const [keys, setKeys] = useState({});
 
   useEffect(() => {
     setIsAnimating(true);
     const timer = setTimeout(() => setIsAnimating(false), 1200);
     return () => clearTimeout(timer);
   }, [target, position]);
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (isLocked) return;
+      setKeys(prev => ({ ...prev, [event.key.toLowerCase()]: true }));
+    };
+    const handleKeyUp = (event) => {
+      setKeys(prev => ({ ...prev, [event.key.toLowerCase()]: false }));
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [isLocked]);
 
   const springs = useSpring({
     target: target,
@@ -103,6 +120,33 @@ function AnimatedControls({ target, position, isLocked }) {
         camera.position.lerp(positionVec, 0.1);
         controlsRef.current.update();
       }
+    }
+
+    if (!isLocked && controlsRef.current) {
+      const speed = 2;
+      const direction = new THREE.Vector3();
+      camera.getWorldDirection(direction);
+      direction.y = 0;
+      direction.normalize();
+      const right = new THREE.Vector3().crossVectors(direction, camera.up).normalize();
+
+      if (keys['w']) {
+        camera.position.add(direction.clone().multiplyScalar(speed));
+        controlsRef.current.target.add(direction.clone().multiplyScalar(speed));
+      }
+      if (keys['s']) {
+        camera.position.add(direction.clone().multiplyScalar(-speed));
+        controlsRef.current.target.add(direction.clone().multiplyScalar(-speed));
+      }
+      if (keys['a']) {
+        camera.position.add(right.clone().multiplyScalar(-speed));
+        controlsRef.current.target.add(right.clone().multiplyScalar(-speed));
+      }
+      if (keys['d']) {
+        camera.position.add(right.clone().multiplyScalar(speed));
+        controlsRef.current.target.add(right.clone().multiplyScalar(speed));
+      }
+      controlsRef.current.update();
     }
   });
 
@@ -128,20 +172,11 @@ export default function EnhancedThreeDModelViewer({ selectedObject, onSelectObje
   const canvasRef = useRef();
   const modelPath = "/models/WholeMap_Separated_Textured.gltf";
 
-  useEffect(() => {
-    if (canvasRef.current) {
-      canvasRef.current.style.cursor = isLocked ? 'none' : 'auto';
-    }
-  }, [isLocked]);
+
 
   const handleObjectSelection = (objectName) => {
-    if (selectedObject === objectName) {
-      onSelectObject(null); // Deselect if same object is clicked
-      setIsLocked(false);
-    } else {
-      onSelectObject(objectName);
-      setIsLocked(true);
-    }
+    onSelectObject(objectName);
+    setIsLocked(true);
   };
 
   const getObjectPosition = useCallback((objectName) => {

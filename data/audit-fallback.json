@@ -1,0 +1,189 @@
+[
+  {
+    "id": "f-1760297107883-9477",
+    "actorId": 6,
+    "actorName": "Dear Joe",
+    "actorRole": "SUPERADMIN",
+    "action": "CREATE",
+    "entity": "Booking",
+    "entityId": "31",
+    "details": "{\"summary\":\"Created booking for King\",\"after\":{\"id\":31,\"userId\":null,\"checkIn\":\"2025-10-24T00:00:00.000Z\",\"checkOut\":\"2025-10-25T00:00:00.000Z\",\"status\":\"Confirmed\",\"createdAt\":\"2025-10-12T19:25:07.158Z\",\"heldUntil\":null,\"guestName\":\"King\",\"paymentStatus\":\"Pending\",\"totalPrice\":500000,\"isDeleted\":false,\"cancellationRemarks\":null,\"rooms\":[{\"bookingId\":31,\"roomId\":1,\"quantity\":1,\"room\":{\"id\":1,\"name\":\"Loft\",\"type\":\"LOFT\",\"price\":500000,\"createdAt\":\"2025-10-03T05:06:17.055Z\",\"heldUntil\":null,\"status\":\"available\",\"updatedAt\":\"2025-10-03T05:53:51.466Z\",\"image\":null,\"quantity\":4}}],\"optionalAmenities\":[],\"rentalAmenities\":[],\"cottage\":[]}}",
+    "timestamp": "2025-10-12T19:25:07.875Z"
+  },
+  {
+    "id": "f-1760296743589-1437",
+    "actorId": 6,
+    "actorName": "Dear Joe",
+    "actorRole": "SUPERADMIN",
+    "action": "CREATE",
+    "entity": "Booking",
+    "entityId": "30",
+    "details": "{\"summary\":\"Created booking for bakla\",\"after\":{\"id\":30,\"userId\":null,\"checkIn\":\"2025-10-17T00:00:00.000Z\",\"checkOut\":\"2025-10-18T00:00:00.000Z\",\"status\":\"Confirmed\",\"createdAt\":\"2025-10-12T19:19:02.814Z\",\"heldUntil\":null,\"guestName\":\"bakla\",\"paymentStatus\":\"Pending\",\"totalPrice\":600000,\"isDeleted\":false,\"cancellationRemarks\":null,\"rooms\":[{\"bookingId\":30,\"roomId\":2,\"quantity\":1,\"room\":{\"id\":2,\"name\":\"Tepee\",\"type\":\"TEPEE\",\"price\":600000,\"createdAt\":\"2025-10-03T05:06:18.479Z\",\"heldUntil\":null,\"status\":\"available\",\"updatedAt\":\"2025-10-03T05:53:57.447Z\",\"image\":null,\"quantity\":4}}],\"optionalAmenities\":[],\"rentalAmenities\":[],\"cottage\":[]}}",
+    "timestamp": "2025-10-12T19:19:03.586Z"
+  },
+  {
+    "id": "f-1760296616066-742",
+    "actorId": 6,
+    "actorName": "Dear Joe",
+    "actorRole": "SUPERADMIN",
+    "action": "CREATE",
+    "entity": "Booking",
+    "entityId": "29",
+    "details": "{\"summary\":\"Created booking for bading\",\"after\":{\"id\":29,\"userId\":null,\"checkIn\":\"2025-10-23T00:00:00.000Z\",\"checkOut\":\"2025-10-24T00:00:00.000Z\",\"status\":\"Confirmed\",\"createdAt\":\"2025-10-12T19:16:55.199Z\",\"heldUntil\":null,\"guestName\":\"bading\",\"paymentStatus\":\"Pending\",\"totalPrice\":800000,\"isDeleted\":false,\"cancellationRemarks\":null,\"rooms\":[{\"bookingId\":29,\"roomId\":3,\"quantity\":1,\"room\":{\"id\":3,\"name\":\"Villa\",\"type\":\"VILLA\",\"price\":800000,\"createdAt\":\"2025-10-03T05:06:18.963Z\",\"heldUntil\":null,\"status\":\"available\",\"updatedAt\":\"2025-10-03T05:54:02.451Z\",\"image\":null,\"quantity\":4}}],\"optionalAmenities\":[],\"rentalAmenities\":[{\"id\":35,\"bookingId\":29,\"rentalAmenityId\":6,\"quantity\":1,\"hoursUsed\":0,\"totalPrice\":500000,\"rentalAmenity\":{\"id\":6,\"name\":\"Transportation Service\",\"description\":\"Door-to-door transport service\",\"pricePerUnit\":500000,\"pricePerHour\":null,\"unitType\":\"trip\",\"unitNote\":\"Every Quantity = per trip\",\"isActive\":true,\"createdAt\":\"2025-10-03T05:13:02.046Z\",\"updatedAt\":\"2025-10-12T08:18:35.157Z\"}}],\"cottage\":[]}}",
+    "timestamp": "2025-10-12T19:16:56.064Z"
+  },
+  {
+    "id": "f-1760296382694-5541",
+    "actorId": 6,
+    "actorName": "Dear Joe",
+    "actorRole": "SUPERADMIN",
+    "action": "CREATE",
+    "entity": "Booking",
+    "entityId": "28",
+    "details": "{\"summary\":\"Created booking for kweng\",\"after\":{\"id\":28,\"userId\":null,\"checkIn\":\"2025-10-15T00:00:00.000Z\",\"checkOut\":\"2025-10-16T00:00:00.000Z\",\"status\":\"Confirmed\",\"createdAt\":\"2025-10-12T19:13:01.720Z\",\"heldUntil\":null,\"guestName\":\"kweng\",\"paymentStatus\":\"Pending\",\"totalPrice\":600000,\"isDeleted\":false,\"cancellationRemarks\":null,\"rooms\":[{\"bookingId\":28,\"roomId\":2,\"quantity\":1,\"room\":{\"id\":2,\"name\":\"Tepee\",\"type\":\"TEPEE\",\"price\":600000,\"createdAt\":\"2025-10-03T05:06:18.479Z\",\"heldUntil\":null,\"status\":\"available\",\"updatedAt\":\"2025-10-03T05:53:57.447Z\",\"image\":null,\"quantity\":4}}],\"optionalAmenities\":[{\"id\":16,\"bookingId\":28,\"optionalAmenityId\":6,\"quantity\":1,\"optionalAmenity\":{\"id\":6,\"name\":\"Toiletries Kit\",\"description\":\"Basic toiletries\",\"maxQuantity\":2,\"isActive\":true,\"createdAt\":\"2025-10-03T05:12:59.120Z\",\"updatedAt\":\"2025-10-03T05:12:59.120Z\"}}],\"rentalAmenities\":[],\"cottage\":[]}}",
+    "timestamp": "2025-10-12T19:13:02.692Z"
+  },
+  {
+    "id": "f-1760296266046-4724",
+    "actorId": 6,
+    "actorName": "Dear Joe",
+    "actorRole": "SUPERADMIN",
+    "action": "UPDATE",
+    "entity": "Room",
+    "entityId": "4",
+    "details": "Updated room \"Family Lodge\"",
+    "timestamp": "2025-10-12T19:11:06.041Z"
+  },
+  {
+    "id": "f-1760296228086-5593",
+    "actorId": 6,
+    "actorName": "Dear Joe",
+    "actorRole": "SUPERADMIN",
+    "action": "UPDATE",
+    "entity": "Room",
+    "entityId": "4",
+    "details": "Updated room \"Family Lodgee\"",
+    "timestamp": "2025-10-12T19:10:28.082Z"
+  },
+  {
+    "id": "f-1760295678382-2921",
+    "actorId": 6,
+    "actorName": "Dear Joe",
+    "actorRole": "SUPERADMIN",
+    "action": "UPDATE",
+    "entity": "Room",
+    "entityId": "4",
+    "details": "Updated room \"Family Lodge\"",
+    "timestamp": "2025-10-12T19:01:18.364Z"
+  },
+  {
+    "id": "f-1760295098485-6418",
+    "actorId": 6,
+    "actorName": "Dear Joe",
+    "actorRole": "SUPERADMIN",
+    "action": "CREATE",
+    "entity": "Policy",
+    "entityId": "9",
+    "details": "Created policy \"no ching allowed\"",
+    "timestamp": "2025-10-12T18:51:38.480Z"
+  },
+  {
+    "id": "f-1760294954049-2916",
+    "actorId": 6,
+    "actorName": "Dear Joe",
+    "actorRole": "SUPERADMIN",
+    "action": "PUBLISH",
+    "entity": "Promotion",
+    "entityId": "2",
+    "details": "Published promotion \"kurimaw\"",
+    "timestamp": "2025-10-12T18:49:14.045Z"
+  },
+  {
+    "id": "f-1760294954038-2934",
+    "actorId": 6,
+    "actorName": "Dear Joe",
+    "actorRole": "SUPERADMIN",
+    "action": "CREATE",
+    "entity": "Promotion",
+    "entityId": "2",
+    "details": "Created promotion \"kurimaw\"",
+    "timestamp": "2025-10-12T18:49:14.035Z"
+  },
+  {
+    "id": "f-1760294627934-5490",
+    "actorId": 6,
+    "actorName": "Dear Joe",
+    "actorRole": "SUPERADMIN",
+    "action": "CREATE",
+    "entity": "Booking",
+    "entityId": "27",
+    "details": "Created booking for kulafu — total 500000",
+    "timestamp": "2025-10-12T18:43:47.929Z"
+  },
+  {
+    "id": "f-1760294565878-2458",
+    "actorId": 6,
+    "actorName": "Dear Joe",
+    "actorRole": "SUPERADMIN",
+    "action": "UPDATE",
+    "entity": "Room",
+    "entityId": "4",
+    "details": "Updated room \"Family Lodgee\"",
+    "timestamp": "2025-10-12T18:42:45.875Z"
+  },
+  {
+    "id": "f-1760294565157-8255",
+    "actorId": 6,
+    "actorName": "Dear Joe",
+    "actorRole": "SUPERADMIN",
+    "action": "UPDATE",
+    "entity": "Room",
+    "entityId": "4",
+    "details": "Updated room \"Family Lodgee\"",
+    "timestamp": "2025-10-12T18:42:45.150Z"
+  },
+  {
+    "id": "f-1760294256531-7740",
+    "actorId": 4,
+    "actorName": "Alexer Alvaro",
+    "actorRole": "RECEPTIONIST",
+    "action": "UPDATE",
+    "entity": "Booking",
+    "entityId": "26",
+    "details": "Updated booking fields: id, userId, checkIn, checkOut, status, createdAt, heldUntil, guestName, paymentStatus, totalPrice, isDeleted, cancellationRemarks, user, rooms, payments, amenities, optionalAmenities, rentalAmenities, cottage, totalCostWithAddons, paymentOption, paymentMethods, balancePaid, balanceToPay, totalPaid, selectedAmenities, remarks",
+    "timestamp": "2025-10-12T18:37:36.524Z"
+  },
+  {
+    "id": "f-1760294133376-7119",
+    "actorId": 4,
+    "actorName": "Alexer Alvaro",
+    "actorRole": "RECEPTIONIST",
+    "action": "UPDATE",
+    "entity": "Booking",
+    "entityId": "26",
+    "details": "Updated booking fields: id, userId, checkIn, checkOut, status, createdAt, heldUntil, guestName, paymentStatus, totalPrice, isDeleted, cancellationRemarks, user, rooms, payments, amenities, optionalAmenities, rentalAmenities, cottage, totalCostWithAddons, paymentOption, paymentMethods, balancePaid, balanceToPay, totalPaid, selectedAmenities, remarks",
+    "timestamp": "2025-10-12T18:35:33.355Z"
+  },
+  {
+    "id": "f-1760293910153-2424",
+    "actorId": 4,
+    "actorName": "Alexer Alvaro",
+    "actorRole": "RECEPTIONIST",
+    "action": "CREATE",
+    "entity": "Booking",
+    "entityId": "26",
+    "details": "Created booking for micojustices — total 600000",
+    "timestamp": "2025-10-12T18:31:50.145Z"
+  },
+  {
+    "id": "f-1760293721203-2224",
+    "actorId": 6,
+    "actorName": "Dear Joe",
+    "actorRole": "SUPERADMIN",
+    "action": "DELETE",
+    "entity": "Promotion",
+    "entityId": "1",
+    "details": "Deleted promotion id 1",
+    "timestamp": "2025-10-12T18:28:41.188Z"
+  }
+]

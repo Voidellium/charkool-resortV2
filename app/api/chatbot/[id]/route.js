@@ -3,6 +3,29 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../../../../src/lib/auth';
 import prisma from '../../../../src/lib/prisma';
 
+// GET /api/chatbot/:id - Get a specific question
+export async function GET(request, { params }) {
+  try {
+    const id = parseInt(params.id);
+    if (isNaN(id)) {
+      return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 });
+    }
+    
+    const question = await prisma.chatbotQA.findUnique({
+      where: { id },
+    });
+
+    if (!question) {
+      return NextResponse.json({ error: 'Question not found' }, { status: 404 });
+    }
+
+    return NextResponse.json(question);
+  } catch (error) {
+    console.error('Error fetching chatbot question:', error);
+    return NextResponse.json({ error: 'Failed to fetch question' }, { status: 500 });
+  }
+}
+
 // PATCH /api/chatbot/:id - Update a question
 export async function PATCH(request, { params }) {
   const session = await getServerSession(authOptions);

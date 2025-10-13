@@ -8,6 +8,7 @@ export default function AmenityManagerLayout({ children }) {
   const currentPath = usePathname();
 
   const navItems = [
+    { name: 'Dashboard', href: '/amenityinventorymanager' },
     { name: 'Amenities', href: '/amenityinventorymanager/amenities' },
     { name: 'Categorization', href: '/amenityinventorymanager/categorization' },
     { name: 'Usage Logs', href: '/amenityinventorymanager/logs' },

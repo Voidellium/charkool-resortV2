@@ -1,5 +1,15 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { recordAudit } from '@/src/lib/audit';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/auth';
+
+// Function to serialize BigInt values for JSON response
+function serializeBigInt(obj) {
+  return JSON.parse(JSON.stringify(obj, (key, value) =>
+    typeof value === 'bigint' ? value.toString() : value
+  ));
+}
 
 // GET booking by ID
 export const GET = async (_, context) => {
@@ -174,10 +184,38 @@ export const PUT = async (req, context) => {
       }
     }
 
+    // Fetch existing booking before update so we can produce a human-friendly diff
+    const prevBooking = await prisma.booking.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        rooms: { include: { room: true } },
+        optionalAmenities: { include: { optionalAmenity: true } },
+        rentalAmenities: { include: { rentalAmenity: true } },
+        cottage: { include: { cottage: true } },
+        amenities: { include: { amenity: true } },
+        payments: true,
+        user: true,
+      },
+    });
+
     const updatedBooking = await prisma.booking.update({
       where: { id: parseInt(id) },
       data: updateData,
       include: { amenities: { include: { amenity: true } } },
+    });
+
+    // Re-fetch the full updated booking to compare related lists (rooms, amenities, etc.)
+    const updatedBookingFull = await prisma.booking.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        rooms: { include: { room: true } },
+        optionalAmenities: { include: { optionalAmenity: true } },
+        rentalAmenities: { include: { rentalAmenity: true } },
+        cottage: { include: { cottage: true } },
+        amenities: { include: { amenity: true } },
+        payments: true,
+        user: true,
+      },
     });
 
     // Create notifications for superadmin based on changes
@@ -223,6 +261,88 @@ export const PUT = async (req, context) => {
       console.error('Failed to create notification:', notifError);
     }
 
+    // Record audit trail for booking update with a human-friendly summary
+    try {
+      const session = await getServerSession(authOptions);
+      const changes = [];
+
+      const fmtDate = (d) => d ? new Date(d).toLocaleDateString() : 'N/A';
+      const fmtMoney = (cents) => `₱${(Number(cents || 0) / 100).toFixed(2)}`;
+
+      if (prevBooking) {
+        if (prevBooking.guestName !== updatedBookingFull?.guestName) {
+          changes.push(`Guest: "${prevBooking.guestName}" → "${updatedBookingFull?.guestName}"`);
+        }
+        if (String(prevBooking.userId || '') !== String(updatedBookingFull?.userId || '')) {
+          changes.push(`Assigned user: ${prevBooking.userId || 'none'} → ${updatedBookingFull?.userId || 'none'}`);
+        }
+        if (prevBooking.status !== updatedBookingFull?.status) {
+          changes.push(`Status: ${prevBooking.status} → ${updatedBookingFull?.status}`);
+        }
+        if (prevBooking.paymentStatus !== updatedBookingFull?.paymentStatus) {
+          changes.push(`Payment status: ${prevBooking.paymentStatus} → ${updatedBookingFull?.paymentStatus}`);
+        }
+        if (String(prevBooking.checkIn) !== String(updatedBookingFull?.checkIn) || String(prevBooking.checkOut) !== String(updatedBookingFull?.checkOut)) {
+          changes.push(`Dates: ${fmtDate(prevBooking.checkIn)} → ${fmtDate(updatedBookingFull?.checkIn)} to ${fmtDate(prevBooking.checkOut)} → ${fmtDate(updatedBookingFull?.checkOut)}`);
+        }
+        if (Number(prevBooking.totalPrice || 0) !== Number(updatedBookingFull?.totalPrice || 0)) {
+          changes.push(`Total: ${fmtMoney(prevBooking.totalPrice)} → ${fmtMoney(updatedBookingFull?.totalPrice)}`);
+        }
+
+        // Compare rooms (by roomId)
+        const prevRooms = (prevBooking.rooms || []).reduce((acc, r) => { acc[r.roomId] = r.quantity; return acc; }, {});
+        const newRooms = (updatedBookingFull?.rooms || []).reduce((acc, r) => { acc[r.roomId] = r.quantity; return acc; }, {});
+        const roomChanges = [];
+        const roomIds = new Set([...Object.keys(prevRooms), ...Object.keys(newRooms)]);
+        roomIds.forEach((rid) => {
+          const prevQty = prevRooms[rid] || 0;
+          const newQty = newRooms[rid] || 0;
+          if (prevQty !== newQty) {
+            const roomNamePrev = (prevBooking.rooms || []).find(r=>String(r.roomId)===String(rid))?.room?.name;
+            const roomNameNew = (updatedBookingFull?.rooms || []).find(r=>String(r.roomId)===String(rid))?.room?.name;
+            const name = roomNameNew || roomNamePrev || `Room ${rid}`;
+            roomChanges.push(`${name}: ${prevQty} → ${newQty}`);
+          }
+        });
+        if (roomChanges.length > 0) changes.push(`Rooms: ${roomChanges.join(', ')}`);
+
+        if (data.cancellationRemarks) {
+          changes.push(`Remarks: ${data.cancellationRemarks}`);
+        }
+      } else {
+        // Fallback: prefer a small, meaningful whitelist rather than dumping all internal fields
+        const whitelist = ['guestName', 'checkIn', 'checkOut', 'status', 'paymentStatus', 'totalPrice', 'cancellationRemarks'];
+        const changed = Object.keys(data || {}).filter(k => whitelist.includes(k));
+        if (changed.length) {
+          changes.push(`Updated: ${changed.map(k => `${k}`).join(', ')}`);
+        } else {
+          changes.push('Updated booking (details omitted)');
+        }
+      }
+
+      const action = (data.status === 'Cancelled') ? 'CANCEL' : 'UPDATE';
+      const details = changes.length ? changes.join('; ') : `Updated booking ${updatedBooking.id}`;
+
+      // Prepare structured before/after details for the audit
+      const detailsObj = {
+        summary: changes.length ? changes.join('; ') : `Updated booking ${updatedBooking.id}`,
+        before: prevBooking,
+        after: updatedBookingFull,
+      };
+
+      await recordAudit({
+        actorId: session?.user?.id || null,
+        actorName: session?.user?.name || session?.user?.email || 'Unknown',
+        actorRole: session?.user?.role || 'UNKNOWN',
+        action,
+        entity: 'Booking',
+        entityId: String(updatedBooking.id),
+        details: JSON.stringify(detailsObj),
+      });
+    } catch (auditErr) {
+      console.error('Failed to record audit for booking update:', auditErr);
+    }
+
     return NextResponse.json(serializeBigInt(updatedBooking));
   } catch (error) {
     console.error('❌ Booking PUT Error:', error);
@@ -234,16 +354,34 @@ export const PUT = async (req, context) => {
 export const DELETE = async (_, context) => {
   try {
     const { id } = await context.params;
-    
+    // Fetch booking for context (guestName etc.) before deletion
+    const booking = await prisma.booking.findUnique({ where: { id: parseInt(id) } });
+
     // First, delete all associated booking amenities
-    await prisma.bookingAmenity.deleteMany({
-      where: { bookingId: parseInt(id) },
-    });
+    await prisma.bookingAmenity.deleteMany({ where: { bookingId: parseInt(id) } });
 
     // Then, delete the booking itself
-    await prisma.booking.delete({
-      where: { id: parseInt(id) },
-    });
+    await prisma.booking.delete({ where: { id: parseInt(id) } });
+
+    // Record audit for deletion
+    try {
+      const session = await getServerSession(authOptions);
+      const detailsObj = {
+        summary: `Deleted booking for ${booking?.guestName || 'Unknown guest'}`,
+        before: booking,
+      };
+      await recordAudit({
+        actorId: session?.user?.id || null,
+        actorName: session?.user?.name || session?.user?.email || 'Unknown',
+        actorRole: session?.user?.role || 'UNKNOWN',
+        action: 'DELETE',
+        entity: 'Booking',
+        entityId: String(id),
+        details: JSON.stringify(detailsObj),
+      });
+    } catch (auditErr) {
+      console.error('Failed to record audit for booking deletion:', auditErr);
+    }
 
     return NextResponse.json({ message: 'Booking and associated amenities deleted' });
   } catch (error) {

@@ -64,7 +64,7 @@ export default function AdminLayout({ children, activePage, role = 'admin' }) {
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
       {/* Sidebar */}
-      <aside style={{ width: '220px', background: '#1a1a1a', color: '#fff', padding: '20px' }}>
+      <aside style={{ width: '220px', background: '#1a1a1a', color: '#fff', padding: '20px', boxSizing: 'border-box' }}>
         <h2 style={{ marginBottom: '1.5rem', fontSize: '1.2rem' }}>Admin Panel</h2>
         <nav>
           <ul style={{ listStyle: 'none', padding: 0 }}>
@@ -91,10 +91,10 @@ export default function AdminLayout({ children, activePage, role = 'admin' }) {
         </nav>
       </aside>
 
-      {/* Main content */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+  {/* Main content */}
+  <div className="admin-main" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         {/* Top navbar */}
-        <header style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: '10px 20px', background: '#fff', borderBottom: '1px solid #ddd', gap: '15px' }}>
+  <header style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: '10px 16px', background: '#fff', borderBottom: '1px solid #ddd', gap: '12px' }}>
           {/* Notification Bell */}
           <div ref={notifRef} style={{ position: 'relative' }}>
             <button onClick={() => setNotifOpen(!notifOpen)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', position: 'relative' }}>
@@ -140,10 +140,32 @@ export default function AdminLayout({ children, activePage, role = 'admin' }) {
           </div>
         </header>
 
-        <main style={{ flex: 1, padding: '20px' }}>
+        <main className="admin-content" style={{ flex: 1, padding: '12px 16px' }}>
           {children}
         </main>
       </div>
     </div>
   );
+}
+
+/* Responsive tweaks for AdminLayout */
+/* Use a style tag so this applies without adding external CSS files */
+const adminStyles = `
+  @media (max-width: 1024px) {
+    .admin-main { margin-left: 0 !important; width: 100% !important; }
+    aside { width: 200px !important; }
+    .admin-content { padding: 10px !important; }
+  }
+  @media (max-width: 768px) {
+    aside { transform: translateX(-100%); position: fixed; z-index: 999; }
+    .admin-main { margin-left: 0 !important; width: 100% !important; }
+    .admin-content { padding: 6px 8px !important; }
+  }
+`;
+
+// Append the styles to the document (client-side only)
+if (typeof window !== 'undefined') {
+  const s = document.createElement('style');
+  s.innerHTML = adminStyles;
+  document.head.appendChild(s);
 }

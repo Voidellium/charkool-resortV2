@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { recordAudit } from '@/src/lib/audit';
 
 import { getToken } from 'next-auth/jwt';
 
@@ -38,7 +39,7 @@ export async function POST(request) {
 
   try {
     const body = await request.json();
-    const { name, description, pricePerUnit, pricePerHour, unitType } = body;
+    const { name, description, pricePerUnit, pricePerHour, unitType, unitNote } = body;
 
     // Validate required fields
     if (!name || !name.trim()) {
@@ -76,6 +77,7 @@ export async function POST(request) {
         pricePerUnit: parseInt(pricePerUnit),
         pricePerHour: pricePerHour ? parseInt(pricePerHour) : null,
         unitType: unitType.trim(),
+        unitNote: unitNote?.trim() || null,
       },
     });
 
@@ -87,6 +89,21 @@ export async function POST(request) {
         user: token.name || 'Unknown User',
       },
     });
+
+    // Record audit
+    try {
+      await recordAudit({
+        actorId: token?.sub ? parseInt(token.sub) : null,
+        actorName: token?.name || token?.email || 'Unknown',
+        actorRole: token?.role || 'ADMIN',
+        action: 'CREATE',
+        entity: 'RentalAmenity',
+        entityId: String(newAmenity.id),
+        details: `Created rental amenity "${newAmenity.name}"`,
+      });
+    } catch (auditErr) {
+      console.error('Failed to record audit for rental amenity create', auditErr);
+    }
 
     return NextResponse.json(newAmenity, { status: 201 });
   } catch (error) {

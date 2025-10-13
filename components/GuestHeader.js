@@ -22,17 +22,18 @@ export default function GuestHeader() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [bellColor, setBellColor] = useState('white');
 
-  // Fetch notifications for CUSTOMER role and update bell color and count
+  // Fetch notifications for user and update bell color and count
   useEffect(() => {
     async function fetchNotifications() {
+      if (!session?.user?.id) return;
       try {
-        const res = await fetch('/api/notifications?role=CUSTOMER', {
+        const res = await fetch(`/api/notifications?userId=${session.user.id}`, {
           method: 'GET',
         });
         if (res.ok) {
           const data = await res.json();
           setNotifications(data || []);
-          const unread = (data || []).filter(n => !n.read).length;
+          const unread = (data || []).filter(n => !n.isRead).length;
           setUnreadCount(unread);
           setBellColor(unread > 0 ? '#ef4444' : 'white'); // red if unread, else white
         }
@@ -55,7 +56,7 @@ export default function GuestHeader() {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, []); // Empty array - runs only on mount/unmount
+  }, [session?.user?.id]); // Depend on user id
 
   const handleBookNow = () => {
     router.push('/booking');
@@ -71,6 +72,10 @@ export default function GuestHeader() {
 
   const handleEditProfile = () => {
     router.push('/guest/profile');
+  };
+
+  const handleNotificationBellClick = () => {
+    setIsNotificationDropdownOpen(!isNotificationDropdownOpen);
   };
 
   const hasNotifications = notifications.length > 0;
@@ -111,7 +116,7 @@ export default function GuestHeader() {
           <div className="notification-container" ref={notificationDropdownRef}>
             <button
               className="notification-bell"
-              onClick={() => setIsNotificationDropdownOpen(!isNotificationDropdownOpen)}
+              onClick={handleNotificationBellClick}
               aria-label="Notifications"
             >
               <Bell size={20} color={bellColor} />
@@ -120,11 +125,38 @@ export default function GuestHeader() {
             {isNotificationDropdownOpen && (
               <div className="notification-dropdown">
                 {hasNotifications ? (
-                  <ul>
-                    {notifications.map((notif, index) => (
-                      <li key={index}>{notif.message}</li>
-                    ))}
-                  </ul>
+                  <>
+                    <ul>
+                      {notifications.map((notif, index) => (
+                        <li key={index}>{notif.message}</li>
+                      ))}
+                    </ul>
+                    {unreadCount > 0 && (
+                      <button
+                        className="mark-read-btn"
+                        onClick={async () => {
+                          const unreadNotifications = notifications.filter(n => !n.isRead);
+                          for (const notif of unreadNotifications) {
+                            try {
+                              await fetch(`/api/notifications/${notif.id}`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ isRead: true }),
+                              });
+                            } catch (err) {
+                              console.error('Error marking notification as read:', err);
+                            }
+                          }
+                          // Update local state
+                          setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+                          setUnreadCount(0);
+                          setBellColor('white');
+                        }}
+                      >
+                        Mark all as read
+                      </button>
+                    )}
+                  </>
                 ) : (
                   <p>No new notifications.</p>
                 )}
@@ -296,6 +328,23 @@ export default function GuestHeader() {
         .notification-dropdown p {
           color: #333;
           font-size: 0.9rem;
+        }
+
+        .mark-read-btn {
+          background-color: #4b4b4b;
+          color: white;
+          border: none;
+          padding: 0.5rem 1rem;
+          border-radius: 4px;
+          font-size: 0.8rem;
+          cursor: pointer;
+          margin-top: 0.5rem;
+          width: 100%;
+          transition: background-color 0.2s ease;
+        }
+
+        .mark-read-btn:hover {
+          background-color: #333;
         }
 
         /* Book Now Button */

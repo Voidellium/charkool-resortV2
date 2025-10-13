@@ -58,8 +58,8 @@ function ConfirmationPageInner() {
                 <div className="detail-section">
                   <h3>Booking Details</h3>
                   <p><strong>Room:</strong> {booking.room?.name || booking.room}</p>
-                  <p><strong>Check-in:</strong> {new Date(booking.checkIn).toLocaleDateString()}</p>
-                  <p><strong>Check-out:</strong> {new Date(booking.checkOut).toLocaleDateString()}</p>
+                  <p><strong>Check-in:</strong> {new Date(booking.checkIn).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                  <p><strong>Check-out:</strong> {new Date(booking.checkOut).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
                 </div>
 
                 <div className="status-section">

@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { getToken } from 'next-auth/jwt';
+import { NextResponse } from 'next/server';
 
 const prisma = new PrismaClient();
 
@@ -83,7 +84,7 @@ export async function POST(req) {
     // Delete the OTP
     await prisma.OTP.delete({ where: { id: otpRecord.id } });
 
-    return new Response(JSON.stringify({
+    const response = NextResponse.json({
       message: 'OTP verified successfully',
       user: {
         id: token.id,
@@ -91,7 +92,16 @@ export async function POST(req) {
         email: token.email,
         role: token.role
       }
-    }), { status: 200 });
+    }, { status: 200 });
+
+    // Set cookie to indicate browser is trusted for this session
+    response.cookies.set('isBrowserTrusted', 'true', {
+      path: '/',
+      maxAge: 3600, // 1 hour
+      httpOnly: false, // Allow client-side access if needed
+    });
+
+    return response;
   } catch (error) {
     console.error('Session OTP verification error:', error);
     return new Response(JSON.stringify({ error: 'Internal server error' }), {

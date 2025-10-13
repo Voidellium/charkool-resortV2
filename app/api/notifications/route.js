@@ -2,18 +2,24 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
-// ✅ GET: Fetch notifications by role
+// ✅ GET: Fetch notifications by role or userId
 export async function GET(req) {
   try {
     const url = new URL(req.url);
     const role = url.searchParams.get("role"); // "admin" or "superadmin"
+    const userId = url.searchParams.get("userId");
 
-    if (!role) {
-      return NextResponse.json({ error: "Role is required" }, { status: 400 });
+    let whereClause = {};
+    if (userId) {
+      whereClause.userId = parseInt(userId);
+    } else if (role) {
+      whereClause.role = role;
+    } else {
+      return NextResponse.json({ error: "Role or userId is required" }, { status: 400 });
     }
 
     const notifications = await prisma.notification.findMany({
-      where: { role },
+      where: whereClause,
       orderBy: { createdAt: "desc" },
       take: 20,
     });

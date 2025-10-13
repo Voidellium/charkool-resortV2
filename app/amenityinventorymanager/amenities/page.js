@@ -126,6 +126,7 @@ export default function AmenityInventoryPage() {
             onChange={(e) => setNewAmenity({ ...newAmenity, name: e.target.value })}
             required
             aria-required="true"
+            disabled
           />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 60, maxWidth: 100 }}>
@@ -197,32 +198,32 @@ export default function AmenityInventoryPage() {
       {/* Amenities list with scrollable container */}
       <div style={styles.cardsContainer}>
         {amenities.filter(a => a.name.toLowerCase().includes(filter.toLowerCase())).length === 0 && <p style={styles.noData}>No amenities available.</p>}
-        {amenities.filter(a => a.name.toLowerCase().includes(filter.toLowerCase())).map((amenity) => (
-          <div
-            key={amenity.id}
-            style={styles.card}
-            tabIndex={0}
-            aria-label={`Amenity: ${amenity.name}`}
-          >
-            <h3 style={styles.cardTitle}>{amenity.name}</h3>
-            <p style={styles.cardText}>Quantity: {amenity.quantity}</p>
-            <p style={styles.cardText}>Last Updated: {formatTime(amenity.updatedAt)}</p>
-            <div style={styles.cardActions}>
-              <button
-                onClick={() => handleEdit(amenity)}
-                style={styles.editButton}
-                aria-label={`Edit ${amenity.name}`}
-                onMouseDown={e => e.currentTarget.style.transform = 'scale(0.96)'}
-                onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
-                onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-                onMouseEnter={e => e.currentTarget.style.background = '#FFD88A'}
-                onMouseOut={e => e.currentTarget.style.background = '#FCCE7E'}
+            {amenities.filter(a => a.name.toLowerCase().includes(filter.toLowerCase())).map((amenity, index) => (
+              <div
+                key={index}
+                style={styles.card}
+                tabIndex={0}
+                aria-label={`Amenity: ${amenity.name}`}
               >
-                Edit
-              </button>
-            </div>
-          </div>
-        ))}
+                <h3 style={styles.cardTitle}>{amenity.name}</h3>
+                <p style={styles.cardText}>Quantity: {amenity.quantity}</p>
+                <p style={styles.cardText}>Last Updated: {formatTime(amenity.updatedAt)}</p>
+                <div style={styles.cardActions}>
+                  <button
+                    onClick={() => handleEdit(amenity)}
+                    style={styles.editButton}
+                    aria-label={`Edit ${amenity.name}`}
+                    onMouseDown={e => e.currentTarget.style.transform = 'scale(0.96)'}
+                    onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
+                    onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                    onMouseEnter={e => e.currentTarget.style.background = '#FFD88A'}
+                    onMouseOut={e => e.currentTarget.style.background = '#FCCE7E'}
+                  >
+                    Edit
+                  </button>
+                </div>
+              </div>
+            ))}
       </div>
     </div>
   );

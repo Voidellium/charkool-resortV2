@@ -125,6 +125,7 @@ model RentalAmenity {
   pricePerUnit Int    // Price in cents (e.g., ₱200/hour = 20000)
   pricePerHour Int?   // Alternative pricing per hour
   unitType    String   // "hour", "unit", "song", "30minutes", etc.
+  unitNote    String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -290,6 +291,7 @@ enum PaymentStatus {
   Paid
   Pending
   Partial
+  Reservation
 }
 
 enum Role {
@@ -340,4 +342,45 @@ model TrustedBrowser {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Promotion {
+  id            Int      @id @default(autoincrement())
+  title         String
+  description   String?
+  image         String?
+  discountType  String   // 'percentage' or 'fixed'
+  discountValue Int      // in cents, e.g., 10% = 1000, ₱100 = 10000
+  targetType    String   // 'booking', 'room', 'amenity'
+  isActive      Boolean  @default(true)
+  startDate     DateTime
+  endDate       DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Policy {
+  id        Int      @id @default(autoincrement())
+  title     String
+  content   String   @db.Text
+  order     Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Audit trail for administrative actions (admins + superadmin)
+model AuditTrail {
+  id         Int      @id @default(autoincrement())
+  actorId    Int?               // optional link to User when available
+  actorName  String
+  actorRole  Role
+  action     String             // CREATE / UPDATE / DELETE / etc.
+  entity     String             // e.g. "Policy", "Room", "Amenity"
+  entityId   String?            // optional identifier of the affected entity
+  details    String?            @db.Text
+  timestamp  DateTime           @default(now())
+
+  @@index([actorId])
+  @@index([timestamp])
 }

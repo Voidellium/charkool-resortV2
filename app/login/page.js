@@ -121,6 +121,8 @@ function LoginForm() {
         </div>
       </div>
 
+      <footer className="footer">© 2025 Charkool Beach Resort. All Rights Reserved.</footer>
+
       <style jsx global>{`
         :root, html, body, #__next {
           height: 100%;
@@ -278,6 +280,13 @@ function LoginForm() {
           color: #374151;
         }
         .signup-text a { color: #d97706; text-decoration: none; }
+         .footer {
+          background-color: #e8cfa3;
+          text-align: center;
+          padding: 1.5rem 0;
+          color: rgba(18, 50, 56, 0.85);
+          font-size: 0.9rem;
+        }
         @media (max-width: 420px) {
           .login-card { border-radius: 0; box-shadow: none; height: 100vh; }
           .login-right { padding: 14px; }

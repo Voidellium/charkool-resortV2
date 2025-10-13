@@ -23,7 +23,13 @@ export default function Payments() {
     try {
       const res = await fetch('/api/payments');
       const data = await res.json();
-      setPayments(data || []);
+      // Ensure we only set an array; backend may return an error object on failure
+      if (Array.isArray(data)) {
+        setPayments(data);
+      } else {
+        console.error('Unexpected payments response:', data);
+        setPayments([]);
+      }
     } catch (error) {
       console.error('Error fetching payments:', error);
     } finally {
@@ -42,6 +48,7 @@ export default function Payments() {
   }
 
   function filterPayments() {
+    if (!Array.isArray(payments)) return [];
     return payments.filter((p) => {
       const createdAt = new Date(p.createdAt);
       const startDateMatch = filters.startDate ? createdAt >= new Date(filters.startDate) : true;
@@ -101,7 +108,7 @@ export default function Payments() {
               }}
             >
               <h3 style={styles.kpiTitle}>Total Revenue</h3>
-              <p style={styles.kpiValue}>₱ {(report.totalRevenue / 100).toFixed(2)}</p>
+              <p style={styles.kpiValue}>₱ {formatAmount(report?.totalRevenue)}</p>
             </div>
             <div
               style={{ ...styles.kpiCard, backgroundColor: '#2196F3' }}
@@ -201,7 +208,7 @@ export default function Payments() {
                       <td style={styles.td}>{payment.id}</td>
                       <td style={styles.td}>{payment.bookingId}</td>
                       <td style={styles.td}>{payment.booking?.user?.name || 'N/A'}</td>
-                      <td style={styles.td}>{(payment.amount / 100).toFixed(2)}</td>
+                      <td style={styles.td}>{formatAmount(payment?.amount)}</td>
                       <td style={{ ...styles.td, ...statusStyles(payment.status) }}>{payment.status}</td>
                       <td style={styles.td}>{new Date(payment.createdAt).toLocaleDateString()}</td>
                     </tr>
@@ -218,7 +225,7 @@ export default function Payments() {
               <p><strong>ID:</strong> {selectedPayment.id}</p>
               <p><strong>Booking ID:</strong> {selectedPayment.bookingId}</p>
               <p><strong>Guest:</strong> {selectedPayment.booking?.user?.name || 'N/A'}</p>
-              <p><strong>Amount:</strong> ₱ {(selectedPayment.amount / 100).toFixed(2)}</p>
+              <p><strong>Amount:</strong> ₱ {formatAmount(selectedPayment?.amount)}</p>
               <p><strong>Status:</strong> {selectedPayment.status}</p>
               <p><strong>Date:</strong> {new Date(selectedPayment.createdAt).toLocaleString()}</p>
               <button style={styles.closeButton} onClick={clearSelection}>Close</button>
@@ -243,6 +250,14 @@ const statusStyles = (status) => {
       return {};
   }
 };
+
+// Safely format amounts (input in cents). Returns string with two decimals.
+function formatAmount(cents) {
+  const n = Number(cents);
+  if (!cents && cents !== 0) return '0.00';
+  if (isNaN(n)) return '0.00';
+  return (n / 100).toFixed(2);
+}
 
 // Styles object for modern look
 const styles = {

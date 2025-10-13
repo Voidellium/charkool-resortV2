@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-
+import { recordAudit } from '@/src/lib/audit';
 import { getToken } from 'next-auth/jwt';
 
 const JWT_SECRET = process.env.NEXTAUTH_SECRET;
@@ -77,6 +77,21 @@ export async function POST(request) {
         user: token.name || 'Unknown User',
       },
     });
+
+    // Record audit trail
+    try {
+      await recordAudit({
+        actorId: token?.sub ? parseInt(token.sub) : null,
+        actorName: token?.name || token?.email || 'Unknown',
+        actorRole: token?.role || 'ADMIN',
+        action: 'CREATE',
+        entity: 'OptionalAmenity',
+        entityId: String(newAmenity.id),
+        details: `Created optional amenity "${newAmenity.name}"`,
+      });
+    } catch (auditErr) {
+      console.error('Failed to record audit for optional amenity create', auditErr);
+    }
 
     return NextResponse.json(newAmenity, { status: 201 });
   } catch (error) {

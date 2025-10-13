@@ -1,0 +1,131 @@
+.container {
+  padding: 1.25rem;
+}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.title {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+.controls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.search {
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid #e6e6e6;
+  width: 260px;
+}
+.filter {
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid #e6e6e6;
+  background: white;
+}
+.list {
+  display: grid;
+  gap: 0.75rem;
+}
+.card {
+  background: white;
+  border-radius: 12px;
+  padding: 0.75rem;
+  box-shadow: 0 6px 18px rgba(16,24,40,0.06);
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+.avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 9999px;
+  background: linear-gradient(135deg,#FDE68A,#FDBA74);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+.meta {
+  flex: 1;
+}
+.metaTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: center;
+}
+.actor {
+  font-weight: 600;
+}
+.role {
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  background: #f1f5f9;
+}
+.action {
+  font-weight: 700;
+}
+.details {
+  color: #374151;
+  margin-top: 0.4rem;
+}
+.time {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+.empty {
+  padding: 2rem;
+  text-align: center;
+  color: #6b7280;
+}
+
+.group {
+  margin-bottom: 0.75rem;
+}
+.groupHeader {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.5rem 0.5rem;
+}
+.groupItems {
+  padding-left: 56px;
+}
+
+/* Modal */
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+}
+.modal {
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px;
+  width: min(720px, 94%);
+  max-height: 80vh;
+  overflow: auto;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+}
+.modalClose {
+  position: absolute;
+  right: 12px;
+  top: 8px;
+  background: transparent;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+}

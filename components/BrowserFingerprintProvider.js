@@ -48,6 +48,14 @@ export default function BrowserFingerprintProvider({ children }) {
     initializeFingerprint();
   }, [session]);
 
+  // Set cookies for browser fingerprint and incognito status
+  useEffect(() => {
+    if (fingerprint !== null) {
+      document.cookie = `browserFingerprint=${fingerprint}; path=/; max-age=31536000`; // 1 year
+      document.cookie = `isIncognito=${isIncognito}; path=/; max-age=31536000`;
+    }
+  }, [fingerprint, isIncognito]);
+
   // Add fingerprint and incognito status to headers for API calls
   useEffect(() => {
     if (fingerprint && session) {

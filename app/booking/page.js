@@ -36,6 +36,9 @@ export default function BookingPage() {
   // New state for animated dots in modal
   const [dotCount, setDotCount] = useState(1);
 
+  // Room images modal state
+  const [roomImagesModal, setRoomImagesModal] = useState({ open: false, selectedRoomId: null, selectedImage: null });
+
   // SubmitButton component using useFormStatus
   function SubmitButton({ disabled, children, ...props }) {
     const { pending } = useFormStatus();
@@ -186,6 +189,19 @@ export default function BookingPage() {
       default:
         // Default capacity for other rooms, can be adjusted
         return { min: 1, max: 100 };
+    }
+  };
+
+  const getRoomImages = (roomType) => {
+    switch (roomType) {
+      case 'LOFT':
+        return ['/images/Loft.jpg', '/images/LoftInterior1.jpg', '/images/LoftInterior2.jpg'];
+      case 'TEPEE':
+        return ['/images/Tepee.jpg', '/images/TepeeInterior1.jpg', '/images/TepeeInterior2.jpg'];
+      case 'VILLA':
+        return ['/images/Villa.jpg', '/images/VillaInterior1.jpg', '/images/VillaInterior2.jpg'];
+      default:
+        return ['/images/default.jpg'];
     }
   };
 
@@ -504,23 +520,32 @@ export default function BookingPage() {
                                 )}
                               </div>
                               {isSelected && (
-                                <div className="quantity-controls">
-                                  <button 
+                                <>
+                                  <div className="quantity-controls">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRoomQuantityChange(room.id, -1)}
+                                      disabled={selectedQty <= 1}
+                                    >-</button>
+                                    <span>{selectedQty}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRoomQuantityChange(room.id, 1)}
+                                      disabled={(() => {
+                                        const totalCapacity = computeTotalCapacity();
+                                        const selectedQty = formData.selectedRooms[room.id] || 0;
+                                        return totalCapacity >= formData.guests || selectedQty >= room.remaining;
+                                      })()}
+                                    >+</button>
+                                  </div>
+                                  <button
                                     type="button"
-                                    onClick={() => handleRoomQuantityChange(room.id, -1)}
-                                    disabled={selectedQty <= 1}
-                                  >-</button>
-                                  <span>{selectedQty}</span>
-                                  <button 
-                                    type="button"
-                                    onClick={() => handleRoomQuantityChange(room.id, 1)}
-                                    disabled={(() => {
-                                      const totalCapacity = computeTotalCapacity();
-                                      const selectedQty = formData.selectedRooms[room.id] || 0;
-                                      return totalCapacity >= formData.guests || selectedQty >= room.remaining;
-                                    })()}
-                                  >+</button>
-                                </div>
+                                    className="view-images-btn"
+                                    onClick={() => setRoomImagesModal({ open: true, selectedRoomId: room.id, selectedImage: null })}
+                                  >
+                                    View Images
+                                  </button>
+                                </>
                               )}
                             </div>
                           );
@@ -719,6 +744,32 @@ export default function BookingPage() {
         </div>
       )}
 
+      {roomImagesModal.open && (
+        <div className="modal-overlay" onClick={() => setRoomImagesModal({ open: false, selectedRoomId: null, selectedImage: null })}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="image-gallery">
+              {(() => {
+                const room = availableRooms.find(r => r.id === roomImagesModal.selectedRoomId);
+                const images = room ? getRoomImages(room.type) : [];
+                return images.map((img, idx) => (
+                  <img key={idx} src={img} alt={`${room?.name} image ${idx + 1}`} onClick={() => setRoomImagesModal(prev => ({ ...prev, selectedImage: img }))} style={{ cursor: 'pointer' }} />
+                ));
+              })()}
+            </div>
+            <button className="close-btn" onClick={() => setRoomImagesModal({ open: false, selectedRoomId: null, selectedImage: null })}>Close</button>
+          </div>
+        </div>
+      )}
+
+      {roomImagesModal.selectedImage && (
+        <div className="image-modal-overlay" onClick={() => setRoomImagesModal(prev => ({ ...prev, selectedImage: null }))}>
+          <div className="image-modal-content" onClick={e => e.stopPropagation()}>
+            <img src={roomImagesModal.selectedImage} alt="Full view" className="full-image" />
+            <button className="close-image-btn" onClick={() => setRoomImagesModal(prev => ({ ...prev, selectedImage: null }))}>Close</button>
+          </div>
+        </div>
+      )}
+
       {/* Styles */}
       <style jsx>{`
         .container { min-height: 100vh; display: flex; justify-content: center; align-items: flex-start; background: linear-gradient(135deg, #fcd34d 0%, #e6f4f8 100%); padding: 20px; }
@@ -875,6 +926,106 @@ export default function BookingPage() {
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
+        }
+
+        .view-images-btn {
+          margin-top: 8px;
+          padding: 6px 12px;
+          background-color: #FEBE52;
+          color: white;
+          border: none;
+          border-radius: 6px;
+          font-size: 12px;
+          cursor: pointer;
+          transition: background-color 0.3s ease;
+        }
+        .view-images-btn:hover {
+          background-color: #EDB509;
+        }
+
+        .modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0,0,0,0.6);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+        }
+        .modal-content {
+          background: #fff;
+          border-radius: 12px;
+          max-width: 600px;
+          width: 90%;
+          padding: 2rem;
+          box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+          max-height: 90vh;
+          overflow-y: auto;
+        }
+        .image-gallery {
+          display: flex;
+          gap: 0.75rem;
+          overflow-x: auto;
+          margin-bottom: 1rem;
+        }
+        .image-gallery img {
+          width: 170px;
+          height: 100px;
+          object-fit: cover;
+          border-radius: 6px;
+          flex-shrink: 0;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+        .close-btn {
+          background-color: #ccc;
+          color: #333;
+          border: none;
+          padding: 0.7rem 1.2rem;
+          border-radius: 6px;
+          font-weight: 600;
+          cursor: pointer;
+        }
+        .close-btn:hover {
+          background-color: #aaa;
+        }
+
+        .image-modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0,0,0,0.8);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1100;
+        }
+        .image-modal-content {
+          background: #fff;
+          border-radius: 12px;
+          max-width: 90%;
+          max-height: 90%;
+          padding: 1rem;
+          box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+        }
+        .full-image {
+          max-width: 100%;
+          max-height: 80vh;
+          object-fit: contain;
+          border-radius: 6px;
+        }
+        .close-image-btn {
+          margin-top: 1rem;
+          background-color: #ccc;
+          color: #333;
+          border: none;
+          padding: 0.5rem 1rem;
+          border-radius: 6px;
+          cursor: pointer;
+        }
+        .close-image-btn:hover {
+          background-color: #aaa;
         }
       `}</style>
     </div>

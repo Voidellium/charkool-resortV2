@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import ChatInterface from './ChatInterface'; // To be created next
+import ChatInterface from './ChatInterface';
 
 export default function ChatbotModal({ onClose }) {
   return (
@@ -39,24 +39,25 @@ export default function ChatbotModal({ onClose }) {
           z-index: 1000;
         }
         .modal-content {
-          width: 90%;
-          max-width: 450px;
-          height: 70vh;
-          max-height: 600px;
+          width: 95%;
+          max-width: 1000px;
+          height: 95vh;
+          max-height: 900px;
           background: #ffffff;
-          border-radius: 16px;
-          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+          border-radius: 20px;
+          box-shadow: 0 12px 36px rgba(0, 0, 0, 0.25);
           display: flex;
           flex-direction: column;
           overflow: hidden;
         }
         .modal-header {
           background-color: #FEBE52;
-          padding: 15px 20px;
+          padding: 16px 20px;
           display: flex;
           justify-content: space-between;
           align-items: center;
-          color: white;
+          color: #333;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
         .modal-header h2 {
           margin: 0;

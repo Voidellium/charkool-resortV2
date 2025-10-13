@@ -1,12 +1,14 @@
 import Head from 'next/head';
+import React from 'react';
 import Link from 'next/link';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bell } from 'lucide-react';
+import { Bell, Home, Settings, Users, Book, FileText, Layers, MessageCircle, CreditCard, DoorOpen, ChevronLeft, ChevronRight } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 
 export default function SuperAdminLayout({ children, activePage, reportMenu, user }) {
   const [reportsOpen, setReportsOpen] = useState(false);
+  const [configOpen, setConfigOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileImage, setProfileImage] = useState(user?.profileImage || null);
@@ -18,24 +20,39 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
 
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const [animateSidebar, setAnimateSidebar] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [togglePressed, setTogglePressed] = useState(false);
+  // transform used for the floating toggle button; includes a small press animation
+  const baseToggleTransform = 'translateY(-50%) translateX(-50%)';
+  const toggleTransform = togglePressed ? `${baseToggleTransform} scale(0.96) rotate(8deg)` : baseToggleTransform;
 
   const toggleSidebar = () => {
-    if (sidebarVisible) {
-      setAnimateSidebar(true);
-      setTimeout(() => {
-        setSidebarVisible(false);
-        setAnimateSidebar(false);
-      }, 300);
-    } else {
-      setSidebarVisible(true);
-      setTimeout(() => {
-        setAnimateSidebar(false);
-      }, 10);
-    }
+    setSidebarCollapsed((s) => {
+      const next = !s;
+      try {
+        localStorage.setItem('superadmin_sidebar_collapsed', JSON.stringify(next));
+      } catch (e) {
+        // ignore
+      }
+      return next;
+    });
   };
+
+  // initialise collapsed state from localStorage (client-side only)
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('superadmin_sidebar_collapsed');
+      if (stored !== null) setSidebarCollapsed(JSON.parse(stored));
+    } catch (e) {
+      // ignore
+    }
+  }, []);
 
   useEffect(() => {
     if (activePage === "reports") setReportsOpen(true);
+    else setReportsOpen(false);
+    if (activePage === "config") setConfigOpen(true);
+    else setConfigOpen(false);
   }, [activePage]);
 
   useEffect(() => {
@@ -64,16 +81,19 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
   }, []);
 
   const menu = [
-    { key: 'amenities', label: 'Amenities', path: '/super-admin/amenities' },
-    { key: 'audit-trails', label: 'Audit Trails', path: '/super-admin/audit-trails' },
-    { key: 'chatbot', label: 'Chatbot Management', path: '/super-admin/chatbot' },
-    { key: 'bookings', label: 'Bookings', path: '/super-admin/bookings' },
-    { key: 'config', label: 'Configurations', path: '/super-admin/config' },
-    { key: 'dashboard', label: 'Dashboard', path: '/super-admin/dashboard' },
-    { key: 'payments', label: 'Payments', path: '/super-admin/payments' },
-    { key: 'reports', label: 'Reports', path: '/super-admin/reports', dropdown: reportMenu || [] },
-    { key: 'rooms', label: 'Rooms', path: '/super-admin/rooms' },
-    { key: 'users', label: 'Users', path: '/super-admin/users' },
+    { key: 'dashboard', label: 'Dashboard', path: '/super-admin/dashboard', icon: <Home size={18} /> },
+    { key: 'amenities', label: 'Amenities', path: '/super-admin/amenities', icon: <Layers size={18} /> },
+    { key: 'rooms', label: 'Rooms', path: '/super-admin/rooms', icon: <DoorOpen size={18} /> },
+    { key: 'bookings', label: 'Bookings', path: '/super-admin/bookings', icon: <Book size={18} /> },
+    { key: 'payments', label: 'Payments', path: '/super-admin/payments', icon: <CreditCard size={18} /> },
+    { key: 'users', label: 'Users', path: '/super-admin/users', icon: <Users size={18} /> },
+    { key: 'audit-trails', label: 'Audit Trails', path: '/super-admin/audit-trails', icon: <FileText size={18} /> },
+    { key: 'chatbot', label: 'Chatbot Management', path: '/super-admin/chatbot', icon: <MessageCircle size={18} /> },
+    { key: 'config', label: 'Configurations', path: '/super-admin/configurations/promotions', icon: <Settings size={18} />, dropdown: [
+      { label: 'Promotions', onClick: () => router.push('/super-admin/configurations/promotions') },
+      { label: 'Policies', onClick: () => router.push('/super-admin/configurations/policies') }
+    ] },
+    { key: 'reports', label: 'Reports', path: '/super-admin/reports', icon: <FileText size={18} />, dropdown: reportMenu || [] },
   ];
 
   const handleLogout = async () => {
@@ -120,51 +140,73 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
           backgroundColor: '#f9f9f9',
         }}
       >
-        {/* Toggle Sidebar Button */}
+  {/* Fixed toggle button (placed outside sidebar to avoid blocking icons) */}
+  {/* compute left position so it doesn't overlap the sidebar */}
+  {/* small heuristic: when collapsed we sit near the collapsed width; when expanded we sit just right of the sidebar */}
+  {/* Note: keep simple values to avoid SSR issues with window.* */}
+        
+
         <button
+          className="sa-toggle"
           onClick={toggleSidebar}
+          aria-label={sidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+          aria-expanded={!sidebarCollapsed}
+          onMouseDown={() => setTogglePressed(true)}
+          onMouseUp={() => setTogglePressed(false)}
+          onMouseLeave={() => setTogglePressed(false)}
           style={{
             position: 'fixed',
-            top: '10px',
-            left: '10px',
+            top: '50%',
+            transform: `translateY(-50%) ${togglePressed ? 'scale(0.96) rotate(8deg)' : ''}`,
+            /* place the button just outside the sidebar edge; when collapsed the sidebar is 72px, when expanded 240px */
+            left: sidebarCollapsed ? '72px' : '280px',
+            marginLeft: '24px', /* place the button fully outside the edge with small gap */
             zIndex: 1100,
-            padding: '8px 12px',
-            backgroundColor: '#36080885',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '4px',
+            padding: 0,
+            backgroundColor: 'rgba(0,0,0,0.64)',
+            borderRadius: '12px',
+            boxShadow: '0 6px 18px rgba(0,0,0,0.14)',
+            border: '1px solid rgba(255,255,255,0.06)',
             cursor: 'pointer',
-            fontSize: '0.9rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '48px',
+            height: '48px',
+            boxSizing: 'border-box',
+            transition: 'transform 220ms cubic-bezier(0.2,0,0,1), left 220ms, box-shadow 260ms, background 260ms',
           }}
         >
-          {sidebarVisible ? 'Hide Sidebar' : 'Show Sidebar'}
+          <div style={{ transform: 'translateX(1px)' }}>{sidebarCollapsed ? <ChevronRight size={18} color="#fff" /> : <ChevronLeft size={18} color="#fff" />}</div>
         </button>
 
         {/* Sidebar */}
-        {(sidebarVisible || animateSidebar) && (
-          <aside
-            style={{
-              width: '240px',
-              background: '#FEBE52',
-              color: '#fff',
-              padding: '2rem',
-              height: '100vh',
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              overflowY: 'auto',
-              boxShadow: '2px 0 8px rgba(0,0,0,0.1)',
-              zIndex: 1000,
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'start',
-              transition: 'transform 0.3s ease',
-              transform: sidebarVisible ? 'translateX(0)' : 'translateX(-100%)',
-            }}
-          >
-            {/* Header */}
+        <aside
+          style={{
+            width: sidebarCollapsed ? '80px' : '240px',
+            background: '#FEBE52',
+            color: '#fff',
+            padding: sidebarCollapsed ? '1rem 0.5rem' : '2rem',
+            height: '100vh',
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            overflowY: 'auto',
+            boxShadow: '2px 0 8px rgba(0,0,0,0.1)',
+            zIndex: 1000,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'start',
+            transition: 'width 600ms cubic-bezier(0.22,1,0.36,1), padding 600ms',
+            alignItems: sidebarCollapsed ? 'center' : 'flex-start',
+          }}
+        >
+          {/* ...existing code... */}
+          {/* Header */}
+          {!sidebarCollapsed && (
             <h2
               style={{
+                marginTop: '8px',
                 marginBottom: '2.5rem',
                 fontSize: '1.7rem',
                 color: '#000000ff',
@@ -175,78 +217,200 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
             >
               Super Admin Panel
             </h2>
-            {/* Navigation */}
-            <nav style={{ flex: 1 }}>
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                {menu.map((item) => (
-                  <li key={item.key} style={{ marginBottom: '15px' }}>
-                    {item.dropdown ? (
+          )}
+          {/* Navigation */}
+          <nav style={{ flex: 1, width: '100%' }}>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, width: '100%' }}>
+              {menu.map((item) => (
+                <li key={item.key} style={{ marginBottom: sidebarCollapsed ? '18px' : '15px', width: '100%', display: 'flex', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}>
+                  {sidebarCollapsed ? (
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      aria-label={item.label}
+                      title={item.label}
+                      onClick={() => router.push(item.path)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') router.push(item.path); }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '48px',
+                        height: '48px',
+                        borderRadius: '10px',
+                        background: activePage === item.key ? 'rgba(0,0,0,0.12)' : 'transparent',
+                        cursor: 'pointer',
+                        transition: 'background 200ms ease, transform 200ms ease, color 200ms ease',
+                        color: '#333',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'translateY(-4px)';
+                        e.currentTarget.style.backgroundColor = '#0060d0';
+                        const svg = e.currentTarget.querySelector('svg');
+                        if (svg) svg.style.color = '#fff';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.backgroundColor = activePage === item.key ? 'rgba(0,0,0,0.12)' : 'transparent';
+                        const svg = e.currentTarget.querySelector('svg');
+                        if (svg) svg.style.color = '#333';
+                      }}
+                    >
+                      {React.cloneElement(item.icon, { color: activePage === item.key ? '#fff' : '#333', size: 18 })}
+                    </div>
+                  ) : (
+                    item.dropdown ? (
                       <>
-                        <Link
-                          href={item.path}
-                          style={{
-                            display: 'block',
-                            padding: '12px 16px',
-                            borderRadius: '8px',
-                            textDecoration: 'none',
-                            backgroundColor: activePage === item.key ? '#00000049' : 'transparent',
-                            color: activePage === item.key ? '#fff' : '#555',
-                            fontWeight: activePage === item.key ? 'bold' : '400',
-                            fontFamily: `'Poppins'`,
-                            fontSize: '1rem',
-                            transition: 'background-color 0.2s, color 0.2s',
-                          }}
-                          onClick={(e) => {
-                            if (activePage === 'reports') {
-                              e.preventDefault();
-                              setReportsOpen(!reportsOpen);
-                            }
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = '#0060d0';
-                            e.currentTarget.style.color = '#fff';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor =
-                              activePage === 'reports' ? '#00000049' : 'transparent';
-                            e.currentTarget.style.color =
-                              activePage === 'reports' ? '#fff' : '#333';
-                          }}
-                        >
-                          {item.label}
-                        </Link>
-                        {reportsOpen && (
-                          <ul
+                        <div style={{ position: 'relative', width: '100%' }}>
+                          <Link
+                            href={item.path}
                             style={{
-                              listStyle: 'none',
-                              paddingLeft: '20px',
-                              marginTop: '8px',
+                              display: 'block',
+                              padding: '12px 16px',
                               borderRadius: '8px',
-                              boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
-                              transition: 'max-height 0.3s ease',
-                              overflow: 'hidden',
+                              textDecoration: 'none',
+                              backgroundColor: activePage === item.key ? '#00000049' : 'transparent',
+                              color: activePage === item.key ? '#fff' : '#555',
+                              fontWeight: activePage === item.key ? 'bold' : '400',
+                              fontFamily: `'Poppins'`,
+                              fontSize: '1rem',
+                              transition: 'background-color 0.2s, color 0.2s',
+                            }}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              // Only toggle dropdown when the item has dropdown entries.
+                              if (item.key === 'reports') {
+                                if (item.dropdown && item.dropdown.length > 0) {
+                                  setReportsOpen(!reportsOpen);
+                                  setConfigOpen(false);
+                                  return;
+                                }
+                                // If no dropdown items (clicked from other pages), navigate to reports page
+                                router.push(item.path);
+                                return;
+                              }
+                              if (item.key === 'config') {
+                                if (item.dropdown && item.dropdown.length > 0) {
+                                  setConfigOpen(!configOpen);
+                                  setReportsOpen(false);
+                                  return;
+                                }
+                                router.push(item.path);
+                                return;
+                              }
+                              router.push(item.path);
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = '#0060d0';
+                              e.currentTarget.style.color = '#fff';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor =
+                                activePage === item.key ? '#00000049' : 'transparent';
+                              e.currentTarget.style.color =
+                                activePage === item.key ? '#fff' : '#333';
                             }}
                           >
-                            {item.dropdown.map((sub) => (
-                              <li key={sub.label} style={{ marginBottom: '8px' }}>
-                                <div
-                                  onClick={sub.onClick}
-                                  style={{
-                                    padding: '8px 12px',
-                                    borderRadius: '6px',
-                                    background: '#FEBE52',
-                                    cursor: 'pointer',
-                                    transition: 'background 0.2s',
-                                  }}
-                                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#0060d0')}
-                                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                                >
-                                  {sub.label}
-                                </div>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
+                            {item.label}
+                          </Link>
+
+                          {/* Floating panel anchored to the parent link */}
+                          {item.key === 'reports' && reportsOpen && (
+                            <ul
+                              style={{
+                                listStyle: 'none',
+                                margin: '8px 0 0 0',
+                                padding: '8px',
+                                borderRadius: '8px',
+                                boxShadow: '0 6px 18px rgba(0,0,0,0.08)',
+                                background: '#ffffff52',
+                                transition: 'opacity 160ms ease, transform 160ms ease',
+                                zIndex: 1200,
+                                width: '100%',
+                                boxSizing: 'border-box',
+                              }}
+                            >
+                              {item.dropdown.map((sub) => (
+                                <li key={sub.label} style={{ marginBottom: '8px' }}>
+                                  <div
+                                    onClick={sub.onClick}
+                                    style={{
+                                      display: 'block',
+                                      width: '100%',
+                                      boxSizing: 'border-box',
+                                      padding: '8px 12px',
+                                      borderRadius: '6px',
+                                      background: 'transparent',
+                                      color: '#333',
+                                      cursor: 'pointer',
+                                      transition: 'background 0.16s, color 0.16s',
+                                      whiteSpace: 'normal',
+                                      wordBreak: 'break-word',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.backgroundColor = '#0060d0';
+                                      e.currentTarget.style.color = '#fff';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.backgroundColor = 'transparent';
+                                      e.currentTarget.style.color = '#333';
+                                    }}
+                                  >
+                                    {sub.label}
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+
+                          {item.key === 'config' && configOpen && (
+                            <ul
+                              style={{
+                                listStyle: 'none',
+                                margin: '8px 0 0 0',
+                                padding: '8px',
+                                borderRadius: '8px',
+                                boxShadow: '0 6px 18px rgba(0,0,0,0.08)',
+                                background: '#ffffff52',
+                                transition: 'opacity 160ms ease, transform 160ms ease',
+                                zIndex: 1200,
+                                width: '100%',
+                                boxSizing: 'border-box',
+                              }}
+                            >
+                              {item.dropdown.map((sub) => (
+                                <li key={sub.label} style={{ marginBottom: '8px' }}>
+                                  <div
+                                    onClick={sub.onClick}
+                                    style={{
+                                      display: 'block',
+                                      width: '100%',
+                                      boxSizing: 'border-box',
+                                      padding: '8px 12px',
+                                      borderRadius: '6px',
+                                      background: 'transparent',
+                                      color: '#333',
+                                      cursor: 'pointer',
+                                      transition: 'background 0.16s, color 0.16s',
+                                      whiteSpace: 'normal',
+                                      wordBreak: 'break-word',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.backgroundColor = '#0060d0';
+                                      e.currentTarget.style.color = '#fff';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.backgroundColor = 'transparent';
+                                      e.currentTarget.style.color = '#333';
+                                    }}
+                                  >
+                                    {sub.label}
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
                       </>
                     ) : (
                       <Link
@@ -263,6 +427,10 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                           fontSize: '1rem',
                           transition: 'background-color 0.2s, color 0.2s',
                         }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          router.push(item.path);
+                        }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.backgroundColor = '#0060d0';
                           e.currentTarget.style.color = '#fff';
@@ -275,25 +443,26 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                       >
                         {item.label}
                       </Link>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </nav>
-          </aside>
-        )}
+                    )
+                  )}
+                </li>
+              ))}
+            </ul>
+          </nav>
+        </aside>
 
         {/* Main Content Area */}
-        <div
-          style={{
-            marginLeft: sidebarVisible ? (typeof window !== 'undefined' && window.innerWidth <= 1024 ? (window.innerWidth <= 768 ? '0' : '200px') : '220px') : '0',
-            width: sidebarVisible ? (typeof window !== 'undefined' && window.innerWidth <= 1024 ? '100%' : 'calc(100% - 220px)') : '100%',
+        <div className="sa-main"
+            style={{
+              marginLeft: sidebarCollapsed ? (typeof window !== 'undefined' && window.innerWidth <= 1024 ? (window.innerWidth <= 768 ? '0' : '56px') : '72px') : (typeof window !== 'undefined' && window.innerWidth <= 1024 ? (window.innerWidth <= 768 ? '0' : '200px') : '220px'),
+            width: sidebarCollapsed ? (typeof window !== 'undefined' && window.innerWidth <= 1024 ? '100%' : 'calc(100% - 72px)') : (typeof window !== 'undefined' && window.innerWidth <= 1024 ? '100%' : 'calc(100% - 220px)'),
             minHeight: '100vh',
-            transition: 'margin-left 0.3s ease, width 0.3s ease',
-            padding: typeof window !== 'undefined' && window.innerWidth <= 768 ? '10px' : '32px',
+            transition: 'margin-left 450ms cubic-bezier(0.2,0.8,0.2,1), width 450ms cubic-bezier(0.2,0.8,0.2,1)',
+            padding: typeof window !== 'undefined' && window.innerWidth <= 768 ? '8px' : '20px',
             boxSizing: 'border-box',
-            maxWidth: '1600px',
-            marginRight: 'auto',
+            /* allow full width usage instead of centering inside a fixed maxWidth */
+            maxWidth: 'none',
+            marginRight: 0,
             marginTop: '0',
           }}
         >
@@ -435,7 +604,7 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                     width: '240px',
                     background: '#fff',
                     borderRadius: '10px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
                     padding: '12px',
                     display: 'flex',
                     flexDirection: 'column',
@@ -490,7 +659,7 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
           </div>
 
           {/* Main Content */}
-          <div style={{ marginTop: '80px', padding: '20px', maxWidth: '1200px', marginLeft: 'auto', marginRight: 'auto' }}>
+          <div className="sa-content" style={{ marginTop: '80px', padding: '12px 12px 20px 12px', width: '100%', maxWidth: 'none', marginLeft: 0, marginRight: 0 }}>
             {children}
           </div>
         </div>
@@ -504,12 +673,13 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
             width: 200px;
             padding: 1.5rem;
           }
-          /* Main content width adjusts automatically */
-          div[style*='marginLeft'] {
+          /* Main content adjusts to full width and reduces padding */
+          .sa-main {
             margin-left: 0 !important;
             width: 100% !important;
-            padding: 10px;
+            padding: 8px !important;
           }
+          .sa-content { padding: 8px !important; }
         }
 
         @media (max-width: 768px) {
@@ -526,11 +696,24 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
           aside[style*='transform: translateX(0)'] {
             transform: translateX(0);
           }
-          /* Main content takes full width */
-          div[style*='marginLeft'] {
-            margin-left: 0 !important;
-            width: 100% !important;
-            padding: 10px;
+          /* Main content takes full width with minimal padding */
+          .sa-main { margin-left: 0 !important; width: 100% !important; padding: 6px !important; }
+          .sa-content { padding: 6px 6px 14px 6px !important; }
+          /* toggle is fixed outside the sidebar; move it to bottom-right on small screens */
+          .sa-toggle {
+            left: auto !important;
+            right: 18px !important;
+            top: auto !important;
+            bottom: 18px !important;
+            transform: none !important;
+          }
+          .sa-toggle:focus {
+            outline: none;
+            box-shadow: 0 0 0 4px rgba(0,96,208,0.18), 0 6px 18px rgba(0,0,0,0.18) !important;
+          }
+          .sa-toggle:hover {
+            transform: translateY(-2px) !important;
+            box-shadow: 0 10px 24px rgba(0,0,0,0.18) !important;
           }
         }
       `}</style>

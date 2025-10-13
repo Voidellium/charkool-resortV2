@@ -283,237 +283,256 @@ export default function SignUpPage() {
             </p>
           </div>
         </div>
-
-        <style jsx global>{`
-          html, body, #__next {
-            height: 100%;
-            margin: 0;
-            padding: 0;
-          }
-          body {
-            background: linear-gradient(120deg,#fcd34d 0%,#fef3c7 30%,#e6f4f8 100%);
-            font-family: 'Inter', sans-serif;
-          }
-          * { box-sizing: border-box; }
-        `}</style>
-
-        <style jsx>{`
-          .signup-wrapper {
-            display: flex;
-            width: 100%;
-            max-width: 1400px;
-            min-height: 90vh;
-            background: #fff;
-            border-radius: 20px;
-            overflow: hidden;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.15);
-            margin: 2rem auto;
-          }
-          .left-panel {
-            flex: 1.1;
-            background: linear-gradient(160deg,#fff7e6,#fff);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            padding: 3rem;
-          }
-          .logo-img { max-width: 220px; width: 100%; height: auto; }
-          .tagline {
-            margin-top: 1.2rem;
-            text-align: center;
-            color: #374151;
-            font-size: 1.1rem;
-            font-weight: 500;
-          }
-          .right-panel {
-            flex: 1.5;
-            background: #fafafa;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 3rem;
-          }
-          .form-card {
-            background: #fff;
-            width: 100%;
-            max-width: 600px;
-            padding: 2.5rem;
-            border-radius: 16px;
-            box-shadow: 0 12px 24px rgba(0,0,0,0.08);
-          }
-          .form-title {
-            font-size: 2rem;
-            font-weight: 700;
-            margin-bottom: 1.5rem;
-            text-align: center;
-            color: #0f172a;
-          }
-          .input-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 0.8rem;
-            width: 100%;
-          }
-          .signup-form {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-            align-items: center;
-          }
-          .signup-form input {
-            width: 100%;
-            height: 48px;
-            padding: 0 14px;
-            border: 1px solid #e5e7eb;
-            border-radius: 10px;
-            font-size: 1rem;
-            transition: border 0.2s, box-shadow 0.2s;
-          }
-          .signup-form input:focus {
-            border-color: #f59e0b;
-            box-shadow: 0 0 0 3px rgba(245,158,11,0.15);
-          }
-          .birthdate-input::placeholder {
-            font-size: 0.95rem;
-            color: #9ca3af;
-          }
-          .password-wrapper {
-            position: relative;
-            width: 100%;
-          }
-          .toggle-btn {
-            position: absolute;
-            right: 12px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: none;
-            border: none;
-            color: #f59e0b;
-            font-weight: 600;
-            cursor: pointer;
-          }
-          .password-rules {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            width: 100%;
-            background: #f9fafb;
-            border: 1px solid #e5e7eb;
-            border-radius: 10px;
-            padding: 0.75rem;
-            font-size: 0.85rem;
-            margin-top: 0.4rem;
-            z-index: 10;
-          }
-          .valid { color: #16a34a; }
-          .invalid { color: #dc2626; }
-          .contact-wrapper {
-            display: flex;
-            align-items: center;
-            border: 1px solid #e5e7eb;
-            border-radius: 10px;
-            overflow: hidden;
-            width: 100%;
-            height: 48px;
-          }
-          .prefix {
-            padding: 0 12px;
-            background: #f3f4f6;
-            border-right: 1px solid #e5e7eb;
-            color: #374151;
-          }
-          .contact-wrapper input {
-            border: none;
-            flex: 1;
-            padding: 0 12px;
-            font-size: 1rem;
-            outline: none;
-            height: 100%;
-          }
-          .error-message {
-            color: #dc2626;
-            font-size: 0.9rem;
-            text-align: center;
-          }
-          .otp-input-container {
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 0.4rem;
-          }
-          .otp-hint {
-            font-size: 0.85rem;
-            color: #4b5563;
-          }
-          .otp-countdown {
-            font-size: 0.9rem;
-            color: #374151;
-          }
-          .otp-retry {
-            font-size: 0.9rem;
-            color: #374151;
-          }
-          .resend-btn {
-            margin-top: 0.5rem;
-            padding: 0.5rem 1rem;
-            border: none;
-            background: #f59e0b;
-            color: #fff;
-            border-radius: 8px;
-            cursor: pointer;
-          }
-          .resend-btn:hover { background: #d97706; }
-          .primary-btn {
-            width: 100%;
-            height: 48px;
-            background: #f59e0b;
-            color: #fff;
-            font-weight: 600;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            margin-top: 1rem;
-            transition: background 0.3s;
-          }
-          .primary-btn:hover { background: #d97706; }
-          .google-btn {
-            margin-top: 1rem;
-            width: 100%;
-            height: 48px;
-            border: 1px solid #e5e7eb;
-            border-radius: 10px;
-            background: #fff;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 10px;
-            cursor: pointer;
-            font-weight: 500;
-          }
-          .google-btn:hover { background: #f8fafc; }
-          .login-text {
-            margin-top: 1rem;
-            text-align: center;
-            font-size: 0.95rem;
-            color: #374151;
-          }
-          .login-text a { color: #d97706; font-weight: 600; }
-
-          @media (max-width: 1024px) {
-            .signup-wrapper { flex-direction: column; max-width: 95%; }
-            .left-panel { padding: 2rem; }
-            .form-card { padding: 2rem; }
-            .input-grid { grid-template-columns: 1fr; }
-          }
-          @media (max-width: 640px) {
-            .form-title { font-size: 1.6rem; }
-            .signup-form input, .primary-btn, .google-btn { font-size: 0.95rem; height: 44px; }
-            .password-rules { font-size: 0.8rem; }
-          }
-        `}</style>
       </div>
+
+      <footer className="footer">
+        <div className="footer-line"></div>
+        <p>© 2025 Charkool Beach Resort. All Rights Reserved.</p>
+      </footer>
+
+      <style jsx global>{`
+        html, body, #__next {
+          height: 100%;
+          margin: 0;
+        }
+        body {
+          background: linear-gradient(120deg,#fcd34d 0%,#fef3c7 30%,#e6f4f8 100%);
+          font-family: 'Inter', sans-serif;
+        }
+        * { box-sizing: border-box; }
+      `}</style>
+
+      <style jsx>{`
+        .signup-wrapper {
+          display: flex;
+          width: 100%;
+          max-width: 1400px;
+          min-height: 90vh;
+          background: #fff;
+          border-radius: 20px;
+          overflow: hidden;
+          box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+          margin: 2rem auto;
+        }
+        .left-panel {
+          flex: 1.1;
+          background: linear-gradient(160deg,#fff7e6,#fff);
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: center;
+          padding: 3rem;
+        }
+        .logo-img { max-width: 220px; width: 100%; height: auto; }
+        .tagline {
+          margin-top: 1.2rem;
+          text-align: center;
+          color: #374151;
+          font-size: 1.1rem;
+          font-weight: 500;
+        }
+        .right-panel {
+          flex: 1.5;
+          background: #fafafa;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          padding: 3rem;
+        }
+        .form-card {
+          background: #fff;
+          width: 100%;
+          max-width: 600px;
+          padding: 2.5rem;
+          border-radius: 16px;
+          box-shadow: 0 12px 24px rgba(0,0,0,0.08);
+        }
+        .form-title {
+          font-size: 2rem;
+          font-weight: 700;
+          margin-bottom: 1.5rem;
+          text-align: center;
+          color: #0f172a;
+        }
+        .input-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr 1fr;
+          gap: 0.8rem;
+          width: 100%;
+        }
+        .signup-form {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+          align-items: center;
+        }
+        .signup-form input {
+          width: 100%;
+          height: 48px;
+          padding: 0 14px;
+          border: 1px solid #e5e7eb;
+          border-radius: 10px;
+          font-size: 1rem;
+          transition: border 0.2s, box-shadow 0.2s;
+        }
+        .signup-form input:focus {
+          border-color: #f59e0b;
+          box-shadow: 0 0 0 3px rgba(245,158,11,0.15);
+        }
+        .birthdate-input::placeholder {
+          font-size: 0.95rem;
+          color: #9ca3af;
+        }
+        .password-wrapper {
+          position: relative;
+          width: 100%;
+        }
+        .toggle-btn {
+          position: absolute;
+          right: 12px;
+          top: 50%;
+          transform: translateY(-50%);
+          background: none;
+          border: none;
+          color: #f59e0b;
+          font-weight: 600;
+          cursor: pointer;
+        }
+        .password-rules {
+          position: absolute;
+          top: 100%;
+          left: 0;
+          width: 100%;
+          background: #f9fafb;
+          border: 1px solid #e5e7eb;
+          border-radius: 10px;
+          padding: 0.75rem;
+          font-size: 0.85rem;
+          margin-top: 0.4rem;
+          z-index: 10;
+        }
+        .valid { color: #16a34a; }
+        .invalid { color: #dc2626; }
+        .contact-wrapper {
+          display: flex;
+          align-items: center;
+          border: 1px solid #e5e7eb;
+          border-radius: 10px;
+          overflow: hidden;
+          width: 100%;
+          height: 48px;
+        }
+        .prefix {
+          padding: 0 12px;
+          background: #f3f4f6;
+          border-right: 1px solid #e5e7eb;
+          color: #374151;
+        }
+        .contact-wrapper input {
+          border: none;
+          flex: 1;
+          padding: 0 12px;
+          font-size: 1rem;
+          outline: none;
+          height: 100%;
+        }
+        .error-message {
+          color: #dc2626;
+          font-size: 0.9rem;
+          text-align: center;
+        }
+        .otp-input-container {
+          width: 100%;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.4rem;
+        }
+        .otp-hint {
+          font-size: 0.85rem;
+          color: #4b5563;
+        }
+        .otp-countdown {
+          font-size: 0.9rem;
+          color: #374151;
+        }
+        .otp-retry {
+          font-size: 0.9rem;
+          color: #374151;
+        }
+        .resend-btn {
+          margin-top: 0.5rem;
+          padding: 0.5rem 1rem;
+          border: none;
+          background: #f59e0b;
+          color: #fff;
+          border-radius: 8px;
+          cursor: pointer;
+        }
+        .resend-btn:hover { background: #d97706; }
+        .primary-btn {
+          width: 100%;
+          height: 48px;
+          background: #f59e0b;
+          color: #fff;
+          font-weight: 600;
+          border: none;
+          border-radius: 10px;
+          cursor: pointer;
+          margin-top: 1rem;
+          transition: background 0.3s;
+        }
+        .primary-btn:hover { background: #d97706; }
+        .google-btn {
+          margin-top: 1rem;
+          width: 100%;
+          height: 48px;
+          border: 1px solid #e5e7eb;
+          border-radius: 10px;
+          background: #fff;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          gap: 10px;
+          cursor: pointer;
+          font-weight: 500;
+        }
+        .google-btn:hover { background: #f8fafc; }
+        .login-text {
+          margin-top: 1rem;
+          text-align: center;
+          font-size: 0.95rem;
+          color: #374151;
+        }
+        .login-text a { color: #d97706; font-weight: 600; }
+        .footer {
+          background-color: #e8cfa3;
+          text-align: center;
+          padding: 1.5rem 0;
+          color: #123238;
+          font-size: 0.95rem;
+          margin-top: 2rem;
+        }
+        .footer-line {
+          .footer {
+          background-color: #e8cfa3;
+          text-align: center;
+          padding: 1.5rem 0;
+          color: rgba(18, 50, 56, 0.85);
+          font-size: 0.9rem;
+        }
+        @media (max-width: 1024px) {
+          .signup-wrapper { flex-direction: column; max-width: 95%; }
+          .left-panel { padding: 2rem; }
+          .form-card { padding: 2rem; }
+          .input-grid { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 640px) {
+          .form-title { font-size: 1.6rem; }
+          .signup-form input, .primary-btn, .google-btn { font-size: 0.95rem; height: 44px; }
+          .password-rules { font-size: 0.8rem; }
+        }
+      `}</style>
     </>
   );
 }

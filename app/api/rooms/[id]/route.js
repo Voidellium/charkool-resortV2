@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import fs from 'fs';
 import path from 'path';
+import { recordAudit } from '@/src/lib/audit';
+import { getToken } from 'next-auth/jwt';
+
+const JWT_SECRET = process.env.NEXTAUTH_SECRET;
 
 export const config = { api: { bodyParser: false } };
 
@@ -36,6 +40,21 @@ export async function PUT(req, { params }) {
       data,
     });
 
+    try {
+      const token = await getToken({ req, secret: JWT_SECRET });
+      await recordAudit({
+        actorId: token?.sub ? parseInt(token.sub) : null,
+        actorName: token?.name || token?.email || 'Unknown',
+        actorRole: token?.role || 'ADMIN',
+        action: 'UPDATE',
+        entity: 'Room',
+        entityId: String(updatedRoom.id),
+        details: `Updated room "${updatedRoom.name}"`,
+      });
+    } catch (auditErr) {
+      console.error('Failed to record audit for room update', auditErr);
+    }
+
     return NextResponse.json(updatedRoom);
   } catch (error) {
     console.error('❌ PUT room error:', error);
@@ -57,6 +76,21 @@ export async function DELETE(req, { params }) {
     }
     // Now delete the room
     await prisma.room.delete({ where: { id: Number(id) } });
+
+    try {
+      const token = await getToken({ req, secret: JWT_SECRET });
+      await recordAudit({
+        actorId: token?.sub ? parseInt(token.sub) : null,
+        actorName: token?.name || token?.email || 'Unknown',
+        actorRole: token?.role || 'ADMIN',
+        action: 'DELETE',
+        entity: 'Room',
+        entityId: String(id),
+        details: `Deleted room id ${id}`,
+      });
+    } catch (auditErr) {
+      console.error('Failed to record audit for room delete', auditErr);
+    }
     return NextResponse.json({ message: 'Room deleted' });
   } catch (error) {
     console.error('❌ DELETE room error:', error);

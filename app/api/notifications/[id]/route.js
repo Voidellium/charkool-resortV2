@@ -7,7 +7,7 @@ export async function PATCH(req, { params }) {
     const { id } = params;
     const updated = await prisma.notification.update({
       where: { id: parseInt(id) },
-      data: { read: true },
+      data: { isRead: true },
     });
     return NextResponse.json(updated);
   } catch (err) {
