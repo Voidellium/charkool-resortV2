@@ -5,7 +5,6 @@ import { FaGoogle } from 'react-icons/fa6';
 import Link from 'next/link';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import Navbar from '@/components/Navbar';
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -147,8 +146,8 @@ export default function SignUpPage() {
 
   return (
     <>
-      <Navbar />
-      <div className="signup-wrapper">
+      <div className="page-container">
+        <div className="signup-wrapper">
         <div className="left-panel">
           <Image
             src="/images/logo.png"
@@ -284,6 +283,7 @@ export default function SignUpPage() {
           </div>
         </div>
       </div>
+      </div>
 
       <footer className="footer">
         <div className="footer-line"></div>
@@ -291,18 +291,29 @@ export default function SignUpPage() {
       </footer>
 
       <style jsx global>{`
-        html, body, #__next {
-          height: 100%;
-          margin: 0;
-        }
+        * { box-sizing: border-box; }
         body {
+          margin: 0;
+          padding: 0;
           background: linear-gradient(120deg,#fcd34d 0%,#fef3c7 30%,#e6f4f8 100%);
           font-family: 'Inter', sans-serif;
+          min-height: 100vh;
         }
-        * { box-sizing: border-box; }
+        .navbar {
+          height: 80px !important;
+          min-height: 80px !important;
+          max-height: 80px !important;
+        }
       `}</style>
 
       <style jsx>{`
+        .page-container {
+          min-height: calc(100vh - 80px);
+          padding: 2rem 1rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
         .signup-wrapper {
           display: flex;
           width: 100%;
@@ -312,7 +323,6 @@ export default function SignUpPage() {
           border-radius: 20px;
           overflow: hidden;
           box-shadow: 0 20px 50px rgba(0,0,0,0.15);
-          margin: 2rem auto;
         }
         .left-panel {
           flex: 1.1;

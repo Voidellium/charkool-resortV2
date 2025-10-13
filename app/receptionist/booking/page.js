@@ -1,204 +1,115 @@
 'use client';
-import { useEffect, useState } from 'react';
-import './receptionist-styles.css';
 
-// === Temporary Mock Data ===
-// This data simulates what would come from your API.
-const MOCK_DATA = {
-  totalRooms: 50,
-  occupiedRooms: 1,
-  upcomingReservations: [
-    { id: '1', guestId: '123', guestName: 'Guest #2', checkIn: '2025-09-18' },
-    { id: '2', guestId: '124', guestName: 'Guest #1', checkIn: '2025-09-17' },
-  ],
-  currentGuests: [
-    { id: '3', guestId: '89', guestName: 'Guest #89', checkIn: '2025-09-17' },
-  ],
-};
-
-// === Styles ===
-const styles = {
-  dashboardContainer: {
-    padding: '2rem',
-    fontFamily: 'sans-serif',
-  },
-  headerContainer: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '2rem',
-  },
-  headerTitle: {
-    fontSize: '1.875rem',
-    fontWeight: '600',
-    color: '#4B5563',
-  },
-  userId: {
-    fontSize: '0.875rem',
-    color: '#6B7280',
-    marginTop: '0.25rem',
-  },
-  kpiCardContainer: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-    gap: '1.5rem',
-    marginBottom: '2rem',
-  },
-  kpiCard: {
-    backgroundColor: '#FFCC7A',
-    borderRadius: '1rem',
-    padding: '1.5rem',
-    color: '#4B5563',
-    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'center',
-    alignItems: 'center',
-    height: '12rem',
-    textAlign: 'center',
-  },
-  kpiCardTitle: {
-    fontSize: '1.25rem',
-    fontWeight: '500',
-  },
-  kpiCardMetric: {
-    fontSize: '3rem',
-    fontWeight: '700',
-    marginTop: '0.5rem',
-  },
-  guestCard: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '1rem',
-    backgroundColor: '#F3F4F6',
-    borderRadius: '0.5rem',
-    marginBottom: '1rem',
-  },
-  guestName: {
-    fontWeight: '500',
-    color: '#4B5563',
-  },
-  guestDetails: {
-    fontSize: '0.875rem',
-    color: '#6B7280',
-  },
-  checkInButtonGreen: {
-    backgroundColor: '#56A86B',
-    color: '#fff',
-    padding: '0.25rem 1rem',
-    borderRadius: '9999px',
-    fontWeight: '500',
-    border: 'none',
-    cursor: 'pointer',
-  },
-  checkOutButtonRed: {
-    backgroundColor: '#E74C3C',
-    color: '#fff',
-    padding: '0.25rem 1rem',
-    borderRadius: '9999px',
-    fontWeight: '500',
-    border: 'none',
-    cursor: 'pointer',
-  },
-  sectionCard: {
-    backgroundColor: '#fff',
-    borderRadius: '1rem',
-    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-    padding: '1.5rem',
-    height: '25rem',
-  },
-  sectionTitle: {
-    fontSize: '1.25rem',
-    fontWeight: '600',
-    marginBottom: '1rem',
-    color: '#4B5563',
-  },
-};
-
-export default function ReceptionistDashboard() {
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // Simulate API call
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, []);
-
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
-        <p>Loading dashboard...</p>
-      </div>
-    );
-  }
-
-  const { totalRooms, occupiedRooms, upcomingReservations, currentGuests } = MOCK_DATA;
-  const availableRooms = totalRooms - occupiedRooms;
-
+export default function BookingPage() {
   return (
-    <div style={styles.dashboardContainer}>
-      <div style={styles.headerContainer}>
-        <div>
-          <h1 style={styles.headerTitle}>Receptionist Dashboard</h1>
-          <p style={styles.userId}>User ID: 1234113340746626333</p>
+    <div className="booking-redirect">
+      <div className="redirect-card">
+        <div className="redirect-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+            <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM19 19H5V8H19V19ZM7 10H9V12H7V10ZM11 10H13V12H11V10ZM15 10H17V12H15V10Z" fill="#059669"/>
+          </svg>
         </div>
+        <h2>Booking Management</h2>
+        <p>All booking functionality is integrated in the main receptionist dashboard. Please use the main dashboard for:</p>
+        <ul>
+          <li>📅 Viewing and managing bookings</li>
+          <li>🏠 Checking room availability</li>
+          <li>👥 Guest check-in/check-out</li>
+          <li>📊 Booking statistics and reports</li>
+          <li>🔔 Real-time notifications</li>
+        </ul>
+        <button onClick={() => window.location.href = '/receptionist'} className="back-button">
+          Go to Main Dashboard
+        </button>
       </div>
 
-      {/* KPI Cards */}
-      <div style={styles.kpiCardContainer}>
-        <div style={styles.kpiCard}>
-          <p style={styles.kpiCardTitle}>Rooms Occupied</p>
-          <p style={styles.kpiCardMetric}>{occupiedRooms}</p>
-          <p style={{ marginTop: '0.25rem' }}>/{totalRooms}</p>
-        </div>
-        <div style={styles.kpiCard}>
-          <p style={styles.kpiCardTitle}>Rooms Available</p>
-          <p style={styles.kpiCardMetric}>{availableRooms}</p>
-        </div>
-      </div>
+      <style jsx>{`
+        .booking-redirect {
+          min-height: 80vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 2rem;
+          background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+        }
 
-      {/* Reservations & Current Guests Sections */}
-      <div className="section-container">
-        {/* Upcoming Reservations */}
-        <div style={styles.sectionCard}>
-          <h2 style={styles.sectionTitle}>
-            Upcoming Reservations ({upcomingReservations.length})
-          </h2>
-          <div className="guest-list-container">
-            {upcomingReservations.map((guest) => (
-              <div key={guest.id} style={styles.guestCard}>
-                <div>
-                  <p style={styles.guestName}>{guest.guestName}</p>
-                  <p style={styles.guestDetails}>Check-in: {guest.checkIn}</p>
-                </div>
-                <button style={styles.checkInButtonGreen}>Check In</button>
-              </div>
-            ))}
-          </div>
-        </div>
+        .redirect-card {
+          background: white;
+          padding: 3rem;
+          border-radius: 1rem;
+          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+          text-align: center;
+          max-width: 500px;
+          width: 100%;
+        }
 
-        {/* Current Guests */}
-        <div style={styles.sectionCard}>
-          <h2 style={styles.sectionTitle}>
-            Current Guests ({currentGuests.length})
-          </h2>
-          <div className="guest-list-container">
-            {currentGuests.map((guest) => (
-              <div key={guest.id} style={styles.guestCard}>
-                <div>
-                  <p style={styles.guestName}>{guest.guestName}</p>
-                  <p style={styles.guestDetails}>Check-in: {guest.checkIn}</p>
-                </div>
-                <button style={styles.checkOutButtonRed}>Check Out</button>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+        .redirect-icon {
+          margin-bottom: 1.5rem;
+        }
+
+        .redirect-card h2 {
+          color: #1f2937;
+          font-size: 1.8rem;
+          font-weight: 700;
+          margin-bottom: 1rem;
+        }
+
+        .redirect-card p {
+          color: #6b7280;
+          font-size: 1rem;
+          margin-bottom: 1.5rem;
+          line-height: 1.6;
+        }
+
+        .redirect-card ul {
+          text-align: left;
+          margin: 1.5rem 0;
+          padding-left: 0;
+          list-style: none;
+        }
+
+        .redirect-card li {
+          color: #374151;
+          margin: 0.8rem 0;
+          padding: 0.5rem 0;
+          border-bottom: 1px solid #f3f4f6;
+          font-weight: 500;
+        }
+
+        .back-button {
+          background: linear-gradient(135deg, #059669 0%, #047857 100%);
+          color: white;
+          border: none;
+          padding: 0.8rem 2rem;
+          border-radius: 0.5rem;
+          font-size: 1rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          margin-top: 1rem;
+        }
+
+        .back-button:hover {
+          background: linear-gradient(135deg, #047857 0%, #065f46 100%);
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(5, 150, 105, 0.4);
+        }
+
+        @media (max-width: 768px) {
+          .redirect-card {
+            padding: 2rem;
+            margin: 1rem;
+          }
+
+          .redirect-card h2 {
+            font-size: 1.5rem;
+          }
+
+          .back-button {
+            width: 100%;
+          }
+        }
+      `}</style>
     </div>
   );
 }

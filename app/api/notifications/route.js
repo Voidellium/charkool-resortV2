@@ -1,6 +1,9 @@
 // app/api/notifications/route.js
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { recordAudit } from '@/src/lib/audit';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/auth';
 
 // ✅ GET: Fetch notifications by role or userId
 export async function GET(req) {
@@ -44,6 +47,25 @@ export async function POST(req) {
     const newNotification = await prisma.notification.create({
       data: { message, type, role },
     });
+
+    // Record audit for notification creation
+    try {
+      const session = await getServerSession(authOptions);
+      await recordAudit({
+        actorId: session?.user?.id || null,
+        actorName: session?.user?.name || session?.user?.email || 'System',
+        actorRole: session?.user?.role || 'SYSTEM',
+        action: 'CREATE',
+        entity: 'Notification',
+        entityId: String(newNotification.id),
+        details: JSON.stringify({
+          summary: `Created notification: ${message.substring(0, 50)}...`,
+          after: newNotification
+        }),
+      });
+    } catch (auditErr) {
+      console.error('Failed to record audit for notification creation:', auditErr);
+    }
 
     return NextResponse.json(newNotification);
   } catch (error) {

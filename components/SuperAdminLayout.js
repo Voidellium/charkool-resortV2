@@ -3,8 +3,27 @@ import React from 'react';
 import Link from 'next/link';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bell, Home, Settings, Users, Book, FileText, Layers, MessageCircle, CreditCard, DoorOpen, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ToastProvider } from './Toast';
+import { 
+  Bell, 
+  Home, 
+  Settings, 
+  Users, 
+  Book, 
+  FileText, 
+  Layers, 
+  MessageCircle, 
+  CreditCard, 
+  DoorOpen, 
+  ChevronLeft, 
+  ChevronRight,
+  User,
+  Menu,
+  X,
+  Check
+} from 'lucide-react';
 import { signOut } from 'next-auth/react';
+import styles from './SuperAdminLayout.module.css';
 
 export default function SuperAdminLayout({ children, activePage, reportMenu, user }) {
   const [reportsOpen, setReportsOpen] = useState(false);
@@ -19,12 +38,10 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
   const router = useRouter();
 
   const [sidebarVisible, setSidebarVisible] = useState(true);
-  const [animateSidebar, setAnimateSidebar] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [togglePressed, setTogglePressed] = useState(false);
-  // transform used for the floating toggle button; includes a small press animation
-  const baseToggleTransform = 'translateY(-50%) translateX(-50%)';
-  const toggleTransform = togglePressed ? `${baseToggleTransform} scale(0.96) rotate(8deg)` : baseToggleTransform;
+  const [isLoading, setIsLoading] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   const toggleSidebar = () => {
     setSidebarCollapsed((s) => {
@@ -38,14 +55,23 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
     });
   };
 
-  // initialise collapsed state from localStorage (client-side only)
+  // Initialize collapsed state and mobile detection
   useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
     try {
       const stored = localStorage.getItem('superadmin_sidebar_collapsed');
       if (stored !== null) setSidebarCollapsed(JSON.parse(stored));
     } catch (e) {
       // ignore
     }
+    
+    return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
   useEffect(() => {
@@ -98,7 +124,13 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
 
   const handleLogout = async () => {
     if (window.confirm("Are you sure you want to log out?")) {
-      await signOut({ callbackUrl: '/login' });
+      setIsLoading(true);
+      try {
+        await signOut({ callbackUrl: '/login' });
+      } catch (error) {
+        console.error('Logout error:', error);
+        setIsLoading(false);
+      }
     }
   };
 
@@ -114,115 +146,92 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
   };
 
   return (
-    <>
-      {/* Font imports */}
-      <Head>
-        {/* existing links */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin />
-        <link href="https://fonts.googleapis.com/css2?family=Poppins&display=swap" rel="stylesheet" />
-        <link href="https://fonts.googleapis.com/css2?family=Playfair+Display&display=swap" rel="stylesheet" />
-        <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet" />
-        {/* set global font-family */}
-        <style>{`
-          body {
-            font-family: 'Poppins', sans-serif;
+    <ToastProvider>
+      <>
+        {/* Font imports */}
+        <Head>
+          {/* existing links */}
+          <link rel="preconnect" href="https://fonts.googleapis.com" />
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin />
+          <link href="https://fonts.googleapis.com/css2?family=Poppins&display=swap" rel="stylesheet" />
+          <link href="https://fonts.googleapis.com/css2?family=Playfair+Display&display=swap" rel="stylesheet" />
+          <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet" />
+          {/* set global font-family */}
+          <style>{`
+            body {
+              font-family: 'Poppins', sans-serif;
           }
         `}</style>
       </Head>
 
-      {/* Container with global font and flex layout */}
-      <div
-        style={{
-          display: 'flex',
-          minHeight: '100vh',
-          fontFamily: `'Poppins', sans-serif`,
-          backgroundColor: '#f9f9f9',
-        }}
-      >
-  {/* Fixed toggle button (placed outside sidebar to avoid blocking icons) */}
-  {/* compute left position so it doesn't overlap the sidebar */}
-  {/* small heuristic: when collapsed we sit near the collapsed width; when expanded we sit just right of the sidebar */}
-  {/* Note: keep simple values to avoid SSR issues with window.* */}
-        
+      {/* Main Container */}
+      <div className={styles.container}>
+        {/* Mobile Overlay */}
+        {isMobile && sidebarVisible && (
+          <div 
+            className={styles.overlay}
+            onClick={() => setSidebarVisible(false)}
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              zIndex: 1100,
+              backdropFilter: 'blur(4px)',
+            }}
+          />
+        )}
 
+        {/* Toggle Button */}
         <button
-          className="sa-toggle"
-          onClick={toggleSidebar}
-          aria-label={sidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-          aria-expanded={!sidebarCollapsed}
+          className={`${styles.toggleButton} ${togglePressed ? styles.toggleButtonPressed : ''}`}
+          onClick={isMobile ? () => setSidebarVisible(!sidebarVisible) : toggleSidebar}
+          aria-label={isMobile ? 'Toggle Menu' : (sidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar')}
+          aria-expanded={isMobile ? sidebarVisible : !sidebarCollapsed}
           onMouseDown={() => setTogglePressed(true)}
           onMouseUp={() => setTogglePressed(false)}
           onMouseLeave={() => setTogglePressed(false)}
           style={{
-            position: 'fixed',
-            top: '50%',
-            transform: `translateY(-50%) ${togglePressed ? 'scale(0.96) rotate(8deg)' : ''}`,
-            /* place the button just outside the sidebar edge; when collapsed the sidebar is 72px, when expanded 240px */
-            left: sidebarCollapsed ? '72px' : '280px',
-            marginLeft: '24px', /* place the button fully outside the edge with small gap */
-            zIndex: 1100,
-            padding: 0,
-            backgroundColor: 'rgba(0,0,0,0.64)',
-            borderRadius: '12px',
-            boxShadow: '0 6px 18px rgba(0,0,0,0.14)',
-            border: '1px solid rgba(255,255,255,0.06)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '48px',
-            height: '48px',
-            boxSizing: 'border-box',
-            transition: 'transform 220ms cubic-bezier(0.2,0,0,1), left 220ms, box-shadow 260ms, background 260ms',
+            left: isMobile ? 'auto' : (sidebarCollapsed ? '104px' : '304px'),
+            right: isMobile ? '20px' : 'auto',
+            top: isMobile ? 'auto' : '50%',
+            bottom: isMobile ? '20px' : 'auto',
           }}
         >
-          <div style={{ transform: 'translateX(1px)' }}>{sidebarCollapsed ? <ChevronRight size={18} color="#fff" /> : <ChevronLeft size={18} color="#fff" />}</div>
+          {isMobile ? (
+            sidebarVisible ? <X size={20} color="#fff" /> : <Menu size={20} color="#fff" />
+          ) : (
+            sidebarCollapsed ? <ChevronRight size={18} color="#fff" /> : <ChevronLeft size={18} color="#fff" />
+          )}
         </button>
 
         {/* Sidebar */}
         <aside
+          className={`${styles.sidebar} ${
+            sidebarCollapsed ? styles.sidebarCollapsed : styles.sidebarExpanded
+          } ${isMobile && sidebarVisible ? styles.sidebarVisible : ''}`}
           style={{
-            width: sidebarCollapsed ? '80px' : '240px',
-            background: '#FEBE52',
-            color: '#fff',
-            padding: sidebarCollapsed ? '1rem 0.5rem' : '2rem',
-            height: '100vh',
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            overflowY: 'auto',
-            boxShadow: '2px 0 8px rgba(0,0,0,0.1)',
-            zIndex: 1000,
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'start',
-            transition: 'width 600ms cubic-bezier(0.22,1,0.36,1), padding 600ms',
-            alignItems: sidebarCollapsed ? 'center' : 'flex-start',
+            transform: isMobile && !sidebarVisible ? 'translateX(-100%)' : 'translateX(0)',
           }}
         >
-          {/* ...existing code... */}
           {/* Header */}
           {!sidebarCollapsed && (
-            <h2
-              style={{
-                marginTop: '8px',
-                marginBottom: '2.5rem',
-                fontSize: '1.7rem',
-                color: '#000000ff',
-                fontWeight: '700',
-                textAlign: 'center',
-                fontFamily: `'Poppins'`,
-              }}
-            >
+            <h2 className={styles.sidebarHeader}>
               Super Admin Panel
             </h2>
           )}
           {/* Navigation */}
-          <nav style={{ flex: 1, width: '100%' }}>
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, width: '100%' }}>
+          <nav className={styles.navigation}>
+            <ul className={styles.navigationList}>
               {menu.map((item) => (
-                <li key={item.key} style={{ marginBottom: sidebarCollapsed ? '18px' : '15px', width: '100%', display: 'flex', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}>
+                <li 
+                  key={item.key} 
+                  className={`${styles.navigationItem} ${
+                    sidebarCollapsed ? styles.navigationItemCollapsed : styles.navigationItemExpanded
+                  }`}
+                >
                   {sidebarCollapsed ? (
                     <div
                       role="button"
@@ -231,32 +240,14 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                       title={item.label}
                       onClick={() => router.push(item.path)}
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') router.push(item.path); }}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: '48px',
-                        height: '48px',
-                        borderRadius: '10px',
-                        background: activePage === item.key ? 'rgba(0,0,0,0.12)' : 'transparent',
-                        cursor: 'pointer',
-                        transition: 'background 200ms ease, transform 200ms ease, color 200ms ease',
-                        color: '#333',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = 'translateY(-4px)';
-                        e.currentTarget.style.backgroundColor = '#0060d0';
-                        const svg = e.currentTarget.querySelector('svg');
-                        if (svg) svg.style.color = '#fff';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.backgroundColor = activePage === item.key ? 'rgba(0,0,0,0.12)' : 'transparent';
-                        const svg = e.currentTarget.querySelector('svg');
-                        if (svg) svg.style.color = '#333';
-                      }}
+                      className={`${styles.menuItemCollapsed} ${
+                        activePage === item.key ? styles.menuItemCollapsedActive : ''
+                      }`}
                     >
-                      {React.cloneElement(item.icon, { color: activePage === item.key ? '#fff' : '#333', size: 18 })}
+                      {React.cloneElement(item.icon, { 
+                        color: activePage === item.key ? '#fff' : '#333', 
+                        size: 20 
+                      })}
                     </div>
                   ) : (
                     item.dropdown ? (
@@ -264,18 +255,9 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                         <div style={{ position: 'relative', width: '100%' }}>
                           <Link
                             href={item.path}
-                            style={{
-                              display: 'block',
-                              padding: '12px 16px',
-                              borderRadius: '8px',
-                              textDecoration: 'none',
-                              backgroundColor: activePage === item.key ? '#00000049' : 'transparent',
-                              color: activePage === item.key ? '#fff' : '#555',
-                              fontWeight: activePage === item.key ? 'bold' : '400',
-                              fontFamily: `'Poppins'`,
-                              fontSize: '1rem',
-                              transition: 'background-color 0.2s, color 0.2s',
-                            }}
+                            className={`${styles.menuItemExpanded} ${
+                              activePage === item.key ? styles.menuItemExpandedActive : ''
+                            }`}
                             onClick={(e) => {
                               e.preventDefault();
                               // Only toggle dropdown when the item has dropdown entries.
@@ -300,61 +282,21 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                               }
                               router.push(item.path);
                             }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.backgroundColor = '#0060d0';
-                              e.currentTarget.style.color = '#fff';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.backgroundColor =
-                                activePage === item.key ? '#00000049' : 'transparent';
-                              e.currentTarget.style.color =
-                                activePage === item.key ? '#fff' : '#333';
-                            }}
                           >
+                            <span style={{ marginRight: '12px' }}>
+                              {React.cloneElement(item.icon, { size: 18 })}
+                            </span>
                             {item.label}
                           </Link>
 
-                          {/* Floating panel anchored to the parent link */}
+                          {/* Dropdown panel */}
                           {item.key === 'reports' && reportsOpen && (
-                            <ul
-                              style={{
-                                listStyle: 'none',
-                                margin: '8px 0 0 0',
-                                padding: '8px',
-                                borderRadius: '8px',
-                                boxShadow: '0 6px 18px rgba(0,0,0,0.08)',
-                                background: '#ffffff52',
-                                transition: 'opacity 160ms ease, transform 160ms ease',
-                                zIndex: 1200,
-                                width: '100%',
-                                boxSizing: 'border-box',
-                              }}
-                            >
+                            <ul className={styles.dropdown}>
                               {item.dropdown.map((sub) => (
-                                <li key={sub.label} style={{ marginBottom: '8px' }}>
+                                <li key={sub.label} className={styles.dropdownItem}>
                                   <div
                                     onClick={sub.onClick}
-                                    style={{
-                                      display: 'block',
-                                      width: '100%',
-                                      boxSizing: 'border-box',
-                                      padding: '8px 12px',
-                                      borderRadius: '6px',
-                                      background: 'transparent',
-                                      color: '#333',
-                                      cursor: 'pointer',
-                                      transition: 'background 0.16s, color 0.16s',
-                                      whiteSpace: 'normal',
-                                      wordBreak: 'break-word',
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      e.currentTarget.style.backgroundColor = '#0060d0';
-                                      e.currentTarget.style.color = '#fff';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      e.currentTarget.style.backgroundColor = 'transparent';
-                                      e.currentTarget.style.color = '#333';
-                                    }}
+                                    className={styles.dropdownLink}
                                   >
                                     {sub.label}
                                   </div>
@@ -364,45 +306,12 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                           )}
 
                           {item.key === 'config' && configOpen && (
-                            <ul
-                              style={{
-                                listStyle: 'none',
-                                margin: '8px 0 0 0',
-                                padding: '8px',
-                                borderRadius: '8px',
-                                boxShadow: '0 6px 18px rgba(0,0,0,0.08)',
-                                background: '#ffffff52',
-                                transition: 'opacity 160ms ease, transform 160ms ease',
-                                zIndex: 1200,
-                                width: '100%',
-                                boxSizing: 'border-box',
-                              }}
-                            >
+                            <ul className={styles.dropdown}>
                               {item.dropdown.map((sub) => (
-                                <li key={sub.label} style={{ marginBottom: '8px' }}>
+                                <li key={sub.label} className={styles.dropdownItem}>
                                   <div
                                     onClick={sub.onClick}
-                                    style={{
-                                      display: 'block',
-                                      width: '100%',
-                                      boxSizing: 'border-box',
-                                      padding: '8px 12px',
-                                      borderRadius: '6px',
-                                      background: 'transparent',
-                                      color: '#333',
-                                      cursor: 'pointer',
-                                      transition: 'background 0.16s, color 0.16s',
-                                      whiteSpace: 'normal',
-                                      wordBreak: 'break-word',
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      e.currentTarget.style.backgroundColor = '#0060d0';
-                                      e.currentTarget.style.color = '#fff';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      e.currentTarget.style.backgroundColor = 'transparent';
-                                      e.currentTarget.style.color = '#333';
-                                    }}
+                                    className={styles.dropdownLink}
                                   >
                                     {sub.label}
                                   </div>
@@ -415,32 +324,17 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                     ) : (
                       <Link
                         href={item.path}
-                        style={{
-                          display: 'block',
-                          padding: '12px 16px',
-                          borderRadius: '8px',
-                          textDecoration: 'none',
-                          background: activePage === item.key ? '#00000049' : 'transparent',
-                          color: activePage === item.key ? '#fff' : '#333',
-                          fontWeight: activePage === item.key ? 'bold' : '400',
-                          fontFamily: `Poppins`,
-                          fontSize: '1rem',
-                          transition: 'background-color 0.2s, color 0.2s',
-                        }}
+                        className={`${styles.menuItemExpanded} ${
+                          activePage === item.key ? styles.menuItemExpandedActive : ''
+                        }`}
                         onClick={(e) => {
                           e.preventDefault();
                           router.push(item.path);
                         }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = '#0060d0';
-                          e.currentTarget.style.color = '#fff';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor =
-                            activePage === item.key ? '#00000049' : 'transparent';
-                          e.currentTarget.style.color = activePage === item.key ? '#fff' : '#333';
-                        }}
                       >
+                        <span style={{ marginRight: '12px' }}>
+                          {React.cloneElement(item.icon, { size: 18 })}
+                        </span>
                         {item.label}
                       </Link>
                     )
@@ -452,271 +346,314 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
         </aside>
 
         {/* Main Content Area */}
-        <div className="sa-main"
-            style={{
-              marginLeft: sidebarCollapsed ? (typeof window !== 'undefined' && window.innerWidth <= 1024 ? (window.innerWidth <= 768 ? '0' : '56px') : '72px') : (typeof window !== 'undefined' && window.innerWidth <= 1024 ? (window.innerWidth <= 768 ? '0' : '200px') : '220px'),
-            width: sidebarCollapsed ? (typeof window !== 'undefined' && window.innerWidth <= 1024 ? '100%' : 'calc(100% - 72px)') : (typeof window !== 'undefined' && window.innerWidth <= 1024 ? '100%' : 'calc(100% - 220px)'),
-            minHeight: '100vh',
-            transition: 'margin-left 450ms cubic-bezier(0.2,0.8,0.2,1), width 450ms cubic-bezier(0.2,0.8,0.2,1)',
-            padding: typeof window !== 'undefined' && window.innerWidth <= 768 ? '8px' : '20px',
-            boxSizing: 'border-box',
-            /* allow full width usage instead of centering inside a fixed maxWidth */
-            maxWidth: 'none',
-            marginRight: 0,
-            marginTop: '0',
+        <div 
+          className={`${styles.mainContent} ${
+            sidebarCollapsed ? styles.mainContentCollapsed : styles.mainContentExpanded
+          }`}
+          style={{
+            marginLeft: isMobile ? '0' : undefined,
+            width: isMobile ? '100%' : undefined,
           }}
         >
-          {/* Top right icons: notifications & profile */}
-          <div
-            style={{
-              position: 'fixed',
-              top: '20px',
-              right: '30px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '20px',
-              zIndex: 900,
-            }}
-          >
-            {/* Notifications Bell */}
-            <div ref={notifRef} style={{ position: 'relative' }}>
-              <button
-                onClick={() => setNotifOpen(!notifOpen)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  position: 'relative',
-                }}
-              >
-                <Bell size={22} color="#333" />
-                {notifications.length > 0 && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: '-4px',
-                      right: '-4px',
-                      background: 'red',
-                      color: 'white',
-                      borderRadius: '50%',
-                      width: '16px',
-                      height: '16px',
-                      fontSize: '10px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontWeight: 'bold',
-                    }}
-                  >
-                    {notifications.length}
-                  </div>
-                )}
-              </button>
-              {notifOpen && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '30px',
-                    right: 0,
-                    width: '300px',
-                    maxHeight: '350px',
-                    overflowY: 'auto',
-                    background: '#fff',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-                    zIndex: 999,
-                  }}
+          {/* Top Bar */}
+          <div className={styles.topBar}>
+            <div className={styles.topBarControls}>
+              {/* Notifications Bell */}
+              <div ref={notifRef} style={{ position: 'relative' }}>
+                <button
+                  onClick={() => setNotifOpen(!notifOpen)}
+                  className={styles.notificationButton}
+                  aria-label="Notifications"
                 >
-                  {notifications.length > 0 ? (
-                    notifications.map((n, i) => {
-                      let displayMessage = n.message;
-
-                      // Format messages based on type
-                      if (n.type === 'booking_created') {
-                        // Extract date from message if possible
-                        const dateMatch = n.message.match(/from (.+) to (.+)$/);
-                        if (dateMatch) {
-                          displayMessage = `New booking created: ${dateMatch[1]}`;
-                        }
-                      } else if (n.type === 'payment_made') {
-                        // Example message: "First Last name + role (CUSTOMER) has paid this booking"
-                        displayMessage = n.message; // Assuming backend sends formatted message
-                      } else if (n.type === 'booking_checked_out') {
-                        // Example: "The check-in for (date range) has successfully checked-out"
-                        displayMessage = n.message;
-                      }
-
-                      return (
-                        <div key={i} style={{ padding: '10px', borderBottom: '1px solid #eee' }}>
-                          {displayMessage}
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div style={{ padding: '10px', textAlign: 'center' }}>No new notifications</div>
+                  <Bell size={22} color="#333" />
+                  {notifications.length > 0 && (
+                    <div className={styles.notificationBadge}>
+                      {notifications.length}
+                    </div>
                   )}
-                </div>
-              )}
-            </div>
+                </button>
+                {notifOpen && (
+                  <div className={styles.notificationPanel}>
+                    {/* Header */}
+                    <div className={styles.notificationHeader}>
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: '700', color: 'white' }}>
+                          Notifications
+                        </h3>
+                        <p style={{ 
+                          margin: '0.25rem 0 0 0', 
+                          fontSize: '0.8rem', 
+                          opacity: 0.9,
+                          fontWeight: '400',
+                          color: 'white'
+                        }}>
+                          {notifications.filter(n => !n.isRead).length} unread messages
+                        </p>
+                      </div>
+                      <div style={{
+                        background: 'rgba(255,255,255,0.2)',
+                        borderRadius: '20px',
+                        padding: '0.5rem 1rem',
+                        fontSize: '0.875rem',
+                        fontWeight: '600',
+                        color: 'white'
+                      }}>
+                        {notifications.length}
+                      </div>
+                    </div>
 
-            {/* Profile */}
-            <div ref={profileRef} style={{ position: 'relative' }}>
-              <div
-                onClick={() => setProfileOpen(!profileOpen)}
-                style={{
-                  width: '45px',
-                  height: '45px',
-                  borderRadius: '50%',
-                  background: '#0070f3',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  overflow: 'hidden',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                  transition: 'transform 0.2s, box-shadow 0.2s',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
-                  e.currentTarget.style.transform = 'scale(1.05)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
-                  e.currentTarget.style.transform = 'scale(1)';
-                }}
-              >
-                {profileImage ? (
-                  <img
-                    src={profileImage}
-                    alt="Profile"
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
-                ) : (
-                  <span style={{ fontSize: '1.4rem', color: '#fff' }}>👤</span>
+                    {/* Notifications List */}
+                    <div style={{ maxHeight: '320px', overflowY: 'auto' }}>
+                      {notifications.length === 0 ? (
+                        <div className={styles.emptyNotifications}>
+                          <div style={{
+                            width: '48px',
+                            height: '48px',
+                            borderRadius: '50%',
+                            background: 'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            margin: '0 auto 1rem auto'
+                          }}>
+                            <Bell size={20} style={{ color: '#9ca3af' }} />
+                          </div>
+                          <h4 style={{ 
+                            margin: '0 0 0.5rem 0', 
+                            fontSize: '1rem', 
+                            fontWeight: '600',
+                            color: '#374151'
+                          }}>
+                            All caught up!
+                          </h4>
+                          <p style={{ margin: 0, fontSize: '0.875rem', color: '#9ca3af' }}>
+                            No new notifications at this time.
+                          </p>
+                        </div>
+                      ) : (
+                        notifications.slice(0, 6).map((notification, index) => {
+                          let displayMessage = notification.message;
+
+                          // Enhanced message formatting
+                          if (notification.type === 'booking_created') {
+                            const match = displayMessage.match(/Booking ID (\d+)/);
+                            if (match) {
+                              displayMessage = `New booking #${match[1]} has been created`;
+                            }
+                          } else if (notification.type === 'payment_received') {
+                            const amountMatch = displayMessage.match(/₱([0-9,]+)/);
+                            if (amountMatch) {
+                              displayMessage = `Payment of ₱${amountMatch[1]} received`;
+                            }
+                          }
+
+                          return (
+                            <div
+                              key={notification.id}
+                              className={`${styles.notificationItem} ${!notification.isRead ? styles.unreadNotification : ''}`}
+                              onClick={async () => {
+                                if (!notification.isRead) {
+                                  try {
+                                    const response = await fetch(`/api/notifications/${notification.id}`, {
+                                      method: 'PATCH',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ isRead: true })
+                                    });
+                                    
+                                    if (response.ok) {
+                                      setNotifications(prev => 
+                                        prev.map(n => 
+                                          n.id === notification.id ? { ...n, isRead: true } : n
+                                        )
+                                      );
+                                    }
+                                  } catch (error) {
+                                    console.error('Failed to mark notification as read:', error);
+                                  }
+                                }
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                                {/* Notification Icon */}
+                                <div style={{
+                                  width: '36px',
+                                  height: '36px',
+                                  borderRadius: '10px',
+                                  background: notification.isRead 
+                                    ? 'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)'
+                                    : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  flexShrink: 0,
+                                  marginTop: '0.125rem'
+                                }}>
+                                  <Bell 
+                                    size={16} 
+                                    style={{ 
+                                      color: notification.isRead ? '#9ca3af' : 'white' 
+                                    }} 
+                                  />
+                                </div>
+
+                                {/* Content */}
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <p style={{
+                                    margin: '0 0 0.25rem 0',
+                                    fontSize: '0.875rem',
+                                    fontWeight: notification.isRead ? '500' : '600',
+                                    color: notification.isRead ? '#6b7280' : '#1f2937',
+                                    lineHeight: '1.4'
+                                  }}>
+                                    {displayMessage}
+                                  </p>
+                                  
+                                  <div style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center'
+                                  }}>
+                                    <span style={{
+                                      fontSize: '0.75rem',
+                                      color: '#9ca3af',
+                                      fontWeight: '400'
+                                    }}>
+                                      {(() => {
+                                        const date = new Date(notification.createdAt);
+                                        const now = new Date();
+                                        const diffInSeconds = Math.floor((now - date) / 1000);
+                                        
+                                        if (diffInSeconds < 60) return 'Just now';
+                                        if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+                                        if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+                                        return date.toLocaleDateString();
+                                      })()}
+                                    </span>
+                                    
+                                    {!notification.isRead && (
+                                      <div style={{
+                                        width: '6px',
+                                        height: '6px',
+                                        borderRadius: '50%',
+                                        background: '#667eea',
+                                        flexShrink: 0
+                                      }} />
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    {/* Footer Actions */}
+                    {notifications.length > 0 && (
+                      <div className={styles.notificationFooter}>
+                        {notifications.filter(n => !n.isRead).length > 0 && (
+                          <button
+                            className={styles.markAllReadBtn}
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                const unreadNotifications = notifications.filter(n => !n.isRead);
+                                for (const notification of unreadNotifications) {
+                                  await fetch(`/api/notifications/${notification.id}`, {
+                                    method: 'PATCH',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ isRead: true })
+                                  });
+                                }
+                                
+                                setNotifications(prev => 
+                                  prev.map(n => ({ ...n, isRead: true }))
+                                );
+                              } catch (error) {
+                                console.error('Failed to mark all as read:', error);
+                              }
+                            }}
+                          >
+                            <Check size={12} />
+                            Mark All Read
+                          </button>
+                        )}
+                        
+                        <button
+                          className={styles.viewAllBtn}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            window.location.href = '/super-admin/notifications';
+                          }}
+                        >
+                          View All
+                          <ChevronRight size={12} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
-              {profileOpen && (
+
+              {/* Profile */}
+              <div ref={profileRef} style={{ position: 'relative' }}>
                 <div
-                  style={{
-                    position: 'absolute',
-                    top: '55px',
-                    right: 0,
-                    width: '240px',
-                    background: '#fff',
-                    borderRadius: '10px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
-                    padding: '12px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    zIndex: 1000,
-                  }}
+                  onClick={() => setProfileOpen(!profileOpen)}
+                  className={styles.profileButton}
+                  aria-label="Profile menu"
                 >
-                  <div style={{ fontWeight: 'bold', marginBottom: '8px', fontFamily: `Poppins` }}>
-                    Super Admin – {user?.name || 'Unknown'}
-                  </div>
-                  <div
-                    style={{
-                      padding: '8px',
-                      borderRadius: '6px',
-                      background: '#f0f0f0',
-                      cursor: 'pointer',
-                      marginBottom: '8px',
-                      transition: 'background 0.2s',
-                      fontFamily: `'Poppins', sans-serif`,
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#e0e0e0')}
-                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#f0f0f0')}
-                    onClick={() => fileInputRef.current.click()}
-                  >
-                    Change Picture
-                  </div>
-                  <div
-                    style={{
-                      padding: '8px',
-                      borderRadius: '6px',
-                      background: '#ffe0e0',
-                      color: 'red',
-                      cursor: 'pointer',
-                      transition: 'background 0.2s',
-                      fontFamily: `'Poppins'`,
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8d0d0')}
-                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#ffe0e0')}
-                    onClick={handleLogout}
-                  >
-                    Log Out
-                  </div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    ref={fileInputRef}
-                    style={{ display: 'none' }}
-                    onChange={handleImageUpload}
-                  />
+                  {profileImage ? (
+                    <img
+                      src={profileImage}
+                      alt="Profile"
+                      className={styles.profileImage}
+                    />
+                  ) : (
+                    <User className={styles.profileIcon} size={24} />
+                  )}
                 </div>
-              )}
+                {profileOpen && (
+                  <div className={styles.profilePanel}>
+                    <div className={styles.profileHeader}>
+                      Super Admin – {user?.name || 'Unknown'}
+                    </div>
+                    <div
+                      className={`${styles.profileAction} ${styles.profileActionPrimary}`}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      Change Picture
+                    </div>
+                    <div
+                      className={`${styles.profileAction} ${styles.profileActionDanger}`}
+                      onClick={handleLogout}
+                    >
+                      {isLoading ? (
+                        <span className={styles.loadingSpinner}></span>
+                      ) : (
+                        'Log Out'
+                      )}
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      ref={fileInputRef}
+                      style={{ display: 'none' }}
+                      onChange={handleImageUpload}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
           {/* Main Content */}
-          <div className="sa-content" style={{ marginTop: '80px', padding: '12px 12px 20px 12px', width: '100%', maxWidth: 'none', marginLeft: 0, marginRight: 0 }}>
+          <div className={styles.content}>
             {children}
           </div>
         </div>
       </div>
-
-      {/* Responsive CSS */}
-      <style jsx>{`
-        @media (max-width: 1024px) {
-          /* Collapse sidebar into a menu button */
-          aside {
-            width: 200px;
-            padding: 1.5rem;
-          }
-          /* Main content adjusts to full width and reduces padding */
-          .sa-main {
-            margin-left: 0 !important;
-            width: 100% !important;
-            padding: 8px !important;
-          }
-          .sa-content { padding: 8px !important; }
-        }
-
-        @media (max-width: 768px) {
-          /* Hide sidebar by default on small screens, toggle with button */
-          aside {
-            position: fixed;
-            top: 0;
-            left: 0;
-            height: 100%;
-            z-index: 999;
-            transition: transform 0.3s ease;
-            transform: translateX(-100%);
-          }
-          aside[style*='transform: translateX(0)'] {
-            transform: translateX(0);
-          }
-          /* Main content takes full width with minimal padding */
-          .sa-main { margin-left: 0 !important; width: 100% !important; padding: 6px !important; }
-          .sa-content { padding: 6px 6px 14px 6px !important; }
-          /* toggle is fixed outside the sidebar; move it to bottom-right on small screens */
-          .sa-toggle {
-            left: auto !important;
-            right: 18px !important;
-            top: auto !important;
-            bottom: 18px !important;
-            transform: none !important;
-          }
-          .sa-toggle:focus {
-            outline: none;
-            box-shadow: 0 0 0 4px rgba(0,96,208,0.18), 0 6px 18px rgba(0,0,0,0.18) !important;
-          }
-          .sa-toggle:hover {
-            transform: translateY(-2px) !important;
-            box-shadow: 0 10px 24px rgba(0,0,0,0.18) !important;
-          }
-        }
-      `}</style>
-    </>
+      </>
+    </ToastProvider>
   );
 }

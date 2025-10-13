@@ -1,11 +1,15 @@
 'use client';
 import { useEffect, useState } from 'react';
 import SuperAdminLayout from '@/components/SuperAdminLayout';
+import { useToast, ConfirmModal } from '@/components/Toast';
 
 export default function InventoryPage() {
   const [inventory, setInventory] = useState([]);
   const [form, setForm] = useState({ name: '', quantity: '' });
   const [editingId, setEditingId] = useState(null);
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, itemId: null });
+  
+  const { success, error } = useToast();
 
   useEffect(() => {
     fetchInventory();
@@ -28,7 +32,7 @@ export default function InventoryPage() {
     const quantity = parseInt(form.quantity);
 
     if (!name || isNaN(quantity)) {
-      alert('Please enter a valid name and quantity.');
+      error('Please enter a valid name and quantity.');
       return;
     }
 
@@ -47,38 +51,50 @@ export default function InventoryPage() {
       if (!res.ok) {
         const errorText = await res.text();
         console.error(`${method} failed:`, errorText);
-        return;
+        throw new Error(`Failed to ${editingId ? 'update' : 'create'} amenity`);
       }
 
       const result = await res.json();
       console.log(`${method} success:`, result);
+      
+      if (editingId) {
+        success('Amenity updated successfully');
+      } else {
+        success('Amenity created successfully');
+      }
 
       setForm({ name: '', quantity: '' });
       setEditingId(null);
       fetchInventory();
     } catch (err) {
       console.error(`${method} request error:`, err.message || err);
+      error(`Failed to ${editingId ? 'update' : 'create'} amenity`);
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this amenity?')) return;
+  const handleDelete = (id) => {
+    setConfirmModal({ isOpen: true, itemId: id });
+  };
 
+  const confirmDelete = async () => {
+    const id = confirmModal.itemId;
     try {
       const res = await fetch(`/api/amenities/inventory/${id}`, { method: 'DELETE' });
 
       if (res.ok) {
         setInventory((prev) => prev.filter((item) => item.id !== id));
-        alert('Amenity deleted.');
+        success('Amenity deleted successfully');
       } else if (res.status === 404) {
         setInventory((prev) => prev.filter((item) => item.id !== id));
-        alert('Amenity not found. Removed from list.');
+        success('Amenity not found. Removed from list');
       } else {
         const errorText = await res.text();
         console.error('DELETE failed:', errorText);
+        error('Failed to delete amenity');
       }
-    } catch (error) {
-      console.error('Delete error:', error);
+    } catch (err) {
+      console.error('Delete error:', err);
+      error('Failed to delete amenity');
     }
   };
 
@@ -135,6 +151,17 @@ export default function InventoryPage() {
           )}
         </ul>
       </div>
+
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ isOpen: false, itemId: null })}
+        onConfirm={confirmDelete}
+        title="Delete Amenity"
+        message="Are you sure you want to delete this amenity? This action cannot be undone."
+        confirmText="Delete Amenity"
+        cancelText="Cancel"
+        variant="danger"
+      />
     </SuperAdminLayout>
   );
 }

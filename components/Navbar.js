@@ -1,17 +1,60 @@
 'use client';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { useRouter, usePathname } from 'next/navigation';
+import { useSession, signOut } from 'next-auth/react';
+import { 
+  Calendar, 
+  Home, 
+  Camera, 
+  BedDouble, 
+  User, 
+  LogIn, 
+  LogOut,
+  ChevronDown, 
+  Menu, 
+  X, 
+  Sparkles,
+  MapPin,
+  Phone,
+  Mail,
+  Bell,
+  Settings
+} from 'lucide-react';
+import { useState, useEffect } from 'react';
 
 export default function Navbar() {
   const router = useRouter();
+  const pathname = usePathname();
   const { data: session, status } = useSession();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  // Handle scroll effect
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 10);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setShowUserDropdown(false);
+      setIsMobileMenuOpen(false);
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
+
+  const isActivePath = (path) => pathname === path;
 
   return (
     <nav className="navbar">
       <div className="navbar-container">
-        {/* === Brand / Logo Section === */}
         <div className="navbar-brand">
           <Link href="/" className="logo-link">
             <Image
@@ -25,7 +68,6 @@ export default function Navbar() {
           </Link>
         </div>
 
-        {/* === Nav Links === */}
         <ul>
           <li>
             <button
@@ -49,11 +91,12 @@ export default function Navbar() {
           <li><Link href="/">Home</Link></li>
           <li><Link href="/virtual-tour">Virtual Tour</Link></li>
           <li><Link href="/room">Rooms</Link></li>
+          <li><Link href="/about-us">About Us</Link></li>
           <li>
             {status === 'loading' ? (
-              <Link href="/login">Login</Link>
+              <span style={{ color: '#fff', fontSize: '1.1rem', fontWeight: 600 }}>Login</span>
             ) : session?.user?.role === 'CUSTOMER' ? (
-              <Link href="/guest/dashboard">← Dashboard</Link>
+              <Link href="/guest/dashboard">Dashboard</Link>
             ) : (
               <Link href="/login">Login</Link>
             )}
@@ -61,9 +104,7 @@ export default function Navbar() {
         </ul>
       </div>
 
-      {/* === Styles === */}
       <style jsx>{`
-        /* NAVBAR CONTAINER */
         .navbar {
           background: #febe54;
           padding: 0.8rem 0;
@@ -71,7 +112,9 @@ export default function Navbar() {
           position: sticky;
           top: 0;
           z-index: 1000;
-          height: 80px; /* ✅ consistent height */
+          height: 80px;
+          min-height: 80px;
+          max-height: 80px;
         }
 
         .navbar-container {
@@ -85,7 +128,6 @@ export default function Navbar() {
           flex-wrap: wrap;
         }
 
-        /* LOGO + TEXT */
         .navbar-brand {
           display: flex;
           align-items: center;
@@ -108,7 +150,7 @@ export default function Navbar() {
 
         .brand-text {
           position: absolute;
-          left: 100%; /* right of logo */
+          left: 100%;
           top: 50%;
           transform: translateY(-50%);
           margin-left: 0.7rem;
@@ -123,7 +165,6 @@ export default function Navbar() {
           color: #f59e0b;
         }
 
-        /* NAV LINKS */
         ul {
           list-style: none;
           display: flex;
@@ -165,7 +206,6 @@ export default function Navbar() {
           transform: scaleX(1);
         }
 
-        /* BOOK NOW BUTTON */
         .book-now-btn {
           background: #fff;
           border: none;
@@ -196,7 +236,6 @@ export default function Navbar() {
           box-shadow: 0 1px 4px 0 rgba(245, 158, 11, 0.1);
         }
 
-        /* RESPONSIVE */
         @media (max-width: 900px) {
           .navbar-container {
             flex-direction: column;
@@ -216,7 +255,7 @@ export default function Navbar() {
 
         @media (max-width: 600px) {
           .navbar {
-            height: 70px; /* smaller navbar height for mobile */
+            height: 70px;
             padding: 0.5rem 0;
           }
           .navbar-container {

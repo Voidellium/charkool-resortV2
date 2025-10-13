@@ -1,5 +1,6 @@
 'use client';
 import React, { useEffect, useState, useRef } from 'react';
+import { useEarlyCheckInModal, EarlyCheckInModal } from '@/components/CustomModals';
 import { signOut } from 'next-auth/react';
 import './receptionist-styles.css';
 import RoomAmenitiesSelector from '@/components/RoomAmenitiesSelector';
@@ -63,7 +64,7 @@ export default function ReceptionistDashboard() {
   const [notifications, setNotifications] = useState({
     pendingCheckIns: [],
     pendingCheckOuts: [],
-    upcomingReservations: 0,
+    pendingBookings: 0,
   });
   const [shiftSummary, setShiftSummary] = useState(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -72,6 +73,14 @@ export default function ReceptionistDashboard() {
   const [pastGuests, setPastGuests] = useState([]);
   const [guestNameInput, setGuestNameInput] = useState('');
   const [showGuestSuggestions, setShowGuestSuggestions] = useState(false);
+  const [activeBookingFilter, setActiveBookingFilter] = useState('all');
+  
+  // Pagination and search state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(8);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState('checkIn');
+  const [sortOrder, setSortOrder] = useState('desc');
 
   // Booking adjustment controls
   const [showAdjustBookingModal, setShowAdjustBookingModal] = useState(false);
@@ -93,6 +102,8 @@ export default function ReceptionistDashboard() {
   // Booking details modal
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [bookingForDetails, setBookingForDetails] = useState(null);
+  // Early check-in modal (shared)
+  const [earlyCheckInModal, setEarlyCheckInModal] = useEarlyCheckInModal();
 
   // Enhanced status shortcuts
   const [showStatusModal, setShowStatusModal] = useState(false);
@@ -162,14 +173,14 @@ export default function ReceptionistDashboard() {
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
-    const pendingCheckIns = allBookings.filter(b => b.checkIn.startsWith(today) && b.status === 'HELD');
-    const pendingCheckOuts = allBookings.filter(b => b.checkOut.startsWith(today) && b.status === 'Confirmed');
-    const upcomingReservations = allBookings.filter(b => b.checkIn.startsWith(tomorrowStr)).length;
+  const pendingCheckIns = allBookings.filter(b => b.checkIn && b.checkIn.startsWith(today) && b.status === 'HELD');
+  const pendingCheckOuts = allBookings.filter(b => b.checkOut && b.checkOut.startsWith(today) && b.status === 'Confirmed');
+  const pendingBookingsCount = allBookings.filter(b => b.checkIn && b.checkIn.startsWith(tomorrowStr)).length;
 
     setNotifications({
       pendingCheckIns,
       pendingCheckOuts,
-      upcomingReservations,
+      pendingBookings: pendingBookingsCount,
     });
   };
 
@@ -177,15 +188,109 @@ export default function ReceptionistDashboard() {
     const today = new Date().toISOString().split('T')[0];
     const summary = {
       date: today,
-      walkInBookings: bookings.filter(b => b.createdAt?.startsWith(today) && b.status === 'Confirmed').length,
-      checkedIn: bookings.filter(b => b.checkIn.startsWith(today) && b.status === 'Confirmed').length,
-      checkedOut: bookings.filter(b => b.checkOut.startsWith(today) && b.status === 'CHECKED_OUT').length,
+      walkInBookings: bookings.filter(b => b.createdAt && b.createdAt.startsWith(today) && b.status === 'Confirmed').length,
+      checkedIn: bookings.filter(b => b.checkIn && b.checkIn.startsWith(today) && b.status === 'Confirmed').length,
+      checkedOut: bookings.filter(b => b.checkOut && b.checkOut.startsWith(today) && b.status === 'CHECKED_OUT').length,
       cancelled: bookings.filter(b => b.status === 'Cancelled').length,
       noShows: bookings.filter(b => b.status === 'No-Show').length,
       pendingReservations: bookings.filter(b => b.status === 'HELD').length,
     };
     setShiftSummary(summary);
     setShowShiftSummaryModal(true);
+  };
+
+  // Pagination and filtering utilities
+  const getAllBookings = () => {
+    return [...(pendingBookings || []), ...(confirmedBookings || [])];
+  };
+
+  const getFilteredBookings = () => {
+    let filteredBookings = [];
+    
+    // Apply filter by status
+    if (activeBookingFilter === 'pending') {
+      filteredBookings = pendingBookings || [];
+    } else if (activeBookingFilter === 'confirmed') {
+      filteredBookings = confirmedBookings || [];
+    } else {
+      filteredBookings = getAllBookings();
+    }
+
+    // Apply search filter
+    if (searchTerm) {
+      filteredBookings = filteredBookings.filter(booking => 
+        booking.guestName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        booking.roomAssignments?.[0]?.roomName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        booking.id?.toString().includes(searchTerm) ||
+        booking.remarks?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    // Apply sorting
+    filteredBookings.sort((a, b) => {
+      let aVal, bVal;
+      
+      switch (sortBy) {
+        case 'guestName':
+          aVal = a.guestName || '';
+          bVal = b.guestName || '';
+          break;
+        case 'checkIn':
+          aVal = new Date(a.checkIn || 0);
+          bVal = new Date(b.checkIn || 0);
+          break;
+        case 'checkOut':
+          aVal = new Date(a.checkOut || 0);
+          bVal = new Date(b.checkOut || 0);
+          break;
+        case 'status':
+          aVal = a.status || '';
+          bVal = b.status || '';
+          break;
+        default:
+          aVal = new Date(a.checkIn || 0);
+          bVal = new Date(b.checkIn || 0);
+      }
+
+      if (sortOrder === 'asc') {
+        return aVal > bVal ? 1 : -1;
+      } else {
+        return aVal < bVal ? 1 : -1;
+      }
+    });
+
+    return filteredBookings;
+  };
+
+  const getPaginatedBookings = () => {
+    const filtered = getFilteredBookings();
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filtered.slice(startIndex, endIndex);
+  };
+
+  const getTotalPages = () => {
+    return Math.ceil(getFilteredBookings().length / itemsPerPage);
+  };
+
+  const handlePageChange = (page) => {
+    setCurrentPage(Math.max(1, Math.min(page, getTotalPages())));
+  };
+
+  const handleSort = (field) => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(field);
+      setSortOrder('asc');
+    }
+    setCurrentPage(1);
+  };
+
+  // Reset pagination when filter changes
+  const handleFilterChange = (filter) => {
+    setActiveBookingFilter(filter);
+    setCurrentPage(1);
   };
 
   const handleGuestNameChange = (e) => {
@@ -381,11 +486,11 @@ export default function ReceptionistDashboard() {
     const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
     setNotificationCategories({
-      checkIns: bookings.filter(b => b.checkIn.startsWith(today) && b.status === 'HELD'),
-      checkOuts: bookings.filter(b => b.checkOut.startsWith(today) && b.status === 'Confirmed'),
+      checkIns: bookings.filter(b => b.checkIn && b.checkIn.startsWith(today) && b.status === 'HELD'),
+      checkOuts: bookings.filter(b => b.checkOut && b.checkOut.startsWith(today) && b.status === 'Confirmed'),
       maintenance: [], // Would be populated from maintenance API
       housekeeping: [], // Would be populated from housekeeping API
-      general: bookings.filter(b => b.checkIn.startsWith(tomorrowStr)).slice(0, 3),
+      general: bookings.filter(b => b.checkIn && b.checkIn.startsWith(tomorrowStr)).slice(0, 3),
     });
   };
 
@@ -475,7 +580,7 @@ export default function ReceptionistDashboard() {
     try {
       const bookingToUpdate = bookings.find(b => b.id === bookingId);
       if (!bookingToUpdate) throw new Error('Booking not found');
-      const updatedData = { ...bookingToUpdate, status: 'Confirmed' };
+      const updatedData = { ...bookingToUpdate, status: 'Confirmed', actualCheckIn: true };
       const res = await fetch(`/api/bookings/${bookingId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -492,7 +597,7 @@ export default function ReceptionistDashboard() {
     try {
       const bookingToUpdate = bookings.find(b => b.id === bookingId);
       if (!bookingToUpdate) throw new Error('Booking not found');
-      const updatedData = { ...bookingToUpdate, status: 'CHECKED_OUT' };
+      const updatedData = { ...bookingToUpdate, status: 'CHECKED_OUT', actualCheckOut: true };
       const res = await fetch(`/api/bookings/${bookingId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -799,17 +904,25 @@ export default function ReceptionistDashboard() {
     });
   };
 
-  const upcomingReservations = bookings.filter(
+  const pendingBookings = bookings.filter(
     (b) => ['HELD', 'PENDING'].includes(b.status)
   );
-    const currentGuests = bookings.filter(
+  const confirmedBookings = bookings.filter(
     (b) => b.status === 'Confirmed'
   );
 
   if (loading) {
     return (
-      <div className="loading-container">
-        <p>Loading dashboard...</p>
+      <div className="dashboard-container">
+        <div className="loading-container fade-in">
+          <div className="loading-spinner"></div>
+          <p className="loading-text">Loading Receptionist Dashboard...</p>
+          <div style={{ marginTop: '2rem', width: '100%', maxWidth: '400px' }}>
+            <div className="skeleton-text"></div>
+            <div className="skeleton-text medium"></div>
+            <div className="skeleton-text short"></div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -824,81 +937,364 @@ export default function ReceptionistDashboard() {
   const availableRoomsCount = allRooms.reduce((sum, room) => sum + (room.remaining || 0), 0);
 
   return (
-    <div className="dashboard-container">
-      <div className="header-container">
-        <div>
-          <h1 className="header-title">Receptionist Dashboard</h1>
-          <p className="user-id">User ID: 1234113340746626333</p>
-        </div>
-        <div className="header-actions">
-          <button
-            className="create-booking-button"
-            onClick={() => {
-              setShowCreateBookingModal(true);
-            }}
-          >
-            Create Walk-In Booking
-          </button>
-          <div className="profile-icon" onClick={toggleDropdown}>
-            <svg className="profile-image" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-              <path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 1 1 9 0a4.5 4.5 0 0 1-9 0ZM3.751 20.105a8.25 8.25 0 0 1 16.498 0 .75.75 0 0 1-.149.337L18.667 21h-13.334c-.276 0-.54-.094-.75-.25a.75.75 0 0 1-.149-.337Z" clipRule="evenodd" />
+    <div className="receptionist-layout">
+      {/* Top Navigation Bar */}
+      <nav className="top-navbar">
+        <div className="navbar-left">
+          <div className="brand-section">
+            <svg className="brand-icon" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2C7 2 3 6 3 11c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38l-.01-1.49c-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48l-.01 2.2c0 .21.15.46.55.38A8.013 8.013 0 0 0 21 11c0-5-4-9-9-9z"/>
             </svg>
-            {isDropdownOpen && (
-              <div className="dropdown-menu">
-                <div className="dropdown-item">Profile</div>
-                <div className="dropdown-item">Settings</div>
-                <div className="dropdown-item logout" onClick={handleSignOut}>
-                  Logout
+            <span className="brand-text">Charkool Leisure</span>
+          </div>
+          
+
+        </div>
+
+        <div className="navbar-center">
+          <div className="current-time">
+            {new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+          </div>
+        </div>
+
+        <div className="navbar-right">
+          <button 
+            className="navbar-action-btn notifications" 
+            title="Notifications"
+            onClick={() => setShowNotificationPanel(!showNotificationPanel)}
+          >
+            <svg className="action-icon" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+            </svg>
+            {(notifications.pendingCheckIns.length + notifications.pendingCheckOuts.length + notifications.pendingBookings) > 0 && (
+              <span className="notification-badge urgent">
+                {notifications.pendingCheckIns.length + notifications.pendingCheckOuts.length + notifications.pendingBookings}
+              </span>
+            )}
+          </button>
+
+          <button
+            className="navbar-action-btn shift-summary"
+            onClick={generateShiftSummary}
+            title="Generate Shift Summary"
+          >
+            <svg className="action-icon" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+            </svg>
+          </button>
+
+          <div className="profile-section">
+            <div className="profile-info">
+              <span className="profile-name">Front Desk</span>
+              <span className="profile-id">Resort Staff</span>
+            </div>
+            <div className="profile-avatar" onClick={toggleDropdown}>
+              <svg className="profile-image" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 0114 0H3z" clipRule="evenodd" />
+              </svg>
+              {isDropdownOpen && (
+                <div className="dropdown-menu">
+                  <div className="dropdown-item">
+                    <svg className="dropdown-icon" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clipRule="evenodd" />
+                    </svg>
+                    Profile
+                  </div>
+                  <div className="dropdown-item">
+                    <svg className="dropdown-icon" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                    </svg>
+                    Settings
+                  </div>
+                  <div className="dropdown-item logout" onClick={handleSignOut}>
+                    <svg className="dropdown-icon" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 001 1h3a1 1 0 000-2H4V5h2a1 1 0 000-2H3zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd" />
+                    </svg>
+                    Logout
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* Main Dashboard Content */}
+      <div className="dashboard-container">
+        <div className="dashboard-header">
+          <h1 className="dashboard-title">Resort Receptionist Dashboard</h1>
+          
+          {/* Quick Action Panel */}
+          <div className="quick-actions">
+            <button 
+              className="quick-action-btn check-in" 
+              title="View Pending Check-Ins"
+              onClick={() => {
+                handleFilterChange('pending');
+                setSearchTerm('');
+                setSortBy('checkIn');
+                // Scroll to booking section
+                document.querySelector('.booking-management')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+            >
+              <svg className="action-icon" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+              </svg>
+              <span className="action-label">Arrivals</span>
+              {notifications.pendingCheckIns.length > 0 && (
+                <span className="notification-badge">{notifications.pendingCheckIns.length}</span>
+              )}
+            </button>
+            
+            <button 
+              className="quick-action-btn check-out" 
+              title="View Pending Check-Outs"
+              onClick={() => {
+                handleFilterChange('confirmed');
+                setSearchTerm('');
+                setSortBy('checkOut');
+                // Scroll to booking section
+                document.querySelector('.booking-management')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+            >
+              <svg className="action-icon" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+              </svg>
+              <span className="action-label">Departures</span>
+              {notifications.pendingCheckOuts.length > 0 && (
+                <span className="notification-badge">{notifications.pendingCheckOuts.length}</span>
+              )}
+            </button>
+            
+            <button 
+              className="quick-action-btn guest-lookup" 
+              title="Search Bookings"
+              onClick={() => {
+                // Focus on search input
+                const searchInput = document.querySelector('.search-input');
+                if (searchInput) {
+                  searchInput.focus();
+                  document.querySelector('.booking-management')?.scrollIntoView({ behavior: 'smooth' });
+                }
+              }}
+            >
+              <svg className="action-icon" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+              </svg>
+              <span className="action-label">Guest Search</span>
+            </button>
+            
+            <button
+              className="create-booking-btn"
+              onClick={() => {
+                setShowCreateBookingModal(true);
+              }}
+            >
+              <svg className="action-icon" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+              </svg>
+              <span className="action-label">New Reservation</span>
+            </button>
+          </div>
+        </div>
+
+        {/* KPI Cards Section */}
+        <div className="kpi-card-container">
+        <div className="kpi-card occupied">
+          <div className="kpi-card-icon">
+            <svg viewBox="0 0 20 20" fill="currentColor">
+              <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+            </svg>
+          </div>
+          <div className="kpi-card-content">
+            <p className="kpi-card-title">Accommodations Occupied</p>
+            <div className="kpi-card-metrics">
+              <span className="kpi-card-metric">{occupiedRoomsCount}</span>
+              <span className="kpi-card-total">/{totalRoomsCount}</span>
+            </div>
+            <div className="kpi-card-subtitle">
+              {Math.round((occupiedRoomsCount / totalRoomsCount) * 100)}% Occupancy Rate
+            </div>
+          </div>
+        </div>
+        
+        <div className="kpi-card available">
+          <div className="kpi-card-icon">
+            <svg viewBox="0 0 20 20" fill="currentColor">
+              <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
+            </svg>
+          </div>
+          <div className="kpi-card-content">
+            <p className="kpi-card-title">Accommodations Available</p>
+            <div className="kpi-card-metrics">
+              <span className="kpi-card-metric">{availableRoomsCount}</span>
+            </div>
+            <div className="kpi-card-subtitle">
+              Villas, Rooms & Cottages ready
+            </div>
+          </div>
+        </div>
+        
+        <div className="kpi-card bookings">
+          <div className="kpi-card-icon">
+            <svg viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div className="kpi-card-content">
+            <p className="kpi-card-title">Today's Reservations</p>
+            <div className="kpi-card-metrics">
+              <span className="kpi-card-metric">
+                {notifications.pendingCheckIns.length + notifications.pendingCheckOuts.length}
+              </span>
+            </div>
+            <div className="kpi-card-subtitle">
+              Arrivals & Departures pending
+            </div>
+          </div>
+        </div>
+        
+        <div className="kpi-card revenue">
+          <div className="kpi-card-icon">
+            <svg viewBox="0 0 20 20" fill="currentColor">
+              <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z" />
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div className="kpi-card-content">
+            <p className="kpi-card-title">Pending Payments</p>
+            <div className="kpi-card-metrics">
+              <span className="kpi-card-metric">
+                {bookings.filter(b => b.paymentStatus === 'Pending').length}
+              </span>
+            </div>
+            <div className="kpi-card-subtitle">
+              Requires immediate attention
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Notification Panel */}
+      {showNotificationPanel && (
+        <div className="notification-panel slide-up">
+          <div className="notification-panel-header">
+            🔔 Live Notifications
+            <button 
+              style={{ 
+                float: 'right', 
+                background: 'none', 
+                border: 'none', 
+                color: 'white', 
+                fontSize: '1.2rem',
+                cursor: 'pointer'
+              }}
+              onClick={() => setShowNotificationPanel(false)}
+            >
+              ✕
+            </button>
+          </div>
+          <div className="notification-panel-content">
+            {notifications.pendingCheckIns.map((booking, index) => (
+              <div key={`checkin-${index}`} className="notification-item urgent">
+                <svg className="notification-icon" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                </svg>
+                <div className="notification-content">
+                  <div className="notification-title">Guest Arrival Pending</div>
+                  <div className="notification-message">
+                    {booking.guestName} - Accommodation ready for check-in
+                  </div>
+                </div>
+              </div>
+            ))}
+            
+            {notifications.pendingCheckOuts.map((booking, index) => (
+              <div key={`checkout-${index}`} className="notification-item">
+                <svg className="notification-icon" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+                </svg>
+                <div className="notification-content">
+                  <div className="notification-title">Guest Departure Due</div>
+                  <div className="notification-message">
+                    {booking.guestName} - Departure scheduled for today
+                  </div>
+                </div>
+              </div>
+            ))}
+            
+            {notifications.pendingBookings > 0 && (
+              <div className="notification-item success">
+                <svg className="notification-icon" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                </svg>
+                <div className="notification-content">
+                  <div className="notification-title">Upcoming Reservations</div>
+                  <div className="notification-message">
+                    {notifications.pendingBookings} reservations scheduled for tomorrow
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {bookings.filter(b => b.paymentStatus === 'Pending').length > 0 && (
+              <div className="notification-item urgent">
+                <svg className="notification-icon" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z" />
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd" />
+                </svg>
+                <div className="notification-content">
+                  <div className="notification-title">Payment Required</div>
+                  <div className="notification-message">
+                    {bookings.filter(b => b.paymentStatus === 'Pending').length} payments pending
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {notifications.pendingCheckIns.length === 0 && 
+             notifications.pendingCheckOuts.length === 0 && 
+             notifications.pendingBookings === 0 && 
+             bookings.filter(b => b.paymentStatus === 'Pending').length === 0 && (
+              <div className="notification-item">
+                <svg className="notification-icon" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <div className="notification-content">
+                  <div className="notification-title">All Clear!</div>
+                  <div className="notification-message">
+                    No urgent notifications at this time
+                  </div>
                 </div>
               </div>
             )}
           </div>
         </div>
-      </div>
-
-      <div className="kpi-card-container">
-        <div className="kpi-card">
-          <p className="kpi-card-title">Rooms Occupied</p>
-          <p className="kpi-card-metric">{occupiedRoomsCount}</p>
-          <p className="kpi-card-total">/{totalRoomsCount}</p>
-        </div>
-        <div className="kpi-card">
-          <p className="kpi-card-title">Rooms Available</p>
-          <p className="kpi-card-metric">{availableRoomsCount}</p>
-        </div>
-      </div>
+      )}
 
       {showCreateBookingModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            backdropFilter: 'blur(5px)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 1000,
-            padding: '10px',
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: '#FFF7ED', // Light yellow from FEBE52 theme
-              borderRadius: '8px',
-              width: '100%',
-              maxWidth: '700px',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              boxShadow: '0 8px 24px rgba(254, 190, 82, 0.5)',
-              padding: '20px',
-              color: '#92400E', // Darker brown/orange
-              fontFamily: 'Arial, sans-serif',
-            }}
-          >
-            <h2 style={{ marginBottom: '20px', color: '#FEBE52' }}>Create Walk-In Booking</h2>
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2 className="modal-title">Create Walk-In Reservation</h2>
+              <button 
+                className="modal-close-button" 
+                onClick={() => {
+                  setShowCreateBookingModal(false);
+                  setCreateBookingStep(1);
+                  setCreateBookingForm({
+                    guestName: '',
+                    checkIn: '',
+                    checkOut: '',
+                    numberOfGuests: 1,
+                    selectedRooms: {},
+                    selectedAmenities: { optional: {}, rental: {}, cottage: null },
+                  });
+                }}
+              >
+                ✕
+              </button>
+            </div>
             {/* Multi-step booking form */}
             <form
               onSubmit={async (e) => {
@@ -1629,111 +2025,247 @@ export default function ReceptionistDashboard() {
         </div>
       )}
 
-      {/* Notification Bell Icon */}
-      <div className="notification-bell" onClick={() => { loadNotifications(); setShowNotificationPanel(true); }}>
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M18 8C18 6.4087 17.3679 4.88258 16.2426 3.75736C15.1174 2.63214 13.5913 2 12 2C10.4087 2 8.88258 2.63214 7.75736 3.75736C6.63214 4.88258 6 6.4087 6 8C6 14 3 18 3 18H21C21 18 18 14 18 8Z" stroke="#92400E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          <path d="M13.73 21C13.554 21.55 13.24 22.04 12.81 22.41C12.38 22.78 11.87 23 11.34 23C10.81 23 10.29 22.78 9.86 22.41C9.43 22.04 9.13 21.55 8.95 21" stroke="#92400E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-        {notifications.pendingCheckIns.length > 0 && <span className="notification-dot"></span>}
-      </div>
-
-      {/* Shift Summary Button */}
-      <button className="shift-summary-button" onClick={generateShiftSummary}>
-        Shift Summary
-      </button>
-
+        {/* Enhanced Booking Management Section */}
       <div className="section-container">
-        <div className="section-card">
-          <h2 className="section-title">
-            Upcoming Reservations ({upcomingReservations.length})
-          </h2>
-          <div className="guest-list-container">
-            {upcomingReservations.map((booking) => (
-              <div key={booking.id} className="guest-card">
-                <div className="guest-info">
-                  <p className="guest-name" onClick={() => openQuickView(booking)}>{booking.guestName}</p>
-                  <p className="guest-details">Check-in: {new Date(booking.checkIn).toLocaleDateString()}</p>
-                  {booking.remarks && <p className="guest-remarks">Notes: {booking.remarks}</p>}
-                </div>
-                <div className="guest-actions">
-                  <button
-                    className="action-button adjust"
-                    onClick={() => openAdjustBookingModal(booking)}
-                    title="Adjust Booking"
+        <div className="section-card booking-management">
+          <div className="booking-header">
+            <h2 className="section-title">
+              Booking Management ({getFilteredBookings().length} bookings)
+            </h2>
+            
+            {/* Search and Controls Bar */}
+            <div className="booking-controls">
+              <div className="search-container">
+                <svg className="search-icon" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search by guest name, room, or booking ID..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="search-input"
+                />
+                {searchTerm && (
+                  <button 
+                    className="clear-search"
+                    onClick={() => setSearchTerm('')}
                   >
-                    Edit
+                    ×
                   </button>
-                  <button
-                    className="action-button details"
-                    onClick={() => openDetailsModal(booking)}
-                    title="View Details"
-                  >
-                    View Details
-                  </button>
-                  <button
-                    className="check-in-button green"
-                    onClick={() => openStatusModal(booking.id, 'Confirmed')}
-                  >
-                    Confirm
-                  </button>
-                  <button
-                    className="action-button print"
-                    onClick={() => printBookingSummary(booking)}
-                    title="Print Summary"
-                  >
-                    Print
-                  </button>
-                </div>
+                )}
               </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="section-card">
-          <h2 className="section-title">
-            Current Guests ({currentGuests.length})
-          </h2>
-          <div className="guest-list-container">
-            {currentGuests.map((booking) => (
-              <div key={booking.id} className="guest-card">
-                <div className="guest-info">
-                  <p className="guest-name" onClick={() => openQuickView(booking)}>{booking.guestName}</p>
-                  <p className="guest-details">Room: {booking.roomAssignments?.[0]?.roomName || 'N/A'}</p>
-                  {booking.remarks && <p className="guest-remarks">Notes: {booking.remarks}</p>}
-                </div>
-                <div className="guest-actions">
-                  <button
-                    className="action-button adjust"
-                    onClick={() => openAdjustBookingModal(booking)}
-                    title="Adjust Booking"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    className="action-button details"
-                    onClick={() => openDetailsModal(booking)}
-                    title="View Details"
-                  >
-                    View Details
-                  </button>
-                  <button
-                    className="check-out-button red"
-                    onClick={() => openStatusModal(booking.id, 'CHECKED_OUT')}
-                  >
-                    Check Out
-                  </button>
-                  <button
-                    className="action-button print"
-                    onClick={() => printBookingSummary(booking)}
-                    title="Print Summary"
-                  >
-                    Print
-                  </button>
-                </div>
+              
+              <div className="sort-controls">
+                <label className="sort-label">Sort by:</label>
+                <select 
+                  value={sortBy} 
+                  onChange={(e) => handleSort(e.target.value)}
+                  className="sort-select"
+                >
+                  <option value="checkIn">Check-in Date</option>
+                  <option value="guestName">Guest Name</option>
+                  <option value="checkOut">Check-out Date</option>
+                  <option value="status">Status</option>
+                </select>
+                <button 
+                  className={`sort-order-btn ${sortOrder === 'desc' ? 'desc' : 'asc'}`}
+                  onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                  title={sortOrder === 'asc' ? 'Sort Descending' : 'Sort Ascending'}
+                >
+                  {sortOrder === 'asc' ? '↑' : '↓'}
+                </button>
               </div>
-            ))}
+            </div>
           </div>
+          
+          {/* Filter Tabs */}
+          <div className="booking-filter-tabs">
+            <button 
+              className={`filter-tab ${activeBookingFilter === 'all' ? 'active' : ''}`}
+              onClick={() => handleFilterChange('all')}
+            >
+              <svg viewBox="0 0 20 20" fill="currentColor">
+                <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                <path fillRule="evenodd" d="M4 5a2 2 0 012-2v1a2 2 0 00-2 2v6a2 2 0 002 2h8a2 2 0 002-2V6a2 2 0 00-2-2V3a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2V5z" clipRule="evenodd" />
+              </svg>
+              All ({getAllBookings().length})
+            </button>
+            <button 
+              className={`filter-tab ${activeBookingFilter === 'pending' ? 'active' : ''}`}
+              onClick={() => handleFilterChange('pending')}
+            >
+              <svg viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+              </svg>
+              Pending ({(pendingBookings || []).length})
+            </button>
+            <button 
+              className={`filter-tab ${activeBookingFilter === 'confirmed' ? 'active' : ''}`}
+              onClick={() => handleFilterChange('confirmed')}
+            >
+              <svg viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              Confirmed ({(confirmedBookings || []).length})
+            </button>
+          </div>
+          
+          {/* Enhanced Booking List */}
+          <div className="booking-grid">
+            {getPaginatedBookings().length > 0 ? (
+              getPaginatedBookings().map((booking) => (
+                <div key={booking.id} className={`booking-card ${booking.status?.toLowerCase() || 'pending'}`}>
+                  <div className="booking-header-row">
+                    <div className="guest-info-main">
+                      <h3 className="guest-name" onClick={() => openQuickView(booking)}>
+                        {booking.guestName || 'Unknown Guest'}
+                      </h3>
+                      <span className={`status-badge ${booking.status?.toLowerCase() || 'pending'}`}>
+                        {booking.status || 'Pending'}
+                      </span>
+                    </div>
+                    <div className="booking-id">#{booking.id}</div>
+                  </div>
+                  
+                  <div className="booking-details">
+                    <div className="detail-row">
+                      <svg viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                      </svg>
+                      <span className="detail-label">Check-in:</span>
+                      <span className="detail-value">
+                        {booking.checkIn ? new Date(booking.checkIn).toLocaleDateString('en-US', {
+                          weekday: 'short',
+                          month: 'short',
+                          day: 'numeric'
+                        }) : 'N/A'}
+                      </span>
+                    </div>
+                    
+                    <div className="detail-row">
+                      <svg viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+                      </svg>
+                      <span className="detail-label">Room:</span>
+                      <span className="detail-value">
+                        {booking.roomAssignments?.[0]?.roomName || 'Not assigned'}
+                      </span>
+                    </div>
+                    
+                    <div className="detail-row">
+                      <svg viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z" />
+                      </svg>
+                      <span className="detail-label">Guests:</span>
+                      <span className="detail-value">{booking.numberOfGuests || 1}</span>
+                    </div>
+                    
+                    {booking.remarks && (
+                      <div className="detail-row remarks">
+                        <svg viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
+                        </svg>
+                        <span className="detail-value remarks-text">{booking.remarks}</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="booking-actions">
+                    <button 
+                      className="action-btn primary" 
+                      onClick={() => openDetailsModal(booking)}
+                      title="View Full Details"
+                    >
+                      <svg viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                        <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                      </svg>
+                      Details
+                    </button>
+                    
+                    {booking.status === 'HELD' ? (
+                      <>
+                        <button 
+                          className="action-btn success" 
+                          onClick={() => openStatusModal(booking.id, 'Confirmed')}
+                          title="Confirm Booking"
+                        >
+                          <svg viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                          Confirm
+                        </button>
+                        <button 
+                          className="action-btn danger" 
+                          onClick={() => openStatusModal(booking.id, 'Cancelled')}
+                          title="Cancel Booking"
+                        >
+                          <svg viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                          </svg>
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button 
+                        className="action-btn secondary" 
+                        onClick={() => openAdjustBookingModal(booking)}
+                        title="Edit Booking"
+                      >
+                        <svg viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                        </svg>
+                        Edit
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="no-bookings">
+                <svg viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
+                </svg>
+                <h3>No bookings found</h3>
+                <p>Try adjusting your search or filter criteria</p>
+              </div>
+            )}
+          </div>
+          
+          {/* Pagination Controls */}
+          {getTotalPages() > 1 && (
+            <div className="pagination">
+              <button 
+                className="pagination-btn" 
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+              >
+                <svg viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                Previous
+              </button>
+              
+              <div className="pagination-info">
+                <span>Page {currentPage} of {getTotalPages()}</span>
+                <span className="results-count">
+                  Showing {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, getFilteredBookings().length)} of {getFilteredBookings().length}
+                </span>
+              </div>
+              
+              <button 
+                className="pagination-btn" 
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === getTotalPages()}
+              >
+                Next
+                <svg viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1846,45 +2378,7 @@ export default function ReceptionistDashboard() {
         </div>
       )}
 
-      {/* Notification Panel */}
-      {showNotificationPanel && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '800px', maxHeight: '80vh' }}>
-            <div className="modal-header">
-              <h3 className="modal-title">Notifications</h3>
-              <button className="modal-close-button" onClick={() => setShowNotificationPanel(false)}>×</button>
-            </div>
-            <div className="notification-categories">
-              <div className="category-section">
-                <h4>Pending Check-ins ({notificationCategories.checkIns.length})</h4>
-                {notificationCategories.checkIns.map(booking => (
-                  <div key={booking.id} className="notification-item">
-                    <span>{booking.guestName} - {new Date(booking.checkIn).toLocaleTimeString()}</span>
-                    <button onClick={() => openStatusModal(booking.id, 'Confirmed')}>Confirm</button>
-                  </div>
-                ))}
-              </div>
-              <div className="category-section">
-                <h4>Pending Check-outs ({notificationCategories.checkOuts.length})</h4>
-                {notificationCategories.checkOuts.map(booking => (
-                  <div key={booking.id} className="notification-item">
-                    <span>{booking.guestName} - {new Date(booking.checkOut).toLocaleTimeString()}</span>
-                    <button onClick={() => openStatusModal(booking.id, 'CHECKED_OUT')}>Check Out</button>
-                  </div>
-                ))}
-              </div>
-              <div className="category-section">
-                <h4>Upcoming Reservations ({notificationCategories.general.length})</h4>
-                {notificationCategories.general.map(booking => (
-                  <div key={booking.id} className="notification-item">
-                    <span>{booking.guestName} arriving tomorrow</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* Shift Summary Modal */}
       {showShiftSummaryModal && shiftSummary && (
@@ -1958,13 +2452,8 @@ export default function ReceptionistDashboard() {
       {/* Booking Details Modal */}
       {showDetailsModal && bookingForDetails && (
         <div
+          className="modal-overlay fade-in"
           style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            backdropFilter: 'blur(5px)',
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
@@ -1972,6 +2461,7 @@ export default function ReceptionistDashboard() {
           }}
         >
           <div
+            className="modal-content"
             style={{
               background: 'linear-gradient(135deg, #fcd34d 0%, #e6f4f8 100%)',
               padding: '20px',
@@ -1981,9 +2471,35 @@ export default function ReceptionistDashboard() {
               maxHeight: '80%',
               overflowY: 'auto',
               boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
+              position: 'relative',
             }}
           >
-            <h3>Booking Details</h3>
+            <div style={{ position: 'relative', marginBottom: '10px' }}>
+              <h3 style={{ margin: 0, fontWeight: 600, fontSize: '1.35rem', color: '#3d2c00' }}>Booking Details</h3>
+              <button
+                className="modal-close-button"
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  right: 0,
+                  fontSize: '1.5rem',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: '#92400E',
+                  padding: '2px 8px',
+                  lineHeight: 1,
+                  zIndex: 2
+                }}
+                onClick={() => {
+                  setShowDetailsModal(false);
+                  setBookingForDetails(null);
+                }}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
             <div style={{ marginBottom: '10px' }}>
               <strong>Check-in:</strong> {new Date(bookingForDetails.checkIn).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
             </div>
@@ -2064,27 +2580,75 @@ export default function ReceptionistDashboard() {
               </ul>
             </div>
 
-            <button
-              onClick={() => {
-                setShowDetailsModal(false);
-                setBookingForDetails(null);
-              }}
-              style={{
-                marginTop: '20px',
-                padding: '10px 20px',
-                backgroundColor: '#6c757d',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                width: '100%',
-              }}
-            >
-              Close
-            </button>
+            {/* Action Buttons - always show row, buttons conditionally rendered */}
+            <div style={{ display: 'flex', gap: '10px', marginTop: '20px', justifyContent: 'flex-end', flexWrap: 'wrap', minHeight: '44px' }}>
+              {/* Show Check In button if not checked in yet (actualCheckIn is null and status is HELD, PENDING, or Confirmed) */}
+              {(['HELD', 'PENDING', 'Confirmed'].includes(bookingForDetails.status) && !bookingForDetails.actualCheckIn) && (
+                <button
+                  onClick={async () => {
+                    const today = new Date();
+                    const checkInDate = new Date(bookingForDetails.checkIn);
+                    if (today < new Date(checkInDate.getFullYear(), checkInDate.getMonth(), checkInDate.getDate())) {
+                      setEarlyCheckInModal({
+                        show: true,
+                        date: checkInDate
+                      });
+                      return;
+                    }
+                    try {
+                      await handleCheckIn(bookingForDetails.id);
+                      setShowDetailsModal(false);
+                      setBookingForDetails(null);
+                    } catch (error) {
+                      console.error('Error checking in:', error);
+                    }
+                  }}
+                  style={{
+                    minWidth: '120px',
+                    padding: '10px 20px',
+                    backgroundColor: '#56A86B',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontWeight: '500',
+                  }}
+                >
+                  Check In
+                </button>
+              )}
+
+              {/* Show Check Out button if checked in but not checked out (actualCheckIn is set, actualCheckOut is null, status is Confirmed or Checked-In) */}
+              {(bookingForDetails.actualCheckIn && !bookingForDetails.actualCheckOut && ['Confirmed', 'Checked-In'].includes(bookingForDetails.status)) && (
+                <button
+                  onClick={() => {
+                    setShowDetailsModal(false);
+                    setBookingForDetails(null);
+                    openStatusModal(bookingForDetails.id, 'CHECKED_OUT');
+                  }}
+                  style={{
+                    minWidth: '120px',
+                    padding: '10px 20px',
+                    backgroundColor: '#E74C3C',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontWeight: '500',
+                  }}
+                >
+                  Check Out
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
+
+      </div>
+
+      {/* Early Check-In Modal (shared) */}
+      <EarlyCheckInModal modal={earlyCheckInModal} setModal={setEarlyCheckInModal} />
     </div>
   );
 }

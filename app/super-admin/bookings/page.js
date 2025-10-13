@@ -1,10 +1,13 @@
-'use client';
+"use client";
 import React, { useState, useEffect, useRef } from 'react';
+import { Plus } from 'lucide-react';
 import SuperAdminLayout from '@/components/SuperAdminLayout';
 import RoomAmenitiesSelector from '@/components/RoomAmenitiesSelector';
 import RentalAmenitiesSelector from '@/components/RentalAmenitiesSelector';
 import OptionalAmenitiesSelector from '@/components/OptionalAmenitiesSelector';
 import BookingCalendar from '@/components/BookingCalendar';
+import { useToast } from '@/components/Toast';
+import { useOverrideModal, OverrideModal } from '@/components/CustomModals';
 
 // Timezone-safe date formatting utility
 function formatDate(date) {
@@ -16,6 +19,40 @@ function formatDate(date) {
 }
 
 export default function BookingsPage() {
+  // Add modal animation styles on component mount
+  useEffect(() => {
+    const styleId = 'modal-animations';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = `
+        @keyframes modalSlideIn {
+          from {
+            opacity: 0;
+            transform: translateY(-50px) scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+        
+        .modal-responsive {
+          animation: modalSlideIn 0.3s ease-out;
+        }
+        
+        @media (max-width: 768px) {
+          .modal-responsive {
+            padding: 1rem !important;
+            margin: 0.5rem !important;
+            max-width: calc(100vw - 1rem) !important;
+          }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+  }, []);
+
   const [bookings, setBookings] = useState([]);
   const [filterStatus, setFilterStatus] = useState('');
   const [filterPaymentOption, setFilterPaymentOption] = useState('');
@@ -33,6 +70,12 @@ export default function BookingsPage() {
   const [historyBookingDetails, setHistoryBookingDetails] = useState(null);
   const [currentTab, setCurrentTab] = useState('active');
   const [showCreateBookingModal, setShowCreateBookingModal] = useState(false);
+
+  // Override modal for early check-in/out (shared)
+  const [overrideModal, setOverrideModal] = useOverrideModal();
+  
+  // Toast notifications
+  const { showToast, success, error } = useToast();
 
   // New state for booking creation form
   const [createBookingStep, setCreateBookingStep] = useState(1);
@@ -564,7 +607,7 @@ export default function BookingsPage() {
               }}
               title="Create Booking"
             >
-              +
+              <Plus size={24} />
             </button>
             <div
               style={{
@@ -634,20 +677,20 @@ export default function BookingsPage() {
 
                   // Validation: date validity
                   if (!isDateSelectionValid()) {
-                    alert('❌ Please select both check-in and check-out dates (single date selection is not allowed).');
+                    error('Please select both check-in and check-out dates (single date selection is not allowed).');
                     return;
                   }
 
                   // Validation: selected rooms exist
                   if (Object.keys(createBookingForm.selectedRooms).length === 0) {
-                    alert('❌ Please select at least one room.');
+                    error('Please select at least one room.');
                     return;
                   }
 
                   // Validation: capacity meets guests
                   const totalCapacity = computeTotalCapacity();
                   if (totalCapacity < createBookingForm.numberOfGuests) {
-                    alert(`❌ Selected rooms can accommodate ${totalCapacity} guest(s), but you have ${createBookingForm.numberOfGuests} guests. Add more rooms or decrease guest count.`);
+                    error(`Selected rooms can accommodate ${totalCapacity} guest(s), but you have ${createBookingForm.numberOfGuests} guests. Add more rooms or decrease guest count.`);
                     return;
                   }
 
@@ -692,7 +735,7 @@ export default function BookingsPage() {
 
                     const newBooking = await response.json();
                     setBookings([...bookings, newBooking]);
-                    setMessage({ type: 'success', text: 'Booking created successfully' });
+                    success('Booking created successfully');
 
                     // Reset form
                     setShowCreateBookingModal(false);
@@ -705,9 +748,9 @@ export default function BookingsPage() {
                       selectedRooms: {},
                       selectedAmenities: { optional: {}, rental: {}, cottage: null },
                     });
-                  } catch (error) {
-                    console.error('❌ Booking Error:', error);
-                    alert(`❌ Booking Failed: ${error.message}`);
+                  } catch (err) {
+                    console.error('Booking Error:', err);
+                    error(`Booking Failed: ${err.message}`);
                   } finally {
                     submittingRef.current = false;
                     setShowSubmitModal(false);
@@ -972,7 +1015,7 @@ export default function BookingsPage() {
                                             fontWeight: 'bold'
                                           }}
                                         >
-                                          +
+                                          <Plus size={16} />
                                         </button>
                                       </div>
                                     )}
@@ -1436,7 +1479,7 @@ export default function BookingsPage() {
                             padding: '8px 12px',
                             borderRadius: '6px',
                             border: 'none',
-                            backgroundColor: '#17a2b8',
+                            backgroundColor: '#febe52',
                             color: '#fff',
                             cursor: 'pointer',
                             fontSize: '12px',
@@ -1445,12 +1488,12 @@ export default function BookingsPage() {
                             boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                           }}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = '#138496';
+                            e.currentTarget.style.backgroundColor = '#e6a73cff';
                             e.currentTarget.style.transform = 'translateY(-1px)';
                             e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
                           }}
                           onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = '#17a2b8';
+                            e.currentTarget.style.backgroundColor = '#febe52';
                             e.currentTarget.style.transform = 'translateY(0)';
                             e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
                           }}
@@ -1598,35 +1641,109 @@ export default function BookingsPage() {
           </div>
         )}
 
-        {/* Booking Details Modal */}
+        {/* Professional Booking Details Modal */}
         {showDetailsModal && currentBooking && (
           <div
             style={{
               position: 'fixed',
               top: 0,
               left: 0,
-              width: '100%',
-              height: '100%',
-              backdropFilter: 'blur(5px)',
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0, 0, 0, 0.5)',
               display: 'flex',
               justifyContent: 'center',
               alignItems: 'center',
               zIndex: 1000,
+              padding: '1rem',
+              backdropFilter: 'blur(4px)',
+            }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setShowDetailsModal(false);
+                setCurrentBooking(null);
+              }
             }}
           >
             <div
               style={{
-                background: 'linear-gradient(135deg, #fcd34d 0%, #e6f4f8 100%)',
-                padding: '20px',
-                borderRadius: '8px',
-                width: '600px',
-                maxWidth: '90%',
-                maxHeight: '80%',
+                background: 'rgba(255,255,255,0.98)',
+                padding: '2rem',
+                borderRadius: '16px',
+                width: '100%',
+                maxWidth: '700px',
+                maxHeight: '90vh',
                 overflowY: 'auto',
-                boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
+                boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
+                backdropFilter: 'blur(20px)',
+                border: '1px solid rgba(255,255,255,0.3)',
+                position: 'relative',
+                animation: 'modalSlideIn 0.3s ease-out',
               }}
+              onClick={(e) => e.stopPropagation()}
             >
-              <h3>Booking Details</h3>
+              {/* Professional Modal Header */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '2rem',
+                paddingBottom: '1rem',
+                borderBottom: '1px solid rgba(0,0,0,0.1)'
+              }}>
+                <div>
+                  <h3 style={{
+                    fontSize: '1.75rem',
+                    fontWeight: '700',
+                    margin: 0,
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text',
+                  }}>
+                    Booking Details
+                  </h3>
+                  <p style={{
+                    margin: '0.25rem 0 0 0',
+                    color: '#6b7280',
+                    fontSize: '0.875rem'
+                  }}>
+                    Booking ID: {currentBooking.id}
+                  </p>
+                </div>
+                <button
+                  style={{
+                    background: 'rgba(107, 114, 128, 0.1)',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '0.5rem',
+                    cursor: 'pointer',
+                    color: '#6b7280',
+                    fontSize: '1.25rem',
+                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '40px',
+                    height: '40px'
+                  }}
+                  onClick={() => {
+                    setShowDetailsModal(false);
+                    setCurrentBooking(null);
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.background = 'rgba(239, 68, 68, 0.1)';
+                    e.target.style.color = '#ef4444';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.background = 'rgba(107, 114, 128, 0.1)';
+                    e.target.style.color = '#6b7280';
+                  }}
+                  aria-label="Close"
+                >
+                  ×
+                </button>
+              </div>
               <div style={{ marginBottom: '10px' }}>
                 <strong>Check-in:</strong> {new Date(currentBooking.checkIn).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
               </div>
@@ -1634,7 +1751,7 @@ export default function BookingsPage() {
                 <strong>Check-out:</strong> {new Date(currentBooking.checkOut).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
               </div>
               <div style={{ marginBottom: '10px' }}>
-                <strong>Guests:</strong> {currentBooking.numberOfGuests || '3'}
+                <strong>Guests:</strong> {currentBooking.numberOfGuests || 'N/A'}
               </div>
 
               <div style={{ marginBottom: '10px' }}>
@@ -1704,60 +1821,140 @@ export default function BookingsPage() {
                 </ul>
               </div>
 
-              {currentBooking.status !== 'Confirmed' && currentBooking.status !== 'CheckedIn' && currentBooking.status !== 'CheckedOut' && (
-                <div style={{ marginTop: '20px', display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              {/* Action Buttons */}
+              <div style={{ marginTop: '20px', display: 'flex', gap: '10px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                {/* Confirm and Cancel for new bookings (not confirmed or checked in/out) */}
+                {(['PENDING', 'HELD', 'NEW'].includes(currentBooking.status) && !currentBooking.actualCheckIn) && (
+                  <>
+                    <button
+                      onClick={() => {
+                        setShowDetailsModal(false);
+                        setShowConfirmModal(true);
+                      }}
+                      style={{
+                        padding: '10px 20px',
+                        backgroundColor: '#28a745',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowDetailsModal(false);
+                        setShowCancelModal(true);
+                      }}
+                      style={{
+                        padding: '10px 20px',
+                        backgroundColor: '#ffc107',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </>
+                )}
+                {/* Check In, Check Out, Cancel for confirmed but not checked in */}
+                {(currentBooking.status === 'Confirmed' && !currentBooking.actualCheckIn) && (
+                  <>
+                    <button
+                      onClick={async () => {
+                        const today = new Date();
+                        const checkInDate = new Date(currentBooking.checkIn);
+                        if (today < new Date(checkInDate.getFullYear(), checkInDate.getMonth(), checkInDate.getDate())) {
+                          setOverrideModal({
+                            show: true,
+                            type: 'checkin',
+                            date: checkInDate,
+                            bookingId: currentBooking.id
+                          });
+                          return;
+                        }
+                        await handleCheckIn(currentBooking.id);
+                        setShowDetailsModal(false);
+                        setCurrentBooking(null);
+                      }}
+                      style={{
+                        padding: '10px 20px',
+                        backgroundColor: '#56A86B',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Check In
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowDetailsModal(false);
+                        setShowCancelModal(true);
+                      }}
+                      style={{
+                        padding: '10px 20px',
+                        backgroundColor: '#ffc107',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </>
+                )}
+                {/* Check Out only after check-in (actualCheckIn set, not checked out) */}
+                {(currentBooking.status === 'Confirmed' && currentBooking.actualCheckIn && !currentBooking.actualCheckOut) && (
                   <button
-                    onClick={() => {
+                    onClick={async () => {
+                      const today = new Date();
+                      const checkOutDate = new Date(currentBooking.checkOut);
+                      if (today < new Date(checkOutDate.getFullYear(), checkOutDate.getMonth(), checkOutDate.getDate())) {
+                        setOverrideModal({
+                          show: true,
+                          type: 'checkout',
+                          date: checkOutDate,
+                          bookingId: currentBooking.id
+                        });
+                        return;
+                      }
+                      await handleCheckOut(currentBooking.id);
                       setShowDetailsModal(false);
-                      setShowConfirmModal(true);
+                      setCurrentBooking(null);
                     }}
                     style={{
                       padding: '10px 20px',
-                      backgroundColor: '#28a745',
+                      backgroundColor: '#E74C3C',
                       color: '#fff',
                       border: 'none',
                       borderRadius: '4px',
                       cursor: 'pointer',
                     }}
                   >
-                    Confirm
+                    Check Out
                   </button>
-                  <button
-                    onClick={() => {
-                      setShowDetailsModal(false);
-                      setShowCancelModal(true);
-                    }}
-                    style={{
-                      padding: '10px 20px',
-                      backgroundColor: '#ffc107',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
-              <button
-                onClick={() => {
-                  setShowDetailsModal(false);
-                  setCurrentBooking(null);
-                }}
-                style={{
-                  marginTop: '20px',
-                  padding: '10px 20px',
-                  backgroundColor: '#6c757d',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  width: '100%',
-                }}
-              >
-                Close
-              </button>
+                )}
+        {/* Override Modal for Super Admin (shared) */}
+        <OverrideModal
+          modal={overrideModal}
+          setModal={setOverrideModal}
+          onConfirm={async () => {
+            if (overrideModal.type === 'checkin') {
+              await handleCheckIn(overrideModal.bookingId);
+            } else if (overrideModal.type === 'checkout') {
+              await handleCheckOut(overrideModal.bookingId);
+            }
+            setShowDetailsModal(false);
+            setCurrentBooking(null);
+          }}
+        />
+              </div>
             </div>
           </div>
         )}

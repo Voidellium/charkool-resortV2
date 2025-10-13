@@ -280,7 +280,7 @@ export default function ChatbotManagementPage() {
 
         /* Primary button styling */
         .btn-primary {
-          background: linear-gradient(135deg, #6c63ff, #4a44e6);
+          background: linear-gradient(135deg, #febe52, #EBD591);
           color: #fff;
           padding: 14px 24px;
           border: none;
@@ -292,7 +292,7 @@ export default function ChatbotManagementPage() {
         }
 
         .btn-primary:hover {
-          background: linear-gradient(135deg, #5a52e0, #3b3bc2);
+          background: linear-gradient(135deg, #EBD591, #EB7407);
           transform: translateY(-2px);
         }
 

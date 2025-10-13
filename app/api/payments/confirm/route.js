@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { recordAudit } from '@/src/lib/audit';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/auth';
 
 export async function POST(req) {
   try {
@@ -20,13 +23,13 @@ export async function POST(req) {
     }
 
     // Update payment status to paid
-    await prisma.payment.update({
+    const updatedPayment = await prisma.payment.update({
       where: { id: payment.id },
       data: { status: 'paid' },
     });
 
     // Update booking status to CONFIRMED and clear heldUntil
-    await prisma.booking.update({
+    const updatedBooking = await prisma.booking.update({
       where: { id: payment.bookingId },
       data: {
         status: 'Confirmed',
@@ -34,6 +37,30 @@ export async function POST(req) {
         heldUntil: null,
       },
     });
+
+    // Record audit for payment confirmation
+    try {
+      const session = await getServerSession(authOptions);
+      await recordAudit({
+        actorId: session?.user?.id || null,
+        actorName: session?.user?.name || session?.user?.email || 'System',
+        actorRole: session?.user?.role || 'SYSTEM',
+        action: 'UPDATE',
+        entity: 'Payment',
+        entityId: String(payment.id),
+        details: JSON.stringify({
+          summary: `Confirmed payment for booking ${payment.booking?.guestName || payment.bookingId}`,
+          before: { status: payment.status },
+          after: { 
+            status: updatedPayment.status,
+            bookingStatus: updatedBooking.status,
+            paymentStatus: updatedBooking.paymentStatus
+          }
+        }),
+      });
+    } catch (auditErr) {
+      console.error('Failed to record audit for payment confirmation:', auditErr);
+    }
 
     return NextResponse.json({ success: true, message: 'Payment confirmed and booking updated' });
   } catch (error) {

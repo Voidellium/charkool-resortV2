@@ -23,7 +23,7 @@ export default async function RootLayout({ children }) {
 
   return (
     <html lang="en">
-      <body className={poppins.className}>
+      <body className={poppins.className} style={{ margin: 0, padding: 0 }}>
         <SessionWrapper
           session={session}
           refetchInterval={0} // Disable auto refetch

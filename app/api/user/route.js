@@ -1,5 +1,8 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
+import { recordAudit } from '@/src/lib/audit';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/auth';
 const prisma = new PrismaClient();
 
 // GET all users
@@ -33,6 +36,25 @@ export async function POST(req) {
       data: { firstName, middleName, lastName, birthdate: new Date(birthdate), contactNumber, name, email: lowercasedEmail, password: hashedPassword, role },
       select: { id: true, firstName: true, middleName: true, lastName: true, birthdate: true, contactNumber: true, name: true, email: true, role: true },
     });
+
+    // Record audit for user creation
+    try {
+      const session = await getServerSession(authOptions);
+      await recordAudit({
+        actorId: session?.user?.id || null,
+        actorName: session?.user?.name || session?.user?.email || 'System',
+        actorRole: session?.user?.role || 'SYSTEM',
+        action: 'CREATE',
+        entity: 'User',
+        entityId: String(newUser.id),
+        details: JSON.stringify({
+          summary: `Created user account for ${newUser.name} (${newUser.role})`,
+          after: newUser
+        }),
+      });
+    } catch (auditErr) {
+      console.error('Failed to record audit for user creation:', auditErr);
+    }
 
     // Create notification for superadmin
     try {

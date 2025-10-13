@@ -1,48 +1,18 @@
 import prisma from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { recordAudit } from '@/src/lib/audit';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/auth';
 
-// ✅ GET all optional amenities with calculated available quantity
+// ✅ GET all amenity inventory items
 export async function GET() {
   try {
-    // Fetch all active optional amenities
-    const optionalAmenities = await prisma.optionalAmenity.findMany({
-      where: { isActive: true },
+    // Fetch all amenity inventory items - simple stock display
+    const amenityInventory = await prisma.amenityInventory.findMany({
       orderBy: { name: 'asc' },
     });
 
-    // For each optional amenity, calculate quantity available = default quantity - sum of quantities used in active bookings
-    const amenitiesWithQuantity = await Promise.all(
-      optionalAmenities.map(async (amenity) => {
-        // Sum quantities used in bookings where booking.checkOut is in the future (active bookings)
-        const usedQuantityResult = await prisma.bookingOptionalAmenity.aggregate({
-          _sum: {
-            quantity: true,
-          },
-          where: {
-            optionalAmenityId: amenity.id,
-            booking: {
-              checkOut: {
-                gt: new Date(),
-              },
-            },
-          },
-        });
-
-        const usedQuantity = usedQuantityResult._sum.quantity || 0;
-        const availableQuantity = Math.max(
-          0,
-          50 - usedQuantity
-        );
-
-        return {
-          name: amenity.name,
-          category: 'Optional amenity',
-          quantity: availableQuantity,
-        };
-      })
-    );
-
-    return NextResponse.json(amenitiesWithQuantity);
+    return NextResponse.json(amenityInventory);
   } catch (error) {
     console.error('GET amenities error:', error);
     return NextResponse.json(
@@ -52,9 +22,10 @@ export async function GET() {
   }
 }
 
-// ✅ POST — Add a new amenity
+// ✅ POST — Add a new amenity inventory item
 export async function POST(req) {
   try {
+    const session = await getServerSession(authOptions);
     const body = await req.json();
     if (!body.name || body.quantity == null) {
       return NextResponse.json(
@@ -66,15 +37,31 @@ export async function POST(req) {
     const created = await prisma.amenityInventory.create({
       data: {
         name: body.name.trim(),
+        category: body.category || 'General',
         quantity: parseInt(body.quantity, 10),
       },
     });
+
+    // Record audit trail with human-readable message
+    try {
+      await recordAudit({
+        actorId: session?.user?.id || null,
+        actorName: session?.user?.name || 'System',
+        actorRole: session?.user?.role || 'ADMIN',
+        action: 'CREATE',
+        entity: 'Amenity Inventory',
+        entityId: created.id.toString(),
+        details: `Added new amenity "${created.name}" with ${created.quantity} items in stock (Category: ${created.category || 'General'})`
+      });
+    } catch (auditError) {
+      console.error('Failed to record audit trail for amenity creation:', auditError);
+    }
 
     // Create notification for superadmin
     try {
       await prisma.notification.create({
         data: {
-          message: `New amenity added: ${created.name} (Quantity: ${created.quantity})`,
+          message: `New amenity added: ${created.name} (Stock: ${created.quantity})`,
           type: 'amenity_added',
           role: 'superadmin',
         },

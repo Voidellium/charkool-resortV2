@@ -61,6 +61,14 @@ export const PUT = async (req, context) => {
       updateData.checkOut = checkOutDate;
     }
     if (data.status !== undefined) updateData.status = data.status;
+
+    // Set actualCheckIn and actualCheckOut timestamps for check-in/out actions
+    if (data.status === 'Confirmed' && data.actualCheckIn === true) {
+      updateData.actualCheckIn = new Date();
+    }
+    if (data.status === 'CHECKED_OUT' && data.actualCheckOut === true) {
+      updateData.actualCheckOut = new Date();
+    }
     if (data.paymentStatus !== undefined) updateData.paymentStatus = data.paymentStatus;
     if (data.totalPrice !== undefined) updateData.totalPrice = data.totalPrice;
     if (data.cancellationRemarks !== undefined) updateData.cancellationRemarks = data.cancellationRemarks;

@@ -31,11 +31,12 @@ export default function VirtualTour() {
   return (
     <>
       <div style={{
-        width: '100vw',
-        height: '100vh',
+        width: '100%',
+        height: 'calc(100vh - 80px)',
         display: 'flex',
         flexDirection: 'column',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        marginTop: '0'
       }}>
         <div style={{
           display: 'flex',

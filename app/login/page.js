@@ -124,30 +124,30 @@ function LoginForm() {
       <footer className="footer">© 2025 Charkool Beach Resort. All Rights Reserved.</footer>
 
       <style jsx global>{`
-        :root, html, body, #__next {
-          height: 100%;
-          margin: 0;
-          padding: 0;
-        }
         * { box-sizing: border-box; }
         body {
+          margin: 0;
+          padding: 0;
           background: linear-gradient(135deg, #fcd34d 0%, #e6f4f8 100%);
-          -webkit-font-smoothing: antialiased;
-          -moz-osx-font-smoothing: grayscale;
-          height: 100vh;
-          width: 100vw;
-          overflow: hidden;
+          min-height: 100vh;
         }
-        #__next > div { height: 100%; }
+        .navbar {
+          height: 80px !important;
+          min-height: 80px !important;
+          max-height: 80px !important;
+        }
       `}</style>
 
       <style jsx>{`
         .login-wrapper {
-          height: 100vh;
-          width: 100vw;
+          min-height: calc(100vh - 80px);
+          width: 100%;
           display: flex;
           align-items: center;
           justify-content: center;
+          padding: 20px 0;
+          margin-top: 0;
+          position: relative;
         }
         .login-card {
           width: min(860px, 94%);

@@ -1,8 +1,19 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from "next/image";
 
 export default function Profile() {
+  const [profileImage, setProfileImage] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [showIcons, setShowIcons] = useState(false);
+  const customIcons = [
+  "/images/avatar1.png",
+  "/images/avatar2.png",
+  "/images/avatar3.png",
+  "/images/avatar4.png",
+  "/images/avatar5.png"
+];
   const [user, setUser] = useState(null);
   const [firstName, setFirstName] = useState('');
   const [middleName, setMiddleName] = useState('');
@@ -14,7 +25,12 @@ export default function Profile() {
   const [success, setSuccess] = useState('');
   const router = useRouter();
 
+  const capitalizeFirst = (str) =>
+    str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+
   useEffect(() => {
+    const savedImage = localStorage.getItem('profileImage');
+    if (savedImage) setProfileImage(savedImage);
     async function fetchUser() {
       try {
         const res = await fetch('/api/guest/me');
@@ -24,24 +40,44 @@ export default function Profile() {
         setFirstName(capitalizeFirst(data.guest.firstName || ''));
         setMiddleName(capitalizeFirst(data.guest.middleName || ''));
         setLastName(capitalizeFirst(data.guest.lastName || ''));
-        setBirthdate(data.guest.birthdate ? new Date(data.guest.birthdate).toISOString().split('T')[0] : '');
+        setBirthdate(
+          data.guest.birthdate
+            ? new Date(data.guest.birthdate).toISOString().split('T')[0]
+            : ''
+        );
         setContactNumber((data.guest.contactNumber || '').slice(-10));
         setEmail(data.guest.email);
-      } catch (err) {
+      } catch {
         router.push('/login');
       }
     }
     fetchUser();
   }, [router]);
 
-  const capitalizeFirst = (str) => {
-    return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = reader.result;
+        setProfileImage(base64);
+        localStorage.setItem('profileImage', base64);
+        setShowModal(false);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleIconSelect = (icon) => {
+    setProfileImage(icon);
+    localStorage.setItem('profileImage', icon);
+    setShowIcons(false);
+    setShowModal(false);
   };
 
   const handleFirstName = (e) => setFirstName(capitalizeFirst(e.target.value));
   const handleMiddleName = (e) => setMiddleName(capitalizeFirst(e.target.value));
   const handleLastName = (e) => setLastName(capitalizeFirst(e.target.value));
-
   const handleContactChange = (e) => {
     const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
     setContactNumber(digits);
@@ -61,12 +97,20 @@ export default function Profile() {
           lastName,
           birthdate,
           contactNumber: '+63' + contactNumber,
-          email
+          email,
         }),
       });
       if (res.ok) {
         setSuccess('Profile updated successfully');
-        setUser({ ...user, firstName, middleName, lastName, birthdate, contactNumber, email });
+        setUser({
+          ...user,
+          firstName,
+          middleName,
+          lastName,
+          birthdate,
+          contactNumber,
+          email,
+        });
       } else {
         const data = await res.json();
         setError(data.error || 'Update failed');
@@ -95,160 +139,373 @@ export default function Profile() {
   }
 
   return (
-    <div className="profile-wrapper">
-      <div className="profile-card">
-        <h1 className="profile-title">Your Profile</h1>
-        <form onSubmit={handleSubmit} className="profile-form">
-          <div className="form-group">
-            <label htmlFor="firstName">First Name</label>
-            <input id="firstName" type="text" value={firstName} onChange={handleFirstName} required />
-          </div>
-          <div className="form-group">
-            <label htmlFor="middleName">Middle Name</label>
-            <input id="middleName" type="text" value={middleName} onChange={handleMiddleName} />
-          </div>
-          <div className="form-group">
-            <label htmlFor="lastName">Last Name</label>
-            <input id="lastName" type="text" value={lastName} onChange={handleLastName} required />
-          </div>
-          <div className="form-group">
-            <label htmlFor="birthdate">Birthdate</label>
-            <input id="birthdate" type="date" value={birthdate} onChange={(e) => setBirthdate(e.target.value)} required />
-          </div>
-          <div className="form-group">
-            <label htmlFor="contactNumber">Contact Number</label>
-            <div className="contact-input">
-              <span className="prefix">+63</span>
-              <input
-                id="contactNumber"
-                type="tel"
-                value={contactNumber}
-                onChange={handleContactChange}
-                placeholder="10 digits"
-                required
+    <>
+      <div className="profile-wrapper">
+        <div className="profile-card">
+          <div className="profile-header">
+            <div className="profile-image">
+              <img
+                src={profileImage || "/default-avatar.png"}
+                alt="Profile"
+                className="avatar"
               />
+              <button className="change-btn" onClick={() => setShowModal(true)}>
+                Change
+              </button>
             </div>
+            <h1 className="profile-title">Your Profile</h1>
           </div>
-          <div className="form-group">
-            <label htmlFor="email">Email</label>
-            <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          </div>
-          <button type="submit" className="submit-button">Update Profile</button>
-        </form>
-        {error && <p className="message error">{error}</p>}
-        {success && <p className="message success">{success}</p>}
+
+          <form onSubmit={handleSubmit} className="profile-form">
+            <div className="form-group">
+              <label htmlFor="firstName">First Name</label>
+              <input id="firstName" type="text" value={firstName} onChange={handleFirstName} required />
+            </div>
+            <div className="form-group">
+              <label htmlFor="middleName">Middle Name</label>
+              <input id="middleName" type="text" value={middleName} onChange={handleMiddleName} />
+            </div>
+            <div className="form-group">
+              <label htmlFor="lastName">Last Name</label>
+              <input id="lastName" type="text" value={lastName} onChange={handleLastName} required />
+            </div>
+            <div className="form-group">
+              <label htmlFor="birthdate">Birthdate</label>
+              <input id="birthdate" type="date" value={birthdate} onChange={(e) => setBirthdate(e.target.value)} required />
+            </div>
+            <div className="form-group">
+              <label htmlFor="contactNumber">Contact Number</label>
+              <div className="contact-input">
+                <span className="prefix">+63</span>
+                <input id="contactNumber" type="tel" value={contactNumber} onChange={handleContactChange} placeholder="10 digits" required />
+              </div>
+            </div>
+            <div className="form-group">
+              <label htmlFor="email">Email</label>
+              <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            </div>
+            <button type="submit" className="submit-button">Update Profile</button>
+          </form>
+          {error && <p className="message error">{error}</p>}
+          {success && <p className="message success">{success}</p>}
+        </div>
       </div>
 
+      {showModal && (
+        <div className="modal-overlay">
+          <div className="modal">
+            {!showIcons ? (
+              <>
+                <h2>Select Profile Image</h2>
+                <div className="choice-buttons">
+                  <button className="choice-btn" onClick={() => setShowIcons(true)}>Choose from Avatars</button>
+                  <label className="choice-btn upload-label">
+                    Upload Your Image
+                    <input type="file" accept="image/*" hidden onChange={handleImageChange} />
+                  </label>
+                </div>
+                <button className="close-btn" onClick={() => setShowModal(false)}>Cancel</button>
+              </>
+            ) : (
+              <>
+                <h2>Select an Avatar</h2>
+                <div className="icon-grid">
+                  {customIcons.map((icon, i) => (
+                    <img
+                      key={i}
+                      src={icon}
+                      alt={`icon-${i}`}
+                      className="icon-choice"
+                      onClick={() => handleIconSelect(icon)}
+                    />
+                  ))}
+                </div>
+                <button className="close-btn" onClick={() => setShowIcons(false)}>Back</button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
       <style jsx>{`
-        .profile-wrapper {
+  :global(html, body, #__next) {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+  }
+  :global(*), :global(*::before), :global(*::after) {
+          box-sizing: border-box;
+        }
+  .profile-wrapper {
           min-height: 100vh;
           display: flex;
-          justify-content: flex-start;
+          justify-content: center;
           align-items: center;
-          background: linear-gradient(135deg, #fde68a, #fef3c7, #dbeafe);
-          padding: 1rem;
+          background: linear-gradient(135deg, #fef3c7, #e0f2fe, #dbeafe);
         }
-        .profile-card {
+   .profile-card {
           background: #fff;
-          padding: 2rem;
-          border-radius: 16px;
-          box-shadow: 0 8px 20px rgba(0,0,0,0.1);
-          width: 100%;
-          max-width: 500px;
+          border-radius: 20px;
+          box-shadow: 0 12px 40px rgba(0,0,0,0.12);
+          padding: 2.5rem;
+          max-width: 700px;
+          width: 90%;
           display: flex;
           flex-direction: column;
-          margin-left: 2rem;
+          align-items: center;
         }
-        .profile-title {
-          text-align: center;
-          font-size: 1.8rem;
-          font-weight: 700;
+  .profile-header {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
           margin-bottom: 1.5rem;
-          color: #111827;
         }
-        .profile-form {
+  .profile-image {
+          position: relative;
+          width: 130px;
+          height: 130px;
+          margin-bottom: 1rem;
+        }
+  .avatar {
+          width: 100%;
+          height: 100%;
+          border-radius: 50%;
+          object-fit: cover;
+          border: 4px solid #fbbf24;
+          box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        }
+        .change-btn {
+          position: absolute;
+          bottom: -8px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: #f59e0b;
+          color: white;
+          font-size: 0.8rem;
+          padding: 0.4rem 0.8rem;
+          border-radius: 999px;
+          border: none;
+          cursor: pointer;
+          box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+        }
+        .change-btn:hover { background: #d97706; }
+        .modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0,0,0,0.5);
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          z-index: 50;
+        }
+        .modal {
+          background: white;
+          border-radius: 16px;
+          padding: 2rem;
+          text-align: center;
+          width: 90%;
+          max-width: 400px;
+          box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+        }
+        .choice-buttons {
           display: flex;
           flex-direction: column;
           gap: 1rem;
+          margin: 1.5rem 0;
         }
-        .form-group {
-          display: flex;
-          flex-direction: column;
-        }
-        label {
-          font-size: 0.9rem;
-          font-weight: 600;
-          color: #374151;
-          margin-bottom: 0.25rem;
-        }
-        input {
-          padding: 0.75rem 1rem;
-          border: 1px solid #d1d5db;
-          border-radius: 8px;
-          font-size: 1rem;
-          transition: all 0.2s ease;
-        }
-        .contact-input {
-          display: flex;
-          align-items: center;
-        }
-        .contact-input .prefix {
-          padding: 0.75rem 0.5rem;
-          background: #f3f4f6;
-          border: 1px solid #d1d5db;
-          border-right: none;
-          border-radius: 8px 0 0 8px;
-          font-size: 1rem;
-          color: #374151;
-        }
-        .contact-input input {
-          flex: 1;
-          border-radius: 0 8px 8px 0;
-        }
-        input:focus {
-          border-color: #2563eb;
-          box-shadow: 0 0 0 3px rgba(37,99,235,0.2);
-          outline: none;
-        }
-        .submit-button {
-          margin-top: 1rem;
-          padding: 0.75rem;
+        .choice-btn {
           background: #f59e0b;
-          color: #fff;
-          font-weight: 600;
-          font-size: 1rem;
+          color: white;
+          padding: 0.8rem;
           border: none;
+          border-radius: 10px;
+          font-weight: 600;
+          cursor: pointer;
+          width: 100%;
+        }
+        .upload-label { cursor: pointer; text-align: center; }
+        .icon-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 1rem;
+          margin: 1.5rem 0;
+        }
+        .icon-choice {
+          width: 80px;
+          height: 80px;
+          border-radius: 50%;
+          cursor: pointer;
+          transition: all 0.2s;
+          border: 3px solid transparent;
+        }
+        .icon-choice:hover {
+          transform: scale(1.05);
+          border-color: #fbbf24;
+        }
+        .close-btn {
+          background: #e5e7eb;
+          color: #111;
+          border: none;
+          padding: 0.6rem 1rem;
           border-radius: 8px;
           cursor: pointer;
-          transition: background 0.2s ease;
-        }
-        .submit-button:hover {
-          background: #d97706;
-        }
-        .message {
-          margin-top: 1rem;
-          padding: 0.75rem;
-          border-radius: 8px;
-          text-align: center;
-          font-weight: 500;
-        }
-        .message.error {
-          background: #fee2e2;
-          color: #991b1b;
-        }
-        .message.success {
-          background: #d1fae5;
-          color: #065f46;
         }
         @media (max-width: 640px) {
-          .profile-card {
-            padding: 1.5rem;
-          }
-          .profile-title {
-            font-size: 1.5rem;
-          }
+          .icon-choice { width: 60px; height: 60px; }
         }
-      `}</style>
-    </div>
+  .image-options {
+    position: absolute;
+    bottom: -30px;
+    width: 100%;
+    display: flex;
+    justify-content: space-around;
+  }
+  .upload-btn, .icon-btn {
+    background: #fbbf24;
+    color: white;
+    font-size: 0.8rem;
+    padding: 0.35rem 0.6rem;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
+    border: none;
+  }
+  .upload-btn:hover, .icon-btn:hover {
+    background: #d97706;
+  }
+  .icon-selection {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 1rem;
+  }
+  .icon-option {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: 0.2s;
+  }
+  .icon-option:hover {
+    border: 2px solid #f59e0b;
+  }
+  .profile-title {
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 1rem;
+    margin-top: 1rem;
+  }
+  .profile-form {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+  }
+  .form-group {
+    display: flex;
+    flex-direction: column;
+  }
+  label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 0.3rem;
+  }
+  input {
+    padding: 0.8rem 1rem;
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+    font-size: 1rem;
+    transition: all 0.2s ease;
+    width: 100%;
+    background: #fff;
+  }
+  input:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+    outline: none;
+  }
+  .contact-input {
+    display: flex;
+    align-items: center;
+  }
+  .contact-input .prefix {
+    padding: 0.8rem 0.75rem;
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+    border-right: none;
+    border-radius: 10px 0 0 10px;
+    color: #374151;
+    font-size: 1rem;
+  }
+  .contact-input input {
+    flex: 1;
+    border-radius: 0 10px 10px 0;
+    border-left: none;
+  }
+  .submit-button {
+    margin-top: 1rem;
+    padding: 0.8rem;
+    background: #f59e0b;
+    color: #fff;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+    width: 100%;
+    max-width: 320px;
+    align-self: center;
+  }
+  .submit-button:hover {
+    background: #d97706;
+  }
+  .message {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    border-radius: 8px;
+    text-align: center;
+    font-weight: 500;
+  }
+  .message.error {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+  .message.success {
+    background: #d1fae5;
+    color: #065f46;
+  }
+  @media (max-width: 980px) {
+    .profile-card {
+      padding: 2rem;
+      width: 94%;
+      margin: 1.5rem auto;
+    }
+  }
+  @media (max-width: 640px) {
+    .profile-card {
+      padding: 1.5rem;
+      width: 95%;
+      margin: 1.25rem auto;
+      border-radius: 14px;
+    }
+    .profile-title {
+      font-size: 1.5rem;
+    }
+    .profile-image {
+      width: 110px;
+      height: 110px;
+    }
+    .upload-btn, .icon-btn {
+      font-size: 0.75rem;
+      padding: 0.3rem 0.5rem;
+    }
+  }
+`}</style>
+    </>
   );
 }

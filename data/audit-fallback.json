@@ -1,5 +1,82 @@
 [
   {
+    "id": "f-1760361737496-439",
+    "actorId": 4,
+    "actorName": "Alexer Alvaro",
+    "actorRole": "RECEPTIONIST",
+    "action": "CREATE",
+    "entity": "Booking",
+    "entityId": "36",
+    "details": "{\"summary\":\"Created booking for ChristianJohnFRANCNOEL\",\"after\":{\"id\":36,\"userId\":null,\"checkIn\":\"2025-10-30T00:00:00.000Z\",\"checkOut\":\"2025-10-31T00:00:00.000Z\",\"status\":\"Confirmed\",\"createdAt\":\"2025-10-13T13:22:16.113Z\",\"heldUntil\":null,\"guestName\":\"ChristianJohnFRANCNOEL\",\"paymentStatus\":\"Pending\",\"totalPrice\":600000,\"isDeleted\":false,\"cancellationRemarks\":null,\"rooms\":[{\"bookingId\":36,\"roomId\":2,\"quantity\":1,\"room\":{\"id\":2,\"name\":\"Tepee\",\"type\":\"TEPEE\",\"price\":600000,\"createdAt\":\"2025-10-03T05:06:18.479Z\",\"heldUntil\":null,\"status\":\"available\",\"updatedAt\":\"2025-10-03T05:53:57.447Z\",\"image\":null,\"quantity\":4}}],\"optionalAmenities\":[],\"rentalAmenities\":[],\"cottage\":[]}}",
+    "timestamp": "2025-10-13T13:22:17.117Z"
+  },
+  {
+    "id": "f-1760361698003-8503",
+    "actorId": 4,
+    "actorName": "Alexer Alvaro",
+    "actorRole": "RECEPTIONIST",
+    "action": "UPDATE",
+    "entity": "Booking",
+    "entityId": "34",
+    "details": "{\"summary\":\"Dates: 10/17/2025 → 10/17/2025 to 10/18/2025 → 10/20/2025\",\"before\":{\"id\":34,\"userId\":null,\"checkIn\":\"2025-10-17T00:00:00.000Z\",\"checkOut\":\"2025-10-18T00:00:00.000Z\",\"status\":\"Confirmed\",\"createdAt\":\"2025-10-13T11:13:16.356Z\",\"heldUntil\":null,\"guestName\":\"negga\",\"paymentStatus\":\"Pending\",\"totalPrice\":500000,\"isDeleted\":false,\"cancellationRemarks\":null,\"rooms\":[{\"bookingId\":34,\"roomId\":1,\"quantity\":1,\"room\":{\"id\":1,\"name\":\"Loft\",\"type\":\"LOFT\",\"price\":500000,\"createdAt\":\"2025-10-03T05:06:17.055Z\",\"heldUntil\":null,\"status\":\"available\",\"updatedAt\":\"2025-10-03T05:53:51.466Z\",\"image\":null,\"quantity\":4}}],\"optionalAmenities\":[],\"rentalAmenities\":[],\"cottage\":[],\"amenities\":[],\"payments\":[],\"user\":null},\"after\":{\"id\":34,\"userId\":null,\"checkIn\":\"2025-10-17T00:00:00.000Z\",\"checkOut\":\"2025-10-20T00:00:00.000Z\",\"status\":\"Confirmed\",\"createdAt\":\"2025-10-13T11:13:16.356Z\",\"heldUntil\":null,\"guestName\":\"negga\",\"paymentStatus\":\"Pending\",\"totalPrice\":500000,\"isDeleted\":false,\"cancellationRemarks\":null,\"rooms\":[{\"bookingId\":34,\"roomId\":1,\"quantity\":1,\"room\":{\"id\":1,\"name\":\"Loft\",\"type\":\"LOFT\",\"price\":500000,\"createdAt\":\"2025-10-03T05:06:17.055Z\",\"heldUntil\":null,\"status\":\"available\",\"updatedAt\":\"2025-10-03T05:53:51.466Z\",\"image\":null,\"quantity\":4}}],\"optionalAmenities\":[],\"rentalAmenities\":[],\"cottage\":[],\"amenities\":[],\"payments\":[],\"user\":null}}",
+    "timestamp": "2025-10-13T13:21:37.717Z"
+  },
+  {
+    "id": "f-1760361637650-6510",
+    "actorId": 6,
+    "actorName": "Dear Joe",
+    "actorRole": "SUPERADMIN",
+    "action": "UPDATE",
+    "entity": "Room",
+    "entityId": "4",
+    "details": "Updated room \"Family Lodge\"",
+    "timestamp": "2025-10-13T13:20:37.213Z"
+  },
+  {
+    "id": "f-1760359882185-3617",
+    "actorId": 6,
+    "actorName": "Dear Joe",
+    "actorRole": "SUPERADMIN",
+    "action": "DELETE",
+    "entity": "Policy",
+    "entityId": "9",
+    "details": "Deleted policy id 9",
+    "timestamp": "2025-10-13T12:51:21.903Z"
+  },
+  {
+    "id": "f-1760356245613-9769",
+    "actorId": 6,
+    "actorName": "Dear Joe",
+    "actorRole": "SUPERADMIN",
+    "action": "UPDATE",
+    "entity": "Room",
+    "entityId": "4",
+    "details": "Updated room \"Family Lodgee\"",
+    "timestamp": "2025-10-13T11:50:45.140Z"
+  },
+  {
+    "id": "f-1760355364119-826",
+    "actorId": 6,
+    "actorName": "Dear Joe",
+    "actorRole": "SUPERADMIN",
+    "action": "CREATE",
+    "entity": "Booking",
+    "entityId": "35",
+    "details": "{\"summary\":\"Created booking for brah\",\"after\":{\"id\":35,\"userId\":null,\"checkIn\":\"2025-10-24T00:00:00.000Z\",\"checkOut\":\"2025-10-25T00:00:00.000Z\",\"status\":\"Confirmed\",\"createdAt\":\"2025-10-13T11:36:02.735Z\",\"heldUntil\":null,\"guestName\":\"brah\",\"paymentStatus\":\"Pending\",\"totalPrice\":500000,\"isDeleted\":false,\"cancellationRemarks\":null,\"rooms\":[{\"bookingId\":35,\"roomId\":1,\"quantity\":1,\"room\":{\"id\":1,\"name\":\"Loft\",\"type\":\"LOFT\",\"price\":500000,\"createdAt\":\"2025-10-03T05:06:17.055Z\",\"heldUntil\":null,\"status\":\"available\",\"updatedAt\":\"2025-10-03T05:53:51.466Z\",\"image\":null,\"quantity\":4}}],\"optionalAmenities\":[],\"rentalAmenities\":[],\"cottage\":[]}}",
+    "timestamp": "2025-10-13T11:36:03.772Z"
+  },
+  {
+    "id": "f-1760353997676-2846",
+    "actorId": 6,
+    "actorName": "Dear Joe",
+    "actorRole": "SUPERADMIN",
+    "action": "CREATE",
+    "entity": "Booking",
+    "entityId": "34",
+    "details": "{\"summary\":\"Created booking for negga\",\"after\":{\"id\":34,\"userId\":null,\"checkIn\":\"2025-10-17T00:00:00.000Z\",\"checkOut\":\"2025-10-18T00:00:00.000Z\",\"status\":\"Confirmed\",\"createdAt\":\"2025-10-13T11:13:16.356Z\",\"heldUntil\":null,\"guestName\":\"negga\",\"paymentStatus\":\"Pending\",\"totalPrice\":500000,\"isDeleted\":false,\"cancellationRemarks\":null,\"rooms\":[{\"bookingId\":34,\"roomId\":1,\"quantity\":1,\"room\":{\"id\":1,\"name\":\"Loft\",\"type\":\"LOFT\",\"price\":500000,\"createdAt\":\"2025-10-03T05:06:17.055Z\",\"heldUntil\":null,\"status\":\"available\",\"updatedAt\":\"2025-10-03T05:53:51.466Z\",\"image\":null,\"quantity\":4}}],\"optionalAmenities\":[],\"rentalAmenities\":[],\"cottage\":[]}}",
+    "timestamp": "2025-10-13T11:13:17.308Z"
+  },
+  {
     "id": "f-1760297107883-9477",
     "actorId": 6,
     "actorName": "Dear Joe",

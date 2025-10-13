@@ -1,5 +1,12 @@
 "use client";
 import { useEffect, useMemo, useState } from 'react';
+import { 
+  CheckCircle, 
+  Edit3, 
+  Trash2, 
+  FileText,
+  Search
+} from 'lucide-react';
 import styles from './page.module.css';
 import SuperAdminLayout from '@/components/SuperAdminLayout';
 
@@ -13,6 +20,75 @@ function timeAgo(iso) {
 	if (hrs < 24) return `${hrs}h ago`;
 	const days = Math.floor(hrs / 24);
 	return `${days}d ago`;
+}
+
+// Convert booking data to human-readable format
+function humanizeBookingData(data, isComparison = false) {
+	if (!data) return null;
+	
+	const formatDate = (dateStr) => {
+		if (!dateStr) return 'Not specified';
+		const date = new Date(dateStr);
+		return date.toLocaleDateString('en-US', { 
+			weekday: 'long', 
+			year: 'numeric', 
+			month: 'long', 
+			day: 'numeric' 
+		});
+	};
+
+	const formatCurrency = (amount) => {
+		if (typeof amount === 'number') {
+			return `₱${(amount / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+		}
+		return amount;
+	};
+
+	const humanData = {};
+
+	if (data.guestName) humanData['Guest Name'] = data.guestName;
+	if (data.checkIn) humanData['Check-in Date'] = formatDate(data.checkIn);
+	if (data.checkOut) humanData['Check-out Date'] = formatDate(data.checkOut);
+	if (data.status) humanData['Booking Status'] = data.status.charAt(0).toUpperCase() + data.status.slice(1);
+	if (data.paymentStatus) humanData['Payment Status'] = data.paymentStatus.replace(/([A-Z])/g, ' $1').trim();
+	if (data.totalPrice) humanData['Total Amount'] = formatCurrency(data.totalPrice);
+	if (data.numberOfGuests) humanData['Number of Guests'] = `${data.numberOfGuests} guest${data.numberOfGuests > 1 ? 's' : ''}`;
+	
+	// Handle rooms array
+	if (data.rooms && Array.isArray(data.rooms) && data.rooms.length > 0) {
+		humanData['Rooms'] = data.rooms.map(room => {
+			const roomInfo = [];
+			if (room.room?.name) roomInfo.push(room.room.name);
+			if (room.room?.type) roomInfo.push(`(${room.room.type})`);
+			if (room.quantity > 1) roomInfo.push(`× ${room.quantity}`);
+			return roomInfo.join(' ');
+		}).join(', ');
+	}
+
+	if (data.createdAt) humanData['Created'] = formatDate(data.createdAt);
+	if (data.cancellationRemarks) humanData['Cancellation Reason'] = data.cancellationRemarks;
+
+	return humanData;
+}
+
+// Compare two booking objects and return human-readable changes
+function getBookingChanges(before, after) {
+	const beforeHuman = humanizeBookingData(before);
+	const afterHuman = humanizeBookingData(after);
+	const changes = [];
+
+	for (const [key, afterValue] of Object.entries(afterHuman)) {
+		const beforeValue = beforeHuman[key];
+		if (beforeValue !== afterValue) {
+			changes.push({
+				field: key,
+				before: beforeValue || 'Not set',
+				after: afterValue
+			});
+		}
+	}
+
+	return changes;
 }
 
 export default function AuditTrailsPage() {
@@ -29,7 +105,11 @@ export default function AuditTrailsPage() {
 			.then((r) => r.json())
 			.then((json) => {
 				if (!mounted) return;
-					setRecords(Array.isArray(json?.data) ? json.data : []);
+				console.log('Audit API Response:', json);
+				console.log('Data array:', json?.data);
+				console.log('Is array?:', Array.isArray(json?.data));
+				console.log('Data length:', json?.data?.length);
+				setRecords(Array.isArray(json?.data) ? json.data : []);
 			})
 			.catch((err) => {
 				console.error('Failed to load audit trails', err);
@@ -250,37 +330,83 @@ export default function AuditTrailsPage() {
 				<div className={styles.container}>
 					<div className={styles.header}>
 				<div>
-					<div className={styles.title}>Audit Trails</div>
-					<div className="subtitle">Records of administrative changes across the system</div>
+					<div className={styles.title}>
+						<svg width="24" height="24" viewBox="0 0 24 24" fill="none" style={{ display: 'inline-block', marginRight: '0.5rem' }}>
+							<path d="M9.5 3V9L15 15V3C15 2.45 14.55 2 14 2H5C4.45 2 4 2.45 4 3V21C4 21.55 4.45 22 5 22H14C14.55 22 15 21.55 15 21V17L9.5 11V3Z" fill="currentColor"/>
+							<path d="M20.71 7.04C21.1 6.65 21.1 6.02 20.71 5.63L18.37 3.29C17.98 2.9 17.35 2.9 16.96 3.29L15.13 5.12L18.88 8.87L20.71 7.04Z" fill="currentColor"/>
+						</svg>
+						Audit Trails
+					</div>
+					<div className={styles.subtitle}>Records of administrative changes across the system</div>
 				</div>
 
-				<div className={styles.controls}>
-					<input
-						aria-label="Search audit trails"
-						placeholder="Search by actor, entity or details"
-						className={styles.search}
-						value={query}
-						onChange={(e) => setQuery(e.target.value)}
-					/>
+				<div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'flex-end' }}>
+					<div style={{ display: 'flex', gap: '1rem', alignItems: 'center', fontSize: '0.875rem', color: '#64748b' }}>
+						<span style={{ background: '#f1f5f9', padding: '0.5rem 1rem', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+							<svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+								<rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="2" fill="none"/>
+								<path d="M8 12h8M8 8h8M8 16h8" stroke="currentColor" strokeWidth="2"/>
+							</svg>
+							Total Records: <strong style={{ color: '#1e293b' }}>{records.length}</strong>
+						</span>
+						<span style={{ background: '#f1f5f9', padding: '0.5rem 1rem', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+							<svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+								<circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2" fill="none"/>
+								<path d="m21 21-4.35-4.35" stroke="currentColor" strokeWidth="2"/>
+							</svg>
+							Filtered: <strong style={{ color: '#1e293b' }}>{filtered.length}</strong>
+						</span>
+					</div>
+					<div className={styles.controls}>
+						<input
+							aria-label="Search audit trails"
+							placeholder="Search by actor, entity or details..."
+							className={styles.search}
+							value={query}
+							onChange={(e) => setQuery(e.target.value)}
+						/>
 
-					<select className={styles.filter} value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
-						{roles.map((r) => (
-							<option key={r} value={r}>{r}</option>
-						))}
-					</select>
+						<select className={styles.filter} value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
+							{roles.map((r) => (
+								<option key={r} value={r}>
+									{r === 'ALL' ? 'All Roles' : 
+									 r === 'SUPERADMIN' ? 'Super Admin' :
+									 r === 'RECEPTIONIST' ? 'Receptionist' :
+									 r === 'CASHIER' ? 'Cashier' :
+									 r === 'AMENITYINVENTORYMANAGER' ? 'Amenity Manager' : r}
+								</option>
+							))}
+						</select>
 
-					<select className={styles.filter} value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
-						{actions.map((a) => (
-							<option key={a} value={a}>{a}</option>
-						))}
-					</select>
+						<select className={styles.filter} value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
+							{actions.map((a) => (
+								<option key={a} value={a}>
+									{a === 'ALL' ? 'All Actions' :
+									 a === 'CREATE' ? 'Create' :
+									 a === 'UPDATE' ? 'Update' :
+									 a === 'DELETE' ? 'Delete' : a}
+								</option>
+							))}
+						</select>
+					</div>
 				</div>
 			</div>
 
 			{loading ? (
-				<div className={styles.empty}>Loading audit trails…</div>
+				<div className={styles.loading}>
+					<div className={styles.loadingSpinner}></div>
+					<span className={styles.loadingText}>Loading audit trails...</span>
+				</div>
 			) : filtered.length === 0 ? (
-				<div className={styles.empty}>No audit records found.</div>
+				<div className={styles.empty}>
+					<div className={styles.emptyIcon}>
+						<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+							<path d="M9 12H15M9 16H15M17 21H7C5.89543 21 5 20.1046 5 19V5C5 3.89543 5.89543 3 7 3H12.5858C12.851 3 13.1054 3.10536 13.2929 3.29289L19.7071 9.70711C19.8946 9.89464 20 10.149 20 10.4142V19C20 20.1046 19.1046 21 18 21H17ZM17 21V10L13 6H7V19H17Z"/>
+						</svg>
+					</div>
+					<div className={styles.emptyText}>No audit records found</div>
+					<div className={styles.emptySubtext}>Try adjusting your search filters or create some activity to see audit logs here.</div>
+				</div>
 			) : (
 				<div className={styles.list}>
 					{grouped.map((g, gi) => (
@@ -288,12 +414,50 @@ export default function AuditTrailsPage() {
 							<div className={styles.groupItems}>
 								{g.items.map((r) => (
 									<div className={styles.card} key={r.id} onClick={() => openEntryModal(r)} style={{ cursor: 'pointer' }}>
-										<div className={styles.avatar} title={r.actorName} onClick={(e) => { e.stopPropagation(); openActorModal({ actorId: r.actorId, actorName: r.actorName, actorRole: r.actorRole }); }} style={{ cursor: 'pointer' }}>{(r.actorName || '?').split(' ').map(n=>n[0]).slice(0,2).join('')}</div>
+										<div 
+											className={styles.avatar} 
+											title={`${r.actorName} (${r.actorRole}) - Click to view profile`} 
+											onClick={(e) => { e.stopPropagation(); openActorModal({ actorId: r.actorId, actorName: r.actorName, actorRole: r.actorRole }); }} 
+											style={{ 
+												cursor: 'pointer',
+												background: r.actorRole === 'SUPERADMIN' ? 'linear-gradient(135deg, #EBB307, #EBD591)' :
+														   r.actorRole === 'RECEPTIONIST' ? 'linear-gradient(135deg, #EBCE07, #EBD591)' :
+														   r.actorRole === 'CASHIER' ? 'linear-gradient(135deg, #EBEA07, #EBD591)' :
+														   r.actorRole === 'AMENITYINVENTORYMANAGER' ? 'linear-gradient(135deg, #FEBE52, #EBD591)' :
+														   'linear-gradient(135deg, #EB7407, #EBD591)'
+											}}
+										>
+											{(() => {
+												// Role-specific icons
+												if (r.actorRole === 'SUPERADMIN') {
+													return <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+														<path d="M12 6L13.13 10.26L17.7 11.08L14.85 13.84L15.61 18.36L12 16.1L8.39 18.36L9.15 13.84L6.3 11.08L10.87 10.26L12 6Z"/>
+													</svg>;
+												}
+												if (r.actorRole === 'RECEPTIONIST') {
+													return <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+														<path d="M7 13C7 12.45 7.45 12 8 12S9 12.45 9 13 8.55 14 8 14 7 13.55 7 13M13 13C13 12.45 13.45 12 14 12S15 12.45 15 13 14.55 14 14 14 13 13.55 13 13M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3M19 19H5V8H19V19Z"/>
+													</svg>;
+												}
+												if (r.actorRole === 'CASHIER') {
+													return <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+														<path d="M12 2C6.48 2 2 6.48 2 12S6.48 22 12 22 22 17.52 22 12 17.52 2 12 2M12 20C7.59 20 4 16.41 4 12S7.59 4 12 4 20 7.59 20 12 16.41 20 12 20M12 6C8.69 6 6 8.69 6 12S8.69 18 12 18 18 15.31 18 12 15.31 6 12 6M12 16C9.79 16 8 14.21 8 12S9.79 8 12 8 16 9.79 16 12 14.21 16 12 16Z"/>
+													</svg>;
+												}
+												if (r.actorRole === 'AMENITYINVENTORYMANAGER') {
+													return <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+														<path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3M19 19H5V5H19V19M7 7H17V9H7V7M7 11H17V13H7V11M7 15H17V17H7V15Z"/>
+													</svg>;
+												}
+												// Fallback to initials
+												return (r.actorName || '?').split(' ').map(n=>n[0]).slice(0,2).join('');
+											})()}
+										</div>
 										<div className={styles.meta}>
 											<div className={styles.metaTop}>
 												<div>
 													<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-														<div style={{ fontWeight: 700, cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); openActorModal({ actorId: r.actorId, actorName: r.actorName, actorRole: r.actorRole }); }}>{r.actorName}</div>
+														<div style={{ fontWeight: 700, cursor: 'pointer', color: '#4f46e5' }} onClick={(e) => { e.stopPropagation(); openActorModal({ actorId: r.actorId, actorName: r.actorName, actorRole: r.actorRole }); }} title="Click to view profile">{r.actorName}</div>
 														<div className={styles.role} style={{ fontSize: '0.7rem' }}>{r.actorRole}</div>
 														<div style={{ marginLeft: '8px', color: '#6b7280' }}>·</div>
 														<div style={{ color: '#6b7280', fontSize: '0.85rem' }} title={new Date(r.timestamp).toLocaleString()}>{timeAgo(r.timestamp)}</div>
@@ -302,6 +466,12 @@ export default function AuditTrailsPage() {
 													{(() => {
 														let parsed = null;
 														try { parsed = JSON.parse(r.details); } catch (e) { parsed = null; }
+														
+														// Get action class for styling
+														const actionClass = r.action === 'CREATE' ? styles.actionCreate : 
+																		   r.action === 'UPDATE' ? styles.actionUpdate : 
+																		   r.action === 'DELETE' ? styles.actionDelete : styles.action;
+														
 														// If this is a booking create, don't duplicate a preview here (we show it in the card details below)
 														if (r.action === 'CREATE' && r.entity === 'Booking') {
 															return null;
@@ -319,7 +489,7 @@ export default function AuditTrailsPage() {
 														}
 														// Hide raw backend update labels for Room entities when not informative
 														if (r.action === 'UPDATE' && r.entity === 'Room') return null;
-														return <div className={styles.details} style={{ marginTop: '6px' }}><span className={styles.action}>{r.action}</span> {r.entity}</div>;
+														return <div className={styles.details} style={{ marginTop: '6px' }}><span className={actionClass}>{r.action}</span> {r.entity}</div>;
 													})()}
 												</div>
                                                 
@@ -329,14 +499,56 @@ export default function AuditTrailsPage() {
 												{(() => {
 													let parsed = null;
 													try { parsed = JSON.parse(r.details); } catch (e) { parsed = null; }
-													if (r.action === 'CREATE' && r.entity === 'Booking') {
-														// concise single-line preview
-														return 'Booking created: ' + (parsed?.summary || (parsed?.guestName ? parsed.guestName : 'New booking'));
+													
+													// Generate user-friendly preview text based on action and entity
+													const actorName = r.actorName || 'Someone';
+													
+													if (r.action === 'CREATE') {
+														if (r.entity === 'Booking') {
+															const guestName = parsed?.after?.guestName || parsed?.guestName;
+															return `${actorName} created a booking${guestName ? ` for ${guestName}` : ''}`;
+														}
+														if (r.entity === 'Payment') {
+															return `${actorName} created a payment`;
+														}
+														if (r.entity === 'Room') {
+															const roomName = parsed?.after?.name || parsed?.name;
+															return `${actorName} created a room${roomName ? ` "${roomName}"` : ''}`;
+														}
+														return `${actorName} created ${r.entity.toLowerCase()}`;
 													}
+													
+													if (r.action === 'UPDATE') {
+														if (r.entity === 'Booking') {
+															const guestName = parsed?.after?.guestName || parsed?.before?.guestName;
+															return `${actorName} updated a booking${guestName ? ` for ${guestName}` : ''}`;
+														}
+														if (r.entity === 'Payment') {
+															return `${actorName} updated a payment`;
+														}
+														if (r.entity === 'Room') {
+															const roomName = parsed?.after?.name || parsed?.before?.name;
+															return `${actorName} updated a room${roomName ? ` "${roomName}"` : ''}`;
+														}
+														return `${actorName} updated ${r.entity.toLowerCase()}`;
+													}
+													
+													if (r.action === 'DELETE') {
+														if (r.entity === 'Booking') {
+															const guestName = parsed?.before?.guestName;
+															return `${actorName} deleted a booking${guestName ? ` for ${guestName}` : ''}`;
+														}
+														return `${actorName} deleted ${r.entity.toLowerCase()}`;
+													}
+													
+													if (r.action === 'CANCEL' && r.entity === 'Booking') {
+														const guestName = parsed?.after?.guestName || parsed?.before?.guestName;
+														return `${actorName} cancelled a booking${guestName ? ` for ${guestName}` : ''}`;
+													}
+													
+													// Fallback for other actions
 													if (parsed && parsed.summary) return parsed.summary;
-													// For other cases, show a short raw fallback (first 120 chars)
-													if (typeof r.details === 'string') return r.details.length > 120 ? r.details.slice(0, 120) + '…' : r.details;
-													return '';
+													return `${actorName} performed ${r.action.toLowerCase()} on ${r.entity.toLowerCase()}`;
 												})()}
 											</div>
 										</div>
@@ -346,101 +558,278 @@ export default function AuditTrailsPage() {
 						</div>
 					))}
 				</div>
-						)}
-					</div>
+			)}
 
-				{/* Actor profile modal */}
-				{modalOpen && (
-					<div className={styles.modalBackdrop} onClick={closeModal}>
-						<div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-							<button className={styles.modalClose} onClick={closeModal}>×</button>
-							{modalLoading ? (
-								<div>Loading...</div>
-							) : modalActor ? (
-								<div>
-									<div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-										<div style={{ width: 64, height: 64, borderRadius: 8, background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>{(modalActor.name || '?').split(' ').map(n=>n[0]).slice(0,2).join('')}</div>
-										<div>
-											<div style={{ fontWeight: '700', fontSize: '1.1rem' }}>{modalActor.name}</div>
-											<div style={{ color: '#666' }}>{modalActor.role || modalActor.actorRole}</div>
-										</div>
-									</div>
-									<hr style={{ margin: '12px 0' }} />
+			{/* Actor profile modal */}
+			{modalOpen && (
+				<div className={styles.modalBackdrop} onClick={closeModal}>
+					<div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+						<button className={styles.modalClose} onClick={closeModal}>×</button>
+						{modalLoading ? (
+							<div>Loading...</div>
+						) : modalActor ? (
+							<div>
+								<div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+									<div style={{ width: 64, height: 64, borderRadius: 8, background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>{(modalActor.name || '?').split(' ').map(n=>n[0]).slice(0,2).join('')}</div>
 									<div>
-										{modalActor.email && <div><strong>Email:</strong> {modalActor.email}</div>}
-										{modalActor.contactNumber && <div><strong>Phone:</strong> {modalActor.contactNumber}</div>}
-										{modalActor.redirectUrl && <div><strong>Redirect:</strong> {modalActor.redirectUrl}</div>}
-										{/* Add other profile fields as available */}
+										<div style={{ fontWeight: '700', fontSize: '1.1rem' }}>{modalActor.name}</div>
+										<div style={{ color: '#666' }}>{modalActor.role || modalActor.actorRole}</div>
 									</div>
 								</div>
-							) : (
-								<div>No profile available</div>
-							)}
-						</div>
+								<hr style={{ margin: '12px 0' }} />
+								<div>
+									{modalActor.email && <div><strong>Email:</strong> {modalActor.email}</div>}
+									{modalActor.contactNumber && <div><strong>Phone:</strong> {modalActor.contactNumber}</div>}
+									{modalActor.redirectUrl && <div><strong>Redirect:</strong> {modalActor.redirectUrl}</div>}
+									{/* Add other profile fields as available */}
+								</div>
+							</div>
+						) : (
+							<div>No profile available</div>
+						)}
 					</div>
-				)}
+				</div>
+			)}
 
-					{/* Full entry modal */}
-					{entryModalOpen && entryData && (
-						<div className={styles.modalBackdrop} onClick={closeEntryModal}>
-							<div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-								<button className={styles.modalClose} onClick={closeEntryModal}>×</button>
-								<h3 style={{ marginTop: 0 }}>{entryData.raw.action} {entryData.raw.entity}</h3>
-								<div style={{ color: '#6b7280', marginBottom: 12 }}>{timeAgo(entryData.raw.timestamp)} — by {entryData.raw.actorName} ({entryData.raw.actorRole})</div>
-								{entryData.parsed ? (
-									// If parsed JSON exists, display a concise Last form and Change applied
+			{/* Full entry modal */}
+			{entryModalOpen && entryData && (
+				<div className={styles.modalBackdrop} onClick={closeEntryModal}>
+					<div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+						<button className={styles.modalClose} onClick={closeEntryModal}>×</button>
+						<h3 style={{ 
+							marginTop: 0, 
+							display: 'flex', 
+							alignItems: 'center', 
+							gap: '0.5rem',
+							color: entryData.raw.action === 'CREATE' ? '#16a34a' : 
+								   entryData.raw.action === 'UPDATE' ? '#2563eb' : 
+								   entryData.raw.action === 'DELETE' ? '#dc2626' : '#374151'
+						}}>
+							<span style={{ display: 'inline-flex', alignItems: 'center', marginRight: '8px' }}>
+								{entryData.raw.action === 'CREATE' ? <CheckCircle size={20} /> : 
+								 entryData.raw.action === 'UPDATE' ? <Edit3 size={20} /> : 
+								 entryData.raw.action === 'DELETE' ? <Trash2 size={20} /> : <FileText size={20} />}
+							</span>
+							{entryData.raw.action === 'CREATE' ? 'Created' : 
+							 entryData.raw.action === 'UPDATE' ? 'Updated' : 
+							 entryData.raw.action === 'DELETE' ? 'Deleted' : 
+							 entryData.raw.action} {entryData.raw.entity}
+						</h3>
+						<div style={{ color: '#6b7280', marginBottom: 12 }}>{new Date(entryData.raw.timestamp).toLocaleString()} — by {entryData.raw.actorName} ({entryData.raw.actorRole})</div>
+						{entryData.parsed ? (
+							// If parsed JSON exists, display appropriate content based on action type
+							<div>
+								{entryData.parsed.summary && <div style={{ marginBottom: 16, fontSize: '1.1rem', fontWeight: '500' }}>{entryData.parsed.summary}</div>}
+								
+								{/* For EDIT/UPDATE actions, show what changed */}
+								{entryData.raw.action === 'UPDATE' && entryData.parsed.before && entryData.parsed.after && (
 									<div>
-										{entryData.parsed.summary && <div style={{ marginBottom: 8 }}>{entryData.parsed.summary}</div>}
-										{entryData.parsed.before && entryData.parsed.after && (
-											<div style={{ display: 'flex', gap: 16 }}>
-												<div style={{ flex: 1 }}>
-													<strong>Last form</strong>
-													<div style={{ marginTop: 8 }}>
-														<div><strong>Guest</strong>: {entryData.parsed.before.guestName || '—'}</div>
-														<div><strong>Dates</strong>: {fmtDate(entryData.parsed.before.checkIn)} → {fmtDate(entryData.parsed.before.checkOut)}</div>
-														<div><strong>Rooms</strong>:</div>
-														<pre style={{ whiteSpace: 'pre-wrap', background: '#f8fafc', padding: 8, borderRadius: 6 }}>{JSON.stringify((entryData.parsed.before.rooms || []).map(r=>({ roomId: r.roomId || r.room?.id || r.id, quantity: r.quantity || 1, name: r.room?.name || r.roomName || undefined })), null, 2)}</pre>
-														<div><strong>Total</strong>: {fmtMoney(entryData.parsed.before.totalPrice)}</div>
-													</div>
+										<h4 style={{ marginTop: 16, marginBottom: 12, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px' }}>
+											<Edit3 size={18} />
+											Changes Made:
+										</h4>
+										{(() => {
+											const changes = getBookingChanges(entryData.parsed.before, entryData.parsed.after);
+											return changes.length ? (
+												<div style={{ 
+													background: 'linear-gradient(135deg, #fef2f2 0%, #fdf2f8 100%)', 
+													border: '1px solid #fecaca', 
+													borderRadius: 12, 
+													padding: 20,
+													boxShadow: '0 2px 8px rgba(239, 68, 68, 0.1)'
+												}}>
+													{changes.map((change, i) => (
+														<div key={i} style={{ 
+															marginBottom: i < changes.length - 1 ? 16 : 0,
+															padding: '12px',
+															background: 'rgba(255, 255, 255, 0.6)',
+															borderRadius: '8px',
+															border: '1px solid rgba(239, 68, 68, 0.1)'
+														}}>
+															<div style={{ 
+																fontWeight: '600', 
+																color: '#374151', 
+																marginBottom: '6px',
+																fontSize: '0.95rem'
+															}}>
+																{change.field}
+															</div>
+															<div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+																<div style={{ 
+																	background: '#fee2e2', 
+																	padding: '6px 12px', 
+																	borderRadius: '6px', 
+																	color: '#dc2626',
+																	fontSize: '0.9rem',
+																	fontWeight: '500'
+																}}>
+																	Before: {change.before}
+																</div>
+																<span style={{ color: '#6b7280', fontWeight: 'bold' }}>→</span>
+																<div style={{ 
+																	background: '#dcfce7', 
+																	padding: '6px 12px', 
+																	borderRadius: '6px', 
+																	color: '#16a34a',
+																	fontSize: '0.9rem',
+																	fontWeight: '500'
+																}}>
+																	After: {change.after}
+																</div>
+															</div>
+														</div>
+													))}
 												</div>
-												<div style={{ flex: 1 }}>
-													<strong>Change applied</strong>
-													<div style={{ marginTop: 8 }}>
-														{computeChanges(entryData.parsed.before, entryData.parsed.after).length ? (
-															<ul>
-																{computeChanges(entryData.parsed.before, entryData.parsed.after).map((c, i) => (
-																	<li key={i}>
-																		{c.field === 'rooms' ? (
-																			<div>{c.changes.map(rc => `${rc.name}: ${rc.before} → ${rc.after}`).join('; ')}</div>
-																		) : (
-																		<div><strong>{c.field}</strong>: {c.before} → {c.after}</div>
-																		)}
-																	</li>
-																))}
-															</ul>
-														) : (
-															<div>No field-level changes detected.</div>
-														)}
-													</div>
-												</div>
-											</div>
-										)}
-										{!(entryData.parsed.before && entryData.parsed.after) && (
-											<div>
-												{entryData.raw.entity === 'Booking' ? renderBookingDetails(entryData.parsed) : <pre style={{ whiteSpace: 'pre-wrap', background: '#f8fafc', padding: 8, borderRadius: 6 }}>{JSON.stringify(entryData.parsed, null, 2)}</pre>}
-											</div>
-										)}
+											) : (
+												<div style={{ color: '#6b7280', fontStyle: 'italic' }}>No specific field changes detected in this update.</div>
+											);
+										})()}
 									</div>
-								) : (
-									// Fallback: show raw details
+								)}
+								
+								{/* For CREATE actions, show what was created */}
+								{entryData.raw.action === 'CREATE' && entryData.parsed.after && (
 									<div>
-										<pre style={{ whiteSpace: 'pre-wrap', background: '#f8fafc', padding: 8, borderRadius: 6 }}>{entryData.raw.details}</pre>
+										<h4 style={{ marginTop: 16, marginBottom: 12, color: '#16a34a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+											<CheckCircle size={18} />
+											New {entryData.raw.entity} Details:
+										</h4>
+										<div style={{ 
+											background: 'linear-gradient(135deg, #f0fdf4 0%, #f0f9ff 100%)', 
+											border: '1px solid #bbf7d0', 
+											borderRadius: 12, 
+											padding: 20,
+											boxShadow: '0 2px 8px rgba(34, 197, 94, 0.1)'
+										}}>
+											{(() => {
+												const humanData = humanizeBookingData(entryData.parsed.after);
+												return humanData ? (
+													<div style={{ display: 'grid', gap: '12px' }}>
+														{Object.entries(humanData).map(([key, value]) => (
+															<div key={key} style={{ 
+																background: 'rgba(255, 255, 255, 0.7)',
+																padding: '12px 16px',
+																borderRadius: '8px',
+																border: '1px solid rgba(34, 197, 94, 0.1)',
+																display: 'flex',
+																justifyContent: 'space-between',
+																alignItems: 'center'
+															}}>
+																<span style={{ fontWeight: '600', color: '#374151' }}>{key}:</span>
+																<span style={{ color: '#16a34a', fontWeight: '500' }}>{value}</span>
+															</div>
+														))}
+													</div>
+												) : (
+													<div style={{ color: '#6b7280', fontStyle: 'italic' }}>No readable data available</div>
+												);
+											})()}
+											
+											{/* Technical Details - Collapsible */}
+											<div style={{ marginTop: 16 }}>
+												<details style={{ cursor: 'pointer' }}>
+													<summary style={{ 
+														padding: '8px 12px',
+														background: 'rgba(255, 255, 255, 0.8)',
+														borderRadius: '6px',
+														border: '1px solid rgba(34, 197, 94, 0.2)',
+														fontWeight: '500',
+														fontSize: '0.9rem',
+														color: '#374151',
+														display: 'flex',
+														alignItems: 'center',
+														gap: '6px'
+													}}>
+														<FileText size={14} />
+														View Complete Technical Data
+													</summary>
+													<div style={{ 
+														marginTop: 8,
+														background: 'rgba(255, 255, 255, 0.9)',
+														border: '1px solid rgba(34, 197, 94, 0.1)',
+														borderRadius: '8px',
+														overflow: 'hidden'
+													}}>
+														<pre style={{ 
+															whiteSpace: 'pre-wrap', 
+															padding: 16, 
+															margin: 0,
+															fontSize: '0.8rem',
+															color: '#4b5563',
+															maxHeight: '200px',
+															overflowY: 'auto'
+														}}>
+															{JSON.stringify(entryData.parsed.after, null, 2)}
+														</pre>
+													</div>
+												</details>
+											</div>
+										</div>
+									</div>
+								)}
+								
+								{/* For DELETE actions, show what was deleted */}
+								{entryData.raw.action === 'DELETE' && entryData.parsed.before && (
+									<div>
+										<h4 style={{ marginTop: 16, marginBottom: 12, color: '#dc2626', display: 'flex', alignItems: 'center', gap: '8px' }}>
+											<Trash2 size={18} />
+											Deleted {entryData.raw.entity} Details:
+										</h4>
+										<div style={{ 
+											background: 'linear-gradient(135deg, #fef2f2 0%, #fdf2f8 100%)', 
+											border: '1px solid #fecaca', 
+											borderRadius: 12, 
+											padding: 20,
+											boxShadow: '0 2px 8px rgba(239, 68, 68, 0.1)'
+										}}>
+											{(() => {
+												const humanData = humanizeBookingData(entryData.parsed.before);
+												return humanData ? (
+													<div style={{ display: 'grid', gap: '12px' }}>
+														{Object.entries(humanData).map(([key, value]) => (
+															<div key={key} style={{ 
+																background: 'rgba(255, 255, 255, 0.7)',
+																padding: '12px 16px',
+																borderRadius: '8px',
+																border: '1px solid rgba(239, 68, 68, 0.1)',
+																display: 'flex',
+																justifyContent: 'space-between',
+																alignItems: 'center'
+															}}>
+																<span style={{ fontWeight: '600', color: '#374151' }}>{key}:</span>
+																<span style={{ color: '#dc2626', fontWeight: '500' }}>{value}</span>
+															</div>
+														))}
+													</div>
+												) : (
+													<div style={{ color: '#6b7280', fontStyle: 'italic' }}>No readable data available</div>
+												);
+											})()}
+										</div>
+									</div>
+								)}
+								
+								{/* For other actions or when no before/after data */}
+								{entryData.raw.action !== 'UPDATE' && entryData.raw.action !== 'CREATE' && entryData.raw.action !== 'DELETE' && (
+									<div>
+										<h4 style={{ marginTop: 16, marginBottom: 12 }}>Details:</h4>
+										{entryData.raw.entity === 'Booking' ? renderBookingDetails(entryData.parsed) : 
+										 <pre style={{ whiteSpace: 'pre-wrap', background: '#f8fafc', padding: 16, borderRadius: 6 }}>{JSON.stringify(entryData.parsed, null, 2)}</pre>}
 									</div>
 								)}
 							</div>
-						</div>
-					)}
-			</SuperAdminLayout>
-			);
+						) : (
+							// Fallback: show raw details
+							<div>
+								<pre style={{ whiteSpace: 'pre-wrap', background: '#f8fafc', padding: 8, borderRadius: 6 }}>{entryData.raw.details}</pre>
+							</div>
+						)}
+					</div>
+				</div>
+			)}
+			</div>
+		</SuperAdminLayout>
+	);
 }
+
 

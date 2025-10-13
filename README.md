@@ -34,3 +34,10 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Notes
+
+### Audit trails
+
+Audit trails are written via `src/lib/audit.js`. The primary storage is the `AuditTrail` Prisma model. If the database is unavailable, entries are appended to `data/audit-fallback.json` so they are not lost. There is no code that automatically deletes audit entries; writes are append-only. The API `GET /api/audit-trails` supports pagination via `?page=1&pageSize=50` and only returns results to users with the `SUPERADMIN` role.
+

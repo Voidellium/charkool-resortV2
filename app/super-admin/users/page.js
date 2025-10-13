@@ -1,6 +1,20 @@
 'use client';
 import React, { useState, useEffect } from 'react';
+import { 
+  Crown, 
+  Building2, 
+  Package, 
+  Briefcase, 
+  DollarSign,
+  Search,
+  Edit,
+  Trash2,
+  X,
+  User,
+  Plus
+} from 'lucide-react';
 import SuperAdminLayout from '@/components/SuperAdminLayout';
+import { useToast, ConfirmModal } from '@/components/Toast';
 
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
@@ -8,8 +22,25 @@ export default function UsersPage() {
   const [editingUser, setEditingUser] = useState(null);
   const [filterRole, setFilterRole] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, userId: null });
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState(null);
+  const [isMobile, setIsMobile] = useState(false);
+  const [isTablet, setIsTablet] = useState(false);
+  
+  const { success, error } = useToast();
+
+  // Responsive detection
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsMobile(window.innerWidth <= 768);
+      setIsTablet(window.innerWidth > 768 && window.innerWidth <= 1024);
+    };
+    
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
 
   // Fetch users
   const fetchUsers = async () => {
@@ -20,7 +51,7 @@ export default function UsersPage() {
       setUsers(data);
     } catch (err) {
       console.error('Failed to fetch users:', err);
-      setMessage({ type: 'error', text: 'Failed to load users' });
+      error('Failed to load users');
     } finally {
       setLoading(false);
     }
@@ -38,20 +69,24 @@ export default function UsersPage() {
     setShowForm(true);
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this user?')) return;
+  const handleDelete = (id) => {
+    setConfirmModal({ isOpen: true, userId: id });
+  };
+
+  const confirmDelete = async () => {
+    const id = confirmModal.userId;
     setLoading(true);
     try {
       const res = await fetch(`/api/user/${id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' } });
       if (res.ok) {
         setUsers(users.filter(u => u.id !== id));
-        setMessage({ type: 'success', text: 'User deleted successfully.' });
+        success('User deleted successfully');
       } else {
         throw new Error('Delete failed');
       }
     } catch (err) {
       console.error(err);
-      setMessage({ type: 'error', text: 'Failed to delete user' });
+      error('Failed to delete user');
     } finally {
       setLoading(false);
     }
@@ -68,7 +103,7 @@ export default function UsersPage() {
         });
         const updatedUser = await res.json();
         setUsers(users.map(u => u.id === updatedUser.id ? updatedUser : u));
-        setMessage({ type: 'success', text: 'User updated successfully' });
+        success('User updated successfully');
       } else {
         const res = await fetch('/api/user', {
           method: 'POST',
@@ -77,12 +112,12 @@ export default function UsersPage() {
         });
         const newUser = await res.json();
         setUsers([...users, newUser]);
-        setMessage({ type: 'success', text: 'User added successfully' });
+        success('User created successfully');
       }
       setShowForm(false);
     } catch (err) {
       console.error(err);
-      setMessage({ type: 'error', text: 'Failed to save user' });
+      error('Failed to save user');
     } finally {
       setLoading(false);
     }
@@ -94,167 +129,454 @@ export default function UsersPage() {
 
   return (
     <SuperAdminLayout activePage="users">
-      <div style={{ maxWidth: 1000, margin: '20px auto', fontFamily: 'Arial, sans-serif' }}>
-        <h1 style={{ textAlign: 'center', marginBottom: '20px', fontSize: '2rem', fontWeight: 'bold' }}>User Management</h1>
-
-        {/* Feedback Message */}
-        {message && (
-          <div
-            role="alert"
-            style={{
-              padding: '12px 20px',
-              marginBottom: '20px',
-              borderRadius: '8px',
-              backgroundColor: message.type === 'error' ? '#f8d7da' : '#d4edda',
-              color: message.type === 'error' ? '#721c24' : '#155724',
-              transition: 'all 0.3s ease',
-            }}
-          >
-            {message.text}
+      <div style={{ 
+        padding: isMobile ? '0.75rem' : isTablet ? '1rem 1.25rem' : '1.5rem 2rem', 
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)'
+      }}>
+        {/* Header Section */}
+        <div style={{ 
+          display: 'flex', 
+          flexDirection: isMobile ? 'column' : 'row',
+          justifyContent: 'space-between', 
+          alignItems: isMobile ? 'flex-start' : 'center', 
+          gap: isMobile ? '1rem' : '0',
+          marginBottom: isMobile ? '1rem' : '2rem',
+          background: 'rgba(255,255,255,0.9)',
+          padding: isMobile ? '1.25rem' : isTablet ? '1.5rem' : '2rem',
+          borderRadius: '16px',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+          backdropFilter: 'blur(10px)'
+        }}>
+          <div>
+            <h1 style={{ 
+              fontSize: isMobile ? '1.75rem' : isTablet ? '2rem' : '2.5rem', 
+              fontWeight: '700', 
+              margin: 0, 
+              background: 'linear-gradient(135deg, #febe52 0%, #EBD591 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text'
+            }}>
+              User Management
+            </h1>
+            <p style={{ 
+              fontSize: isMobile ? '0.9rem' : '1.1rem', 
+              color: '#666', 
+              margin: '0.5rem 0 0 0' 
+            }}>
+              Manage all system users and their permissions
+            </p>
           </div>
-        )}
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            <div style={{ 
+              background: 'linear-gradient(135deg, #febe52 0%, #EBD591 100%)',
+              padding: '1rem',
+              borderRadius: '12px',
+              color: 'white',
+              fontWeight: '600'
+            }}>
+              Total Users: {filteredUsers.length}
+            </div>
+          </div>
+        </div>
 
-        {/* Controls */}
+        {/* Controls Panel */}
         <div
           style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: '12px',
-            padding: '15px',
-            borderRadius: '8px',
-            background: '#fff',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+            display: isMobile ? 'flex' : 'grid',
+            flexDirection: isMobile ? 'column' : undefined,
+            gridTemplateColumns: isMobile ? undefined : isTablet ? '1fr 1fr' : 'auto 1fr auto',
+            gap: isMobile ? '1rem' : '1.5rem',
+            padding: isMobile ? '1rem' : '1.5rem',
+            borderRadius: '16px',
+            background: 'rgba(255,255,255,0.9)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: '20px',
+            marginBottom: isMobile ? '1rem' : '2rem',
+            backdropFilter: 'blur(10px)'
           }}
         >
           {/* Filter Dropdown */}
           <select
             aria-label="Filter by role"
             style={{
-              padding: '10px',
-              borderRadius: '4px',
-              border: '1px solid #ccc',
-              minWidth: '150px',
+              padding: '12px 16px',
+              borderRadius: '12px',
+              border: '2px solid #e5e7eb',
+              minWidth: isMobile ? '100%' : '200px',
+              fontSize: isMobile ? '0.9rem' : '1rem',
+              background: 'white',
+              cursor: 'pointer',
+              order: isMobile ? 1 : undefined,
+              transition: 'all 0.3s ease'
             }}
             value={filterRole}
             onChange={(e) => setFilterRole(e.target.value)}
+            onFocus={(e) => e.target.style.borderColor = '#febe52'}
+            onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
           >
             <option value="">All Roles</option>
             <option value="RECEPTIONIST">Receptionist</option>
-            <option value="AMENITYINVENTORYMANAGER">Inventory/Admin</option>
+            <option value="AMENITYINVENTORYMANAGER">Inventory Manager</option>
             <option value="MANAGER">Manager</option>
             <option value="SUPERADMIN">Super Admin</option>
             <option value="CASHIER">Cashier</option>
           </select>
 
           {/* Search Input */}
-          <input
-            aria-label="Search users"
-            type="text"
-            placeholder="Search by name or email"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{
-              flex: 1,
-              minWidth: '200px',
-              padding: '10px',
-              borderRadius: '4px',
-              border: '1px solid #ccc',
-            }}
-          />
+          <div style={{ 
+            position: 'relative', 
+            flex: 1,
+            order: isMobile ? 2 : undefined,
+            width: isMobile ? '100%' : undefined
+          }}>
+            <Search 
+              size={20} 
+              style={{ 
+                position: 'absolute', 
+                left: '12px', 
+                top: '50%', 
+                transform: 'translateY(-50%)', 
+                color: '#6b7280' 
+              }} 
+            />
+            <input
+              aria-label="Search users"
+              type="text"
+              placeholder="Search by name or email..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                padding: '12px 16px 12px 60px',
+                borderRadius: '12px',
+                border: '2px solid #e5e7eb',
+                fontSize: '1rem',
+                background: 'white',
+                transition: 'all 0.3s ease',
+                width: '100%'
+              }}
+              onFocus={(e) => e.target.style.borderColor = '#febe52'}
+              onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
+            />
+          </div>
 
           {/* Add User Button */}
           <button
             onClick={handleAdd}
             style={{
-              padding: '10px 20px',
-              backgroundColor: '#0070f3',
+              padding: isMobile ? '10px 16px' : '12px 24px',
+              background: 'linear-gradient(135deg, #febe52 0%, #EBD591 100%)',
               color: '#fff',
               border: 'none',
-              borderRadius: '4px',
+              borderRadius: '12px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              transition: 'background-color 0.2s',
+              justifyContent: 'center',
+              fontSize: isMobile ? '0.9rem' : '1rem',
+              fontWeight: '600',
+              transition: 'all 0.3s ease',
+              boxShadow: '0 4px 15px rgba(102, 126, 234, 0.3)',
+              width: isMobile ? '100%' : 'auto',
+              order: isMobile ? 3 : undefined
             }}
             aria-label="Add new user"
+            onMouseEnter={(e) => {
+              e.target.style.transform = 'translateY(-2px)';
+              e.target.style.boxShadow = '0 8px 25px rgba(102, 126, 234, 0.4)';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.transform = 'translateY(0)';
+              e.target.style.boxShadow = '0 4px 15px rgba(102, 126, 234, 0.3)';
+            }}
           >
-            <span style={{ fontSize: '1.2em', marginRight: '8px' }}>＋</span> Add User
+            <Plus size={20} style={{ marginRight: '8px' }} /> Add New User
           </button>
         </div>
 
-        {/* User Table */}
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#f4f4f4' }}>
-                <th style={{ padding: '12px', border: '1px solid #ccc', position: 'sticky', top: 0, backgroundColor: '#f9f9f9' }}>Name</th>
-                <th style={{ padding: '12px', border: '1px solid #ccc', position: 'sticky', top: 0, backgroundColor: '#f9f9f9' }}>Email</th>
-                <th style={{ padding: '12px', border: '1px solid #ccc', position: 'sticky', top: 0, backgroundColor: '#f9f9f9' }}>Role</th>
-                <th style={{ padding: '12px', border: '1px solid #ccc', position: 'sticky', top: 0, backgroundColor: '#f9f9f9', textAlign: 'center' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
+        {/* Users Grid */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: isMobile 
+            ? '1fr' 
+            : isTablet 
+              ? 'repeat(auto-fill, minmax(350px, 1fr))' 
+              : 'repeat(auto-fill, minmax(400px, 1fr))',
+          gap: isMobile ? '1rem' : '1.5rem',
+          marginBottom: isMobile ? '1rem' : '2rem'
+        }}>
+          {loading ? (
+            <div style={{ 
+              gridColumn: '1 / -1', 
+              textAlign: 'center', 
+              padding: '3rem',
+              background: 'rgba(255,255,255,0.9)',
+              borderRadius: '16px',
+              fontSize: '1.1rem',
+              color: '#666'
+            }}>
+              Loading users...
+            </div>
+          ) : filteredUsers.length === 0 ? (
+            <div style={{ 
+              gridColumn: '1 / -1', 
+              textAlign: 'center', 
+              padding: '3rem',
+              background: 'rgba(255,255,255,0.9)',
+              borderRadius: '16px',
+              fontSize: '1.1rem',
+              color: '#666'
+            }}>
+              No users found matching your criteria
+            </div>
+          ) : (
+            filteredUsers.map((user) => (
+              <UserCard 
+                key={user.id} 
+                user={user} 
+                onEdit={handleEdit} 
+                onDelete={handleDelete}
+                isMobile={isMobile}
+                isTablet={isTablet}
+              />
+            ))
+          )}
+        </div>
+
+        {/* Legacy Table View Toggle */}
+        <div style={{
+          background: 'rgba(255,255,255,0.9)',
+          borderRadius: '16px',
+          padding: isMobile ? '1rem' : '1.5rem',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+          backdropFilter: 'blur(10px)'
+        }}>
+          <h3 style={{ 
+            marginBottom: isMobile ? '1rem' : '1.5rem', 
+            color: '#333', 
+            fontSize: isMobile ? '1.2rem' : '1.4rem',
+            fontWeight: '600'
+          }}>
+            Table View
+          </h3>
+          <div style={{ 
+            overflowX: 'auto',
+            borderRadius: '12px',
+            background: 'rgba(255,255,255,0.3)',
+            WebkitOverflowScrolling: 'touch',
+            scrollbarWidth: 'thin'
+          }}>
+            <table style={{ 
+              width: '100%', 
+              borderCollapse: 'separate',
+              borderSpacing: '0 4px',
+              minWidth: isMobile ? '600px' : '800px'
+            }}>
+              <thead>
+                <tr>
+                  <th style={{ 
+                    padding: '1rem', 
+                    textAlign: 'left',
+                    background: 'linear-gradient(135deg, #febe52%, #EBD591 100%)',
+                    color: 'white',
+                    fontWeight: '600',
+                    borderRadius: '12px 0 0 12px'
+                  }}>Name</th>
+                  <th style={{ 
+                    padding: '1rem', 
+                    textAlign: 'left',
+                    background: 'linear-gradient(135deg, #febe52%, #EBD591 100%)',
+                    color: 'white',
+                    fontWeight: '600'
+                  }}>Email</th>
+                  <th style={{ 
+                    padding: '1rem', 
+                    textAlign: 'left',
+                    background: 'linear-gradient(135deg, #febe52%, #EBD591 100%)',
+                    color: 'white',
+                    fontWeight: '600'
+                  }}>Role</th>
+                  <th style={{ 
+                    padding: '1rem', 
+                    textAlign: 'center',
+                    background: 'linear-gradient(135deg, #febe52%, #EBD591 100%)',
+                    color: 'white',
+                    fontWeight: '600',
+                    borderRadius: '0 12px 12px 0'
+                  }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={4} style={{ padding: '20px', textAlign: 'center' }}>Loading...</td>
+                  <td colSpan={4} style={{ 
+                    padding: '20px', 
+                    textAlign: 'center',
+                    background: 'rgba(255,255,255,0.7)',
+                    borderRadius: '12px',
+                    color: '#666'
+                  }}>
+                    Loading users...
+                  </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={4} style={{ padding: '12px', textAlign: 'center' }}>No users found</td>
+                  <td colSpan={4} style={{ 
+                    padding: '2rem', 
+                    textAlign: 'center',
+                    background: 'rgba(249, 250, 251, 0.7)',
+                    borderRadius: '12px',
+                    color: '#6b7280',
+                    fontSize: '1rem'
+                  }}>
+                    No users found matching your criteria
+                  </td>
                 </tr>
               ) : (
-                filteredUsers.map((user) => (
-                  <tr key={user.id} style={{ transition: 'background 0.2s', cursor: 'pointer' }} onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f1f1f1')} onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}>
-                    <td style={{ padding: '12px', border: '1px solid #ccc' }}>{user.name}</td>
-                    <td style={{ padding: '12px', border: '1px solid #ccc' }}>{user.email}</td>
-                    <td style={{ padding: '12px', border: '1px solid #ccc' }}>{user.role}</td>
-                    {/* Action buttons */}
-                    <td style={{ padding: '12px', border: '1px solid #ccc', display: 'flex', justifyContent: 'center', gap: '8px' }}>
-                      {/* Edit Button */}
-                      <button
-                        aria-label={`Edit ${user.name}`}
-                        onClick={() => handleEdit(user)}
-                        style={{
-                          padding: '6px 10px',
-                          borderRadius: '4px',
-                          border: 'none',
-                          backgroundColor: '#f0ad4e',
-                          color: '#fff',
-                          cursor: 'pointer',
-                          transition: 'background-color 0.2s',
-                        }}
-                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#ec971f')}
-                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#f0ad4e')}
-                      >
-                        ✎
-                      </button>
-                      {/* Delete Button */}
-                      <button
-                        aria-label={`Delete ${user.name}`}
-                        onClick={() => handleDelete(user.id)}
-                        style={{
-                          padding: '6px 10px',
-                          borderRadius: '4px',
-                          border: 'none',
-                          backgroundColor: '#d9534f',
-                          color: '#fff',
-                          cursor: 'pointer',
-                          transition: 'background-color 0.2s',
-                        }}
-                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#c9302c')}
-                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#d9534f')}
-                      >
-                        ✖
-                      </button>
+                filteredUsers.map((user, index) => (
+                  <tr 
+                    key={user.id} 
+                    style={{ 
+                      background: 'rgba(255,255,255,0.7)',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      const cells = e.currentTarget.querySelectorAll('td');
+                      e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.95)';
+                      e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.1)';
+                      cells.forEach(cell => {
+                        cell.style.transform = 'translateY(-1px)';
+                      });
+                    }}
+                    onMouseLeave={(e) => {
+                      const cells = e.currentTarget.querySelectorAll('td');
+                      e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.7)';
+                      e.currentTarget.style.boxShadow = 'none';
+                      cells.forEach(cell => {
+                        cell.style.transform = 'translateY(0)';
+                      });
+                    }}
+                  >
+                    <td style={{ 
+                      padding: '1rem', 
+                      borderRadius: index === 0 ? '12px 0 0 12px' : '0',
+                      fontWeight: '600',
+                      color: '#1f2937',
+                      background: index % 2 === 0 ? 'rgba(248,250,252,0.5)' : 'transparent',
+                      transition: 'all 0.2s ease',
+                      verticalAlign: 'middle'
+                    }}>
+                      {user.name || 'N/A'}
+                    </td>
+                    <td style={{ 
+                      padding: '1rem',
+                      color: '#6b7280',
+                      background: index % 2 === 0 ? 'rgba(248,250,252,0.5)' : 'transparent',
+                      transition: 'all 0.2s ease',
+                      verticalAlign: 'middle',
+                      wordBreak: 'break-word'
+                    }}>
+                      {user.email || 'N/A'}
+                    </td>
+                    <td style={{ 
+                      padding: '1rem',
+                      color: '#374151',
+                      background: index % 2 === 0 ? 'rgba(248,250,252,0.5)' : 'transparent',
+                      transition: 'all 0.2s ease',
+                      verticalAlign: 'middle'
+                    }}>
+                      <span style={{
+                        background: user.role === 'SUPERADMIN' ? '#EB7407' :
+                                  user.role === 'RECEPTIONIST' ? '#EBB307' :
+                                  user.role === 'CASHIER' ? '#EBEA07' :
+                                  user.role === 'AMENITYINVENTORYMANAGER' ? '#febe52' :
+                                  user.role === 'MANAGER' ? '#f59e0b' : '#9f1af7ff',
+                        color: 'white',
+                        padding: '0.4rem 0.8rem',
+                        borderRadius: '20px',
+                        fontSize: '0.8rem',
+                        fontWeight: '500',
+                        display: 'inline-block',
+                        minWidth: '80px',
+                        textAlign: 'center'
+                      }}>
+                        {user.role ? user.role.replace('AMENITYINVENTORYMANAGER', 'INVENTORY') : 'N/A'}
+                      </span>
+                    </td>
+                    <td style={{ 
+                      padding: '1rem', 
+                      borderRadius: index === 0 ? '0 12px 12px 0' : '0',
+                      textAlign: 'center',
+                      background: index % 2 === 0 ? 'rgba(248,250,252,0.5)' : 'transparent',
+                      transition: 'all 0.2s ease',
+                      verticalAlign: 'middle'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
+                        <button
+                          aria-label={`Edit ${user.name}`}
+                          onClick={() => handleEdit(user)}
+                          style={{
+                            padding: '8px 12px',
+                            borderRadius: '8px',
+                            border: 'none',
+                            background: 'linear-gradient(135deg, #febe52 0%, #EBD591 100%)',
+                            color: '#fff',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem',
+                            fontWeight: '500',
+                            transition: 'all 0.3s ease',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.transform = 'translateY(-2px)';
+                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.4)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.transform = 'translateY(0)';
+                            e.currentTarget.style.boxShadow = 'none';
+                          }}
+                        >
+                          <Edit size={16} style={{ marginRight: '4px' }} /> Edit
+                        </button>
+                        <button
+                          aria-label={`Delete ${user.name}`}
+                          onClick={() => handleDelete(user.id)}
+                          style={{
+                            padding: '8px 12px',
+                            borderRadius: '8px',
+                            border: 'none',
+                            background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                            color: '#fff',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem',
+                            fontWeight: '500',
+                            transition: 'all 0.3s ease',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.transform = 'translateY(-2px)';
+                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.4)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.transform = 'translateY(0)';
+                            e.currentTarget.style.boxShadow = 'none';
+                          }}
+                        >
+                          <Trash2 size={16} style={{ marginRight: '4px' }} /> Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
               )}
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {/* Modal for Add/Edit */}
@@ -271,10 +593,12 @@ export default function UsersPage() {
           }}>
             <div style={{
               background: '#fff',
-              borderRadius: '8px',
-              padding: '30px',
-              maxWidth: '90%',
-              width: '400px',
+              borderRadius: isMobile ? '12px' : '8px',
+              padding: isMobile ? '20px' : '30px',
+              maxWidth: isMobile ? '95%' : '90%',
+              width: isMobile ? 'calc(100% - 2rem)' : '400px',
+              maxHeight: isMobile ? '90vh' : 'auto',
+              overflowY: isMobile ? 'auto' : 'visible',
               boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
               position: 'relative',
               animation: 'scaleIn 0.3s ease',
@@ -297,7 +621,7 @@ export default function UsersPage() {
                 onMouseEnter={(e) => (e.currentTarget.style.color = '#333')}
                 onMouseLeave={(e) => (e.currentTarget.style.color = '#999')}
               >
-                ✕
+                <X size={20} />
               </button>
               <h2 style={{ marginBottom: '20px', fontSize: '1.5rem' }}>{editingUser ? 'Edit User' : 'Add User'}</h2>
               {/* Form */}
@@ -461,6 +785,169 @@ export default function UsersPage() {
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ isOpen: false, userId: null })}
+        onConfirm={confirmDelete}
+        title="Delete User"
+        message="Are you sure you want to delete this user? This action cannot be undone."
+        confirmText="Delete User"
+        cancelText="Cancel"
+        variant="danger"
+      />
     </SuperAdminLayout>
+  );
+}
+
+function UserCard({ user, onEdit, onDelete, isMobile, isTablet }) {
+  const roleColors = {
+    SUPERADMIN: '#eb7407',
+    RECEPTIONIST: '#ebb307', 
+    AMENITYINVENTORYMANAGER: '#febe52',
+    MANAGER: '#f59e0b',
+    CASHIER: '#EBEA07'
+  };
+
+  const roleIcons = {
+    SUPERADMIN: <Crown size={16} style={{color: '#667eea'}} />,
+    RECEPTIONIST: <Building2 size={16} style={{color: '#667eea'}} />,
+    AMENITYINVENTORYMANAGER: <Package size={16} style={{color: '#667eea'}} />,
+    MANAGER: <Briefcase size={16} style={{color: '#667eea'}} />,
+    CASHIER: <DollarSign size={16} style={{color: '#667eea'}} />
+  };
+
+  return (
+    <div style={{
+      background: 'rgba(255,255,255,0.9)',
+      borderRadius: isMobile ? '12px' : '16px',
+      padding: isMobile ? '1rem' : isTablet ? '1.25rem' : '1.5rem',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+      backdropFilter: 'blur(10px)',
+      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      border: '1px solid rgba(255,255,255,0.2)',
+      position: 'relative',
+      overflow: 'hidden'
+    }}
+    onMouseEnter={(e) => {
+      e.currentTarget.style.transform = 'translateY(-8px)';
+      e.currentTarget.style.boxShadow = '0 16px 40px rgba(0,0,0,0.15)';
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.transform = 'translateY(0)';
+      e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,0,0,0.1)';
+    }}
+    >
+      {/* Role Badge */}
+      <div style={{
+        position: 'absolute',
+        top: '1rem',
+        right: '1rem',
+        background: roleColors[user.role] || '#6b7280',
+        color: 'white',
+        padding: '0.5rem 1rem',
+        borderRadius: '20px',
+        fontSize: '0.8rem',
+        fontWeight: '600',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.5rem'
+      }}>
+        {roleIcons[user.role] || <User size={16} style={{color: '#6b7280'}} />}
+        {user.role.replace('AMENITYINVENTORYMANAGER', 'INVENTORY')}
+      </div>
+
+      {/* User Info */}
+      <div style={{ marginTop: '1rem' }}>
+        <h3 style={{
+          fontSize: isMobile ? '1.1rem' : isTablet ? '1.2rem' : '1.3rem',
+          fontWeight: '600',
+          color: '#1f2937',
+          margin: '0 0 0.5rem 0',
+          paddingRight: isMobile ? '4rem' : '6rem'
+        }}>
+          {user.name}
+        </h3>
+        
+        <p style={{
+          color: '#6b7280',
+          margin: isMobile ? '0 0 1rem 0' : '0 0 1.5rem 0',
+          fontSize: isMobile ? '0.9rem' : '1rem',
+          wordBreak: 'break-word'
+        }}>
+          {user.email}
+        </p>
+        
+        <div style={{
+          display: 'flex',
+          gap: '0.75rem',
+          marginTop: '1rem'
+        }}>
+          <button
+            onClick={() => onEdit(user)}
+            style={{
+              flex: 1,
+              padding: '0.75rem 1rem',
+              background: 'linear-gradient(135deg, #febe52 0%, #EBD591 100%)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '0.9rem',
+              fontWeight: '500',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.transform = 'translateY(-2px)';
+              e.target.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.4)';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.transform = 'translateY(0)';
+              e.target.style.boxShadow = 'none';
+            }}
+          >
+            <Edit size={16} style={{ marginRight: '4px' }} /> Edit
+          </button>
+          
+          <button
+            onClick={() => onDelete(user.id)}
+            style={{
+              flex: 1,
+              padding: '0.75rem 1rem',
+              background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '0.9rem',
+              fontWeight: '500',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.transform = 'translateY(-2px)';
+              e.target.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.4)';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.transform = 'translateY(0)';
+              e.target.style.boxShadow = 'none';
+            }}
+          >
+            <Trash2 size={16} style={{ marginRight: '4px' }} /> Delete
+          </button>
+        </div>
+      </div>
+      
+      {/* Decorative Element */}
+      <div style={{
+        position: 'absolute',
+        bottom: -20,
+        right: -20,
+        width: 80,
+        height: 80,
+        background: `linear-gradient(135deg, ${roleColors[user.role] || '#6b7280'}20, ${roleColors[user.role] || '#6b7280'}10)`,
+        borderRadius: '50%',
+        zIndex: 0
+      }} />
+    </div>
   );
 }

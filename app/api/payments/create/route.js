@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { recordAudit } from '@/src/lib/audit';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/auth';
 
 export async function POST(req) {
   try {
@@ -48,7 +51,7 @@ export async function POST(req) {
     const source = sourceData.data;
 
     // Save Payment record in Prisma
-    await prisma.payment.create({
+    const payment = await prisma.payment.create({
       data: {
         bookingId: parseInt(bookingId),
         amount: amountInCents,
@@ -58,6 +61,34 @@ export async function POST(req) {
         method: req.body.paymentMethod,
       },
     });
+
+    // Record audit for payment creation
+    try {
+      const session = await getServerSession(authOptions);
+      const booking = await prisma.booking.findUnique({ where: { id: parseInt(bookingId) } });
+      await recordAudit({
+        actorId: session?.user?.id || null,
+        actorName: session?.user?.name || session?.user?.email || 'System',
+        actorRole: session?.user?.role || 'SYSTEM',
+        action: 'CREATE',
+        entity: 'Payment',
+        entityId: String(payment.id),
+        details: JSON.stringify({
+          summary: `Created payment for booking ${booking?.guestName || bookingId}`,
+          after: {
+            id: payment.id,
+            bookingId: payment.bookingId,
+            amount: payment.amount,
+            status: payment.status,
+            provider: payment.provider,
+            method: payment.method,
+            referenceId: payment.referenceId
+          }
+        }),
+      });
+    } catch (auditErr) {
+      console.error('Failed to record audit for payment creation:', auditErr);
+    }
 
     // The checkout_url is where the user needs to be redirected to complete the payment
     const redirectUrl = source.attributes.redirect.checkout_url;

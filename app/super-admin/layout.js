@@ -30,13 +30,14 @@ export default async function RootLayout({ children }) {
         <ClientNavbarWrapper />
         <main
           style={{
-            maxWidth: '1100px',
-            margin: '0 auto',
-            padding: '1rem',
+            width: '100%',
+            maxWidth: 'none',
+            margin: 0,
+            padding: 0,
             boxSizing: 'border-box',
-            minHeight: '80vh',
-            fontSize: '0.85rem', // Further reduce base font size
-            lineHeight: '1',
+            minHeight: '100vh',
+            fontSize: '0.9rem',
+            lineHeight: '1.4',
           }}
         >
           <div style={{ fontSize: 'inherit' }}>{children}</div>
