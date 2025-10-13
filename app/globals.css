@@ -3,14 +3,15 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --primary-start: #ffb347;
+  --primary-end: #febd52;
+  --accent: #06b6d4;
+  --muted: #6b7280;
+  --danger-start: #ff6b6b;
+  --danger-end: #ff4c4c;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+
 
 @media (prefers-color-scheme: dark) {
   :root {

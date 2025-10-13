@@ -1,4 +1,4 @@
-:root{ --primary-start:#ffb347; --primary-end:#febd52; --accent:#06b6d4; --muted:#6b7280; }
+
 .container{ max-width:1400px; margin:0 auto; padding:20px 30px; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color:#f8f9fa; }
 .centerTitle{ font-size:2.25rem; font-weight:700; margin-bottom:18px; color:#212529; text-align:center; }
 .controlBar{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:15px; margin-bottom:30px; padding:12px; background:#fff; border-radius:12px; box-shadow:0 6px 18px rgba(3,10,18,0.04); }
