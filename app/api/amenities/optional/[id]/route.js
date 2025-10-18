@@ -1,84 +1,67 @@
-
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { recordAudit } from '@/src/lib/audit';
 import { getToken } from 'next-auth/jwt';
 
 const JWT_SECRET = process.env.NEXTAUTH_SECRET;
+const isAuthorized = (role) => role === 'SUPERADMIN' || role === 'AMENITYINVENTORYMANAGER';
 
-// Helper to check for authorized roles
-const isAuthorized = (role) => {
-  return role === 'SUPERADMIN' || role === 'AMENITYINVENTORYMANAGER';
-};
-
-// PUT: Update an optional amenity
 export async function PUT(request, { params }) {
   const token = await getToken({ req: request, secret: JWT_SECRET });
-
   if (!token || !isAuthorized(token.role)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   }
-
   try {
-    const { id } = params;
+    const id = parseInt(params.id);
     const body = await request.json();
-    const { name, description, maxQuantity, isActive } = body;
+    const data = {};
+    if (body.name !== undefined) data.name = body.name.trim();
+    if (body.description !== undefined) data.description = body.description?.trim() || null;
+    if (body.maxQuantity !== undefined) data.maxQuantity = Math.max(1, parseInt(body.maxQuantity) || 1);
+    if (body.quantity !== undefined) data.quantity = Math.max(0, parseInt(body.quantity) || 0);
 
-    if (!name || !name.trim()) {
-      return NextResponse.json({ error: 'Name is required' }, { status: 400 });
-    }
+    const updated = await prisma.optionalAmenity.update({ where: { id }, data });
 
-    const updatedAmenity = await prisma.optionalAmenity.update({
-      where: { id: parseInt(id) },
-      data: {
-        name: name.trim(),
-        description: description?.trim(),
-        maxQuantity: parseInt(maxQuantity) || 1,
-        isActive: typeof isActive === 'boolean' ? isActive : true,
-      },
-    });
-
-    // Log the action
-    await prisma.amenityLog.create({
-      data: {
+    await prisma.amenityLog.create({ data: { action: 'UPDATE', amenityName: updated.name, user: token.name || 'Unknown User' } });
+    try {
+      await recordAudit({
+        actorId: token?.sub ? parseInt(token.sub) : null,
+        actorName: token?.name || token?.email || 'Unknown',
+        actorRole: token?.role || 'ADMIN',
         action: 'UPDATE',
-        amenityName: updatedAmenity.name,
-        user: token.name || 'Unknown User',
-      },
-    });
-
-    return NextResponse.json(updatedAmenity);
+        entity: 'OptionalAmenity',
+        entityId: String(updated.id),
+        details: `Updated optional amenity "${updated.name}"`,
+      });
+    } catch {}
+    return NextResponse.json(updated);
   } catch (error) {
     console.error('❌ Optional Amenity PUT Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-// DELETE: Deactivate an optional amenity
 export async function DELETE(request, { params }) {
   const token = await getToken({ req: request, secret: JWT_SECRET });
-
   if (!token || !isAuthorized(token.role)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   }
-
   try {
-    const { id } = params;
-
-    const updatedAmenity = await prisma.optionalAmenity.update({
-      where: { id: parseInt(id) },
-      data: { isActive: false },
-    });
-
-    // Log the action
-    await prisma.amenityLog.create({
-      data: {
-        action: 'DEACTIVATE',
-        amenityName: updatedAmenity.name,
-        user: token.name || 'Unknown User',
-      },
-    });
-
-    return NextResponse.json({ message: 'Optional amenity deactivated' });
+    const id = parseInt(params.id);
+    const deleted = await prisma.optionalAmenity.delete({ where: { id } });
+    await prisma.amenityLog.create({ data: { action: 'DELETE', amenityName: deleted.name, user: token.name || 'Unknown User' } });
+    try {
+      await recordAudit({
+        actorId: token?.sub ? parseInt(token.sub) : null,
+        actorName: token?.name || token?.email || 'Unknown',
+        actorRole: token?.role || 'ADMIN',
+        action: 'DELETE',
+        entity: 'OptionalAmenity',
+        entityId: String(deleted.id),
+        details: `Deleted optional amenity "${deleted.name}"`,
+      });
+    } catch {}
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error('❌ Optional Amenity DELETE Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

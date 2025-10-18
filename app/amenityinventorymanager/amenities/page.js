@@ -2,7 +2,6 @@
 import { useEffect, useState } from 'react';
 
 export default function AmenityInventoryPage() {
-  const API_URL = '/api/amenities/inventory';
   const [amenities, setAmenities] = useState([]);
   const [newAmenity, setNewAmenity] = useState({ name: '', quantity: '' });
   const [editingAmenity, setEditingAmenity] = useState(null);
@@ -10,17 +9,22 @@ export default function AmenityInventoryPage() {
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('');
 
-  // Fetch amenities
+  // Fetch amenities strictly from optional and rental tables
   const fetchAmenities = async () => {
     try {
       setError('');
-      const res = await fetch(API_URL, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      if (!res.ok) throw new Error('Failed to fetch amenities');
-      const data = await res.json();
-      setAmenities(data);
+      // Fetch optional amenities
+      const optRes = await fetch('/api/amenities/optional');
+      const optional = await optRes.json();
+      // Fetch rental amenities
+      const rentRes = await fetch('/api/amenities/rental');
+      const rental = await rentRes.json();
+
+      // Add category field for UI
+      const optWithCat = (optional || []).map(a => ({ ...a, category: 'optional' }));
+      const rentWithCat = (rental || []).map(a => ({ ...a, category: 'rental' }));
+      const merged = [...optWithCat, ...rentWithCat];
+      setAmenities(merged);
     } catch (err) {
       console.error('Fetch error:', err);
       setError('Could not load amenities. Please try again.');
@@ -46,7 +50,10 @@ export default function AmenityInventoryPage() {
     try {
       setLoading(true);
       if (editingAmenity) {
-        await fetch(`${API_URL}/${editingAmenity.id}`, {
+        const endpoint = editingAmenity.category === 'rental' 
+          ? `/api/amenities/rental/${editingAmenity.id}`
+          : `/api/amenities/optional/${editingAmenity.id}`;
+        await fetch(endpoint, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -56,7 +63,8 @@ export default function AmenityInventoryPage() {
         });
         setEditingAmenity(null);
       } else {
-        await fetch(API_URL, {
+        // Default to optional when creating here; creation likely not used in this view, but handle both if category is provided later
+        await fetch('/api/amenities/optional', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -200,7 +208,7 @@ export default function AmenityInventoryPage() {
         {amenities.filter(a => a.name.toLowerCase().includes(filter.toLowerCase())).length === 0 && <p style={styles.noData}>No amenities available.</p>}
             {amenities.filter(a => a.name.toLowerCase().includes(filter.toLowerCase())).map((amenity, index) => (
               <div
-                key={index}
+                key={`${amenity.category}-${amenity.id ?? index}`}
                 style={styles.card}
                 tabIndex={0}
                 aria-label={`Amenity: ${amenity.name}`}

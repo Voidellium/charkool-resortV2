@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import SuperAdminLayout from '@/components/SuperAdminLayout';
+import { useRescheduleModal, RescheduleDetailsModal, ApproveRescheduleModal, DenyRescheduleModal } from '@/components/CustomModals';
 import { 
   Bell, 
   Check, 
@@ -23,6 +24,10 @@ import {
 } from 'lucide-react';
 
 export default function NotificationsPage() {
+  const [rescheduleModal, setRescheduleModal] = useRescheduleModal();
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [showDenyModal, setShowDenyModal] = useState(false);
+  const [pendingRequest, setPendingRequest] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [filteredNotifications, setFilteredNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -45,10 +50,17 @@ export default function NotificationsPage() {
       const response = await fetch('/api/notifications?role=superadmin');
       if (response.ok) {
         const data = await response.json();
-        setNotifications(data);
+        if (Array.isArray(data)) {
+          setNotifications(data);
+        } else {
+          setNotifications([]);
+        }
+      } else {
+        setNotifications([]);
       }
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
+      setNotifications([]);
     } finally {
       setLoading(false);
     }
@@ -138,7 +150,7 @@ export default function NotificationsPage() {
       case 'system_info':
         return <Info {...iconProps} style={{ color: '#06b6d4' }} />;
       default:
-        return <Bell {...iconProps} style={{ color: '#febe52' }} />;
+        return <Bell {...iconProps} style={{ color: '#6b7280' }} />;
     }
   };
 
@@ -236,6 +248,43 @@ export default function NotificationsPage() {
       </SuperAdminLayout>
     );
   }
+
+  // Approve handler
+  const handleApprove = async () => {
+    setShowApproveModal(false);
+    if (!pendingRequest) return;
+    await fetch(`/api/bookings/${pendingRequest.id}/reschedule`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'APPROVE' })
+    });
+    setRescheduleModal({ show: false, request: null });
+    setPendingRequest(null);
+    fetchNotifications();
+  };
+  // Deny handler
+  const handleDeny = async (context) => {
+    setShowDenyModal(false);
+    if (!pendingRequest) return;
+    await fetch(`/api/bookings/${pendingRequest.id}/reschedule`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'DENY', context })
+    });
+    setRescheduleModal({ show: false, request: null });
+    setPendingRequest(null);
+    fetchNotifications();
+  };
+
+  // Open reschedule modal for a booking
+  const openRescheduleModal = async (bookingId) => {
+    const res = await fetch(`/api/reschedule-request?bookingId=${bookingId}`);
+    if (res.ok) {
+      const req = await res.json();
+      setRescheduleModal({ show: true, request: req });
+      setPendingRequest(req);
+    }
+  };
 
   return (
     <SuperAdminLayout>
@@ -533,7 +582,6 @@ export default function NotificationsPage() {
               {currentNotifications.map((notification) => (
                 <div
                   key={notification.id}
-                  onClick={() => !notification.isRead && markAsRead(notification.id)}
                   style={{
                     background: notification.isRead ? '#ffffff' : getNotificationColor(notification.type),
                     border: `2px solid ${notification.isRead ? '#febe52' : '#e8d391'}`,
@@ -541,7 +589,9 @@ export default function NotificationsPage() {
                     padding: '1rem 1.25rem',
                     cursor: notification.isRead ? 'default' : 'pointer',
                     transition: 'all 0.2s ease',
-                    position: 'relative'
+                    position: 'relative',
+                    display: 'flex',
+                    alignItems: 'center',
                   }}
                   onMouseEnter={(e) => {
                     if (!notification.isRead) {
@@ -556,10 +606,35 @@ export default function NotificationsPage() {
                     }
                   }}
                 >
+                  {/* View Details for reschedule_request */}
+                  {notification.type === 'reschedule_request' && (
+                    <button
+                      style={{
+                        background: 'linear-gradient(135deg, #febe52 0%, #ebd591 100%)',
+                        color: '#6b4700',
+                        fontWeight: 700,
+                        border: 'none',
+                        borderRadius: '8px',
+                        padding: '0.5rem 1rem',
+                        marginRight: '1.5rem',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 8px #ebd591',
+                        minWidth: 110
+                      }}
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        openRescheduleModal(notification.bookingId);
+                        markAsRead(notification.id);
+                      }}
+                    >
+                      View Details
+                    </button>
+                  )}
                   <div style={{
                     display: 'flex',
                     alignItems: 'flex-start',
-                    gap: '1rem'
+                    gap: '1rem',
+                    flex: 1
                   }}>
                     {/* Icon */}
                     <div style={{
@@ -573,7 +648,6 @@ export default function NotificationsPage() {
                     }}>
                       {getNotificationIcon(notification.type)}
                     </div>
-
                     {/* Content */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{
@@ -591,7 +665,6 @@ export default function NotificationsPage() {
                         }}>
                           {formatNotificationMessage(notification)}
                         </h4>
-                        
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                           <span style={{
                             fontSize: '0.75rem',
@@ -600,7 +673,6 @@ export default function NotificationsPage() {
                           }}>
                             {getRelativeTime(notification.createdAt)}
                           </span>
-                          
                           {!notification.isRead && (
                             <div style={{
                               width: '8px',
@@ -612,7 +684,6 @@ export default function NotificationsPage() {
                           )}
                         </div>
                       </div>
-                      
                       <div style={{
                         display: 'flex',
                         justifyContent: 'space-between',
@@ -625,7 +696,6 @@ export default function NotificationsPage() {
                         }}>
                           {notification.type.replace(/_/g, ' ')}
                         </span>
-                        
                         {!notification.isRead && (
                           <span style={{
                             fontSize: '0.75rem',
@@ -640,6 +710,23 @@ export default function NotificationsPage() {
                   </div>
                 </div>
               ))}
+      {/* Reschedule Modals */}
+      <RescheduleDetailsModal
+        modal={rescheduleModal}
+        setModal={setRescheduleModal}
+        onApprove={() => setShowApproveModal(true)}
+        onDeny={() => setShowDenyModal(true)}
+      />
+      <ApproveRescheduleModal
+        show={showApproveModal}
+        onClose={() => setShowApproveModal(false)}
+        onConfirm={handleApprove}
+      />
+      <DenyRescheduleModal
+        show={showDenyModal}
+        onClose={() => setShowDenyModal(false)}
+        onConfirm={handleDeny}
+      />
             </div>
           ) : (
             <div style={{

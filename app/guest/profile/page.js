@@ -1,20 +1,20 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useUser } from '../../../context/UserContext';
 import { useRouter } from 'next/navigation';
 import Image from "next/image";
-
 export default function Profile() {
   const [profileImage, setProfileImage] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [showIcons, setShowIcons] = useState(false);
   const customIcons = [
-  "/images/avatar1.png",
-  "/images/avatar2.png",
-  "/images/avatar3.png",
-  "/images/avatar4.png",
-  "/images/avatar5.png"
-];
-  const [user, setUser] = useState(null);
+    "/images/avatar1.png",
+    "/images/avatar2.png",
+    "/images/avatar3.png",
+    "/images/avatar4.png",
+    "/images/avatar5.png"
+  ];
+  const { user, setUser } = useUser();
   const [firstName, setFirstName] = useState('');
   const [middleName, setMiddleName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -29,8 +29,6 @@ export default function Profile() {
     str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 
   useEffect(() => {
-    const savedImage = localStorage.getItem('profileImage');
-    if (savedImage) setProfileImage(savedImage);
     async function fetchUser() {
       try {
         const res = await fetch('/api/guest/me');
@@ -47,32 +45,93 @@ export default function Profile() {
         );
         setContactNumber((data.guest.contactNumber || '').slice(-10));
         setEmail(data.guest.email);
+        
+        // Set profile image from database or fallback to localStorage
+        if (data.guest.image) {
+          setProfileImage(data.guest.image);
+          localStorage.setItem('profileImage', data.guest.image);
+        } else {
+          const savedImage = localStorage.getItem('profileImage');
+          if (savedImage) setProfileImage(savedImage);
+        }
       } catch {
         router.push('/login');
       }
     }
     fetchUser();
-  }, [router]);
+    // eslint-disable-next-line
+  }, [router, setUser]);
 
-  const handleImageChange = (e) => {
+  const handleImageChange = async (e) => {
     const file = e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const base64 = reader.result;
-        setProfileImage(base64);
-        localStorage.setItem('profileImage', base64);
-        setShowModal(false);
-      };
-      reader.readAsDataURL(file);
+      const formData = new FormData();
+      formData.append('file', file);
+      try {
+        const res = await fetch('/api/user/profile-picture', {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await res.json();
+        if (data.success && data.profilePicture) {
+          setProfileImage(data.profilePicture);
+          localStorage.setItem('profileImage', data.profilePicture);
+          setSuccess('Profile picture updated successfully!');
+          setShowModal(false);
+          
+          // Update UserContext immediately so navbar reflects the change
+          setUser(prev => ({
+            ...prev,
+            image: data.profilePicture,
+          }));
+        } else {
+          setError(data.error || 'Image upload failed');
+        }
+      } catch (error) {
+        console.error('Upload error:', error);
+        setError('Image upload failed');
+      }
     }
   };
 
-  const handleIconSelect = (icon) => {
-    setProfileImage(icon);
-    localStorage.setItem('profileImage', icon);
-    setShowIcons(false);
-    setShowModal(false);
+  const handleIconSelect = async (icon) => {
+    try {
+      // For avatar icons, we still save them directly but also update the database
+      const res = await fetch('/api/user', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName,
+          middleName,
+          lastName,
+          birthdate,
+          contactNumber: '+63' + contactNumber,
+          email,
+          image: icon,
+        }),
+      });
+      
+      if (res.ok) {
+        const updatedUser = await res.json();
+        setProfileImage(icon);
+        localStorage.setItem('profileImage', icon);
+        setSuccess('Avatar updated successfully!');
+        setShowIcons(false);
+        setShowModal(false);
+        
+        // Update UserContext immediately so navbar reflects the change
+        setUser(prev => ({
+          ...prev,
+          image: icon,
+        }));
+      } else {
+        const data = await res.json();
+        setError(data.error || 'Failed to update avatar');
+      }
+    } catch (error) {
+      console.error('Avatar update error:', error);
+      setError('Failed to update avatar');
+    }
   };
 
   const handleFirstName = (e) => setFirstName(capitalizeFirst(e.target.value));
@@ -98,19 +157,22 @@ export default function Profile() {
           birthdate,
           contactNumber: '+63' + contactNumber,
           email,
+          image: profileImage || '',
         }),
       });
       if (res.ok) {
         setSuccess('Profile updated successfully');
-        setUser({
-          ...user,
+        // Update global user context for instant UI update
+        setUser(prev => ({
+          ...prev,
           firstName,
           middleName,
           lastName,
           birthdate,
           contactNumber,
           email,
-        });
+          image: profileImage,
+        }));
       } else {
         const data = await res.json();
         setError(data.error || 'Update failed');
@@ -148,6 +210,8 @@ export default function Profile() {
                 src={profileImage || "/default-avatar.png"}
                 alt="Profile"
                 className="avatar"
+                style={{ objectFit: 'cover' }}
+                onLoad={() => setShowModal(false)}
               />
               <button className="change-btn" onClick={() => setShowModal(true)}>
                 Change
@@ -291,21 +355,63 @@ export default function Profile() {
         .change-btn:hover { background: #d97706; }
         .modal-overlay {
           position: fixed;
-          inset: 0;
-          background: rgba(0,0,0,0.5);
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(8px);
           display: flex;
           justify-content: center;
           align-items: center;
-          z-index: 50;
+          z-index: 2000;
+          padding: 1rem;
+          animation: modalFadeIn 0.3s ease-out;
         }
+
+        @keyframes modalFadeIn {
+          from {
+            opacity: 0;
+            backdrop-filter: blur(0px);
+          }
+          to {
+            opacity: 1;
+            backdrop-filter: blur(8px);
+          }
+        }
+
         .modal {
           background: white;
           border-radius: 16px;
           padding: 2rem;
           text-align: center;
-          width: 90%;
-          max-width: 400px;
-          box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+          width: 100%;
+          max-width: 450px;
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+          position: relative;
+          animation: modalSlideIn 0.3s ease-out;
+        }
+
+        @keyframes modalSlideIn {
+          from {
+            opacity: 0;
+            transform: translateY(-20px) scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+
+        .modal h2 {
+          margin: 0 0 1.5rem 0;
+          font-size: 1.5rem;
+          font-weight: 700;
+          color: #1f2937;
+          background: linear-gradient(135deg, #febe54, #f5a623);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
         }
         .choice-buttons {
           display: flex;
@@ -313,17 +419,45 @@ export default function Profile() {
           gap: 1rem;
           margin: 1.5rem 0;
         }
+
         .choice-btn {
-          background: #f59e0b;
+          background: linear-gradient(135deg, #f97316 0%, #facc15 40%, #fb923c 100%);
           color: white;
-          padding: 0.8rem;
+          padding: 0.8rem 1.5rem;
           border: none;
-          border-radius: 10px;
+          border-radius: 12px;
           font-weight: 600;
           cursor: pointer;
           width: 100%;
+          transition: all 0.3s ease;
+          box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+          position: relative;
+          overflow: hidden;
         }
-        .upload-label { cursor: pointer; text-align: center; }
+
+        .choice-btn::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(120deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0));
+          transform: translateX(-100%);
+          transition: transform 0.45s ease;
+        }
+
+        .choice-btn:hover {
+          transform: translateY(-2px) scale(1.02);
+          box-shadow: 0 6px 16px rgba(249, 115, 22, 0.4);
+        }
+
+        .choice-btn:hover::after {
+          transform: translateX(0);
+        }
+
+        .upload-label { 
+          cursor: pointer; 
+          text-align: center; 
+          display: block;
+        }
         .icon-grid {
           display: grid;
           grid-template-columns: repeat(3, 1fr);
@@ -343,12 +477,21 @@ export default function Profile() {
           border-color: #fbbf24;
         }
         .close-btn {
-          background: #e5e7eb;
-          color: #111;
+          background: rgba(107, 114, 128, 0.1);
+          color: #6b7280;
           border: none;
-          padding: 0.6rem 1rem;
-          border-radius: 8px;
+          padding: 0.75rem 1.5rem;
+          border-radius: 12px;
           cursor: pointer;
+          transition: all 0.3s ease;
+          font-weight: 500;
+          margin-top: 1rem;
+        }
+
+        .close-btn:hover {
+          background: rgba(107, 114, 128, 0.2);
+          color: #374151;
+          transform: translateY(-1px);
         }
         @media (max-width: 640px) {
           .icon-choice { width: 60px; height: 60px; }

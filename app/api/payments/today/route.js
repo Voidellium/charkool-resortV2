@@ -20,7 +20,26 @@ export const GET = async () => {
         booking: {
           include: {
             user: true,
-            room: true,
+            rooms: {
+              include: {
+                room: true,
+              },
+            },
+            optionalAmenities: {
+              include: {
+                optionalAmenity: true,
+              },
+            },
+            rentalAmenities: {
+              include: {
+                rentalAmenity: true,
+              },
+            },
+            cottage: {
+              include: {
+                cottage: true,
+              },
+            },
           },
         },
       },

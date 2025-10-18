@@ -1,3 +1,4 @@
+"use client";
 import React, { useState } from 'react';
 
 const WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];

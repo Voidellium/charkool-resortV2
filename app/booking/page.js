@@ -38,6 +38,9 @@ export default function BookingPage() {
 
   // Room images modal state
   const [roomImagesModal, setRoomImagesModal] = useState({ open: false, selectedRoomId: null, selectedImage: null });
+  // Cooldown UI state
+  const [cooldownUntil, setCooldownUntil] = useState(null);
+  const [cooldownTimer, setCooldownTimer] = useState('');
 
   // SubmitButton component using useFormStatus
   function SubmitButton({ disabled, children, ...props }) {
@@ -67,6 +70,8 @@ export default function BookingPage() {
 
   // NEW: rental amenities data fetched from API
   const [rentalAmenitiesData, setRentalAmenitiesData] = useState([]);
+  // NEW: optional amenities data for displaying names in review
+  const [optionalAmenitiesData, setOptionalAmenitiesData] = useState([]);
 
   const [formData, setFormData] = useState({
     checkIn: '',
@@ -83,6 +88,40 @@ export default function BookingPage() {
       router.push('/login?redirect=/booking');
     }
   }, [status, router]);
+
+  // Poll user cooldown on mount (requires session)
+  useEffect(() => {
+    async function fetchCooldown() {
+      if (!session) return;
+      try {
+        const res = await fetch('/api/guest/me');
+        if (!res.ok) return;
+        const data = await res.json();
+        const until = data?.guest?.paymentCooldownUntil ? new Date(data.guest.paymentCooldownUntil) : null;
+        setCooldownUntil(until);
+      } catch (e) { console.error('Failed to fetch cooldown:', e); }
+    }
+    fetchCooldown();
+  }, [session]);
+
+  // Countdown logic
+  useEffect(() => {
+    if (!cooldownUntil) { setCooldownTimer(''); return; }
+    const interval = setInterval(() => {
+      const now = new Date();
+      const ms = cooldownUntil - now;
+      if (ms <= 0) {
+        setCooldownTimer('');
+        setCooldownUntil(null);
+        clearInterval(interval);
+      } else {
+        const m = Math.floor(ms / 60000);
+        const s = Math.floor((ms % 60000) / 1000);
+        setCooldownTimer(`${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [cooldownUntil]);
 
   // Check for pending booking on mount
   useEffect(() => {
@@ -152,6 +191,20 @@ export default function BookingPage() {
       }
     }
     fetchRentalAmenities();
+
+    // NEW: Fetch optional amenities to resolve names in review
+    async function fetchOptionalAmenities() {
+      try {
+        const res = await fetch('/api/amenities/optional');
+        if (res.ok) {
+          const data = await res.json();
+          setOptionalAmenitiesData(data);
+        }
+      } catch (err) {
+        console.error('❌ Failed to load optional amenities:', err);
+      }
+    }
+    fetchOptionalAmenities();
   }, []);
 
   useEffect(() => {
@@ -163,6 +216,10 @@ export default function BookingPage() {
       }
       setLoadingRooms(true);
       try {
+        // Clean up expired bookings before checking availability
+        fetch('/api/cleanup/expired-bookings', { method: 'POST' })
+          .catch(err => console.warn('Cleanup failed:', err));
+
         const res = await fetch(`/api/rooms?checkIn=${formData.checkIn}&checkOut=${formData.checkOut}`);
         const data = await res.json();
         if (res.ok) {
@@ -422,9 +479,10 @@ export default function BookingPage() {
         throw new Error(data.details || 'Booking failed');
       }
 
-      // Store booking details for checkout page
-      localStorage.setItem('bookingId', data.booking.id);
-      localStorage.setItem('bookingAmount', totalPrice / 100);
+  // Store booking details for checkout page
+  localStorage.setItem('bookingId', data.booking.id);
+  // bookingAmount kept optional for display; checkout will compute reservation fee from rooms
+  localStorage.setItem('bookingAmount', totalPrice / 100);
 
       // Redirect to checkout page
       router.push('/checkout');
@@ -597,7 +655,15 @@ export default function BookingPage() {
               <p><strong>Selected Amenities:</strong></p>
               <ul>
                 {Object.entries(formData.selectedAmenities.optional).map(([amenityId, qty]) => {
-                  return <li key={amenityId}>{qty} x Optional Amenity {amenityId}</li>;
+                  const amenity = optionalAmenitiesData.find(a => a.id === parseInt(amenityId));
+                  if (!amenity) {
+                    console.warn('Optional amenity not found for id', amenityId);
+                  }
+                  return (
+                    <li key={amenityId}>
+                      {qty} x {amenity?.name || `Optional Amenity ${amenityId}`}
+                    </li>
+                  );
                 })}
                 {Object.entries(formData.selectedAmenities.rental).map(([amenityId, selection]) => {
                   const rentalAmenity = rentalAmenitiesData.find(a => a.id === parseInt(amenityId));
@@ -656,9 +722,20 @@ export default function BookingPage() {
               </ul>
               <p><strong>Total Price:</strong> ₱{(totalPrice / 100).toLocaleString()}</p>
               <div style={{ marginTop: '20px', padding: '10px', backgroundColor: '#e0f2fe', borderRadius: '8px', border: '1px solid #0ea5e9' }}>
-                <p><strong>Note:</strong> Upon submission, your rooms will be held for 3 hours. You must complete payment within this time to confirm your booking.</p>
+                <p><strong>Note:</strong> Upon submission, your rooms will be held for 15 minutes. You must complete the reservation fee payment within this time or your booking will be cancelled automatically.</p>
                 <p><strong>Cancellation Policy:</strong> Full refund if cancelled more than 24 hours before check-in, partial refund otherwise.</p>
               </div>
+              {(() => {
+                const roomsCount = Object.values(formData.selectedRooms || {}).reduce((sum, qty) => sum + (Number(qty) || 0), 0);
+                const reservationFeeNow = roomsCount * 2000;
+                return (
+                  <div style={{ marginTop: '12px', padding: '10px', backgroundColor: '#ecfdf5', borderRadius: '8px', border: '1px solid #10b981' }}>
+                    <p><strong>Payment Procedure:</strong> You will only need to pay the reservation fee at checkout.</p>
+                    <p>Reservation fee is <strong>₱2,000</strong> per room. You currently have <strong>{roomsCount}</strong> room(s) selected, so your reservation fee at checkout will be <strong>₱{reservationFeeNow.toLocaleString()}</strong>.</p>
+                    <p style={{ color: '#065f46' }}>Example: 2 rooms → ₱4,000 reservation fee.</p>
+                  </div>
+                );
+              })()}
             </motion.div>
           )}
           <div style={{ textAlign: 'right', fontWeight: 'bold', fontSize: '1.2rem', color: '#ED7709', marginTop: '10px', marginBottom: '10px' }}>
@@ -678,7 +755,16 @@ export default function BookingPage() {
                 return totalCapacity < formData.guests;
               })())
             }>Next</button>}
-            {step === 3 && <SubmitButton disabled={!formData.checkIn || formData.guests < 1 || Object.keys(formData.selectedRooms).length === 0}>Submit Booking</SubmitButton>}
+            {step === 3 && (
+              <div style={{ position: 'relative' }}>
+                <SubmitButton disabled={!formData.checkIn || formData.guests < 1 || Object.keys(formData.selectedRooms).length === 0 || !!cooldownUntil}>Submit Booking</SubmitButton>
+                {!!cooldownUntil && (
+                  <div style={{ marginTop: '8px', color: '#b91c1c', fontWeight: 600 }} title={`You have failed to pay multiple times. Please wait until the cooldown ends.`}>
+                    You have failed to pay for your booking multiple times. Please wait {cooldownTimer || '...'} before trying again.
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </form>
         )}

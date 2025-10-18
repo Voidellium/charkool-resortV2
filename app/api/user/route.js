@@ -75,35 +75,75 @@ export async function POST(req) {
   }
 }
 
-// PUT update user profile
+// PUT update user profile (by authenticated user's ID)
 export async function PUT(req) {
   try {
-    const { firstName, middleName, lastName, birthdate, contactNumber, email, preferences } = await req.json();
-
-    if (!email) {
-      return new Response(JSON.stringify({ error: 'Email is required' }), { status: 400 });
+    // Require authenticated session
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user?.id) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      return new Response(JSON.stringify({ error: 'User not found' }), { status: 404 });
+    const {
+      firstName,
+      middleName,
+      lastName,
+      birthdate,
+      contactNumber,
+      email,
+      image,
+    } = await req.json();
+
+    const userId = parseInt(session.user.id, 10);
+    if (Number.isNaN(userId)) {
+      return new Response(JSON.stringify({ error: 'Invalid user id in session' }), { status: 400 });
     }
+
+    // Build partial update object only with provided fields
+    const data = {};
+    if (typeof firstName !== 'undefined') data.firstName = firstName;
+    if (typeof middleName !== 'undefined') data.middleName = middleName;
+    if (typeof lastName !== 'undefined') data.lastName = lastName;
+    if (typeof contactNumber !== 'undefined') data.contactNumber = contactNumber;
+    if (typeof birthdate !== 'undefined') data.birthdate = birthdate ? new Date(birthdate) : null;
+    if (typeof image !== 'undefined') data.image = image;
+    if (typeof email !== 'undefined' && email) data.email = email.toLowerCase().trim();
 
     const updatedUser = await prisma.user.update({
-      where: { email },
-      data: {
-        firstName,
-        middleName,
-        lastName,
-        birthdate: new Date(birthdate),
-        contactNumber,
-        preferences,
+      where: { id: userId },
+      data,
+      select: {
+        id: true,
+        firstName: true,
+        middleName: true,
+        lastName: true,
+        birthdate: true,
+        contactNumber: true,
+        name: true,
+        email: true,
+        image: true,
       },
-      select: { id: true, firstName: true, middleName: true, lastName: true, birthdate: true, contactNumber: true, name: true, email: true, preferences: true },
     });
 
     return new Response(JSON.stringify(updatedUser), { status: 200 });
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    // Handle unique constraint violations (e.g., duplicate email)
+    if (err && typeof err === 'object' && err.code === 'P2002') {
+      return new Response(
+        JSON.stringify({ error: 'Conflict: email already in use.' }),
+        { status: 409 }
+      );
+    }
+    // Enhanced error logging for debugging
+    let errorDetails = {};
+    if (err instanceof Error) {
+      errorDetails = { message: err.message, stack: err.stack, ...err };
+    } else {
+      errorDetails = { error: err };
+    }
+    return new Response(
+      JSON.stringify({ error: 'Internal Server Error', details: errorDetails }),
+      { status: 500 }
+    );
   }
 }

@@ -7,16 +7,24 @@ export default function CheckoutPage() {
   const [bookingId, setBookingId] = useState('');
   const [amount, setAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('gcash'); // default to GCash
-  const [paymentOption, setPaymentOption] = useState('full'); // full, half, reservation
+  const [paymentOption, setPaymentOption] = useState('reservation'); // reservation only
   const [enteredAmount, setEnteredAmount] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('error'); // 'error' or 'success'
   const [paymentWindow, setPaymentWindow] = useState(null);
   const [paymentCompleted, setPaymentCompleted] = useState(false);
+  const [totalRooms, setTotalRooms] = useState(0);
+  const [heldUntil, setHeldUntil] = useState(null);
+  const [timeRemaining, setTimeRemaining] = useState('');
+  const [isExpired, setIsExpired] = useState(false);
 
   // Load bookingId and amount from localStorage on mount
   useEffect(() => {
+    // First, clean up any expired bookings
+    fetch('/api/cleanup/expired-bookings', { method: 'POST' })
+      .catch(err => console.warn('Cleanup failed:', err));
+
     const storedBookingId = localStorage.getItem('bookingId');
     const storedAmount = localStorage.getItem('bookingAmount');
     if (storedBookingId) {
@@ -33,6 +41,19 @@ export default function CheckoutPage() {
             throw new Error('Booking cancelled');
           }
           setBookingId(storedBookingId);
+          setHeldUntil(data.heldUntil ? new Date(data.heldUntil) : null);
+          // Compute total rooms from booking details
+          try {
+            const roomsCount = Array.isArray(data.rooms)
+              ? data.rooms.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
+              : 0;
+            setTotalRooms(roomsCount);
+            // Set the entered amount to the expected reservation fee
+            const expected = (roomsCount || 0) * 2000;
+            setEnteredAmount(String(expected));
+          } catch (e) {
+            console.error('Failed to compute total rooms for reservation fee:', e);
+          }
         })
         .catch(err => {
           console.error('Booking check error:', err);
@@ -44,17 +65,49 @@ export default function CheckoutPage() {
     if (storedAmount) {
       const amountInPesos = parseFloat(storedAmount).toFixed(0);
       setAmount(amountInPesos);
-      setEnteredAmount(amountInPesos); // default entered amount to full amount in pesos
+      // Keep full booking amount for display only; enteredAmount will be set from booking rooms
     }
   }, []);
 
+  // Countdown timer for booking expiration
+  useEffect(() => {
+    if (!heldUntil) {
+      setTimeRemaining('');
+      setIsExpired(false);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      const now = new Date();
+      const timeLeft = heldUntil.getTime() - now.getTime();
+      
+      if (timeLeft <= 0) {
+        setTimeRemaining('');
+        setIsExpired(true);
+        setMessageType('error');
+        setMessage('Your booking has expired. Redirecting to booking page...');
+        clearInterval(interval);
+        setTimeout(() => {
+          localStorage.removeItem('bookingId');
+          localStorage.removeItem('bookingAmount');
+          window.location.href = '/booking';
+        }, 3000);
+        return;
+      }
+
+      const minutes = Math.floor(timeLeft / (1000 * 60));
+      const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+      setTimeRemaining(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [heldUntil]);
+
   // Calculate expected amount based on payment option
   const getExpectedAmount = () => {
-    const fullAmount = parseFloat(amount); // amount is in pesos
-    if (paymentOption === 'full') return fullAmount;
-    if (paymentOption === 'half') return Math.round(fullAmount / 2);
-    if (paymentOption === 'reservation') return 2000; // 1000 pesos
-    return fullAmount;
+    // Reservation fee is ₱2000 per room unit booked
+    const rooms = Number(totalRooms) || 0;
+    return rooms * 2000;
   };
 
   // Function to handle payment window status
@@ -137,7 +190,7 @@ export default function CheckoutPage() {
     const handleBeforeUnload = (e) => {
       if (!paymentCompleted && bookingId) {
         e.preventDefault();
-        e.returnValue = 'Leaving this page will cancel your pending booking. Are you sure?';
+  e.returnValue = 'Leaving this page may cancel your pending booking if the reservation fee is not paid within 15 minutes. Are you sure?';
       }
     };
 
@@ -200,29 +253,18 @@ export default function CheckoutPage() {
     try {
         if (paymentMethod === 'TEST') {
           // Development phase only: simulate payment success with TEST method
-          let paymentStatus;
-          let bookingStatus;
-
-          if (paymentOption === 'reservation') {
-            paymentStatus = 'reservation';
-            bookingStatus = 'pending';
-          } else if (paymentOption === 'half') {
-            paymentStatus = 'partial';
-            bookingStatus = 'pending'; // keep booking status pending as requested
-          } else {
-            paymentStatus = 'paid';
-            bookingStatus = 'pending'; // keep booking status pending as requested
-          }
+          let paymentStatus = 'reservation';
+          let bookingStatus = 'pending';
 
           const res = await fetch('/api/payments/test', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               bookingId,
-              amount: parseFloat(enteredAmount) * 100,
+              amount: parseFloat(enteredAmount), // Don't multiply by 100 for TEST - API expects pesos
               status: paymentStatus,
               bookingStatus: bookingStatus,
-              paymentType: paymentOption,
+              paymentType: 'reservation',
               method: 'TEST',
             }),
           });
@@ -252,7 +294,7 @@ export default function CheckoutPage() {
           bookingId,
           amount: parseFloat(enteredAmount),
           paymentMethod,
-          paymentType: paymentOption,
+          paymentType: 'reservation',
         }),
       });
 
@@ -306,39 +348,43 @@ export default function CheckoutPage() {
             <h2 className="checkout-title">Complete Your Payment</h2>
             
             <div className="booking-info">
-              <p>Total Cost: <strong>₱{amount ? parseFloat(amount).toLocaleString() : '0'}</strong></p>
+              <p>Total Booking Cost: <strong>₱{amount ? parseFloat(amount).toLocaleString() : '0'}</strong></p>
+              <p>Rooms Selected: <strong>{totalRooms}</strong></p>
+              <p>Reservation Fee Due Now: <strong>₱{(Number(totalRooms) * 2000).toLocaleString()}</strong></p>
+              {timeRemaining && !isExpired && (
+                <div style={{ 
+                  marginTop: '10px', 
+                  padding: '8px 12px', 
+                  backgroundColor: '#fef3c7', 
+                  borderRadius: '6px', 
+                  border: '1px solid #f59e0b',
+                  textAlign: 'center'
+                }}>
+                  <p style={{ margin: 0, color: '#92400e', fontWeight: 'bold' }}>
+                    ⏰ Time remaining: {timeRemaining}
+                  </p>
+                  <p style={{ margin: 0, color: '#92400e', fontSize: '14px' }}>
+                    Complete your payment before time expires
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="payment-form">
               <div className="section">
                 <label>
                   Payment Option
-                  <select 
-                    value={paymentOption} 
-                    onChange={e => {
-                      setPaymentOption(e.target.value);
-                      const newAmount = e.target.value === 'full' ? amount : e.target.value === 'half' ? Math.round(parseFloat(amount) / 2).toString() : '2000';
-                      setEnteredAmount(newAmount);
-                      setMessage('');
-                    }}
-                  >
-                    <option value="full">Full Payment</option>
-                    <option value="half">Half Payment</option>
-                    <option value="reservation">Reservation Only</option>
-                  </select>
+                  <input type="text" value="Reservation Only" readOnly />
                 </label>
               </div>
 
               <div className="section">
                 <label>
-                  ₱ Amount to Pay
+                  ₱ Reservation Fee (₱2000 × rooms)
                   <input
                     type="number"
                     value={enteredAmount}
-                    onChange={e => {
-                      setEnteredAmount(e.target.value);
-                      setMessage('');
-                    }}
+                    readOnly
                     placeholder="Enter amount"
                     step="1"
                     min="0"
@@ -346,19 +392,34 @@ export default function CheckoutPage() {
                 </label>
               </div>
 
+              {/* Payment procedure note (mirrored from booking page) */}
+              <div style={{ marginTop: '12px', padding: '10px', backgroundColor: '#ecfdf5', borderRadius: '8px', border: '1px solid #10b981' }}>
+                <p><strong>Payment Procedure:</strong> You will only need to pay the reservation fee at checkout.</p>
+                <p>
+                  Reservation fee is <strong>₱2,000</strong> per room. You currently have <strong>{Number(totalRooms)}</strong> room(s),
+                  so your reservation fee is <strong>₱{(Number(totalRooms) * 2000).toLocaleString()}</strong>.
+                </p>
+                <p style={{ color: '#065f46' }}>Example: 2 rooms → ₱4,000 reservation fee.</p>
+              </div>
+
               <div className="section">
                 <label>
                   Payment Method
                   <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}>
                     <option value="gcash">GCash</option>
-                    <option value="grab_pay">Maya</option>
+                    <option value="paymaya">Maya</option>
                     <option value="TEST">TEST (Development only)</option>
                   </select>
                 </label>
               </div>
 
-              <button className="primary-btn" onClick={handlePayment} disabled={loading}>
-                {loading ? 'Processing...' : `Pay with ${paymentMethod.toUpperCase()}`}
+              <button 
+                className="primary-btn" 
+                onClick={handlePayment} 
+                disabled={loading || !bookingId || (Number(totalRooms) <= 0) || isExpired}
+                style={isExpired ? { backgroundColor: '#9ca3af', cursor: 'not-allowed' } : {}}
+              >
+                {isExpired ? 'Booking Expired' : loading ? 'Processing...' : `Pay Reservation with ${paymentMethod.toUpperCase()}`}
               </button>
 
               {message && <p className={`message ${messageType}`}>{message}</p>}

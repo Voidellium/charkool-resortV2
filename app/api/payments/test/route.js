@@ -12,6 +12,22 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    // Enforce reservation-only flow
+    if (paymentType && paymentType !== 'reservation') {
+      return NextResponse.json({ error: 'Only reservation payments are allowed' }, { status: 400 });
+    }
+
+    // Load booking and validate reservation amount = 2000 * totalRooms
+    const booking = await prisma.booking.findUnique({ where: { id: parseInt(bookingId) }, include: { rooms: true } });
+    if (!booking) {
+      return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
+    }
+    const totalRooms = (booking.rooms || []).reduce((sum, r) => sum + (Number(r.quantity) || 0), 0);
+    const expectedAmount = totalRooms * 2000; // pesos
+    if (Math.round(Number(amount)) !== Math.round(expectedAmount)) {
+      return NextResponse.json({ error: `Invalid amount. Expected ₱${expectedAmount}` }, { status: 400 });
+    }
+
     // Capitalize status to match enum
     const capitalizedStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
 
@@ -19,7 +35,7 @@ export async function POST(req) {
     const payment = await prisma.payment.create({
       data: {
         bookingId: parseInt(bookingId),
-        amount: Math.round(amount * 1), // store in ten-thousandths to be consistent with other payment methods
+        amount: Math.round(amount * 100), // store in cents to be consistent with other payment methods
         status: capitalizedStatus,
         provider: method,
         referenceId: `test_${Date.now()}`,
@@ -28,31 +44,20 @@ export async function POST(req) {
 
     // Update booking with appropriate payment status and booking status
     const updateData = {
-      paymentStatus: capitalizedStatus,
+      paymentStatus: 'Reservation',
     };
 
     // Set booking status based on payment type
+    // For reservation-only, keep booking pending
     if (bookingStatus) {
       updateData.status = bookingStatus.charAt(0).toUpperCase() + bookingStatus.slice(1).toLowerCase();
-    } else if (paymentType === 'reservation') {
-      updateData.status = 'Pending';
-    } else if (paymentType === 'half') {
-      updateData.status = 'Confirmed';
     } else {
-      updateData.status = 'Confirmed';
+      updateData.status = 'Pending';
     }
 
     // Handle amenities based on payment type
-    if (paymentType === 'reservation') {
-      // For reservation only, keep amenities but mark as reservation
-      updateData.paymentStatus = 'Reservation';
-    } else if (paymentType === 'half') {
-      // For half payment, mark as partial payment
-      updateData.paymentStatus = 'Partial';
-    } else {
-      // For full payment, mark as fully paid
-      updateData.paymentStatus = 'Paid';
-    }
+    // Reservation-only payment status
+    updateData.paymentStatus = 'Reservation';
 
     await prisma.booking.update({
       where: { id: parseInt(bookingId) },

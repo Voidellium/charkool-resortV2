@@ -38,7 +38,7 @@ export async function POST(request) {
 
   try {
     const body = await request.json();
-    const { name, description, maxQuantity = 1 } = body;
+  const { name, description, maxQuantity = 1, quantity } = body;
 
     // Validate required fields
     if (!name || !name.trim()) {
@@ -66,6 +66,7 @@ export async function POST(request) {
         name: name.trim(),
         description: description?.trim() || null,
         maxQuantity: Math.max(1, parseInt(maxQuantity) || 1),
+        quantity: quantity != null ? Math.max(0, parseInt(quantity) || 0) : undefined,
       },
     });
 

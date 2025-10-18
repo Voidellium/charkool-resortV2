@@ -98,9 +98,14 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
         const res = await fetch(`/api/notifications?role=superadmin`);
         if (!res.ok) throw new Error('Fetch failed');
         const data = await res.json();
-        setNotifications(data.filter(n => !n.read));
+        if (Array.isArray(data)) {
+          setNotifications(data.filter(n => !n.read));
+        } else {
+          setNotifications([]);
+        }
       } catch (err) {
         console.error(err);
+        setNotifications([]);
       }
     };
     fetchNotifications();
@@ -451,6 +456,7 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                             <div
                               key={notification.id}
                               className={`${styles.notificationItem} ${!notification.isRead ? styles.unreadNotification : ''}`}
+                              style={{ position: 'relative' }}
                               onClick={async () => {
                                 if (!notification.isRead) {
                                   try {
@@ -459,7 +465,6 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                                       headers: { 'Content-Type': 'application/json' },
                                       body: JSON.stringify({ isRead: true })
                                     });
-                                    
                                     if (response.ok) {
                                       setNotifications(prev => 
                                         prev.map(n => 
@@ -473,6 +478,32 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                                 }
                               }}
                             >
+                              {/* View Details for reschedule_request */}
+                              {notification.type === 'reschedule_request' && (
+                                <button
+                                  style={{
+                                    position: 'absolute',
+                                    right: 12,
+                                    top: 12,
+                                    background: 'linear-gradient(135deg, #febe52 0%, #ebd591 100%)',
+                                    color: '#6b4700',
+                                    fontWeight: 700,
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    padding: '0.25rem 0.75rem',
+                                    cursor: 'pointer',
+                                    boxShadow: '0 2px 8px #ebd591',
+                                    minWidth: 80,
+                                    zIndex: 2
+                                  }}
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    window.location.href = '/super-admin/notifications';
+                                  }}
+                                >
+                                  View Details
+                                </button>
+                              )}
                               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
                                 {/* Notification Icon */}
                                 <div style={{

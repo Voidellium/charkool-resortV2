@@ -2,8 +2,6 @@
 import { useState, useEffect } from 'react';
 
 export default function AmenityInventoryDashboard() {
-  const API_URL = '/api/amenities/inventory';
-
   const [amenities, setAmenities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -11,10 +9,23 @@ export default function AmenityInventoryDashboard() {
   const fetchAmenities = async () => {
     try {
       setError('');
-      const res = await fetch(API_URL);
-      if (!res.ok) throw new Error('Failed to fetch amenities');
-      const data = await res.json();
-      setAmenities(data);
+      const [optRes, rentRes] = await Promise.all([
+        fetch('/api/amenities/optional'),
+        fetch('/api/amenities/rental'),
+      ]);
+      if (!optRes.ok || !rentRes.ok) throw new Error('Failed to fetch amenities');
+      const [optional, rental] = await Promise.all([optRes.json(), rentRes.json()]);
+      const opt = (optional || []).map(a => ({ ...a, category: 'Optional' }));
+      const rent = (rental || []).map(a => ({ ...a, category: 'Rental' }));
+      const merged = [...opt, ...rent];
+      // dedupe by category-id
+      const seen = new Set();
+      const unique = [];
+      for (const a of merged) {
+        const k = `${a.category}-${a.id ?? a.name?.toLowerCase()}`;
+        if (!seen.has(k)) { seen.add(k); unique.push(a); }
+      }
+      setAmenities(unique);
     } catch (err) {
       console.error('Fetch error:', err);
       setError('Could not load amenities. Please try again.');
@@ -45,40 +56,92 @@ export default function AmenityInventoryDashboard() {
       </div>
     );
 
+  // KPIs
+  const totalOptional = amenities.filter(a => a.category === 'Optional').length;
+  const totalRental = amenities.filter(a => a.category === 'Rental').length;
+  const totalStock = amenities.reduce((s, a) => s + (a.quantity || 0), 0);
+  const lowStock = amenities.filter(a => (a.quantity ?? 0) < 5);
+
   return (
     <div style={styles.container}>
-      <h1 style={styles.title}>Amenity Inventory Dashboard</h1>
-      <button onClick={handleRefresh} style={styles.refreshButton}>
-        🔄 Refresh
-      </button>
-      {/* Table container with max height and scroll */}
-      <div style={styles.tableContainer}>
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              <th style={styles.th}>Name</th>
-              <th style={styles.th}>Category</th>
-              <th style={styles.th}>Quantity</th>
-            </tr>
-          </thead>
-          <tbody>
-            {amenities.length > 0 ? (
-              amenities.map((a, index) => (
-                <tr key={index} style={styles.tr}>
-                  <td style={styles.td}>{a.name}</td>
-                  <td style={styles.td}>{a.category}</td>
-                  <td style={styles.td}>{a.quantity}</td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="3" style={{ textAlign: 'center', padding: '20px' }}>
-                  No amenities found
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <div style={styles.headerRow}>
+        <h1 style={styles.title}>Amenity Inventory Dashboard</h1>
+        <button onClick={handleRefresh} style={styles.refreshButton}>🔄 Refresh</button>
+      </div>
+
+      {/* KPIs */}
+      <div style={styles.kpiRow}>
+        <div style={styles.kpiCard}>
+          <div style={styles.kpiLabel}>Optional Amenities</div>
+          <div style={styles.kpiValue}>{totalOptional}</div>
+        </div>
+        <div style={styles.kpiCard}>
+          <div style={styles.kpiLabel}>Rental Amenities</div>
+          <div style={styles.kpiValue}>{totalRental}</div>
+        </div>
+        <div style={styles.kpiCard}>
+          <div style={styles.kpiLabel}>Total Stock</div>
+          <div style={styles.kpiValue}>{totalStock}</div>
+        </div>
+        <div style={styles.kpiCard}>
+          <div style={styles.kpiLabel}>Low Stock</div>
+          <div style={styles.kpiValue}>{lowStock.length}</div>
+        </div>
+      </div>
+
+      {/* Low stock list */}
+      <div style={styles.panel}>
+        <div style={styles.panelHeader}>Low Stock (less than 5)</div>
+        {lowStock.length === 0 ? (
+          <div style={styles.empty}>All good! No items are low.</div>
+        ) : (
+          <div style={styles.grid}> 
+            {lowStock.map(a => (
+              <div key={`${a.category}-${a.id}`} style={styles.card}>
+                <div style={styles.cardTitle}>{a.name}</div>
+                <div style={styles.cardMeta}><span style={styles.badge}>{a.category}</span></div>
+                <div style={styles.cardQty}>Qty: {a.quantity}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Grouped lists */}
+      <div style={styles.panel}>
+        <div style={styles.panelHeader}>All Amenities</div>
+        {['Optional','Rental'].map(cat => {
+          const list = amenities.filter(a => a.category === cat);
+          return (
+            <details key={cat} open style={{ marginBottom: 8 }}>
+              <summary style={styles.summary}><span style={{ ...styles.badge, background: cat==='Optional' ? '#f3f4f6' : '#d1fae5' }}>{cat}</span> <span style={{ color: '#6b7280' }}>({list.length})</span></summary>
+              <div style={styles.tableContainer}>
+                <table style={styles.table}>
+                  <thead>
+                    <tr>
+                      <th style={styles.th}>Name</th>
+                      <th style={styles.th}>Quantity</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {list.length > 0 ? (
+                      list.map(a => (
+                        <tr key={`${a.category}-${a.id}`} style={styles.tr}>
+                          <td style={styles.td}>{a.name}</td>
+                          <td style={styles.td}>{a.quantity}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="2" style={{ textAlign: 'center', padding: '16px' }}>No items</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          );
+        })}
       </div>
     </div>
   );
@@ -91,8 +154,13 @@ const styles = {
     flexDirection: 'column',
     padding: '20px',
     boxSizing: 'border-box',
-    backgroundColor: '#FFF8E1',
+    background: 'linear-gradient(135deg, #FEBE52 0%, #FFE6B3 100%)',
     gap: '20px',
+  },
+  headerRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   title: {
     textAlign: 'center',
@@ -118,6 +186,36 @@ const styles = {
     backgroundColor: '#fff',
     overflowX: 'auto',
   },
+  kpiRow: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+    gap: '12px',
+  },
+  kpiCard: {
+    background: '#fff',
+    borderRadius: '10px',
+    padding: '16px',
+    boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+  },
+  kpiLabel: { color: '#6b7280', fontWeight: 600 },
+  kpiValue: { fontSize: '1.8rem', fontWeight: 800 },
+  panel: {
+    background: '#fff',
+    borderRadius: '10px',
+    boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
+    padding: '12px',
+  },
+  panelHeader: { fontSize: '1.1rem', fontWeight: 700, marginBottom: '8px' },
+  summary: { display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '6px 0' },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '10px' },
+  card: { border: '1px solid #eee', borderRadius: '10px', padding: '12px' },
+  cardTitle: { fontWeight: 700 },
+  cardMeta: { marginTop: 4 },
+  badge: { background: '#f3f4f6', borderRadius: 999, padding: '2px 10px', fontSize: 12, fontWeight: 700 },
+  cardQty: { fontWeight: 700, marginTop: 8 },
   table: {
     width: '100%',
     borderCollapse: 'collapse',

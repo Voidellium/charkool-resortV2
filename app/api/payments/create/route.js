@@ -6,22 +6,75 @@ import { authOptions } from '@/app/auth';
 
 export async function POST(req) {
   try {
-    const { bookingId, amount } = await req.json();
+    const { bookingId, amount, paymentType, paymentMethod } = await req.json();
 
     if (!bookingId || !amount) {
       return NextResponse.json({ error: 'Missing bookingId or amount' }, { status: 400 });
+    }
+
+    // Enforce reservation-only flow
+    if (paymentType && paymentType !== 'reservation') {
+      return NextResponse.json({ error: 'Only reservation payments are allowed' }, { status: 400 });
+    }
+
+    // Load booking to compute reservation fee = 2000 * totalRooms
+    const booking = await prisma.booking.findUnique({
+      where: { id: parseInt(bookingId) },
+      include: { rooms: true }
+    });
+    if (!booking) {
+      return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
+    }
+
+    // Check if booking has expired
+    const now = new Date();
+    if (
+      booking.heldUntil && booking.heldUntil < now &&
+      (booking.status === 'Pending' || booking.status === 'Held') &&
+      booking.paymentStatus !== 'Reservation' && booking.paymentStatus !== 'Paid'
+    ) {
+      // Auto-cancel the expired booking
+      await prisma.booking.update({
+        where: { id: parseInt(bookingId) },
+        data: {
+          status: 'Cancelled',
+          heldUntil: null,
+        },
+      });
+      return NextResponse.json({ 
+        error: 'This booking has expired. Please create a new booking.' 
+      }, { status: 400 });
+    }
+
+    // Check if booking is in a valid state for payment
+    if (booking.status === 'Cancelled') {
+      return NextResponse.json({ error: 'Cannot pay for a cancelled booking' }, { status: 400 });
+    }
+    if (booking.status === 'Confirmed' && booking.paymentStatus === 'Paid') {
+      return NextResponse.json({ error: 'This booking has already been paid' }, { status: 400 });
+    }
+
+    const totalRooms = (booking.rooms || []).reduce((sum, r) => sum + (Number(r.quantity) || 0), 0);
+    const expectedAmount = totalRooms * 2000; // in pesos
+    if (Math.round(Number(amount)) !== Math.round(expectedAmount)) {
+      return NextResponse.json({ error: `Invalid amount. Expected ₱${expectedAmount}` }, { status: 400 });
     }
 
     // Convert to centavos (PayMongo requires this)
     const amountInCents = Math.round(amount * 100);
 
     // Create a Source for GCash/PayMaya in PayMongo
-    const paymentType = req.body.paymentMethod === 'gcash' ? 'gcash' : 'grab_pay';
+    const pmType = paymentMethod === 'gcash' ? 'gcash' : 'paymaya';
+    const secretKey = process.env.PAYMONGO_SECRET_KEY;
+    if (!secretKey) {
+      return NextResponse.json({ error: 'PAYMONGO_SECRET_KEY is not configured' }, { status: 500 });
+    }
+    const basicAuth = Buffer.from(`${secretKey}:`).toString('base64');
     const sourceRes = await fetch('https://api.paymongo.com/v1/sources', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Basic ${Buffer.from(process.env.PAYMONGO_SECRET_KEY).toString('base64')}`
+        'Authorization': `Basic ${basicAuth}`
       },
       body: JSON.stringify({
         data: {
@@ -32,7 +85,7 @@ export async function POST(req) {
               success: `${process.env.NEXTAUTH_URL}/api/payments/redirect?status=success&bookingId=${bookingId}`,
               failed: `${process.env.NEXTAUTH_URL}/api/payments/redirect?status=failed&bookingId=${bookingId}`,
             },
-            type: paymentType,
+            type: pmType,
             description: `Booking #${bookingId}`,
           }
         }
@@ -58,7 +111,7 @@ export async function POST(req) {
         status: 'Pending',
         provider: 'paymongo',
         referenceId: source.id,
-        method: req.body.paymentMethod,
+        method: paymentMethod,
       },
     });
 
@@ -76,12 +129,12 @@ export async function POST(req) {
         details: JSON.stringify({
           summary: `Created payment for booking ${booking?.guestName || bookingId}`,
           after: {
-            id: payment.id,
-            bookingId: payment.bookingId,
-            amount: payment.amount,
+            id: Number(payment.id),
+            bookingId: Number(payment.bookingId),
+            amount: Number(payment.amount),
             status: payment.status,
             provider: payment.provider,
-            method: payment.method,
+            method: paymentMethod,
             referenceId: payment.referenceId
           }
         }),

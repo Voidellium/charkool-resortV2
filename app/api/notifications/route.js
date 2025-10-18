@@ -8,15 +8,28 @@ import { authOptions } from '@/app/auth';
 // ✅ GET: Fetch notifications by role or userId
 export async function GET(req) {
   try {
+    const session = await getServerSession(authOptions);
     const url = new URL(req.url);
-    const role = url.searchParams.get("role"); // "admin" or "superadmin"
+    const role = url.searchParams.get("role"); // "admin", "superadmin", or "customer"
     const userId = url.searchParams.get("userId");
 
     let whereClause = {};
+    
     if (userId) {
       whereClause.userId = parseInt(userId);
     } else if (role) {
-      whereClause.role = role;
+      // Handle customer role specifically
+      if (role.toUpperCase() === 'CUSTOMER') {
+        if (session?.user?.id) {
+          whereClause.userId = parseInt(session.user.id);
+        } else {
+          // If no session, return empty array instead of error
+          return NextResponse.json([]);
+        }
+      } else {
+        // Case-insensitive role match for admin/superadmin
+        whereClause.role = { equals: role, mode: 'insensitive' };
+      }
     } else {
       return NextResponse.json({ error: "Role or userId is required" }, { status: 400 });
     }
@@ -24,10 +37,10 @@ export async function GET(req) {
     const notifications = await prisma.notification.findMany({
       where: whereClause,
       orderBy: { createdAt: "desc" },
-      take: 20,
+      take: 50, // Increased limit for better user experience
     });
 
-    return NextResponse.json(notifications);
+    return NextResponse.json(notifications || []);
   } catch (error) {
     console.error("GET Notifications Error:", error);
     return NextResponse.json({ error: "Failed to fetch notifications" }, { status: 500 });

@@ -49,6 +49,7 @@
 
   export default function ReportsPage() {
     const [report, setReport] = useState(null);
+    const [amenityView, setAmenityView] = useState('optional'); // 'optional' | 'rental'
     const [dateRange, setDateRange] = useState({ start: "", end: "" });
     const [filters, setFilters] = useState({ userType: "All", status: "All" });
     const [currentPage, setCurrentPage] = useState(1);
@@ -1110,8 +1111,67 @@
             </div>
           )}
 
-          {/* Amenities Usage */}
-          {report?.amenityReport && (
+          {/* Rooms Availed by Month */}
+          {report?.monthlyRoomTypeReport && report?.roomTypes?.length > 0 && (
+            (() => {
+              const latest = report.monthlyRoomTypeReport[report.monthlyRoomTypeReport.length - 1];
+              const typeOrder = ['TEPEE','LOFT','VILLA'];
+              const presentTypes = typeOrder.filter(t => (report.roomTypes || []).includes(t));
+              const displayName = (t) => ({ TEPEE: 'Tepee', LOFT: 'Loft', VILLA: 'Villa' }[t] || t);
+              const barData = presentTypes.map(t => ({ type: displayName(t), count: latest?.[t] || 0 }));
+              const total = barData.reduce((s, d) => s + d.count, 0);
+              return (
+                <div style={{
+                  background: 'rgba(255,255,255,0.95)',
+                  borderRadius: '16px',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+                  backdropFilter: 'blur(10px)',
+                  padding: '2rem',
+                  marginBottom: '2rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
+                    <BarChart3 size={24} style={{ color: '#f59e0b' }} />
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#1f2937', margin: 0 }}>
+                      Rooms Availed by Month
+                    </h2>
+                  </div>
+                  <div style={{ color: '#6b7280', marginBottom: '1rem' }}>for {latest?.month || ''}</div>
+                  <ResponsiveContainer width="100%" height={420}>
+                    <BarChart data={barData} margin={{ top: 20, right: 60, left: 40, bottom: 40 }}>
+                      <defs>
+                        <linearGradient id="gradRooms" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#EBB307" />
+                          <stop offset="100%" stopColor="#febe52" />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <XAxis dataKey="type" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} />
+                      <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} width={60} />
+                      <Tooltip content={({ active, payload, label }) => {
+                        if (!active || !payload || !payload.length) return null;
+                        const val = payload[0].value || 0;
+                        const pct = total ? Math.round((val / total) * 100) : 0;
+                        return (
+                          <div style={{ background: 'rgba(255,255,255,0.95)', padding: '12px 16px', borderRadius: 8, boxShadow: '0 8px 32px rgba(0,0,0,0.15)', border: '1px solid #e5e7eb' }}>
+                            <div style={{ fontWeight: 600, marginBottom: 6 }}>{label}</div>
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                              <div style={{ width: 10, height: 10, background: payload[0].color, borderRadius: 2 }} />
+                              <div style={{ fontWeight: 600 }}>{val}</div>
+                              <div style={{ color: '#6b7280' }}>({pct}%)</div>
+                            </div>
+                          </div>
+                        );
+                      }} />
+                      <Bar dataKey="count" fill="url(#gradRooms)" radius={[4,4,0,0]} maxBarSize={80} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              );
+            })()
+          )}
+
+          {/* Amenities Usage with Toggle (Optional / Rental) */}
+          {(report?.optionalAmenityReport || report?.rentalAmenityReport) && (
             <div style={{
               background: 'rgba(255,255,255,0.95)',
               borderRadius: '16px',
@@ -1123,22 +1183,33 @@
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
+                justifyContent: 'space-between',
                 gap: '0.75rem',
                 marginBottom: '1.5rem'
               }}>
-                <Users size={24} style={{ color: '#8b5cf6' }} />
-                <h2 style={{
-                  fontSize: '1.5rem',
-                  fontWeight: '700',
-                  color: '#1f2937',
-                  margin: 0
-                }}>
-                  Amenities Usage
-                </h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <Users size={24} style={{ color: '#8b5cf6' }} />
+                  <h2 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#1f2937', margin: 0 }}>
+                    Amenities Usage
+                  </h2>
+                </div>
+                {/* Toggle Buttons */}
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button onClick={() => setAmenityView('optional')} style={{
+                    padding: '0.5rem 1rem', borderRadius: 8, border: '1px solid #e5e7eb',
+                    background: amenityView === 'optional' ? '#febe52' : '#ffffff',
+                    color: amenityView === 'optional' ? '#ffffff' : '#374151', fontWeight: 600
+                  }}>Optional</button>
+                  <button onClick={() => setAmenityView('rental')} style={{
+                    padding: '0.5rem 1rem', borderRadius: 8, border: '1px solid #e5e7eb',
+                    background: amenityView === 'rental' ? '#febe52' : '#ffffff',
+                    color: amenityView === 'rental' ? '#ffffff' : '#374151', fontWeight: 600
+                  }}>Rental</button>
+                </div>
               </div>
               
               <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={report.amenityReport} margin={{ top: 20, right: 40, left: 40, bottom: 60 }}>
+                <BarChart data={(amenityView === 'optional' ? report.optionalAmenityReport : report.rentalAmenityReport) || []} margin={{ top: 20, right: 40, left: 40, bottom: 60 }}>
                   <defs>
                     <linearGradient id="gradAmenity" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#EBB307" />
@@ -1165,6 +1236,7 @@
                   <Tooltip 
                     content={({ active, payload, label }) => {
                       if (active && payload && payload.length) {
+                        const total = payload.reduce((s, p) => s + (p.value || 0), 0);
                         return (
                           <div style={{
                             background: 'rgba(255,255,255,0.95)',
@@ -1198,7 +1270,7 @@
                                 color: '#1f2937',
                                 fontWeight: '500'
                               }}>
-                                Usage: {payload[0].value} times
+                                Usage: {payload[0].value} ({payload[0].value ? Math.round((payload[0].value / (payload[0].value)) * 100) : 0}%)
                               </span>
                             </div>
                           </div>

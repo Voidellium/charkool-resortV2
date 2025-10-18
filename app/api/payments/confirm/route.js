@@ -25,7 +25,7 @@ export async function POST(req) {
     // Update payment status to paid
     const updatedPayment = await prisma.payment.update({
       where: { id: payment.id },
-      data: { status: 'paid' },
+      data: { status: 'Paid' },
     });
 
     // Update booking status to CONFIRMED and clear heldUntil

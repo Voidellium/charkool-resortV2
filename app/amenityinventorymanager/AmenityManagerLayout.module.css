@@ -1,0 +1,70 @@
+/* Amenity Manager Layout - styled after SuperAdminLayout with tweaks */
+
+.container {
+  display: flex;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f5f7fa 0%, #FFE6B3 100%);
+}
+
+.toggleButton {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1100;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgba(0,0,0,0.8);
+  border: 1px solid rgba(255,255,255,0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all .3s ease;
+}
+.toggleButton:hover { background: #FEBE52; box-shadow: 0 10px 32px #FDE68A; }
+
+.sidebar {
+  background: linear-gradient(145deg, #febe52, #f4a842);
+  color: #111827;
+  position: fixed; top: 0; left: 0;
+  height: 100vh; z-index: 1000;
+  overflow-y: auto; backdrop-filter: blur(8px);
+  box-shadow: 4px 0 20px rgba(0,0,0,0.1);
+  transition: all .3s ease;
+}
+.sidebarExpanded { width: 280px; padding: 2rem; }
+.sidebarCollapsed { width: 80px; padding: 1rem .5rem; }
+
+.brand { margin: 8px 0 24px; font-size: 1.6rem; font-weight: 800; text-align: center; color: #000; }
+
+.navList { list-style: none; padding: 0; margin: 0; }
+.navItem { margin-bottom: 10px; }
+.navLink { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; color: #333; text-decoration: none; background: transparent; transition: all .25s ease; border: 2px solid transparent; }
+.navLink:hover { background: linear-gradient(135deg, #febe52 0%, #FDE68A 100%); color: #fff; transform: translateX(6px); box-shadow: 0 6px 20px #FDE68A; }
+.navActive { background: rgba(0,0,0,0.15); color: #fff; }
+
+.navIconOnly { width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; border-radius: 12px; cursor: pointer; transition: all .25s ease; }
+.navIconOnly:hover { transform: translateY(-4px) scale(1.05); background: linear-gradient(135deg, #febe52 0%, #FDE68A 100%); box-shadow: 0 8px 25px #FDE68A; }
+
+.main { transition: all .3s ease; }
+.mainExpanded { margin-left: 280px; width: calc(100% - 280px); }
+.mainCollapsed { margin-left: 80px; width: calc(100% - 80px); }
+.mainPad { padding: 24px; }
+.topBar { position: fixed; top: 0; left: 0; right: 0; height: 70px; display: flex; align-items: center; justify-content: flex-end; padding: 0 30px; background: rgba(255,255,255,0.95); border-bottom: 1px solid rgba(0,0,0,0.1); z-index: 900; }
+.content { margin-top: 70px; padding: 20px; }
+
+.profileButton { width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, #febe52 0%, #FDE68A 100%); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px #FDE68A; cursor: pointer; overflow: hidden; border: 3px solid rgba(255,255,255,0.3); transition: all .3s ease; }
+.profileButton:hover { transform: scale(1.1) rotate(5deg); box-shadow: 0 8px 25px #FDE68A; }
+.profileImage { width: 100%; height: 100%; object-fit: cover; }
+.profilePanel { position: absolute; top: 60px; right: 0; width: 260px; background: #fff; border-radius: 14px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); padding: 16px; border: 1px solid rgba(0,0,0,0.1); }
+.profileHeader { font-weight: 700; margin-bottom: 10px; color: #333; }
+.profileAction { padding: 10px 12px; border-radius: 10px; text-align: center; cursor: pointer; margin-bottom: 10px; transition: all .2s ease; }
+.profileActionPrimary { background: linear-gradient(135deg, #febe52 0%, #FDE68A 100%); color: #fff; }
+.profileActionDanger { background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%); color: #fff; }
+
+@media (max-width: 768px) {
+  .sidebar { transform: translateX(-100%); }
+  .sidebarVisible { transform: translateX(0); }
+  .mainExpanded, .mainCollapsed { margin-left: 0; width: 100%; }
+}

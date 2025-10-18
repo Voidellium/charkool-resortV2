@@ -4,7 +4,8 @@ import prisma from '@/lib/prisma';
 // GET: Get default amenities for a specific room type
 export async function GET(request, { params }) {
   try {
-    const roomType = params.id.toUpperCase(); // e.g., 'LOFT', 'VILLA'
+    const { id } = await params;
+    const roomType = id.toUpperCase(); // e.g., 'LOFT', 'VILLA'
 
     // Get default amenities for the given room type
     const defaultAmenities = await prisma.roomTypeDefaultAmenity.findMany({

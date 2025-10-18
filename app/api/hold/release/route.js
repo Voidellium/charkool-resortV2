@@ -5,13 +5,17 @@ export const POST = async (req) => {
   try {
     const now = new Date();
 
-    // Find all HELD bookings where heldUntil is in the past
+    // Find all Held and Pending bookings where heldUntil is in the past
     const expiredHolds = await prisma.booking.findMany({
       where: {
-        status: 'HELD',
+        status: {
+          in: ['Held', 'Pending']
+        },
         heldUntil: {
           lt: now,
         },
+        // Exclude bookings that already have a reservation or are fully paid
+        paymentStatus: { notIn: ['Reservation', 'Paid'] },
       },
     });
 
@@ -19,16 +23,19 @@ export const POST = async (req) => {
       return NextResponse.json({ message: 'No expired holds to release' });
     }
 
-    // Update expired holds to CANCELLED or delete them
+    // Update expired holds to Cancelled
     const updateResult = await prisma.booking.updateMany({
       where: {
-        status: 'HELD',
+        status: {
+          in: ['Held', 'Pending']
+        },
         heldUntil: {
           lt: now,
         },
+        paymentStatus: { notIn: ['Reservation', 'Paid'] },
       },
       data: {
-        status: 'CANCELLED',
+        status: 'Cancelled',
         heldUntil: null,
       },
     });

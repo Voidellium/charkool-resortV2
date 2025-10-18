@@ -1,140 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import BookingCalendar from '../../../components/BookingCalendar'; // Import calendar
+import BookingCalendar from '../../../components/BookingCalendar';
 import PromotionPopup from '../../../components/PromotionPopup';
-
-
-
-// Move the modal to a higher level in the DOM
-const PortalModal = ({ show, onClose, children }) => {
-  useEffect(() => {
-    if (show) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [show]);
-
-  if (!show) {
-    return null;
-  }
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <button className="close-btn" onClick={onClose}>&times;</button>
-        <div className="modal-scroll-content">
-          {children}
-        </div>
-      </div>
-      <style jsx>{`
-        .modal-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100vh;
-          background-color: rgba(0, 0, 0, 0.75);
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          z-index: 1000;
-          backdrop-filter: blur(5px);
-          padding: 20px;
-          box-sizing: border-box;
-        }
-        .modal-content {
-          background-color: #fff;
-          padding: 2rem;
-          border-radius: 12px;
-          position: relative;
-          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-          width: 800px;
-          max-width: 100%;
-          height: auto;
-          max-height: 90vh;
-          display: flex;
-          flex-direction: column;
-          transform: translateZ(0);
-          will-change: transform;
-          animation: modalEnter 0.3s ease-out;
-        }
-        .modal-scroll-content {
-          overflow-y: auto;
-          padding: 0 20px;
-          margin: 0 -20px;
-          flex: 1;
-          -webkit-overflow-scrolling: touch;
-        }
-        .modal-scroll-content::-webkit-scrollbar {
-          width: 8px;
-        }
-        .modal-scroll-content::-webkit-scrollbar-track {
-          background: #f1f1f1;
-          border-radius: 4px;
-        }
-        .modal-scroll-content::-webkit-scrollbar-thumb {
-          background: #888;
-          border-radius: 4px;
-        }
-        .close-btn {
-          position: absolute;
-          top: 15px;
-          right: 15px;
-          background: rgba(0, 0, 0, 0.1);
-          border: none;
-          font-size: 24px;
-          cursor: pointer;
-          color: #333;
-          z-index: 1;
-          padding: 0;
-          width: 36px;
-          height: 36px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 50%;
-          transition: all 0.2s;
-        }
-        .close-btn:hover {
-          background-color: rgba(0, 0, 0, 0.2);
-          transform: scale(1.1);
-        }
-        @keyframes modalEnter {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        @media (max-width: 768px) {
-          .modal-overlay {
-            padding: 0;
-          }
-          .modal-content {
-            width: 100%;
-            height: 100vh;
-            max-height: 100vh;
-            border-radius: 0;
-            padding: 1.5rem;
-          }
-          .close-btn {
-            top: 10px;
-            right: 10px;
-          }
-        }
-      `}</style>
-    </div>
-  );
-};
 
 // Modal Component
 const Modal = ({ show, onClose, children }) => {
@@ -144,15 +12,12 @@ const Modal = ({ show, onClose, children }) => {
     } else {
       document.body.style.overflow = 'unset';
     }
-
     return () => {
       document.body.style.overflow = 'unset';
     };
   }, [show]);
 
-  if (!show) {
-    return null;
-  }
+  if (!show) return null;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -174,91 +39,755 @@ const Modal = ({ show, onClose, children }) => {
           justify-content: center;
           align-items: center;
           z-index: 1000;
-          backdrop-filter: blur(5px);
-          padding: 20px;
-          box-sizing: border-box;
         }
         .modal-content {
-          background-color: #fff;
+          background: white;
+          border-radius: 8px;
           padding: 2rem;
-          border-radius: 12px;
-          position: relative;
-          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-          width: 800px;
-          max-width: 100%;
-          height: auto;
-          max-height: 90vh;
-          display: flex;
-          flex-direction: column;
-          transform: translateZ(0);
-          will-change: transform;
-          animation: modalEnter 0.3s ease-out;
-        }
-        .modal-scroll-content {
+          max-width: 600px;
+          width: 90%;
+          max-height: 80vh;
           overflow-y: auto;
-          padding: 0 20px;
-          margin: 0 -20px;
-          flex: 1;
-          -webkit-overflow-scrolling: touch;
-        }
-        .modal-scroll-content::-webkit-scrollbar {
-          width: 8px;
-        }
-        .modal-scroll-content::-webkit-scrollbar-track {
-          background: #f1f1f1;
-          border-radius: 4px;
-        }
-        .modal-scroll-content::-webkit-scrollbar-thumb {
-          background: #888;
-          border-radius: 4px;
+          position: relative;
         }
         .close-btn {
           position: absolute;
-          top: 15px;
-          right: 15px;
-          background: rgba(0, 0, 0, 0.1);
+          top: 1rem;
+          right: 1rem;
+          background: transparent;
           border: none;
-          font-size: 24px;
+          font-size: 2rem;
           cursor: pointer;
-          color: #333;
-          z-index: 1;
-          padding: 0;
-          width: 36px;
-          height: 36px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 50%;
-          transition: all 0.2s;
+          color: #666;
         }
         .close-btn:hover {
-          background-color: rgba(0, 0, 0, 0.2);
-          transform: scale(1.1);
+          color: #000;
         }
-        @keyframes modalEnter {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+        .modal-scroll-content {
+          margin-top: 1rem;
         }
+      `}</style>
+    </div>
+  );
+};
+
+// Portal Modal Component
+const PortalModal = ({ show, onClose, children }) => {
+  useEffect(() => {
+    if (show) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [show]);
+
+  if (!show) return null;
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <button className="close-btn" onClick={onClose}>&times;</button>
+        <div className="modal-scroll-content">
+          {children}
+        </div>
+      </div>
+      <style jsx>{`
+        .modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100vh;
+          background-color: rgba(0, 0, 0, 0.75);
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          z-index: 1000;
+        }
+        .modal-content {
+          background: white;
+          border-radius: 8px;
+          padding: 2rem;
+          max-width: 600px;
+          width: 90%;
+          max-height: 80vh;
+          overflow-y: auto;
+          position: relative;
+        }
+        .close-btn {
+          position: absolute;
+          top: 1rem;
+          right: 1rem;
+          background: transparent;
+          border: none;
+          font-size: 2rem;
+          cursor: pointer;
+          color: #666;
+        }
+        .close-btn:hover {
+          color: #000;
+        }
+        .modal-scroll-content {
+          margin-top: 1rem;
+        }
+        .modal-details-content p {
+          margin: 0.75rem 0;
+          font-size: 1rem;
+          color: #333;
+        }
+      `}</style>
+    </div>
+  );
+};
+
+// Reschedule Modal Content Component
+function RescheduleModalContent({ booking, guest }) {
+  const [reason, setReason] = useState("");
+  const [status, setStatus] = useState(null); // 'pending', 'success', 'error'
+  const [info, setInfo] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [selectedDates, setSelectedDates] = useState({ checkInDate: null, checkOutDate: null });
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedDates.checkInDate || !selectedDates.checkOutDate) {
+      setStatus('error');
+      setInfo('Please select both check-in and check-out dates.');
+      return;
+    }
+    if (!reason.trim()) {
+      setStatus('error');
+      setInfo('Please provide a reason for rescheduling.');
+      return;
+    }
+    setSubmitting(true);
+    setStatus('pending');
+    try {
+      const res = await fetch(`/api/bookings/${booking.id}/reschedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          checkIn: selectedDates.checkInDate,
+          checkOut: selectedDates.checkOutDate,
+          context: reason,
+          guestId: guest?.id
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setStatus('success');
+        setInfo('Reschedule request submitted successfully!');
+      } else {
+        let errorMsg = 'Failed to submit reschedule request.';
+        try {
+          const errorData = await res.json();
+          errorMsg = errorData.error || errorData.message || errorMsg;
+        } catch {}
+        setStatus('error');
+        setInfo(errorMsg);
+      }
+    } catch (err) {
+      console.error('Reschedule submission error:', err);
+      setStatus('error');
+      setInfo('An error occurred. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div>
+      <h2>Request Reschedule</h2>
+      <div style={{
+        background: 'linear-gradient(135deg, #febe52 0%, #ebd591 100%)',
+        borderRadius: '8px',
+        padding: '1rem',
+        marginBottom: '1rem',
+        color: '#6b4700',
+        fontWeight: 500
+      }}>
+        <span>Policy: Reschedule is allowed 2 weeks prior of the check-in date. No-shows are considered forfeited.</span>
+      </div>
+      <div style={{ marginBottom: '1.5rem' }}>
+        <BookingCalendar onDateChange={setSelectedDates} />
+      </div>
+      <p>Booking ID: {booking.id} ({booking.rooms && booking.rooms[0] ? booking.rooms[0].room.name : 'N/A'})</p>
+      <p>Original Dates: {new Date(booking.checkIn).toLocaleDateString()} to {new Date(booking.checkOut).toLocaleDateString()}</p>
+      <form onSubmit={handleSubmit} style={{ marginTop: 16 }}>
+        <label htmlFor="reschedule-reason" style={{ fontWeight: 500 }}>Reason for reschedule:</label>
+        <textarea
+          id="reschedule-reason"
+          value={reason}
+          onChange={e => setReason(e.target.value)}
+          rows={3}
+          style={{ width: '100%', marginTop: 8, marginBottom: 8, borderRadius: 4, border: '1px solid #ccc', padding: 8 }}
+          placeholder="Please explain why you need to reschedule..."
+          disabled={submitting || status === 'success'}
+        />
+        <button
+          type="submit"
+          className="submit-request-btn"
+          disabled={submitting || status === 'success'}
+          style={{ marginTop: 8 }}
+        >
+          {submitting ? "Submitting..." : status === 'success' ? "Submitted" : "Submit Request"}
+        </button>
+      </form>
+      {status === 'success' && (
+        <div style={{ color: 'green', marginTop: 12 }}>{info}</div>
+      )}
+      {status === 'error' && (
+        <div style={{ color: 'red', marginTop: 12 }}>{info}</div>
+      )}
+      <style jsx>{`
+        .submit-request-btn {
+          width: 100%;
+          padding: 0.8rem;
+          background-color: #28a745;
+          color: white;
+          border: none;
+          border-radius: 6px;
+          font-size: 1rem;
+          cursor: pointer;
+          font-weight: 600;
+          transition: background-color 0.3s ease;
+        }
+        .submit-request-btn:hover:not(:disabled) {
+          background-color: #218838;
+        }
+        .submit-request-btn:disabled {
+          background-color: #6c757d;
+          cursor: not-allowed;
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// Unified Details Modal Component
+const UnifiedDetailsModal = ({ booking, guest }) => {
+  const [fullBookingDetails, setFullBookingDetails] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    async function fetchFullDetails() {
+      try {
+        setLoading(true);
+        const res = await fetch(`/api/bookings/${booking.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setFullBookingDetails(data);
+        } else {
+          throw new Error('Failed to fetch detailed booking information');
+        }
+      } catch (err) {
+        console.error('Error fetching full booking details:', err);
+        setError(err.message);
+        setFullBookingDetails(booking); // Fallback to existing data
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchFullDetails();
+  }, [booking.id, booking]);
+
+  const handleDownloadReceipt = (receiptUrl) => {
+    if (receiptUrl) {
+      window.open(receiptUrl, '_blank');
+    } else {
+      alert('Receipt not available for this payment.');
+    }
+  };
+
+  const handlePrintDetails = () => {
+    window.print();
+  };
+
+  if (loading) {
+    return (
+      <div className="modal-loading">
+        <div className="loading-spinner"></div>
+        <p>Loading booking details...</p>
+        <style jsx>{`
+          .modal-loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem;
+            color: #8B4513;
+          }
+          .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #F4E4BC;
+            border-top: 3px solid #FEBE52;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 1rem;
+          }
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  const details = fullBookingDetails || booking;
+  const totalAmount = details.payments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
+  const room = details.rooms?.[0]?.room;
+
+  return (
+    <div className="unified-modal">
+      <div className="modal-header">
+        <h2>Booking & Payment Details</h2>
+        <div className="modal-actions">
+          <button className="action-btn secondary" onClick={handlePrintDetails}>
+            🖨️ Print
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="error-notice">
+          <span>⚠️ {error}</span>
+        </div>
+      )}
+
+      <div className="details-container">
+        {/* Booking Information */}
+        <div className="details-section">
+          <h3>🏨 Accommodation Details</h3>
+          <div className="details-grid">
+            <div className="detail-item">
+              <span className="label">Room</span>
+              <span className="value">{room ? `${room.name} - ${room.type}` : 'N/A'}</span>
+            </div>
+            <div className="detail-item">
+              <span className="label">Check-in</span>
+              <span className="value">
+                {new Date(details.checkIn).toLocaleDateString('en-US', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })} at 2:00 PM
+              </span>
+            </div>
+            <div className="detail-item">
+              <span className="label">Check-out</span>
+              <span className="value">
+                {new Date(details.checkOut).toLocaleDateString('en-US', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })} at 12:00 PM
+              </span>
+            </div>
+            <div className="detail-item">
+              <span className="label">Number of Guests</span>
+              <span className="value">{details.guests} {details.guests === 1 ? 'guest' : 'guests'}</span>
+            </div>
+            <div className="detail-item">
+              <span className="label">Booking Status</span>
+              <span className={`value status-${details.status.toLowerCase()}`}>{details.status}</span>
+            </div>
+            <div className="detail-item">
+              <span className="label">Booking Date</span>
+              <span className="value">
+                {new Date(details.createdAt).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })} at {new Date(details.createdAt).toLocaleTimeString('en-US', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: true
+                })}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Guest Information */}
+        <div className="details-section">
+          <h3>👤 Guest Information</h3>
+          <div className="details-grid">
+            <div className="detail-item">
+              <span className="label">Name</span>
+              <span className="value">{guest ? `${guest.firstName} ${guest.lastName}` : 'N/A'}</span>
+            </div>
+            <div className="detail-item">
+              <span className="label">Email</span>
+              <span className="value">{guest?.email || 'N/A'}</span>
+            </div>
+            <div className="detail-item">
+              <span className="label">Contact Number</span>
+              <span className="value">{guest?.contactNumber || 'N/A'}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Payment Information */}
+        <div className="details-section">
+          <h3>💳 Payment Details</h3>
+          <div className="payment-summary">
+            <div className="summary-row">
+              <span className="label">Total Amount</span>
+              <span className="value amount">₱{(totalAmount / 100).toFixed(2)}</span>
+            </div>
+            <div className="summary-row">
+              <span className="label">Payment Status</span>
+              <span className={`value status-${details.paymentStatus.toLowerCase()}`}>{details.paymentStatus}</span>
+            </div>
+          </div>
+
+          {details.payments && details.payments.length > 0 && (
+            <div className="payments-list">
+              <h4>Payment Transactions</h4>
+              {details.payments.map((payment, index) => (
+                <div key={payment.id || index} className="payment-item">
+                  <div className="payment-info">
+                    <div className="payment-row">
+                      <span className="label">Amount</span>
+                      <span className="value">₱{(Number(payment.amount) / 100).toFixed(2)}</span>
+                    </div>
+                    <div className="payment-row">
+                      <span className="label">Method</span>
+                      <span className="value">{payment.method || 'N/A'}</span>
+                    </div>
+                    <div className="payment-row">
+                      <span className="label">Status</span>
+                      <span className={`value status-${payment.status?.toLowerCase() || 'unknown'}`}>
+                        {payment.status || 'Unknown'}
+                      </span>
+                    </div>
+                    <div className="payment-row">
+                      <span className="label">Date</span>
+                      <span className="value">
+                        {new Date(payment.createdAt || payment.updatedAt).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: true
+                        })}
+                      </span>
+                    </div>
+                    {payment.referenceId && (
+                      <div className="payment-row">
+                        <span className="label">Reference ID</span>
+                        <span className="value reference-id">{payment.referenceId}</span>
+                      </div>
+                    )}
+                  </div>
+                  {payment.receiptUrl && (
+                    <button 
+                      className="receipt-btn"
+                      onClick={() => handleDownloadReceipt(payment.receiptUrl)}
+                    >
+                      📄 Download Receipt
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Additional Services */}
+        {(details.optionalAmenities?.length > 0 || details.rentalAmenities?.length > 0 || details.cottage?.length > 0) && (
+          <div className="details-section">
+            <h3>🛎️ Additional Services</h3>
+            {details.optionalAmenities?.map((amenity, index) => (
+              <div key={index} className="service-item">
+                <span>{amenity.optionalAmenity?.name || 'Optional Amenity'}</span>
+                <span>Qty: {amenity.quantity}</span>
+              </div>
+            ))}
+            {details.rentalAmenities?.map((amenity, index) => (
+              <div key={index} className="service-item">
+                <span>{amenity.rentalAmenity?.name || 'Rental Amenity'}</span>
+                <span>₱{(amenity.totalPrice / 100).toFixed(2)}</span>
+              </div>
+            ))}
+            {details.cottage?.map((cottage, index) => (
+              <div key={index} className="service-item">
+                <span>{cottage.cottage?.name || 'Cottage'}</span>
+                <span>₱{(cottage.totalPrice / 100).toFixed(2)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Reschedule Policy */}
+        <div className="details-section">
+          <h3>📋 Reschedule Policy</h3>
+          <div className="policy-note">
+            <p>
+              <strong>Reschedule Policy:</strong> Bookings can only be rescheduled up to 2 weeks before the check-in date.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <style jsx>{`
+        .unified-modal {
+          max-width: 700px;
+          margin: 0 auto;
+        }
+        
+        .modal-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 2rem;
+          padding-bottom: 1rem;
+          border-bottom: 2px solid #F4E4BC;
+        }
+        
+        .modal-header h2 {
+          color: #8B4513;
+          margin: 0;
+          font-size: 1.8rem;
+          font-weight: 700;
+        }
+        
+        .modal-actions {
+          display: flex;
+          gap: 0.5rem;
+        }
+        
+        .error-notice {
+          background: linear-gradient(135deg, #ffebee, #ffcdd2);
+          border: 1px solid #e57373;
+          border-radius: 8px;
+          padding: 1rem;
+          margin-bottom: 1.5rem;
+          color: #c62828;
+          font-weight: 500;
+        }
+        
+        .details-container {
+          display: flex;
+          flex-direction: column;
+          gap: 2rem;
+        }
+        
+        .details-section {
+          background: linear-gradient(135deg, #FFF8DC 0%, #F5F5DC 100%);
+          border: 1px solid #E5D5A3;
+          border-radius: 12px;
+          padding: 1.5rem;
+        }
+        
+        .details-section h3 {
+          color: #8B4513;
+          margin: 0 0 1.25rem 0;
+          font-size: 1.3rem;
+          font-weight: 600;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+        
+        .details-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+          gap: 1rem;
+        }
+        
+        .detail-item {
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+        
+        .detail-item .label {
+          font-size: 0.85rem;
+          color: #A0826D;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        
+        .detail-item .value {
+          font-size: 1rem;
+          color: #654321;
+          font-weight: 500;
+        }
+        
+        .value.status-confirmed { color: #28a745; font-weight: 600; }
+        .value.status-pending { color: #ffc107; font-weight: 600; }
+        .value.status-cancelled { color: #dc3545; font-weight: 600; }
+        .value.status-paid { color: #28a745; font-weight: 600; }
+        .value.status-failed { color: #dc3545; font-weight: 600; }
+        .value.status-refunded { color: #17a2b8; font-weight: 600; }
+        
+        .payment-summary {
+          background: linear-gradient(135deg, #FEBE52, #F4E4BC);
+          border-radius: 8px;
+          padding: 1rem;
+          margin-bottom: 1.5rem;
+        }
+        
+        .summary-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 0.5rem;
+        }
+        
+        .summary-row:last-child {
+          margin-bottom: 0;
+        }
+        
+        .summary-row .value.amount {
+          font-size: 1.4rem;
+          font-weight: 700;
+          color: #654321;
+        }
+        
+        .payments-list h4 {
+          color: #8B4513;
+          margin: 0 0 1rem 0;
+          font-size: 1.1rem;
+        }
+        
+        .payment-item {
+          background: white;
+          border: 1px solid #E5D5A3;
+          border-radius: 8px;
+          padding: 1rem;
+          margin-bottom: 1rem;
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          flex-wrap: wrap;
+          gap: 1rem;
+        }
+        
+        .payment-info {
+          flex: 1;
+          min-width: 250px;
+        }
+        
+        .payment-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 0.5rem;
+          font-size: 0.9rem;
+        }
+        
+        .payment-row:last-child {
+          margin-bottom: 0;
+        }
+        
+        .reference-id {
+          font-family: monospace;
+          background: #f8f9fa;
+          padding: 0.2rem 0.4rem;
+          border-radius: 4px;
+          font-size: 0.85rem;
+        }
+        
+        .receipt-btn {
+          background: linear-gradient(135deg, #28a745, #20c997);
+          color: white;
+          border: none;
+          border-radius: 6px;
+          padding: 0.6rem 1rem;
+          font-size: 0.9rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          white-space: nowrap;
+        }
+        
+        .receipt-btn:hover {
+          background: linear-gradient(135deg, #218838, #1e7e34);
+          transform: translateY(-1px);
+        }
+        
+        .action-btn {
+          padding: 0.6rem 1rem;
+          border: none;
+          border-radius: 6px;
+          font-size: 0.9rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.3s ease;
+        }
+        
+        .action-btn.secondary {
+          background: linear-gradient(135deg, #F4E4BC, #E5D5A3);
+          color: #8B4513;
+          border: 1px solid #E5D5A3;
+        }
+        
+        .action-btn.secondary:hover {
+          background: linear-gradient(135deg, #E5D5A3, #D4AF37);
+        }
+        
+        .service-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 0.5rem 0;
+          border-bottom: 1px solid #E5D5A3;
+          font-size: 0.9rem;
+        }
+        
+        .service-item:last-child {
+          border-bottom: none;
+        }
+
+        .policy-note {
+          background: linear-gradient(135deg, #e3f2fd, #f1f8e9);
+          border: 1px solid #81c784;
+          border-radius: 8px;
+          padding: 1rem;
+          margin-top: 0.5rem;
+        }
+
+        .policy-note p {
+          margin: 0;
+          color: #2e7d32;
+          font-size: 0.9rem;
+          line-height: 1.4;
+        }
+
+        .policy-note strong {
+          color: #1b5e20;
+        }
+        
         @media (max-width: 768px) {
-          .modal-overlay {
-            padding: 0;
+          .modal-header {
+            flex-direction: column;
+            gap: 1rem;
+            align-items: flex-start;
           }
-          .modal-content {
+          
+          .details-grid {
+            grid-template-columns: 1fr;
+          }
+          
+          .payment-item {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          
+          .receipt-btn {
             width: 100%;
-            height: 100vh;
-            max-height: 100vh;
-            border-radius: 0;
-            padding: 1.5rem;
-          }
-          .close-btn {
-            top: 10px;
-            right: 10px;
           }
         }
       `}</style>
@@ -266,62 +795,33 @@ const Modal = ({ show, onClose, children }) => {
   );
 };
 
-// Booking History Section
-const BookingHistoryCard = ({ booking, guest }) => {
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
-  const [availabilityData, setAvailabilityData] = useState({});
-  const [newDates, setNewDates] = useState({ checkIn: null, checkOut: null });
+// Combined History Card Component
+const BookingHistoryCard = ({ booking, guest, onViewDetails, onReschedule }) => {
+  const [rescheduleStatus, setRescheduleStatus] = useState(null);
+  const [adminContext, setAdminContext] = useState('');
+  const [showDeniedModal, setShowDeniedModal] = useState(false);
 
-  const handleOpenDetailsModal = () => setShowDetailsModal(true);
-  const handleCloseDetailsModal = () => setShowDetailsModal(false);
-
-  const handleOpenRescheduleModal = async () => {
-    // Fetch availability for the calendar
-    try {
-      const res = await fetch('/api/availability');
-      if (res.ok) {
-        const data = await res.json();
-        setAvailabilityData(data.availability || {});
+  useEffect(() => {
+    // Fetch latest reschedule request for this booking
+    async function fetchRescheduleStatus() {
+      try {
+        const res = await fetch(`/api/reschedule-request?bookingId=${booking.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setRescheduleStatus(data.status);
+          setAdminContext(data.adminContext || '');
+        } else {
+          setRescheduleStatus(null);
+          setAdminContext('');
+        }
+      } catch {
+        setRescheduleStatus(null);
+        setAdminContext('');
       }
-    } catch (err) {
-      console.error('Failed to load availability for rescheduling:', err);
     }
-    setShowRescheduleModal(true);
-  };
+    fetchRescheduleStatus();
+  }, [booking.id]);
 
-  const handleCloseRescheduleModal = () => setShowRescheduleModal(false);
-
-  const handleDateChange = ({ checkInDate, checkOutDate }) => {
-    setNewDates({ checkIn: checkInDate, checkOut: checkOutDate });
-  };
-
-  const handleRescheduleSubmit = async () => {
-    if (!newDates.checkIn || !newDates.checkOut) {
-      alert('Please select new check-in and check-out dates.');
-      return;
-    }
-
-    try {
-      const res = await fetch(`/api/bookings/${booking.id}/reschedule`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ checkIn: newDates.checkIn, checkOut: newDates.checkOut }),
-      });
-
-      if (res.ok) {
-        alert('Your reschedule request has been submitted successfully!');
-      } else {
-        throw new Error('Failed to submit request.');
-      }
-    } catch (err) {
-      console.error('Reschedule submission error:', err);
-      alert('An error occurred. Please try again.');
-    }
-    handleCloseRescheduleModal();
-  };
-
-  // Safely get the guest's full name with a more robust approach
   const guestFirstName = guest?.firstName || '';
   const guestLastName = guest?.lastName || '';
   const guestName = (guestFirstName || guestLastName) ? `${guestFirstName} ${guestLastName}`.trim() : 'N/A';
@@ -330,8 +830,24 @@ const BookingHistoryCard = ({ booking, guest }) => {
     const now = new Date();
     const checkInDate = new Date(booking.checkIn);
     const checkOutDate = new Date(booking.checkOut);
+    // Only allow if booking is confirmed, no request or last was denied, and not cancelled, and 2 weeks (14 days) before check-in
+    return (
+      booking.status === 'Confirmed' &&
+      booking.status !== 'Cancelled' &&
+      now <= checkOutDate &&
+      (checkInDate - now) / (1000 * 60 * 60 * 24) >= 14 &&
+      (!rescheduleStatus || rescheduleStatus === 'DENIED')
+    );
+  };
 
-    return booking.status !== 'Cancelled' && now <= checkOutDate;
+  const isWithinTwoWeeks = () => {
+    const now = new Date();
+    const checkInDate = new Date(booking.checkIn);
+    return (checkInDate - now) / (1000 * 60 * 60 * 24) < 14;
+  };
+
+  const shouldShowRescheduleButton = () => {
+    return booking.status === 'Confirmed' && booking.status !== 'Cancelled';
   };
 
   return (
@@ -363,61 +879,71 @@ const BookingHistoryCard = ({ booking, guest }) => {
           hour12: true
         })}</p>
         <p><strong>Guests:</strong> {booking.guests}</p>
-        <p><strong>Payment Status:</strong> {booking.paymentStatus}</p>
+        {/* Hide payment status when booking is cancelled */}
+        {String(booking.status).toLowerCase() !== 'cancelled' && (
+          <p><strong>Payment Status:</strong> {booking.paymentStatus}</p>
+        )}
         <p><strong>Total Paid:</strong> ₱{(booking.payments?.reduce((sum, p) => sum + Number(p.amount), 0) / 100).toFixed(0)}</p>
       </div>
       <div className="card-actions">
-        <button className="view-details-btn" onClick={handleOpenDetailsModal}>
+        <button className="view-details-btn" onClick={() => onViewDetails(booking)}>
           View Details
         </button>
-        {isRescheduleAllowed() && (
-          <button className="reschedule-btn" onClick={handleOpenRescheduleModal}>Reschedule</button>
+        {/* Reschedule button/status logic */}
+        {rescheduleStatus === 'PENDING' && (
+          <button className="reschedule-btn" disabled style={{ backgroundColor: '#e0e0e0', color: '#888', cursor: 'not-allowed' }}>
+            Waiting for approval
+          </button>
+        )}
+        {rescheduleStatus === 'APPROVED' && (
+          <span className="reschedule-success">Request Approved</span>
+        )}
+        {rescheduleStatus === 'DENIED' && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+            <span className="reschedule-denied">Request Denied</span>
+            <button className="view-details-btn" style={{ marginTop: 6, background: '#eee', color: '#92400E' }} onClick={() => setShowDeniedModal(true)}>
+              View Details
+            </button>
+          </div>
+        )}
+        {shouldShowRescheduleButton() && (!rescheduleStatus || rescheduleStatus === 'DENIED') && (
+          isRescheduleAllowed() ? (
+            <button className="reschedule-btn" onClick={() => onReschedule(booking)}>
+              Reschedule
+            </button>
+          ) : isWithinTwoWeeks() ? (
+            <button 
+              className="reschedule-btn" 
+              disabled 
+              style={{ 
+                backgroundColor: '#e0e0e0', 
+                color: '#888', 
+                cursor: 'not-allowed',
+                position: 'relative'
+              }}
+              title="Reschedule not available - must be done at least 2 weeks before check-in date"
+            >
+              Reschedule
+            </button>
+          ) : null
         )}
       </div>
 
-      <PortalModal show={showDetailsModal} onClose={handleCloseDetailsModal}>
-        <h2>Booking Details</h2>
-        <div className="modal-details-content">
-          <p><strong>Room:</strong> {booking.rooms && booking.rooms[0] ? `${booking.rooms[0].room.name} - ${booking.rooms[0].room.type}` : 'N/A'}</p>
-          <p><strong>Check-in:</strong> {new Date(booking.checkIn).toLocaleDateString('en-US', {
-            month: 'long',
-            day: 'numeric',
-            year: 'numeric'
-          })} at 2:00 PM</p>
-          <p><strong>Check-out:</strong> {new Date(booking.checkOut).toLocaleDateString('en-US', {
-            month: 'long',
-            day: 'numeric',
-            year: 'numeric'
-          })} at 12:00 PM</p>
-          <p><strong>Booked on:</strong> {new Date(booking.createdAt).toLocaleDateString('en-US', {
-            month: 'long',
-            day: 'numeric',
-            year: 'numeric'
-          })} at {new Date(booking.createdAt).toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true
-          })}</p>
-          <p><strong>Guest Name:</strong> {guestName}</p>
-          <p><strong>Number of Guests:</strong> {booking.guests}</p>
-          <p><strong>Booking Status:</strong> {booking.status}</p>
-        </div>
-      </PortalModal>
-
-      <PortalModal show={showRescheduleModal} onClose={handleCloseRescheduleModal}>
-        <h2>Request Reschedule</h2>
-        <p>Booking ID: {booking.id} ({booking.rooms && booking.rooms[0] ? booking.rooms[0].room.name : 'N/A'})</p>
-        <p>Original Dates: {booking.checkIn} to {booking.checkOut}</p>
-        <div className="calendar-wrapper">
-          <BookingCalendar availabilityData={availabilityData} onDateChange={handleDateChange} />
-        </div>
-        <button 
-          className="submit-request-btn" 
-          onClick={handleRescheduleSubmit}
-          disabled={!newDates.checkIn || !newDates.checkOut}>
-          Submit Request
-        </button>
-      </PortalModal>
+      {/* Denial Details Modal */}
+      {showDeniedModal && (
+        <Modal show={showDeniedModal} onClose={() => setShowDeniedModal(false)}>
+          <h2 style={{ color: '#d32f2f', marginBottom: 12 }}>Reschedule Request Denied</h2>
+          <div style={{ marginBottom: 18 }}>
+            <b>Reason from Superadmin:</b>
+            <div style={{ marginTop: 8, color: '#92400E', background: '#fffbe6', borderRadius: 6, padding: 12, fontSize: 15 }}>
+              {adminContext || 'No reason provided.'}
+            </div>
+          </div>
+          <button className="view-details-btn" style={{ background: '#FEBE54', color: '#fff' }} onClick={() => setShowDeniedModal(false)}>
+            Close
+          </button>
+        </Modal>
+      )}
 
       <style jsx>{`
         .booking-history-card {
@@ -457,8 +983,9 @@ const BookingHistoryCard = ({ booking, guest }) => {
         }
         .card-actions {
           display: flex;
-          gap: 10px;
+          gap: 1rem;
           margin-top: 1rem;
+          align-items: center;
         }
         .view-details-btn {
           background-color: #FEBE54;
@@ -470,6 +997,9 @@ const BookingHistoryCard = ({ booking, guest }) => {
           font-size: 0.9rem;
           font-weight: 600;
           transition: background-color 0.3s ease;
+        }
+        .view-details-btn:hover {
+          background-color: #DBA90F;
         }
         .reschedule-btn {
           background-color: #DBDB0F;
@@ -485,173 +1015,445 @@ const BookingHistoryCard = ({ booking, guest }) => {
         .reschedule-btn:hover {
           background-color: #DBC20F;
         }
-        .submit-request-btn {
-          margin-top: 1rem;
-          width: 100%;
-          padding: 0.8rem;
-          background-color: #28a745;
-          color: white;
-          border: none;
-          border-radius: 6px;
-          font-size: 1rem;
-          cursor: pointer;
+        .reschedule-success {
+          color: #28a745;
+          font-weight: 600;
+          font-size: 0.9rem;
         }
-        .view-details-btn:hover {
-          background-color: #DBA90F;
+        .reschedule-denied {
+          color: #dc3545;
+          font-weight: 600;
+          font-size: 0.9rem;
         }
       `}</style>
     </div>
   );
 };
 
-// Payment History Section
-const PaymentHistoryCard = ({ booking }) => {
-  const [showModal, setShowModal] = useState(false);
+// Combined History Card Component
+const HistoryCard = ({ booking, guest, onViewDetails, onReschedule }) => {
+  const [rescheduleStatus, setRescheduleStatus] = useState(null);
+  const [adminContext, setAdminContext] = useState('');
+  const [showDeniedModal, setShowDeniedModal] = useState(false);
 
-  const handleOpenModal = () => setShowModal(true);
-  const handleCloseModal = () => setShowModal(false);
+  useEffect(() => {
+    // Fetch latest reschedule request for this booking
+    async function fetchRescheduleStatus() {
+      try {
+        const res = await fetch(`/api/reschedule-request?bookingId=${booking.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setRescheduleStatus(data.status);
+          setAdminContext(data.adminContext || '');
+        } else {
+          setRescheduleStatus(null);
+          setAdminContext('');
+        }
+      } catch {
+        setRescheduleStatus(null);
+        setAdminContext('');
+      }
+    }
+    fetchRescheduleStatus();
+  }, [booking.id]);
+
+  const isRescheduleAllowed = () => {
+    const now = new Date();
+    const checkInDate = new Date(booking.checkIn);
+    const checkOutDate = new Date(booking.checkOut);
+    // Only allow if booking is confirmed, no request or last was denied, and not cancelled, and 2 weeks (14 days) before check-in
+    return (
+      booking.status === 'Confirmed' &&
+      booking.status !== 'Cancelled' &&
+      now <= checkOutDate &&
+      (checkInDate - now) / (1000 * 60 * 60 * 24) >= 14 &&
+      (!rescheduleStatus || rescheduleStatus === 'DENIED')
+    );
+  };
+
+  const isWithinTwoWeeks = () => {
+    const now = new Date();
+    const checkInDate = new Date(booking.checkIn);
+    return (checkInDate - now) / (1000 * 60 * 60 * 24) < 14;
+  };
+
+  const shouldShowRescheduleButton = () => {
+    return booking.status === 'Confirmed' && booking.status !== 'Cancelled';
+  };
+
+  const getStatusColor = (status) => {
+    switch (status.toLowerCase()) {
+      case 'confirmed': return '#28a745';
+      case 'pending': return '#ffc107';
+      case 'cancelled': return '#dc3545';
+      default: return '#6c757d';
+    }
+  };
+
+  const getPaymentStatusColor = (status) => {
+    switch (status.toLowerCase()) {
+      case 'paid': return '#28a745';
+      case 'pending': return '#ffc107';
+      case 'failed': return '#dc3545';
+      case 'refunded': return '#17a2b8';
+      default: return '#6c757d';
+    }
+  };
 
   return (
-    <div className="payment-history-card">
+    <div className="history-card">
       <div className="card-header">
-        <h3>Payment for {booking.rooms && booking.rooms[0] ? booking.rooms[0].room.name : 'N/A'}</h3>
-        <span className="status-badge">
-          {booking.paymentStatus.charAt(0).toUpperCase() + booking.paymentStatus.slice(1)}
-        </span>
+        <div className="room-info">
+          <h3>{booking.rooms && booking.rooms[0] ? booking.rooms[0].room.name : 'N/A'}</h3>
+          <span className="room-type">{booking.rooms && booking.rooms[0] ? booking.rooms[0].room.type : ''}</span>
+        </div>
+        <div className="status-badges">
+          <span className="status-badge booking-status" style={{ backgroundColor: getStatusColor(booking.status) }}>
+            {booking.status}
+          </span>
+          {String(booking.status).toLowerCase() !== 'cancelled' && (
+            <span className="status-badge payment-status" style={{ backgroundColor: getPaymentStatusColor(booking.paymentStatus) }}>
+              {booking.paymentStatus}
+            </span>
+          )}
+        </div>
       </div>
-      <div className="card-details">
-        <p><strong>Amount:</strong> ₱{Number(booking.totalPrice) / 100}</p>
-        <p><strong>Method:</strong> {booking.payments && booking.payments[0] ? booking.payments[0].method : 'N/A'}</p>
-        <p><strong>Date:</strong> {new Date(booking.createdAt).toLocaleDateString('en-US', {
-          month: 'long',
-          day: 'numeric',
-          year: 'numeric'
-        })} at {new Date(booking.createdAt).toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true
-        })}</p>
+      
+      <div className="card-content">
+        <div className="date-info">
+          <div className="date-group">
+            <span className="date-label">Check-in</span>
+            <span className="date-value">{new Date(booking.checkIn).toLocaleDateString('en-US', { 
+              month: 'short', 
+              day: 'numeric', 
+              year: 'numeric'
+            })}</span>
+          </div>
+          <div className="date-separator">→</div>
+          <div className="date-group">
+            <span className="date-label">Check-out</span>
+            <span className="date-value">{new Date(booking.checkOut).toLocaleDateString('en-US', { 
+              month: 'short', 
+              day: 'numeric', 
+              year: 'numeric'
+            })}</span>
+          </div>
+        </div>
+        
+        <div className="booking-meta">
+          <div className="meta-item">
+            <span className="meta-label">Guests</span>
+            <span className="meta-value">{booking.guests}</span>
+          </div>
+          <div className="meta-item">
+            <span className="meta-label">Total Paid</span>
+            <span className="meta-value">₱{(booking.payments?.reduce((sum, p) => sum + Number(p.amount), 0) / 100).toFixed(0)}</span>
+          </div>
+          <div className="meta-item">
+            <span className="meta-label">Booked</span>
+            <span className="meta-value">{new Date(booking.createdAt).toLocaleDateString('en-US', { 
+              month: 'short', 
+              day: 'numeric'
+            })}</span>
+          </div>
+        </div>
       </div>
+      
       <div className="card-actions">
-        <button className="view-details-btn" onClick={() => handleOpenModal(booking)}>
-          View Details
+        <button className="action-btn primary" onClick={() => onViewDetails(booking)}>
+          View Full Details
         </button>
+        
+        {/* Reschedule Logic */}
+        {rescheduleStatus === 'PENDING' && (
+          <button className="action-btn disabled" disabled>
+            Approval Pending
+          </button>
+        )}
+        {rescheduleStatus === 'APPROVED' && (
+          <span className="reschedule-success">✓ Approved</span>
+        )}
+        {rescheduleStatus === 'DENIED' && (
+          <div className="reschedule-denied-container">
+            <span className="reschedule-denied">✗ Denied</span>
+            <button className="action-btn secondary" onClick={() => setShowDeniedModal(true)}>
+              View Reason
+            </button>
+          </div>
+        )}
+        {shouldShowRescheduleButton() && (!rescheduleStatus || rescheduleStatus === 'DENIED') && (
+          isRescheduleAllowed() ? (
+            <button className="action-btn secondary" onClick={() => onReschedule(booking)}>
+              Reschedule
+            </button>
+          ) : isWithinTwoWeeks() ? (
+            <button 
+              className="action-btn disabled" 
+              disabled 
+              title="Reschedule not available - must be done at least 2 weeks before check-in date"
+            >
+              Reschedule
+            </button>
+          ) : null
+        )}
       </div>
 
-      <Modal show={showModal} onClose={handleCloseModal}>
-        <h2>Payment Details</h2>
-        <div className="modal-details-content">
-          <p><strong>Amount:</strong> ₱{Number(booking.totalPrice) / 100}</p>
-          <p><strong>Method:</strong> {booking.payments && booking.payments[0] ? booking.payments[0].method : 'N/A'}</p>
-          <p><strong>Payment Date:</strong> {new Date(booking.createdAt).toLocaleDateString('en-US', {
-            month: 'long',
-            day: 'numeric',
-            year: 'numeric'
-          })} at {new Date(booking.createdAt).toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true
-          })}</p>
-          <p><strong>Payment Status:</strong> {booking.paymentStatus}</p>
-        </div>
-      </Modal>
+      {/* Denial Details Modal */}
+      {showDeniedModal && (
+        <Modal show={showDeniedModal} onClose={() => setShowDeniedModal(false)}>
+          <h2 style={{ color: '#d32f2f', marginBottom: 12 }}>Reschedule Request Denied</h2>
+          <div style={{ marginBottom: 18 }}>
+            <strong>Reason from Admin:</strong>
+            <div style={{ marginTop: 8, color: '#8B4513', background: '#FFF8DC', borderRadius: 6, padding: 12, fontSize: 15, border: '1px solid #D4AF37' }}>
+              {adminContext || 'No reason provided.'}
+            </div>
+          </div>
+          <button className="action-btn primary" onClick={() => setShowDeniedModal(false)}>
+            Close
+          </button>
+        </Modal>
+      )}
 
       <style jsx>{`
-        .payment-history-card {
-          background-color: #ffffff;
-          border: 1px solid #e0e0e0;
-          border-radius: 8px;
+        .history-card {
+          background: linear-gradient(135deg, #ffffff 0%, #fefefe 100%);
+          border: 1px solid #E5D5A3;
+          border-radius: 12px;
           padding: 1.5rem;
-          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-          transition: transform 0.2s ease-in-out;
+          box-shadow: 0 4px 12px rgba(254, 190, 82, 0.15);
+          transition: all 0.3s ease;
+          position: relative;
+          overflow: hidden;
         }
-        .payment-history-card:hover {
-          transform: translateY(-5px);
+        
+        .history-card::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 3px;
+          background: linear-gradient(90deg, #FEBE52, #F4E4BC, #D4AF37);
         }
+        
+        .history-card:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 8px 24px rgba(254, 190, 82, 0.25);
+          border-color: #FEBE52;
+        }
+        
         .card-header {
           display: flex;
           justify-content: space-between;
-          align-items: center;
-          margin-bottom: 1rem;
+          align-items: flex-start;
+          margin-bottom: 1.2rem;
         }
-        .card-header h3 {
-          margin: 0;
-          font-size: 1.25rem;
-          color: #333;
+        
+        .room-info h3 {
+          margin: 0 0 0.25rem 0;
+          font-size: 1.3rem;
+          font-weight: 700;
+          color: #8B4513;
         }
+        
+        .room-type {
+          font-size: 0.9rem;
+          color: #A0826D;
+          font-weight: 500;
+        }
+        
+        .status-badges {
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+          align-items: flex-end;
+        }
+        
         .status-badge {
-          background-color: #28a745;
-          color: white;
           padding: 0.3rem 0.8rem;
           border-radius: 20px;
-          font-size: 0.85rem;
+          font-size: 0.8rem;
+          font-weight: 600;
+          color: white;
+          text-transform: capitalize;
+        }
+        
+        .card-content {
+          margin-bottom: 1.5rem;
+        }
+        
+        .date-info {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          background: linear-gradient(135deg, #FFF8DC 0%, #F5F5DC 100%);
+          border-radius: 8px;
+          padding: 1rem;
+          margin-bottom: 1rem;
+          border: 1px solid #E5D5A3;
+        }
+        
+        .date-group {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+        }
+        
+        .date-label {
+          font-size: 0.8rem;
+          color: #8B4513;
+          font-weight: 600;
+          margin-bottom: 0.25rem;
+        }
+        
+        .date-value {
+          font-size: 1rem;
+          font-weight: 700;
+          color: #654321;
+        }
+        
+        .date-separator {
+          font-size: 1.2rem;
+          color: #FEBE52;
           font-weight: bold;
         }
-        .card-details p {
-          margin: 0.5rem 0;
-          font-size: 0.95rem;
-          color: #666;
+        
+        .booking-meta {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 1rem;
         }
-        .view-details-btn {
-          background-color: #FEBE54;
-          color: white;
-          border: none;
-          padding: 0.75rem 1.5rem;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 1rem;
-          font-weight: 600;
-          transition: background-color 0.3s ease;
-          margin-top: 1rem;
-        }
-        .view-details-btn:hover {
-          background-color: #FEBE54;
-        }
-      `}</style>
-    </div>
-  );
-};
-
-// Notification Item Component
-const NotificationItem = ({ notification }) => {
-  return (
-    <div className="notification-item">
-      <p className="notification-message">{notification.message}</p>
-      <small className="notification-date">
-        {new Date(notification.createdAt).toLocaleDateString()}
-      </small>
-      <button className="dismiss-btn">×</button>
-      <style jsx>{`
-        .notification-item {
+        
+        .meta-item {
           display: flex;
-          justify-content: space-between;
+          flex-direction: column;
           align-items: center;
-          background-color: #f0f0f0;
-          padding: 1rem;
-          border-radius: 8px;
-          margin-bottom: 1rem;
-          border: 1px solid #e0e0e0;
+          text-align: center;
         }
-        .notification-message {
-          margin: 0;
-          font-size: 1rem;
-          color: #333;
+        
+        .meta-label {
+          font-size: 0.8rem;
+          color: #A0826D;
+          font-weight: 500;
+          margin-bottom: 0.25rem;
         }
-        .notification-date {
-          color: #777;
-          font-size: 0.85rem;
-          margin-left: 1rem;
+        
+        .meta-value {
+          font-size: 0.95rem;
+          font-weight: 600;
+          color: #654321;
         }
-        .dismiss-btn {
-          background: transparent;
+        
+        .card-actions {
+          display: flex;
+          gap: 0.75rem;
+          flex-wrap: wrap;
+          align-items: center;
+        }
+        
+        .action-btn {
+          padding: 0.7rem 1.4rem;
           border: none;
-          color: #999;
-          font-size: 1.5rem;
+          border-radius: 8px;
+          font-size: 0.9rem;
+          font-weight: 600;
           cursor: pointer;
-          transition: color 0.2s ease-in-out;
+          transition: all 0.3s ease;
+          text-decoration: none;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
         }
-        .dismiss-btn:hover {
-          color: #333;
+        
+        .action-btn.primary {
+          background: linear-gradient(135deg, #FEBE52, #E6A835);
+          color: white;
+          border: 2px solid transparent;
+        }
+        
+        .action-btn.primary:hover {
+          background: linear-gradient(135deg, #E6A835, #D4961F);
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(254, 190, 82, 0.4);
+        }
+        
+        .action-btn.secondary {
+          background: linear-gradient(135deg, #F4E4BC, #E5D5A3);
+          color: #8B4513;
+          border: 2px solid #E5D5A3;
+        }
+        
+        .action-btn.secondary:hover {
+          background: linear-gradient(135deg, #E5D5A3, #D4AF37);
+          border-color: #D4AF37;
+          transform: translateY(-1px);
+        }
+        
+        .action-btn.disabled {
+          background: #f8f9fa;
+          color: #6c757d;
+          cursor: not-allowed;
+          border: 2px solid #e9ecef;
+        }
+        
+        .reschedule-success {
+          color: #28a745;
+          font-weight: 600;
+          font-size: 0.9rem;
+        }
+        
+        .reschedule-denied-container {
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+          align-items: flex-start;
+        }
+        
+        .reschedule-denied {
+          color: #dc3545;
+          font-weight: 600;
+          font-size: 0.9rem;
+        }
+        
+        @media (max-width: 768px) {
+          .card-header {
+            flex-direction: column;
+            gap: 1rem;
+          }
+          
+          .status-badges {
+            flex-direction: row;
+            align-items: flex-start;
+          }
+          
+          .date-info {
+            flex-direction: column;
+            gap: 0.75rem;
+          }
+          
+          .date-separator {
+            transform: rotate(90deg);
+          }
+          
+          .booking-meta {
+            grid-template-columns: 1fr;
+            gap: 0.75rem;
+          }
+          
+          .meta-item {
+            flex-direction: row;
+            justify-content: space-between;
+            text-align: left;
+          }
+          
+          .card-actions {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          
+          .action-btn {
+            width: 100%;
+          }
         }
       `}</style>
     </div>
@@ -662,13 +1464,18 @@ const NotificationItem = ({ notification }) => {
 export default function GuestDashboard() {
   const [guest, setGuest] = useState(null);
   const [bookings, setBookings] = useState([]);
+  const [filteredBookings, setFilteredBookings] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [promotions, setPromotions] = useState([]);
+  const [selectedDetailsBooking, setSelectedDetailsBooking] = useState(null);
+  const [selectedRescheduleBooking, setSelectedRescheduleBooking] = useState(null);
+  const [filters, setFilters] = useState({
+    roomName: '',
+    paymentStatus: '',
+    dateFrom: '',
+    dateTo: ''
+  });
   const router = useRouter();
-
-  // State for notification bell count and color
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [bellColor, setBellColor] = useState('black');
 
   useEffect(() => {
     async function fetchData() {
@@ -687,9 +1494,10 @@ export default function GuestDashboard() {
 
         setGuest(data.guest);
         setBookings(data.bookings);
+        setFilteredBookings(data.bookings);
       } catch (err) {
         console.error('Error fetching guest info:', err);
-        router.push('/login'); // redirect if not logged in
+        router.push('/login');
       }
     }
 
@@ -702,10 +1510,6 @@ export default function GuestDashboard() {
         if (res.ok) {
           const data = await res.json();
           setNotifications(data || []);
-          // Update unread count and bell color
-          const unread = (data || []).filter(n => !n.read).length;
-          setUnreadCount(unread);
-          setBellColor(unread > 0 ? 'red' : 'black');
         }
       } catch (err) {
         console.error('Error fetching notifications:', err);
@@ -730,7 +1534,51 @@ export default function GuestDashboard() {
     fetchData();
     fetchNotifications();
     fetchPromotions();
-  }, []);
+  }, [router]);
+
+  // Filter bookings based on current filter state
+  useEffect(() => {
+    let filtered = [...bookings];
+
+    if (filters.roomName) {
+      filtered = filtered.filter(booking => 
+        booking.rooms?.[0]?.room?.name?.toLowerCase().includes(filters.roomName.toLowerCase())
+      );
+    }
+
+    if (filters.paymentStatus) {
+      filtered = filtered.filter(booking => 
+        booking.paymentStatus.toLowerCase() === filters.paymentStatus.toLowerCase()
+      );
+    }
+
+    if (filters.dateFrom) {
+      filtered = filtered.filter(booking => 
+        new Date(booking.checkIn) >= new Date(filters.dateFrom)
+      );
+    }
+
+    if (filters.dateTo) {
+      filtered = filtered.filter(booking => 
+        new Date(booking.checkOut) <= new Date(filters.dateTo)
+      );
+    }
+
+    setFilteredBookings(filtered);
+  }, [bookings, filters]);
+
+  const handleFilterChange = (key, value) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      roomName: '',
+      paymentStatus: '',
+      dateFrom: '',
+      dateTo: ''
+    });
+  };
 
   if (!guest) return (
     <div className="loading-container">
@@ -751,122 +1599,354 @@ export default function GuestDashboard() {
   return (
     <div className="dashboard-container">
       <main className="main-content">
-        <section className="section-history">
-          <h2>Booking History</h2>
-          <div className="history-list">
-            {bookings.length > 0 ? (
-              bookings.map(b => <BookingHistoryCard key={b.id} booking={b} guest={guest} />)
-            ) : (
-              <p className="no-data">No booking history.</p>
-            )}
+        {/* Header Section */}
+        <div className="dashboard-header">
+          <h1>Your Booking History</h1>
+          <p>Manage your bookings and view payment details</p>
+        </div>
+
+        {/* Filters Section */}
+        <div className="filters-section">
+          <div className="filters-container">
+            <div className="filter-group">
+              <label htmlFor="roomName">Room Name</label>
+              <input
+                id="roomName"
+                type="text"
+                placeholder="Search by room name..."
+                value={filters.roomName}
+                onChange={(e) => handleFilterChange('roomName', e.target.value)}
+              />
+            </div>
+            
+            <div className="filter-group">
+              <label htmlFor="paymentStatus">Payment Status</label>
+              <select
+                id="paymentStatus"
+                value={filters.paymentStatus}
+                onChange={(e) => handleFilterChange('paymentStatus', e.target.value)}
+              >
+                <option value="">All Payments</option>
+                <option value="paid">Paid</option>
+                <option value="pending">Pending</option>
+                <option value="failed">Failed</option>
+                <option value="refunded">Refunded</option>
+              </select>
+            </div>
+            
+            <div className="filter-group">
+              <label htmlFor="dateFrom">Check-in From</label>
+              <input
+                id="dateFrom"
+                type="date"
+                value={filters.dateFrom}
+                onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
+              />
+            </div>
+            
+            <div className="filter-group">
+              <label htmlFor="dateTo">Check-out To</label>
+              <input
+                id="dateTo"
+                type="date"
+                value={filters.dateTo}
+                onChange={(e) => handleFilterChange('dateTo', e.target.value)}
+              />
+            </div>
+            
+            <button className="clear-filters-btn" onClick={clearFilters}>
+              Clear Filters
+            </button>
           </div>
-        </section>
+        </div>
 
-        <hr className="divider" />
-
-        <section className="section-payments">
-          <h2>Payment History</h2>
-          <div className="payment-list">
-            {bookings.length > 0 ? (
-              bookings.map(b => <PaymentHistoryCard key={b.id} booking={b} />)
+        {/* History Section */}
+        <section className="section-history">
+          <div className="section-header">
+            <h2>Booking & Payment History</h2>
+            <span className="results-count">
+              {filteredBookings.length} {filteredBookings.length === 1 ? 'booking' : 'bookings'} found
+            </span>
+          </div>
+          
+          <div className="history-grid">
+            {filteredBookings.length > 0 ? (
+              filteredBookings.map(booking => (
+                <HistoryCard
+                  key={booking.id}
+                  booking={booking}
+                  guest={guest}
+                  onViewDetails={setSelectedDetailsBooking}
+                  onReschedule={setSelectedRescheduleBooking}
+                />
+              ))
             ) : (
-              <p className="no-data">No payment history.</p>
+              <div className="no-data">
+                <div className="no-data-icon">📋</div>
+                <h3>No bookings found</h3>
+                <p>{bookings.length === 0 ? 'You haven\'t made any bookings yet.' : 'Try adjusting your filters to see more results.'}</p>
+              </div>
             )}
           </div>
         </section>
       </main>
 
-      {/* Notification Bell */}
-      {/* Removed notification bell from guest dashboard as it is now in GuestHeader */}
-      {/* <div className="notification-bell" aria-label="Notifications" title="Notifications">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          fill={bellColor}
-          viewBox="0 0 24 24"
-          strokeWidth={1.5}
-          stroke="currentColor"
-          style={{ width: '24px', height: '24px', cursor: 'pointer' }}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-        </svg>
-        {unreadCount > 0 && (
-          <span className="notification-count" aria-live="polite" aria-atomic="true">{unreadCount}</span>
+      {/* Unified Details Modal */}
+      <PortalModal show={!!selectedDetailsBooking} onClose={() => setSelectedDetailsBooking(null)}>
+        {selectedDetailsBooking && (
+          <UnifiedDetailsModal booking={selectedDetailsBooking} guest={guest} />
         )}
-      </div> */}
+      </PortalModal>
+
+      <PortalModal show={!!selectedRescheduleBooking} onClose={() => setSelectedRescheduleBooking(null)}>
+        {selectedRescheduleBooking && <RescheduleModalContent booking={selectedRescheduleBooking} guest={guest} />}
+      </PortalModal>
 
       <PromotionPopup promotions={promotions} />
 
       <style jsx>{`
         .dashboard-container {
-          background-color: #f0f2f5;
+          background: linear-gradient(135deg, #FFF8DC 0%, #F5F5DC 50%, #F0F8E8 100%);
           min-height: 100vh;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif;
           position: relative;
         }
+        
         .main-content {
           padding: 2rem;
-          max-width: 1200px;
+          max-width: 1400px;
           margin: 0 auto;
         }
-        .section-history, .section-payments {
+        
+        .dashboard-header {
+          text-align: center;
+          margin-bottom: 3rem;
+          padding: 2rem 0;
+        }
+        
+        .dashboard-header h1 {
+          font-size: 3rem;
+          font-weight: 800;
+          background: linear-gradient(135deg, #8B4513, #D4AF37, #FEBE52);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          margin: 0 0 0.5rem 0;
+          text-shadow: 0 2px 4px rgba(139, 69, 19, 0.1);
+        }
+        
+        .dashboard-header p {
+          font-size: 1.2rem;
+          color: #A0826D;
+          margin: 0;
+          font-weight: 500;
+        }
+        
+        .filters-section {
+          background: linear-gradient(135deg, #ffffff 0%, #fefefe 100%);
+          border: 1px solid #E5D5A3;
+          border-radius: 16px;
+          padding: 2rem;
+          margin-bottom: 3rem;
+          box-shadow: 0 8px 32px rgba(254, 190, 82, 0.15);
+        }
+        
+        .filters-container {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 1.5rem;
+          align-items: end;
+        }
+        
+        .filter-group {
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+        }
+        
+        .filter-group label {
+          font-size: 0.9rem;
+          font-weight: 600;
+          color: #8B4513;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        
+        .filter-group input,
+        .filter-group select {
+          padding: 0.8rem 1rem;
+          border: 2px solid #E5D5A3;
+          border-radius: 8px;
+          font-size: 1rem;
+          background: linear-gradient(135deg, #ffffff 0%, #fefefe 100%);
+          color: #654321;
+          transition: all 0.3s ease;
+        }
+        
+        .filter-group input:focus,
+        .filter-group select:focus {
+          outline: none;
+          border-color: #FEBE52;
+          box-shadow: 0 0 0 3px rgba(254, 190, 82, 0.2);
+        }
+        
+        .clear-filters-btn {
+          background: linear-gradient(135deg, #F4E4BC, #E5D5A3);
+          color: #8B4513;
+          border: 2px solid #E5D5A3;
+          border-radius: 8px;
+          padding: 0.8rem 1.5rem;
+          font-size: 0.9rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        
+        .clear-filters-btn:hover {
+          background: linear-gradient(135deg, #E5D5A3, #D4AF37);
+          border-color: #D4AF37;
+          transform: translateY(-1px);
+        }
+        
+        .section-history {
           margin-bottom: 2rem;
         }
-        h2 {
-          font-size: 2rem;
-          font-weight: 600;
-          color: #333;
-          margin-bottom: 1.5rem;
-          border-bottom: 2px solid #ffc107;
-          padding-bottom: 0.5rem;
-        }
-        .history-list, .payment-list {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-          gap: 1.5rem;
-        }
-        .divider {
-          border: none;
-          border-top: 1px solid #e0e0e0;
-          margin: 2rem 0;
-        }
-        .no-data {
-          color: #777;
-          font-style: italic;
-          text-align: center;
-          padding: 2rem;
-        }
-        .notification-bell {
-          position: fixed;
-          top: 20px;
-          right: 20px;
-          background-color: white;
-          border-radius: 50%;
-          padding: 6px;
-          box-shadow: 0 0 8px rgba(0,0,0,0.15);
+        
+        .section-header {
           display: flex;
+          justify-content: space-between;
           align-items: center;
-          justify-content: center;
-          z-index: 1001;
+          margin-bottom: 2rem;
+          flex-wrap: wrap;
+          gap: 1rem;
         }
-        .notification-count {
+        
+        .section-header h2 {
+          font-size: 2.2rem;
+          font-weight: 700;
+          color: #8B4513;
+          margin: 0;
+          position: relative;
+        }
+        
+        .section-header h2::after {
+          content: '';
           position: absolute;
-          top: 12px;
-          right: 12px;
-          background-color: red;
-          color: white;
-          font-size: 0.75rem;
-          font-weight: bold;
-          border-radius: 50%;
-          width: 18px;
-          height: 18px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          pointer-events: none;
+          bottom: -8px;
+          left: 0;
+          width: 60px;
+          height: 4px;
+          background: linear-gradient(90deg, #FEBE52, #D4AF37);
+          border-radius: 2px;
         }
+        
+        .results-count {
+          background: linear-gradient(135deg, #FEBE52, #F4E4BC);
+          color: #8B4513;
+          padding: 0.5rem 1rem;
+          border-radius: 20px;
+          font-size: 0.9rem;
+          font-weight: 600;
+          border: 1px solid #E5D5A3;
+        }
+        
+        .history-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+          gap: 2rem;
+          align-items: start;
+        }
+        
+        .no-data {
+          grid-column: 1 / -1;
+          text-align: center;
+          padding: 4rem 2rem;
+          background: linear-gradient(135deg, #ffffff 0%, #fefefe 100%);
+          border: 2px dashed #E5D5A3;
+          border-radius: 16px;
+          color: #A0826D;
+        }
+        
+        .no-data-icon {
+          font-size: 4rem;
+          margin-bottom: 1rem;
+          opacity: 0.6;
+        }
+        
+        .no-data h3 {
+          font-size: 1.5rem;
+          font-weight: 600;
+          color: #8B4513;
+          margin: 0 0 0.5rem 0;
+        }
+        
+        .no-data p {
+          font-size: 1rem;
+          margin: 0;
+          line-height: 1.5;
+        }
+        
+        @media (max-width: 1200px) {
+          .history-grid {
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+          }
+        }
+        
         @media (max-width: 768px) {
           .main-content {
             padding: 1rem;
+          }
+          
+          .dashboard-header h1 {
+            font-size: 2.2rem;
+          }
+          
+          .dashboard-header p {
+            font-size: 1rem;
+          }
+          
+          .filters-section {
+            padding: 1.5rem;
+          }
+          
+          .filters-container {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+          }
+          
+          .section-header {
+            flex-direction: column;
+            align-items: flex-start;
+          }
+          
+          .section-header h2 {
+            font-size: 1.8rem;
+          }
+          
+          .history-grid {
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+          }
+          
+          .no-data {
+            padding: 2rem 1rem;
+          }
+        }
+        
+        @media (max-width: 480px) {
+          .dashboard-header h1 {
+            font-size: 1.8rem;
+          }
+          
+          .filters-section {
+            padding: 1rem;
+            margin-bottom: 2rem;
+          }
+          
+          .section-header h2 {
+            font-size: 1.5rem;
           }
         }
       `}</style>

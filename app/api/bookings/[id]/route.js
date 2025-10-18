@@ -23,6 +23,8 @@ export const GET = async (_, context) => {
         amenities: { include: { amenity: true } },
         optionalAmenities: { include: { optionalAmenity: true } },
         rentalAmenities: { include: { rentalAmenity: true } },
+        cottage: { include: { cottage: true } },
+        payments: true,
       },
     });
 
@@ -206,6 +208,26 @@ export const PUT = async (req, context) => {
       },
     });
 
+    // If transitioning to Cancelled or Checked Out and first time checkout, restore stocks
+    if ((data.status === 'Cancelled') || (data.status === 'CHECKED_OUT' && data.actualCheckOut === true)) {
+      await prisma.$transaction(async (tx) => {
+        const b = await tx.booking.findUnique({
+          where: { id: parseInt(id) },
+          include: { optionalAmenities: true, rentalAmenities: true },
+        });
+        const shouldRestoreOnCancel = data.status === 'Cancelled' && b && b.status !== 'Cancelled';
+        const shouldRestoreOnCheckout = data.status === 'CHECKED_OUT' && data.actualCheckOut === true && b && !b.actualCheckOut;
+        if (shouldRestoreOnCancel || shouldRestoreOnCheckout) {
+          for (const oa of (b?.optionalAmenities || [])) {
+            await tx.optionalAmenity.update({ where: { id: oa.optionalAmenityId }, data: { quantity: { increment: oa.quantity } } });
+          }
+          for (const ra of (b?.rentalAmenities || [])) {
+            await tx.rentalAmenity.update({ where: { id: ra.rentalAmenityId }, data: { quantity: { increment: ra.quantity } } });
+          }
+        }
+      });
+    }
+
     const updatedBooking = await prisma.booking.update({
       where: { id: parseInt(id) },
       data: updateData,
@@ -362,14 +384,34 @@ export const PUT = async (req, context) => {
 export const DELETE = async (_, context) => {
   try {
     const { id } = await context.params;
-    // Fetch booking for context (guestName etc.) before deletion
-    const booking = await prisma.booking.findUnique({ where: { id: parseInt(id) } });
-
-    // First, delete all associated booking amenities
-    await prisma.bookingAmenity.deleteMany({ where: { bookingId: parseInt(id) } });
-
-    // Then, delete the booking itself
-    await prisma.booking.delete({ where: { id: parseInt(id) } });
+    // Restore stocks and delete in a transaction
+    const booking = await prisma.$transaction(async (tx) => {
+      const b = await tx.booking.findUnique({
+        where: { id: parseInt(id) },
+        include: {
+          optionalAmenities: true,
+          rentalAmenities: true,
+        },
+      });
+      if (b) {
+        const alreadyRestored = b.status === 'Cancelled' || !!b.actualCheckOut;
+        if (!alreadyRestored) {
+          for (const oa of (b.optionalAmenities || [])) {
+            await tx.optionalAmenity.update({ where: { id: oa.optionalAmenityId }, data: { quantity: { increment: oa.quantity } } });
+          }
+          for (const ra of (b.rentalAmenities || [])) {
+            await tx.rentalAmenity.update({ where: { id: ra.rentalAmenityId }, data: { quantity: { increment: ra.quantity } } });
+          }
+        }
+        // Clean up relation tables
+        await tx.bookingOptionalAmenity.deleteMany({ where: { bookingId: b.id } });
+        await tx.bookingRentalAmenity.deleteMany({ where: { bookingId: b.id } });
+        await tx.bookingCottage.deleteMany({ where: { bookingId: b.id } });
+        await tx.bookingAmenity.deleteMany({ where: { bookingId: b.id } }); // legacy
+        await tx.booking.delete({ where: { id: b.id } });
+      }
+      return b;
+    });
 
     // Record audit for deletion
     try {

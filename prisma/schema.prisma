@@ -7,6 +7,32 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Reschedule request for bookings
+model RescheduleRequest {
+  id           Int      @id @default(autoincrement())
+  bookingId    Int
+  userId       Int? // who requested
+  requestedAt  DateTime @default(now())
+  oldCheckIn   DateTime
+  oldCheckOut  DateTime
+  newCheckIn   DateTime
+  newCheckOut  DateTime
+  status       RescheduleStatus @default(PENDING)
+  context      String? // guest context for reschedule
+  adminContext String? // superadmin context for denial
+  decidedAt    DateTime?
+  decidedById  Int? // superadmin who decided
+  booking      Booking @relation(fields: [bookingId], references: [id])
+  user         User?    @relation("RescheduleRequestedBy", fields: [userId], references: [id])
+  decidedBy    User?    @relation("RescheduleDecidedBy", fields: [decidedById], references: [id])
+}
+
+enum RescheduleStatus {
+  PENDING
+  APPROVED
+  DENIED
+}
+
 model User {
   id             Int       @id @default(autoincrement())
   name           String?
@@ -24,10 +50,19 @@ model User {
   googleId       String?   @unique  // <- for linking Google OAuth accounts
   resetToken     String?   // for password reset OTP
   resetTokenExpiry DateTime? // expiry time for reset OTP
+  // Progressive payment failure cooldown
+  failedPaymentAttempts Int      @default(0)
+  paymentCooldownUntil  DateTime?
   bookings       Booking[]
   accounts       Account[]
   sessions       Session[]
   trustedBrowsers TrustedBrowser[]
+  rescheduleRequestsRequested RescheduleRequest[] @relation("RescheduleRequestedBy")
+  rescheduleRequestsDecided   RescheduleRequest[] @relation("RescheduleDecidedBy")
+
+  // Relations for cashier verification and remarks
+  verifiedPayments Payment[]        @relation("VerifiedPaymentsByUser")
+  remarksAuthored  BookingRemark[]  @relation("RemarksAuthored")
 }
 
 model OTP {
@@ -111,6 +146,7 @@ model OptionalAmenity {
   name        String   @unique
   description String?
   maxQuantity Int      @default(1) // Maximum quantity per booking
+  quantity    Int      @default(0) // Total available stock
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -127,6 +163,7 @@ model RentalAmenity {
   unitType    String   // "hour", "unit", "song", "30minutes", etc.
   unitNote    String?
   isActive    Boolean  @default(true)
+  quantity      Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   bookings    BookingRentalAmenity[]
@@ -198,6 +235,10 @@ model Booking {
   rentalAmenities   BookingRentalAmenity[]
   cottage           BookingCottage[]
   payments      Payment[]
+  rescheduleRequests RescheduleRequest[]
+
+  // Internal remarks for coordination
+  remarks BookingRemark[] @relation("BookingRemarks")
 }
 
 // Updated booking amenity models for the new system
@@ -265,12 +306,22 @@ model Payment {
 
   status       PaymentStatus @default(Pending) // pending, paid, failed, refunded
   provider     String   @default("paymongo")
+  // Explicit payment method (e.g., gcash, paymaya, cash, card, bank_transfer)
+  method       String?
 
   referenceId  String?  // PayMongo payment ID
   receiptUrl   String?  // PayMongo generated receipt link
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  // Cashier verification workflow
+  verificationStatus PaymentVerificationStatus @default(Unverified)
+  verifiedById  Int?
+  verifiedBy    User?    @relation("VerifiedPaymentsByUser", fields: [verifiedById], references: [id])
+  verifiedAt    DateTime?
+  flagReason    String?
+  receiptNumber String?
 }
 
 model Notification {
@@ -298,6 +349,13 @@ enum PaymentStatus {
   Reservation
 }
 
+// Manual verification state controlled by Cashier/Superadmin
+enum PaymentVerificationStatus {
+  Unverified
+  Verified
+  Flagged
+}
+
 enum Role {
   CUSTOMER
   GUEST
@@ -323,6 +381,22 @@ enum AmenityType {
   DEFAULT
   OPTIONAL
   RENTAL
+}
+
+// Internal remarks per booking for coordination between roles
+model BookingRemark {
+  id         Int      @id @default(autoincrement())
+  bookingId  Int
+  authorId   Int?
+  authorRole Role
+  content    String   @db.Text
+  createdAt  DateTime @default(now())
+
+  booking    Booking  @relation("BookingRemarks", fields: [bookingId], references: [id])
+  author     User?    @relation("RemarksAuthored", fields: [authorId], references: [id])
+
+  @@index([bookingId])
+  @@index([authorId])
 }
 
 model ChatbotQA {

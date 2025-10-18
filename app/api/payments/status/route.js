@@ -25,8 +25,8 @@ export async function GET(req) {
 
     return NextResponse.json({
       status: payment.status.toLowerCase(),
-      paymentId: payment.id,
-      amount: payment.amount,
+      paymentId: Number(payment.id),
+      amount: Number(payment.amount),
       provider: payment.provider,
     });
 

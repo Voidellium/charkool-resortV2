@@ -40,15 +40,18 @@ export default function SuperAdminDashboard() {
     try {
       const res = await fetch('/api/bookings');
       const data = await res.json();
-
+      if (!Array.isArray(data)) {
+        setStats({ total: 0, confirmed: 0, pending: 0, cancelled: 0 });
+        return;
+      }
       const total = data.length;
       const confirmed = data.filter((b) => b.status === 'Confirmed').length;
       const pending = data.filter((b) => b.status === 'Pending').length;
       const cancelled = data.filter((b) => b.status === 'Cancelled').length;
-
       setStats({ total, confirmed, pending, cancelled });
     } catch (error) {
       console.error('Failed to fetch dashboard stats:', error);
+      setStats({ total: 0, confirmed: 0, pending: 0, cancelled: 0 });
     }
   }
 

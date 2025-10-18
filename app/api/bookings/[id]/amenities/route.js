@@ -86,122 +86,107 @@ export async function PUT(request, { params }) {
       );
     }
 
-    // Calculate total price for amenities
-    let totalAmenityPrice = 0;
+    // Calculate total price for amenities and adjust stock with deltas in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      let totalAmenityPrice = 0;
 
-    // Update optional amenities
-    if (optionalAmenities) {
-      // Delete existing optional amenities
-      await prisma.bookingOptionalAmenity.deleteMany({
-        where: { bookingId: parseInt(id) },
+      // Fetch existing selections to compute deltas
+      const existing = await tx.booking.findUnique({
+        where: { id: parseInt(id) },
+        include: { optionalAmenities: true, rentalAmenities: true },
       });
 
-      // Create new optional amenities
-      for (const amenity of optionalAmenities) {
-        const optionalAmenity = await prisma.optionalAmenity.findUnique({
-          where: { id: amenity.optionalAmenityId },
-        });
+      // Index existing by amenityId
+      const prevOptional = new Map((existing?.optionalAmenities || []).map(o => [o.optionalAmenityId, o.quantity]));
+      const prevRental = new Map((existing?.rentalAmenities || []).map(r => [r.rentalAmenityId, r.quantity]));
 
-        if (!optionalAmenity) {
-          return NextResponse.json(
-            { error: `Optional amenity with ID ${amenity.optionalAmenityId} not found` },
-            { status: 400 }
-          );
+      // Optional: apply updates with stock checks
+      if (optionalAmenities) {
+        // Build desired map
+        const nextOptional = new Map(optionalAmenities.map(o => [o.optionalAmenityId, o.quantity]));
+        // For each desired, compute delta = next - prev
+        for (const [amenityId, qty] of nextOptional.entries()) {
+          const prevQty = prevOptional.get(amenityId) || 0;
+          const delta = qty - prevQty;
+          if (delta > 0) {
+            const upd = await tx.optionalAmenity.updateMany({ where: { id: amenityId, quantity: { gte: delta } }, data: { quantity: { decrement: delta } } });
+            if (upd.count === 0) throw new Error(`Insufficient stock for optional amenity ID ${amenityId}`);
+          } else if (delta < 0) {
+            await tx.optionalAmenity.update({ where: { id: amenityId }, data: { quantity: { increment: Math.abs(delta) } } });
+          }
+        }
+        // For removed items present in prev but not in next, return stock
+        for (const [amenityId, prevQty] of prevOptional.entries()) {
+          if (!nextOptional.has(amenityId)) {
+            await tx.optionalAmenity.update({ where: { id: amenityId }, data: { quantity: { increment: prevQty } } });
+          }
         }
 
-        if (amenity.quantity > optionalAmenity.maxQuantity) {
-          return NextResponse.json(
-            { error: `Quantity ${amenity.quantity} exceeds maximum allowed ${optionalAmenity.maxQuantity} for ${optionalAmenity.name}` },
-            { status: 400 }
-          );
+        // Replace bookingOptionalAmenity rows
+        await tx.bookingOptionalAmenity.deleteMany({ where: { bookingId: parseInt(id) } });
+        for (const item of optionalAmenities) {
+          const opt = await tx.optionalAmenity.findUnique({ where: { id: item.optionalAmenityId } });
+          if (!opt) throw new Error(`Optional amenity with ID ${item.optionalAmenityId} not found`);
+          if (item.quantity > opt.maxQuantity) throw new Error(`Quantity ${item.quantity} exceeds max ${opt.maxQuantity} for ${opt.name}`);
+          await tx.bookingOptionalAmenity.create({ data: { bookingId: parseInt(id), optionalAmenityId: item.optionalAmenityId, quantity: item.quantity } });
         }
-
-        await prisma.bookingOptionalAmenity.create({
-          data: {
-            bookingId: parseInt(id),
-            optionalAmenityId: amenity.optionalAmenityId,
-            quantity: amenity.quantity,
-          },
-        });
       }
-    }
 
-    // Update rental amenities
-    if (rentalAmenities) {
-      // Delete existing rental amenities
-      await prisma.bookingRentalAmenity.deleteMany({
-        where: { bookingId: parseInt(id) },
-      });
-
-      // Create new rental amenities
-      for (const amenity of rentalAmenities) {
-        const rentalAmenity = await prisma.rentalAmenity.findUnique({
-          where: { id: amenity.rentalAmenityId },
-        });
-
-        if (!rentalAmenity) {
-          return NextResponse.json(
-            { error: `Rental amenity with ID ${amenity.rentalAmenityId} not found` },
-            { status: 400 }
-          );
+      // Rental: apply updates with stock checks and recompute totals
+      if (rentalAmenities) {
+        const nextRental = new Map(rentalAmenities.map(r => [r.rentalAmenityId, r.quantity]));
+        for (const [amenityId, qty] of nextRental.entries()) {
+          const prevQty = prevRental.get(amenityId) || 0;
+          const delta = qty - prevQty;
+          if (delta > 0) {
+            const upd = await tx.rentalAmenity.updateMany({ where: { id: amenityId, quantity: { gte: delta } }, data: { quantity: { decrement: delta } } });
+            if (upd.count === 0) throw new Error(`Insufficient stock for rental amenity ID ${amenityId}`);
+          } else if (delta < 0) {
+            await tx.rentalAmenity.update({ where: { id: amenityId }, data: { quantity: { increment: Math.abs(delta) } } });
+          }
+        }
+        for (const [amenityId, prevQty] of prevRental.entries()) {
+          if (!nextRental.has(amenityId)) {
+            await tx.rentalAmenity.update({ where: { id: amenityId }, data: { quantity: { increment: prevQty } } });
+          }
         }
 
-        const calculatedPrice = amenity.hoursUsed
-          ? amenity.hoursUsed * (rentalAmenity.pricePerHour || rentalAmenity.pricePerUnit)
-          : amenity.quantity * rentalAmenity.pricePerUnit;
-
-        totalAmenityPrice += calculatedPrice;
-
-        await prisma.bookingRentalAmenity.create({
-          data: {
-            bookingId: parseInt(id),
-            rentalAmenityId: amenity.rentalAmenityId,
-            quantity: amenity.quantity,
-            hoursUsed: amenity.hoursUsed,
-            totalPrice: calculatedPrice,
-          },
-        });
-      }
-    }
-
-    // Update cottage
-    if (cottage !== undefined) {
-      // Delete existing cottage
-      await prisma.bookingCottage.deleteMany({
-        where: { bookingId: parseInt(id) },
-      });
-
-      // Create new cottage if specified
-      if (cottage.cottageId && cottage.quantity > 0) {
-        const cottageData = await prisma.cottage.findUnique({
-          where: { id: cottage.cottageId },
-        });
-
-        if (!cottageData) {
-          return NextResponse.json(
-            { error: `Cottage with ID ${cottage.cottageId} not found` },
-            { status: 400 }
-          );
+        await tx.bookingRentalAmenity.deleteMany({ where: { bookingId: parseInt(id) } });
+        for (const item of rentalAmenities) {
+          const rentalAmenity = await tx.rentalAmenity.findUnique({ where: { id: item.rentalAmenityId } });
+          if (!rentalAmenity) throw new Error(`Rental amenity with ID ${item.rentalAmenityId} not found`);
+          const perHour = Number(rentalAmenity.pricePerHour || 0);
+          const perUnit = Number(rentalAmenity.pricePerUnit || 0);
+          const calculatedPrice = item.hoursUsed ? (item.hoursUsed * (perHour || perUnit)) : (item.quantity * perUnit);
+          totalAmenityPrice += calculatedPrice;
+          await tx.bookingRentalAmenity.create({
+            data: {
+              bookingId: parseInt(id),
+              rentalAmenityId: item.rentalAmenityId,
+              quantity: item.quantity,
+              hoursUsed: item.hoursUsed,
+              totalPrice: calculatedPrice,
+            },
+          });
         }
-
-        const cottagePrice = cottage.quantity * cottageData.price;
-        totalAmenityPrice += cottagePrice;
-
-        await prisma.bookingCottage.create({
-          data: {
-            bookingId: parseInt(id),
-            cottageId: cottage.cottageId,
-            quantity: cottage.quantity,
-            totalPrice: cottagePrice,
-          },
-        });
       }
-    }
 
-    return NextResponse.json({
-      message: 'Amenities updated successfully',
-      totalAmenityPrice,
+      // Update cottage selections (no stock management here)
+      if (cottage !== undefined) {
+        await tx.bookingCottage.deleteMany({ where: { bookingId: parseInt(id) } });
+        if (cottage.cottageId && cottage.quantity > 0) {
+          const cottageData = await tx.cottage.findUnique({ where: { id: cottage.cottageId } });
+          if (!cottageData) throw new Error(`Cottage with ID ${cottage.cottageId} not found`);
+          const cottagePrice = cottage.quantity * cottageData.price;
+          totalAmenityPrice += cottagePrice;
+          await tx.bookingCottage.create({ data: { bookingId: parseInt(id), cottageId: cottage.cottageId, quantity: cottage.quantity, totalPrice: cottagePrice } });
+        }
+      }
+
+      return { totalAmenityPrice };
     });
+
+    return NextResponse.json({ message: 'Amenities updated successfully', totalAmenityPrice: result.totalAmenityPrice });
   } catch (error) {
     console.error('❌ Booking Amenities PUT Error:', error);
     return NextResponse.json(

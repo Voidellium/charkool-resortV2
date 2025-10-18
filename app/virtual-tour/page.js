@@ -161,16 +161,26 @@ export default function VirtualTour() {
         </div>
       </div>
 
-      <footer style={{
-        backgroundColor: '#e8cfa3',
-        textAlign: 'center',
-        padding: '1.5rem 0',
-        color: '#123238',
-        fontSize: '0.95rem',
-        borderTop: '1px solid #d3b885'
-      }}>
-        © 2025 Charkool Beach Resort. All Rights Reserved.
-      </footer>
+<footer className="footer">
+  <div className="divider"></div>
+  <p>© 2025 Charkool Beach Resort. All Rights Reserved.</p>
+</footer>
+
+<style jsx>{`
+  .footer {
+    background-color: #e8cfa3;
+    text-align: center;
+    padding: 1.5rem 0;
+    color: rgba(18, 50, 56, 0.85);
+    font-size: 0.9rem;
+  }
+  .divider {
+    width: 80%;
+    height: 1px;
+    background-color: #d3b885;
+    margin: 1.5rem auto;
+  }
+`}</style>
     </>
   );
 }

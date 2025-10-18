@@ -104,7 +104,7 @@ const BookingCard = ({ booking }) => {
       year: 'numeric',
     });
 
-    // Calculate total paid from payments if available
+        // Calculate total paid from payments if available
     const totalPaid = booking.payments && booking.payments.length > 0
       ? (booking.payments.reduce((sum, p) => sum + p.amount, 0) / 100).toFixed(0)
       : '0';

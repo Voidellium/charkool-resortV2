@@ -38,8 +38,8 @@ export async function POST(request) {
   }
 
   try {
-    const body = await request.json();
-    const { name, description, pricePerUnit, pricePerHour, unitType, unitNote } = body;
+  const body = await request.json();
+  const { name, description, pricePerUnit, pricePerHour, unitType, unitNote, quantity } = body;
 
     // Validate required fields
     if (!name || !name.trim()) {
@@ -78,6 +78,7 @@ export async function POST(request) {
         pricePerHour: pricePerHour ? parseInt(pricePerHour) : null,
         unitType: unitType.trim(),
         unitNote: unitNote?.trim() || null,
+        quantity: quantity != null ? Math.max(0, parseInt(quantity) || 0) : undefined,
       },
     });
 

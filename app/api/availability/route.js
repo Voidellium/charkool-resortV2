@@ -1,4 +1,4 @@
-import { PrismaClient, BookingStatus } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 function formatDate(date) {
@@ -46,7 +46,7 @@ export async function POST(req) {
         checkIn: { lte: checkOutDate },
         checkOut: { gte: checkInDate },
         status: {
-          in: [BookingStatus.Pending, BookingStatus.Confirmed],
+          in: ['Pending', 'Confirmed'],
         },
         OR: [
           { heldUntil: null },

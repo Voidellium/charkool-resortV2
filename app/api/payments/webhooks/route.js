@@ -6,12 +6,17 @@ export async function POST(req) {
   try {
     // Read the raw body and the PayMongo signature from the headers
     const rawBody = await req.text();
-    const paymongoSignature = req.headers.get('Paymongo-Signature');
+  const paymongoSignature = req.headers.get('Paymongo-Signature');
 
     // ✅ IMPORTANT: Verify the webhook signature
     // This protects your endpoint from malicious requests
     const secretKey = process.env.PAYMONGO_WEBHOOK_SECRET;
-    const [timestamp, signature] = paymongoSignature.split(',').map(part => part.split('=')[1]);
+    if (!paymongoSignature || !secretKey) {
+      return NextResponse.json({ error: 'Missing signature or secret' }, { status: 401 });
+    }
+    const parts = Object.fromEntries(paymongoSignature.split(',').map(s => s.split('=')));
+    const timestamp = parts.t;
+    const signature = parts.v1;
     const hashedPayload = crypto.createHmac('sha256', secretKey).update(`${timestamp}.${rawBody}`).digest('hex');
     
     if (hashedPayload !== signature) {
@@ -28,7 +33,7 @@ export async function POST(req) {
       const sourceId = body.data.id;
       
       // Find the payment record using the source ID
-      const payment = await prisma.payment.findUnique({
+      const payment = await prisma.payment.findFirst({
         where: { referenceId: sourceId },
         include: { booking: true },
       });
@@ -43,13 +48,13 @@ export async function POST(req) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Basic ${Buffer.from(process.env.PAYMONGO_SECRET_KEY).toString('base64')}`
+          'Authorization': `Basic ${Buffer.from(`${process.env.PAYMONGO_SECRET_KEY}:`).toString('base64')}`
         },
         body: JSON.stringify({
           data: {
             attributes: {
               amount: payment.amount,
-              source: { id: sourceId },
+              source: { id: sourceId, type: 'source' },
               currency: 'PHP',
               description: `Payment for Booking #${payment.bookingId}`,
             }
@@ -63,7 +68,7 @@ export async function POST(req) {
         console.error('❌ Failed to create charge:', chargeData);
         await prisma.payment.update({
           where: { id: payment.id },
-          data: { status: 'failed' },
+          data: { status: 'Pending' },
         });
         return NextResponse.json({ error: 'Failed to create charge' }, { status: 500 });
       }
@@ -85,44 +90,30 @@ export async function POST(req) {
         return NextResponse.json({ error: 'Payment not found' }, { status: 404 });
       }
 
-      // ✅ Idempotency check: only update if the status is not already 'paid'
-      if (payment.status !== 'paid') {
-        // Get booking details to check payment type
-        const booking = await prisma.booking.findUnique({
-          where: { id: payment.bookingId },
-          select: { totalAmount: true, paymentType: true }
-        });
-
-        let paymentStatus = 'paid';
-        let bookingStatus = 'Confirmed';
-        let bookingPaymentStatus = 'Paid';
-
-        // Set status based on payment type
-        if (booking.paymentType === 'reservation' || booking.paymentType === 'half') {
-          paymentStatus = 'pending';
-          bookingPaymentStatus = 'Pending';
-          bookingStatus = booking.paymentType === 'half' ? 'Confirmed' : 'Pending';
-        }
-
-        // Update payment status
+      // ✅ Idempotency check: only update if the status is not already 'Paid'
+      if (payment.status !== 'Paid') {
+        // Update payment to Paid
         await prisma.payment.update({
           where: { id: payment.id },
-          data: { status: paymentStatus },
+          data: { status: 'Paid' },
         });
-
-        // Update booking status
+        // Reservation-only semantics: keep booking Pending but mark paymentStatus as Reservation and clear heldUntil
         await prisma.booking.update({
           where: { id: payment.bookingId },
           data: {
-            status: bookingStatus,
-            paymentStatus: bookingPaymentStatus,
+            status: 'Pending',
+            paymentStatus: 'Reservation',
             heldUntil: null,
           },
         });
-
-        console.log(`✅ Payment and booking confirmed for PaymentIntent: ${paymentIntentId}`);
-      } else {
-        console.log(`ℹ️ Payment already confirmed, skipping update for: ${paymentIntentId}`);
+        // Reset user cooldown upon successful reservation payment
+        const booking = await prisma.booking.findUnique({ where: { id: payment.bookingId } });
+        if (booking?.userId) {
+          await prisma.user.update({
+            where: { id: booking.userId },
+            data: { failedPaymentAttempts: 0, paymentCooldownUntil: null },
+          });
+        }
       }
     }
 

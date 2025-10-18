@@ -56,7 +56,7 @@ export const POST = async (req) => {
       where: {
         roomId,
         AND: [
-          { OR: [{ status: 'HELD' }, { status: 'PENDING' }, { status: 'CONFIRMED' }] },
+          { OR: [{ status: 'Held' }, { status: 'Pending' }, { status: 'Confirmed' }] },
           { OR: [{ checkIn: { lte: checkOutDate }, checkOut: { gte: checkInDate } }] },
           { OR: [{ heldUntil: null }, { heldUntil: { gt: now } }] },
         ],
@@ -76,8 +76,8 @@ export const POST = async (req) => {
         checkIn: checkInDate,
         checkOut: checkOutDate,
         guestName: guestName || 'Guest',
-        status: 'HELD',
-        paymentStatus: 'UNPAID',
+        status: 'Held',
+        paymentStatus: 'Pending',
         totalPrice,
         heldUntil,
         amenities: { create: amenityIds.map(id => ({ amenityInventoryId: id })) },

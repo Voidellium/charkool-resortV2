@@ -1,19 +1,22 @@
-'use client';
+"use client";
 
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useSession, signOut } from 'next-auth/react';
+import { signOut } from 'next-auth/react';
+import { useUser } from '../context/UserContext';
 import { useRouter, usePathname } from 'next/navigation';
-import { Bell, User, LogOut, Settings } from 'lucide-react';
+import { Bell, User, LogOut, Settings, Check, AlertCircle, Info, CalendarCheck2, CreditCard, Menu, X, ChevronDown } from 'lucide-react';
+import { NotificationsModal } from './NotificationsModal';
 
-export default function GuestHeader() {
+function GuestHeader() {
   const router = useRouter();
-  const { data: session } = useSession();
+  const { user } = useUser();
   const pathname = usePathname();
 
   const [isNotificationDropdownOpen, setIsNotificationDropdownOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
   const profileDropdownRef = useRef(null);
   const notificationDropdownRef = useRef(null);
@@ -21,27 +24,105 @@ export default function GuestHeader() {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [bellColor, setBellColor] = useState('white');
+  const [loadingNotifications, setLoadingNotifications] = useState(false);
+  const [notifError, setNotifError] = useState('');
+  const [hasScrolled, setHasScrolled] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showAllNotificationsModal, setShowAllNotificationsModal] = useState(false);
+
+  // Helper functions for notifications
+  const getNotificationIcon = (type) => {
+    switch (type?.toLowerCase()) {
+      case 'info': return <Info size={16} />;
+      case 'booking': return <CalendarCheck2 size={16} />;
+      case 'payment': return <CreditCard size={16} />;
+      case 'alert': return <AlertCircle size={16} />;
+      default: return <Bell size={16} />;
+    }
+  };
+
+  const getNotificationAccent = (type) => {
+    switch (type?.toLowerCase()) {
+      case 'info': return 'linear-gradient(135deg, #3B82F6, #1D4ED8)';
+      case 'booking': return 'linear-gradient(135deg, #10B981, #059669)';
+      case 'payment': return 'linear-gradient(135deg, #F59E0B, #D97706)';
+      case 'alert': return 'linear-gradient(135deg, #EF4444, #DC2626)';
+      default: return 'linear-gradient(135deg, #6B7280, #4B5563)';
+    }
+  };
+
+  const timeAgo = (dateString) => {
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffInMs = now - date;
+    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+    const diffInDays = Math.floor(diffInHours / 24);
+
+    if (diffInHours < 1) return 'Just now';
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    if (diffInDays < 7) return `${diffInDays}d ago`;
+    return date.toLocaleDateString();
+  };
+
+  // Ensure component is mounted before rendering dynamic content
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Sticky header effect
+  useEffect(() => {
+    if (!isMounted) return;
+    
+    const handleScroll = () => {
+      setHasScrolled(window.scrollY > 10);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [isMounted]);
 
   // Fetch notifications for user and update bell color and count
   useEffect(() => {
+    if (!isMounted) return;
+    
+    let isMountedLocal = true;
+    
     async function fetchNotifications() {
-      if (!session?.user?.id) return;
+      if (!user?.id) return;
+      
       try {
-        const res = await fetch(`/api/notifications?userId=${session.user.id}`, {
+        setLoadingNotifications(true);
+        setNotifError('');
+        const res = await fetch(`/api/notifications?role=CUSTOMER&userId=${user.id}`, {
           method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
         });
+        
         if (res.ok) {
           const data = await res.json();
+          if (!isMountedLocal) return;
           setNotifications(data || []);
           const unread = (data || []).filter(n => !n.isRead).length;
           setUnreadCount(unread);
-          setBellColor(unread > 0 ? '#ef4444' : 'white'); // red if unread, else white
+          setBellColor(unread > 0 ? '#ef4444' : 'white');
+        } else {
+          console.error('Failed to fetch notifications:', res.status);
+          if (isMountedLocal) setNotifError('Failed to load notifications');
         }
       } catch (err) {
         console.error('Error fetching notifications:', err);
+        if (isMountedLocal) setNotifError('Unable to load notifications');
+      } finally {
+        if (isMountedLocal) setLoadingNotifications(false);
       }
     }
+    
     fetchNotifications();
+    
+    // Poll for new notifications every 60 seconds
+    const interval = setInterval(fetchNotifications, 60000);
 
     function handleClickOutside(event) {
       if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target)) {
@@ -54,9 +135,11 @@ export default function GuestHeader() {
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
+      isMountedLocal = false;
+      clearInterval(interval);
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [session?.user?.id]); // Depend on user id
+  }, [user?.id, isMounted]);
 
   const handleBookNow = () => {
     router.push('/booking');
@@ -70,22 +153,98 @@ export default function GuestHeader() {
     await signOut({ callbackUrl: '/' });
   };
 
+  // Mark single notification as read
+  const handleMarkAsRead = async (notification) => {
+    if (notification.isRead) return;
+
+    try {
+      const res = await fetch(`/api/notifications/${notification.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isRead: true }),
+      });
+      
+      if (res.ok) {
+        setNotifications(prev => prev.map(n => 
+          n.id === notification.id ? { ...n, isRead: true } : n
+        ));
+        setUnreadCount(prev => Math.max(0, prev - 1));
+        if (unreadCount - 1 <= 0) setBellColor('white');
+      }
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  // Mark all notifications as read
+  const handleMarkAllAsRead = async () => {
+    try {
+      const unreadNotifications = notifications.filter(n => !n.isRead);
+      await Promise.all(
+        unreadNotifications.map(notification =>
+          fetch(`/api/notifications/${notification.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ isRead: true })
+          })
+        )
+      );
+      
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+      setBellColor('white');
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+    }
+  };
+
   const handleEditProfile = () => {
     router.push('/guest/profile');
   };
 
-  const handleNotificationBellClick = () => {
-    setIsNotificationDropdownOpen(!isNotificationDropdownOpen);
+  const handleNotificationBellClick = async () => {
+    const nextOpen = !isNotificationDropdownOpen;
+    setIsNotificationDropdownOpen(nextOpen);
+    if (isMobileMenuOpen) setIsMobileMenuOpen(false);
+    
+    // Refresh notifications when opening
+    if (nextOpen && user?.id) {
+      try {
+        setLoadingNotifications(true);
+        const res = await fetch('/api/notifications?role=CUSTOMER');
+        if (res.ok) {
+          const data = await res.json();
+          setNotifications(data || []);
+          const unread = (data || []).filter(n => !n.isRead).length;
+          setUnreadCount(unread);
+          setBellColor(unread > 0 ? '#ef4444' : 'white');
+        }
+      } catch (e) {
+        // Handle silently
+      } finally {
+        setLoadingNotifications(false);
+      }
+    }
   };
+
+  // Helper functions
 
   const hasNotifications = notifications.length > 0;
 
   return (
-    <header className="guest-header">
+    <header className={`guest-header ${hasScrolled ? 'scrolled' : ''}`}>
       <div className="guest-header-container">
         {/* Left Section - Logo */}
         <div className="logo-container">
-          <Link href="/guest/dashboard">
+          <button
+            className="mobile-menu-toggle"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
+          >
+            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+          
+          <Link href="/guest/dashboard" className="logo-link">
             <Image
               src="/images/logo.png"
               alt="Resort Logo"
@@ -98,7 +257,7 @@ export default function GuestHeader() {
         </div>
 
         {/* Center Section - Navigation */}
-        <nav className="nav-links">
+        <nav className={`nav-links ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
           <Link href="/guest/dashboard" className={pathname === '/guest/dashboard' ? 'active' : ''}>
             <span>Dashboard</span>
           </Link>
@@ -108,6 +267,13 @@ export default function GuestHeader() {
           <Link href="/guest/chat" className={pathname === '/guest/chat' ? 'active' : ''}>
             <span>Chat</span>
           </Link>
+          
+          {/* Mobile-only Reserve */}
+          <div className="mobile-book-container">
+            <button className="mobile-book-btn" onClick={() => { setIsMobileMenuOpen(false); handleBookNow(); }}>
+              Reserve Room
+            </button>
+          </div>
         </nav>
 
         {/* Right Section - Actions */}
@@ -120,53 +286,155 @@ export default function GuestHeader() {
               aria-label="Notifications"
             >
               <Bell size={20} color={bellColor} />
-              {unreadCount > 0 && <span className="notification-count">{unreadCount}</span>}
+              {unreadCount > 0 && (
+                <span className="notification-count" aria-live="polite">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
             </button>
+            
             {isNotificationDropdownOpen && (
-              <div className="notification-dropdown">
-                {hasNotifications ? (
-                  <>
-                    <ul>
-                      {notifications.map((notif, index) => (
-                        <li key={index}>{notif.message}</li>
-                      ))}
-                    </ul>
-                    {unreadCount > 0 && (
-                      <button
-                        className="mark-read-btn"
-                        onClick={async () => {
-                          const unreadNotifications = notifications.filter(n => !n.isRead);
-                          for (const notif of unreadNotifications) {
-                            try {
-                              await fetch(`/api/notifications/${notif.id}`, {
-                                method: 'PATCH',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ isRead: true }),
-                              });
-                            } catch (err) {
-                              console.error('Error marking notification as read:', err);
-                            }
-                          }
-                          // Update local state
+              <div className="notification-dropdown" role="dialog" aria-label="Notifications">
+                <div className="notification-header">
+                  <div>
+                    <h3 className="notification-title">Notifications</h3>
+                    <p className="notification-subtitle">{unreadCount} unread</p>
+                  </div>
+                  <div className="notification-badge">{notifications.length}</div>
+                </div>
+
+                <div className="notification-body">
+                  {loadingNotifications && (
+                    <div className="notification-loading">
+                      <div className="skeleton-item"></div>
+                      <div className="skeleton-item"></div>
+                      <div className="skeleton-item"></div>
+                    </div>
+                  )}
+
+                  {!loadingNotifications && notifError && (
+                    <div className="notification-error">
+                      <AlertCircle size={16} />
+                      <span>{notifError}</span>
+                    </div>
+                  )}
+
+                  {!loadingNotifications && !notifError && (
+                    hasNotifications ? (
+                      <ul className="notification-list">
+                        {notifications.slice(0, 6).map((notif) => (
+                          <li
+                            key={notif.id}
+                            className={`notification-item ${!notif.isRead ? 'unread' : ''} ${notif.type}`}
+                            onClick={async () => {
+                              if (!notif.isRead) {
+                                try {
+                                  const res = await fetch(`/api/notifications/${notif.id}`, {
+                                    method: 'PATCH',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ isRead: true }),
+                                  });
+                                  if (res.ok) {
+                                    setNotifications(prev => prev.map(n => 
+                                      n.id === notif.id ? { ...n, isRead: true } : n
+                                    ));
+                                    setUnreadCount(prev => Math.max(0, prev - 1));
+                                    if (unreadCount - 1 <= 0) setBellColor('white');
+                                  }
+                                } catch (e) {
+                                  // Handle silently
+                                }
+                              }
+                            }}
+                          >
+                            <div className="notification-icon" style={{ background: getNotificationAccent(notif.type) }}>
+                              {getNotificationIcon(notif.type)}
+                            </div>
+                            <div className="notification-content">
+                              <div className="notification-message">{notif.message}</div>
+                              <div className="notification-time">{timeAgo(notif.createdAt)}</div>
+                            </div>
+                            {!notif.isRead && (
+                              <button
+                                className="quick-mark-read"
+                                title="Mark as read"
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  try {
+                                    const res = await fetch(`/api/notifications/${notif.id}`, {
+                                      method: 'PATCH',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ isRead: true }),
+                                    });
+                                    if (res.ok) {
+                                      setNotifications(prev => prev.map(n => 
+                                        n.id === notif.id ? { ...n, isRead: true } : n
+                                      ));
+                                      setUnreadCount(prev => Math.max(0, prev - 1));
+                                      if (unreadCount - 1 <= 0) setBellColor('white');
+                                    }
+                                  } catch {}
+                                }}
+                              >
+                                <Check size={12} />
+                              </button>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="notification-empty">
+                        <div className="empty-icon">
+                          <Bell size={24} />
+                        </div>
+                        <div className="empty-title">All caught up!</div>
+                        <div className="empty-subtitle">No new notifications</div>
+                      </div>
+                    )
+                  )}
+                </div>
+
+                <div className="notification-footer">
+                  {hasNotifications && (
+                    <button
+                      className="mark-all-read"
+                      disabled={unreadCount === 0 || loadingNotifications}
+                      onClick={async () => {
+                        const unreadNotifications = notifications.filter(n => !n.isRead);
+                        if (unreadNotifications.length === 0) return;
+                        try {
+                          await Promise.all(
+                            unreadNotifications.map(n => fetch(`/api/notifications/${n.id}`, {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ isRead: true }),
+                            }))
+                          );
                           setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
                           setUnreadCount(0);
                           setBellColor('white');
-                        }}
-                      >
-                        Mark all as read
-                      </button>
-                    )}
-                  </>
-                ) : (
-                  <p>No new notifications.</p>
-                )}
+                        } catch (e) {
+                          // Handle silently
+                        }
+                      }}
+                    >
+                      Mark all as read
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => setShowAllNotificationsModal(true)}
+                    className="view-all-link"
+                  >
+                    View all
+                  </button>
+                </div>
               </div>
             )}
           </div>
 
-          {/* Book Now Button */}
+          {/* Reserve Room Button */}
           <button className="book-now-btn" onClick={handleBookNow}>
-            Book now
+            Reserve Room
           </button>
 
           {/* Profile Dropdown */}
@@ -181,13 +449,32 @@ export default function GuestHeader() {
                 <span></span>
                 <span></span>
               </div>
-              <User size={20} />
+              {user?.image ? (
+                <div className="profile-avatar">
+                  <Image
+                    src={user.image}
+                    alt="Profile"
+                    width={32}
+                    height={32}
+                    style={{ borderRadius: '50%', objectFit: 'cover' }}
+                  />
+                </div>
+              ) : (
+                <div className="profile-avatar-fallback">
+                  {user?.name ? (
+                    user.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
+                  ) : (
+                    <User size={18} />
+                  )}
+                </div>
+              )}
+              <ChevronDown size={16} className="profile-chevron" />
             </button>
             {isProfileDropdownOpen && (
               <div className="profile-dropdown">
                 <div className="dropdown-header">
-                  {session?.user?.name && <p className="font-bold">{session.user.name}</p>}
-                  {session?.user?.email && <p className="text-sm text-gray-500">{session.user.email}</p>}
+                  {user?.name && <p className="font-bold">{user.name}</p>}
+                  {user?.email && <p className="text-sm text-gray-500">{user.email}</p>}
                 </div>
                 <div className="dropdown-item" onClick={handleEditProfile}>
                   <Settings size={16} />
@@ -203,80 +490,207 @@ export default function GuestHeader() {
         </div>
       </div>
 
+      {/* All Notifications Modal */}
+      <NotificationsModal
+        isOpen={showAllNotificationsModal}
+        onClose={() => setShowAllNotificationsModal(false)}
+        notifications={notifications}
+        loading={loadingNotifications}
+        error={notifError}
+        onMarkAsRead={handleMarkAsRead}
+        onMarkAllAsRead={handleMarkAllAsRead}
+      />
+
       {/* Component Styles */}
       <style jsx>{`
         .guest-header {
-          background-color: #FEBE54;
-          padding: 1rem 2rem;
-          min-height: 70px;
-          display: flex;
-          justify-content: center;
-          align-items: center;
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          z-index: 1000;
+          background: linear-gradient(135deg, rgba(240, 176, 53, 0.55), rgba(252, 211, 77, 0.12));
+          backdrop-filter: blur(10px);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+          padding: 1rem 0;
+          transition: background 0.4s ease, box-shadow 0.4s ease, padding 0.4s ease;
+          height: auto;
+        }
+
+        .guest-header::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(120deg, #febe52, #EDCA60);
+          pointer-events: none;
+          opacity: 0.7;
+          transition: opacity 0.4s ease;
+        }
+
+        .guest-header.scrolled {
+          background: linear-gradient(135deg, rgba(240, 176, 53, 0.95), rgba(251, 146, 60, 0.95));
+          padding: 0.8rem 0;
+          box-shadow: 0 12px 35px rgba(251, 146, 60, 0.28);
+        }
+
+        .guest-header.scrolled::before {
+          opacity: 0.2;
         }
 
         .guest-header-container {
+          position: relative;
           display: flex;
           justify-content: space-between;
           align-items: center;
-          width: 100%;
           max-width: 1200px;
+          margin: 0 auto;
+          padding: 0 1.5rem;
+          gap: 1.5rem;
+          height: 60px;
         }
 
-        /* Logo */
+        /* Logo Section */
         .logo-container {
           display: flex;
           align-items: center;
-          gap: 0.5rem;
-        }
-
-        .resort-name {
-          font-size: 1.25rem;
-          font-weight: bold;
-          color: white;
-        }
-
-        /* Navigation Links */
-        .nav-links {
-          display: flex;
-          gap: 2.5rem;
-          flex: 1;
-          justify-content: center;
-        }
-
-        .nav-links :global(a) {
-          color: #333;
-          text-decoration: none;
-          font-weight: 500;
-          cursor: pointer;
           position: relative;
-          padding: 0.5rem 0;
-          transition: color 0.3s ease, transform 0.3s ease;
-        }
-        
-        .nav-links :global(a):hover {
-          color: #fff;
-          transform: translateY(-2px);
         }
 
-        .nav-links :global(a)::after {
-          content: "";
-          position: absolute;
-          left: 0;
-          bottom: -4px;
-          width: 100%;
-          height: 2px;
-          background-color: #fff;
-          transform: scaleX(0);
-          transform-origin: left;
+        .logo-link {
+          display: flex;
+          align-items: center;
+          gap: 0.9rem;
+          text-decoration: none !important;
+          position: relative;
+          padding: 0.3rem 0;
+          border-bottom: none !important;
+        }
+
+        .logo {
+          display: block;
+          height: 60px;
+          width: auto;
+          filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.18));
+          border-radius: 4px;
           transition: transform 0.3s ease;
         }
 
-        .nav-links :global(a):hover::after,
-        .nav-links :global(a).active::after {
-          transform: scaleX(1);
+        .logo:hover {
+          transform: rotate(2deg) scale(1.05);
         }
 
-        /* Right-side actions */
+        .resort-name {
+          position: relative;
+          font-size: 1.5rem;
+          font-weight: 800;
+          letter-spacing: 1px;
+          text-transform: uppercase;
+          background: linear-gradient(120deg, #ffffff 10%, #fef3c7 45%, #fde68a 90%);
+          -webkit-background-clip: text;
+          color: transparent;
+          display: inline-flex;
+          align-items: center;
+          text-decoration: none;
+        }
+
+        .mobile-menu-toggle {
+          display: none;
+          background: rgba(255, 255, 255, 0.08);
+          border: none;
+          border-radius: 12px;
+          padding: 0.5rem;
+          color: white;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          backdrop-filter: blur(12px);
+        }
+
+        .mobile-menu-toggle:hover {
+          background: rgba(255, 255, 255, 0.2);
+          transform: scale(1.05);
+        }
+
+        /* Navigation */
+        .nav-links {
+          display: flex;
+          gap: 1.4rem;
+          flex: 1;
+          justify-content: center;
+          align-items: center;
+          list-style: none;
+          margin: 0;
+          padding: 0;
+        }
+
+        .nav-links :global(a) {
+          color: rgba(255, 255, 255, 0.9);
+          text-decoration: none !important;
+          font-size: 1rem;
+          font-weight: 600;
+          padding: 0.45rem 0.95rem;
+          border-radius: 999px;
+          transition: transform 0.3s ease, background 0.3s ease, color 0.3s ease;
+          background: rgba(255, 255, 255, 0.08);
+          backdrop-filter: blur(12px);
+          border-bottom: none !important;
+        }
+
+        .nav-links :global(a):hover,
+        .nav-links :global(a).active {
+          color: #ffffff;
+          background: linear-gradient(135deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.08));
+          transform: translateY(-3px);
+          box-shadow: 0 8px 18px rgba(255, 255, 255, 0.16);
+          text-decoration: none !important;
+          border-bottom: none !important;
+        }
+
+        .mobile-book-container {
+          display: none;
+        }
+
+        .mobile-book-btn {
+          background: rgba(255, 255, 255, 0.95);
+          color: #d97706;
+          border: 2px solid rgba(217, 119, 6, 0.2);
+          padding: 0.75rem 1.75rem;
+          border-radius: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          box-shadow: 0 4px 16px rgba(255, 255, 255, 0.2), 
+                      0 2px 8px rgba(0, 0, 0, 0.1);
+          position: relative;
+          overflow: hidden;
+          letter-spacing: 0.25px;
+          backdrop-filter: blur(20px);
+        }
+
+        .mobile-book-btn::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 0;
+          height: 100%;
+          background: linear-gradient(135deg, #d97706, #b45309);
+          transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+          z-index: -1;
+        }
+
+        .mobile-book-btn:hover::before {
+          width: 100%;
+        }
+
+        .mobile-book-btn:hover {
+          color: white;
+          border-color: #d97706;
+          transform: translateY(-2px);
+          box-shadow: 0 8px 24px rgba(217, 119, 6, 0.3), 
+                      0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        /* Action Links */
         .action-links {
           display: flex;
           align-items: center;
@@ -289,151 +703,1018 @@ export default function GuestHeader() {
         }
 
         .notification-bell {
-          background: none;
+          background: rgba(255, 255, 255, 0.1);
           border: none;
+          border-radius: 12px;
+          padding: 0.75rem;
           cursor: pointer;
-          padding: 0.5rem;
-          display: flex;
-          align-items: center;
-          justify-content: center;
+          transition: all 0.2s ease;
+          backdrop-filter: blur(10px);
+          position: relative;
+        }
+
+        .notification-bell:hover {
+          background: rgba(255, 255, 255, 0.2);
+          transform: scale(1.05);
         }
 
         .notification-count {
           position: absolute;
-          top: 4px;
-          right: 4px;
-          background-color: #ef4444;
+          top: 2px;
+          right: 2px;
+          background: linear-gradient(135deg, #ef4444, #dc2626);
           color: white;
           border-radius: 50%;
-          padding: 2px 6px;
-          font-size: 0.75rem;
-          font-weight: bold;
-          min-width: 16px;
+          padding: 0.125rem 0.375rem;
+          font-size: 0.7rem;
+          font-weight: 700;
+          min-width: 18px;
           text-align: center;
+          box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+          animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.1); }
         }
 
         .notification-dropdown {
           position: absolute;
-          top: 100%;
+          top: calc(100% + 0.5rem);
           right: 0;
-          background: white;
-          border: 1px solid #ccc;
-          border-radius: 8px;
-          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-          padding: 1rem;
-          width: 250px;
-          z-index: 10;
+          background: rgba(255, 255, 255, 0.95);
+          backdrop-filter: blur(30px);
+          border: 1px solid rgba(254, 190, 84, 0.2);
+          border-radius: 16px;
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12), 
+                      0 8px 24px rgba(254, 190, 84, 0.1);
+          width: 380px;
+          max-height: 500px;
+          overflow: hidden;
+          z-index: 1000;
+          animation: dropdownSlide 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        .notification-dropdown p {
-          color: #333;
-          font-size: 0.9rem;
+        @keyframes dropdownSlide {
+          from {
+            opacity: 0;
+            transform: translateY(-10px) scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
         }
 
-        .mark-read-btn {
-          background-color: #4b4b4b;
+        .notification-header {
+          background: linear-gradient(135deg, #febe54, #f5a623);
           color: white;
-          border: none;
-          padding: 0.5rem 1rem;
-          border-radius: 4px;
+          padding: 1rem 1.25rem;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .notification-title {
+          margin: 0;
+          font-size: 1.1rem;
+          font-weight: 700;
+        }
+
+        .notification-subtitle {
+          margin: 0.25rem 0 0 0;
           font-size: 0.8rem;
+          opacity: 0.9;
+        }
+
+        .notification-badge {
+          background: rgba(255, 255, 255, 0.2);
+          padding: 0.25rem 0.75rem;
+          border-radius: 20px;
+          font-weight: 700;
+          font-size: 0.8rem;
+        }
+
+        .notification-body {
+          max-height: 320px;
+          overflow-y: auto;
+          padding: 0.5rem;
+        }
+
+        .notification-loading {
+          padding: 1rem;
+        }
+
+        .skeleton-item {
+          height: 60px;
+          background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 37%, #f3f4f6 63%);
+          background-size: 400% 100%;
+          border-radius: 12px;
+          margin-bottom: 0.5rem;
+          animation: shimmer 1.5s ease infinite;
+        }
+
+        @keyframes shimmer {
+          0% { background-position: 100% 0; }
+          100% { background-position: 0 0; }
+        }
+
+        .notification-error {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 1rem;
+          color: #dc2626;
+          background: #fee2e2;
+          border-radius: 12px;
+          margin: 0.5rem;
+        }
+
+        .notification-list {
+          list-style: none;
+          margin: 0;
+          padding: 0.25rem;
+        }
+
+        .notification-item {
+          display: flex;
+          align-items: flex-start;
+          gap: 0.75rem;
+          padding: 0.875rem;
+          border-radius: 12px;
           cursor: pointer;
-          margin-top: 0.5rem;
-          width: 100%;
-          transition: background-color 0.2s ease;
+          transition: all 0.2s ease;
+          margin-bottom: 0.25rem;
+          position: relative;
         }
 
-        .mark-read-btn:hover {
-          background-color: #333;
+        .notification-item:hover {
+          background: rgba(99, 102, 241, 0.05);
+          transform: translateX(4px);
         }
 
-        /* Book Now Button */
-        .book-now-btn {
-          background-color: #4b4b4b;
+        .notification-item.unread {
+          background: rgba(99, 102, 241, 0.08);
+          border-left: 3px solid #6366f1;
+          animation: fadeInSlide 0.3s ease;
+        }
+
+        .notification-item.booking-confirmed {
+          border-left-color: #10b981;
+        }
+
+        .notification-item.booking-approved {
+          border-left-color: #059669;
+        }
+
+        .notification-item.booking-cancelled,
+        .notification-item.booking-disapproved {
+          border-left-color: #ef4444;
+        }
+
+        .notification-item.payment-received {
+          border-left-color: #3b82f6;
+        }
+
+        @keyframes fadeInSlide {
+          from {
+            opacity: 0;
+            transform: translateX(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+
+        .notification-icon {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
+          flex-shrink: 0;
+        }
+
+        .notification-content {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .notification-message {
+          font-size: 0.9rem;
+          font-weight: 600;
+          color: #111827;
+          line-height: 1.4;
+          margin-bottom: 0.25rem;
+        }
+
+        .notification-time {
+          font-size: 0.75rem;
+          color: #6b7280;
+        }
+
+        .quick-mark-read {
+          position: absolute;
+          top: 8px;
+          right: 8px;
+          background: #10b981;
           color: white;
           border: none;
-          padding: 0.75rem 1.5rem;
-          border-radius: 20px;
+          border-radius: 50%;
+          width: 24px;
+          height: 24px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          opacity: 0;
+        }
+
+        .notification-item:hover .quick-mark-read {
+          opacity: 1;
+        }
+
+        .quick-mark-read:hover {
+          background: #059669;
+          transform: scale(1.1);
+        }
+
+        .notification-empty {
+          text-align: center;
+          padding: 2rem 1rem;
+          color: #6b7280;
+        }
+
+        .empty-icon {
+          width: 48px;
+          height: 48px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0 auto 1rem;
+        }
+
+        .empty-title {
+          font-weight: 600;
+          margin-bottom: 0.25rem;
+          color: #374151;
+        }
+
+        .empty-subtitle {
+          font-size: 0.85rem;
+          color: #9ca3af;
+        }
+
+        .notification-footer {
+          padding: 0.875rem 1.25rem;
+          border-top: 1px solid rgba(0, 0, 0, 0.05);
+          display: flex;
+          gap: 0.5rem;
+          align-items: center;
+        }
+
+        .mark-all-read {
+          flex: 1;
+          background: linear-gradient(135deg, #f5a623, #febe54);
+          color: white;
+          border: none;
+          padding: 0.625rem 1rem;
+          border-radius: 10px;
+          font-size: 0.85rem;
           font-weight: 600;
           cursor: pointer;
-          transition: background-color 0.2s ease-in-out, transform 0.2s ease;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+          transition: all 0.3s ease;
+          box-shadow: 0 2px 8px rgba(245, 166, 35, 0.2);
         }
 
-        .book-now-btn:hover {
-          background-color: #333;
+        .mark-all-read:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .mark-all-read:hover:not(:disabled) {
+          background: linear-gradient(135deg, #e09612, #f5a623);
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(245, 166, 35, 0.4);
+        }
+
+        .view-all-link {
+          color: #f5a623;
+          background: none;
+          border: none;
+          text-decoration: none;
+          font-weight: 600;
+          font-size: 0.85rem;
+          padding: 0.5rem;
+          transition: all 0.3s ease;
+          border-radius: 8px;
+          cursor: pointer;
+        }
+
+        .view-all-link:hover {
+          color: #febe54;
+          background: rgba(254, 190, 84, 0.1);
           transform: translateY(-1px);
         }
 
-        /* Profile Container */
+        /* Reserve Room Button */
+        .book-now-btn {
+          background: linear-gradient(135deg, #f97316 0%, #facc15 40%, #fb923c 100%);
+          border: none;
+          color: #fff;
+          font-size: 1.08rem;
+          font-weight: 800;
+          padding: 0.65em 1.9em;
+          border-radius: 999px;
+          box-shadow: 0 18px 35px -14px rgba(249, 115, 22, 0.8);
+          cursor: pointer;
+          transition: transform 0.35s ease, box-shadow 0.35s ease;
+          letter-spacing: 0.14em;
+          margin-right: 0.5rem;
+          min-width: 150px;
+          text-transform: uppercase;
+          position: relative;
+          overflow: hidden;
+        }
+
+        .book-now-btn::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(120deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0));
+          transform: translateX(-100%);
+          transition: transform 0.45s ease;
+        }
+
+        .book-now-btn:hover,
+        .book-now-btn:focus {
+          transform: translateY(-4px) scale(1.04);
+          box-shadow: 0 20px 40px -12px rgba(248, 113, 22, 0.7);
+        }
+
+        .book-now-btn:hover::after,
+        .book-now-btn:focus::after {
+          transform: translateX(0);
+        }
+
+        .book-now-btn:active {
+          transform: translateY(-1px) scale(1.01);
+          box-shadow: 0 16px 28px -18px rgba(248, 113, 22, 0.7);
+        }
+
+        /* Profile */
         .profile-container {
           position: relative;
         }
 
-        /* Profile Button */
         .profile-btn {
-          background-color: #4b4b4b;
+          background: rgba(255, 255, 255, 0.1);
           border: none;
+          border-radius: 12px;
+          padding: 0.5rem 0.75rem;
           cursor: pointer;
-          padding: 0.75rem 1rem;
-          border-radius: 20px;
           display: flex;
           align-items: center;
           gap: 0.5rem;
           color: white;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+          transition: all 0.2s ease;
+          backdrop-filter: blur(10px);
         }
 
         .profile-btn:hover {
-          background-color: #333;
+          background: rgba(255, 255, 255, 0.2);
+          transform: scale(1.02);
         }
 
-        /* Dropdown Menu */
+        .profile-avatar,
+        .profile-avatar-fallback {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 0.8rem;
+          font-weight: 700;
+        }
+
+        .profile-avatar-fallback {
+          background: linear-gradient(135deg, #667eea, #764ba2);
+          color: white;
+        }
+
+        .profile-chevron {
+          transition: transform 0.2s ease;
+        }
+
+        .profile-btn:hover .profile-chevron {
+          transform: rotate(180deg);
+        }
+
         .profile-dropdown {
           position: absolute;
-          top: 100%;
+          top: calc(100% + 0.5rem);
           right: 0;
-          background: white;
-          border: 1px solid #ccc;
-          border-radius: 8px;
-          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-          min-width: 200px;
+          background: rgba(255, 255, 255, 0.98);
+          backdrop-filter: blur(20px);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          border-radius: 16px;
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+          min-width: 240px;
           overflow: hidden;
-          z-index: 10;
+          z-index: 1000;
+          animation: dropdownSlide 0.2s ease;
         }
 
         .dropdown-header {
-          padding: 1rem;
-          border-bottom: 1px solid #eee;
+          padding: 1.25rem;
+          border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+          background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+        }
+
+        .dropdown-header p {
+          margin: 0;
+          color: #374151;
+        }
+
+        .font-bold {
+          font-weight: 700;
+        }
+
+        .text-sm {
+          font-size: 0.875rem;
+        }
+
+        .text-gray-500 {
+          color: #6b7280;
         }
 
         .dropdown-item {
           display: flex;
           align-items: center;
           gap: 0.75rem;
-          padding: 0.75rem 1rem;
+          padding: 0.875rem 1.25rem;
           cursor: pointer;
-          transition: background-color 0.2s ease-in-out;
+          transition: all 0.2s ease;
+          color: #374151;
+          font-weight: 500;
         }
 
         .dropdown-item:hover {
-          background-color: #f5f5f5;
+          background: rgba(99, 102, 241, 0.05);
+          color: #111827;
+          transform: translateX(4px);
         }
 
-        /* Hamburger icon */
         .menu-icon {
           display: flex;
           flex-direction: column;
-          gap: 3px;
+          gap: 2px;
         }
 
         .menu-icon span {
-          width: 18px;
+          width: 16px;
           height: 2px;
           background-color: white;
           border-radius: 1px;
+          transition: all 0.2s ease;
+        }
+
+        /* Mobile Styles */
+        @media (max-width: 1024px) {
+          .guest-header-container {
+            padding: 0 1.2rem;
+            gap: 1rem;
+          }
+
+          .nav-links {
+            gap: 1rem;
+          }
+
+          .resort-name {
+            font-size: 1.3rem;
+          }
+        }
+
+        @media (max-width: 820px) {
+          .guest-header {
+            padding: 0.8rem 0;
+          }
+
+          .guest-header-container {
+            flex-direction: column;
+            align-items: center;
+            padding: 0.8rem 1rem;
+          }
+
+          .nav-links {
+            justify-content: center;
+          }
+
+          .book-now-btn {
+            order: -1;
+            margin-right: 0;
+            margin-bottom: 0.4rem;
+            font-size: 1rem;
+            padding: 0.55em 1.6em;
+            min-width: 140px;
+          }
+
+          .mobile-menu-toggle {
+            display: flex;
+          }
+
+          .nav-links {
+            position: fixed;
+            top: calc(100% + 1rem);
+            left: 0;
+            right: 0;
+            background: linear-gradient(135deg, rgba(240, 176, 53, 0.98), rgba(252, 211, 77, 0.98));
+            backdrop-filter: blur(20px);
+            flex-direction: column;
+            padding: 1.5rem;
+            transform: translateY(-100%);
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.12);
+            border-radius: 0 0 1rem 1rem;
+          }
+
+          .nav-links.mobile-open {
+            transform: translateY(0);
+            opacity: 1;
+            visibility: visible;
+          }
+
+          .nav-links :global(a) {
+            width: 100%;
+            text-align: center;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            background: rgba(255, 255, 255, 0.1);
+          }
+
+          .mobile-book-container {
+            display: block;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+          }
+
+          .action-links {
+            gap: 0.5rem;
+          }
+
+          .notification-dropdown {
+            width: 340px;
+            right: -1rem;
+          }
+
+          .profile-dropdown {
+            right: -0.5rem;
+          }
+        }
+
+        @media (max-width: 600px) {
+          .guest-header {
+            padding: 0.75rem 0;
+          }
+
+          .guest-header-container {
+            padding: 0.6rem 0.9rem;
+            gap: 0.8rem;
+          }
+
+          .logo {
+            height: 50px;
+          }
+
+          .resort-name {
+            font-size: 1.2rem;
+            letter-spacing: 0.5px;
+          }
+
+          .nav-links {
+            gap: 0.6rem;
+          }
+
+          .nav-links :global(a) {
+            font-size: 0.95rem;
+            padding: 0.4rem 0.75rem;
+          }
+
+          .book-now-btn {
+            font-size: 0.95rem;
+            min-width: 125px;
+          }
+
+          .notification-dropdown {
+            width: calc(100vw - 2rem);
+            right: -1rem;
+          }
+        }
+
+        @media (max-width: 420px) {
+          .resort-name {
+            font-size: 1.1rem;
+          }
+
+          .nav-links :global(a) {
+            font-size: 0.85rem;
+            padding: 0.35rem 0.65rem;
+          }
+
+          .book-now-btn {
+            font-size: 0.9rem;
+            min-width: 120px;
+          }
+        }
+
+        /* All Notifications Modal */
+        .modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(8px);
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          z-index: 2000;
+          padding: 1rem;
+          animation: modalFadeIn 0.3s ease-out;
+        }
+
+        @keyframes modalFadeIn {
+          from {
+            opacity: 0;
+            backdrop-filter: blur(0px);
+          }
+          to {
+            opacity: 1;
+            backdrop-filter: blur(8px);
+          }
+        }
+
+        .modal-content {
+          background: white;
+          border-radius: 12px;
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+          max-width: 600px;
+          width: 100%;
+          max-height: 80vh;
+          overflow: hidden;
+          animation: modalSlideIn 0.3s ease-out;
+          position: relative;
+        }
+
+        @keyframes modalSlideIn {
+          from {
+            opacity: 0;
+            transform: translateY(-20px) scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+
+        .modal-header {
+          background: linear-gradient(135deg, rgba(240, 176, 53, 0.95), rgba(252, 211, 77, 0.95));
+          color: white;
+          padding: 1.5rem 2rem;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+          position: relative;
+        }
+
+        .modal-header::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(120deg, #febe52, #EDCA60);
+          pointer-events: none;
+          opacity: 0.7;
+        }
+
+        .modal-header h2 {
+          margin: 0;
+          font-size: 1.5rem;
+          font-weight: 700;
+          letter-spacing: -0.025em;
+          position: relative;
+          z-index: 1;
+        }
+
+        .modal-close {
+          background: rgba(255, 255, 255, 0.08);
+          border: none;
+          color: white;
+          padding: 0.5rem;
+          border-radius: 10px;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          backdrop-filter: blur(12px);
+          position: relative;
+          z-index: 1;
+        }
+
+        .modal-close:hover {
+          background: rgba(255, 255, 255, 0.2);
+          transform: rotate(90deg) scale(1.05);
+        }
+
+        .modal-body {
+          max-height: 60vh;
+          overflow-y: auto;
+          padding: 0;
+        }
+
+        .modal-loading {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 3rem;
+          color: #6b7280;
+        }
+
+        .loading-spinner {
+          width: 40px;
+          height: 40px;
+          border: 3px solid #e5e7eb;
+          border-top: 3px solid #febe54;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+          margin-bottom: 1rem;
+        }
+
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+
+        .modal-empty {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 3rem;
+          color: #6b7280;
+          text-align: center;
+        }
+
+        .modal-empty svg {
+          color: #d1d5db;
+          margin-bottom: 1rem;
+        }
+
+        .modal-empty h3 {
+          margin: 0 0 0.5rem 0;
+          color: #374151;
+          font-size: 1.25rem;
+          font-weight: 600;
+        }
+
+        .modal-empty p {
+          margin: 0;
+          font-size: 0.875rem;
+        }
+
+        .modal-notifications {
+          padding: 0;
+        }
+
+        .modal-notification-item {
+          display: flex;
+          align-items: flex-start;
+          padding: 1.5rem 2rem;
+          border-bottom: 1px solid #f3f4f6;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          position: relative;
+          gap: 1rem;
+        }
+
+        .modal-notification-item:hover {
+          background: linear-gradient(135deg, rgba(254, 190, 84, 0.05), rgba(245, 166, 35, 0.05));
+        }
+
+        .modal-notification-item.unread {
+          background: linear-gradient(135deg, rgba(254, 190, 84, 0.1), rgba(245, 166, 35, 0.1));
+          border-left: 4px solid #febe54;
+        }
+
+        .modal-notification-item:last-child {
+          border-bottom: none;
+        }
+
+        .notification-icon {
+          flex-shrink: 0;
+          width: 40px;
+          height: 40px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(255, 255, 255, 0.8);
+          border-radius: 12px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .notification-content {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .notification-content h4 {
+          margin: 0 0 0.5rem 0;
+          font-size: 1rem;
+          font-weight: 600;
+          color: #111827;
+          line-height: 1.4;
+        }
+
+        .notification-content p {
+          margin: 0 0 0.75rem 0;
+          font-size: 0.875rem;
+          color: #6b7280;
+          line-height: 1.5;
+        }
+
+        .notification-meta {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+        }
+
+        .notification-time {
+          font-size: 0.75rem;
+          color: #9ca3af;
+          font-weight: 500;
+        }
+
+        .notification-type-badge {
+          font-size: 0.625rem;
+          font-weight: 700;
+          padding: 0.25rem 0.5rem;
+          border-radius: 6px;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+
+        .notification-type-badge.booking_created {
+          background: rgba(254, 190, 84, 0.2);
+          color: #92400e;
+        }
+
+        .notification-type-badge.booking_confirmed {
+          background: rgba(34, 197, 94, 0.2);
+          color: #166534;
+        }
+
+        .notification-type-badge.booking_cancelled {
+          background: rgba(239, 68, 68, 0.2);
+          color: #991b1b;
+        }
+
+        .notification-type-badge.booking_approved {
+          background: rgba(16, 185, 129, 0.2);
+          color: #065f46;
+        }
+
+        .notification-type-badge.booking_disapproved {
+          background: rgba(245, 158, 11, 0.2);
+          color: #92400e;
+        }
+
+        .notification-type-badge.payment_received {
+          background: rgba(34, 197, 94, 0.2);
+          color: #166534;
+        }
+
+        .notification-type-badge.payment_failed {
+          background: rgba(239, 68, 68, 0.2);
+          color: #991b1b;
+        }
+
+        .notification-type-badge.system_alert {
+          background: rgba(59, 130, 246, 0.2);
+          color: #1e40af;
+        }
+
+        .unread-dot {
+          width: 8px;
+          height: 8px;
+          background: #febe54;
+          border-radius: 50%;
+          flex-shrink: 0;
+          margin-top: 0.375rem;
+        }
+
+        .modal-footer {
+          background: #f9fafb;
+          padding: 1.5rem 2rem;
+          border-top: 1px solid #e5e7eb;
+          display: flex;
+          justify-content: center;
+        }
+
+        .modal-mark-all-read {
+          background: linear-gradient(135deg, #f97316 0%, #facc15 40%, #fb923c 100%);
+          color: white;
+          border: none;
+          padding: 0.75rem 1.5rem;
+          border-radius: 999px;
+          font-size: 0.875rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+          position: relative;
+          overflow: hidden;
+        }
+
+        .modal-mark-all-read::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(120deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0));
+          transform: translateX(-100%);
+          transition: transform 0.45s ease;
+        }
+
+        .modal-mark-all-read:hover {
+          transform: translateY(-2px) scale(1.02);
+          box-shadow: 0 6px 16px rgba(249, 115, 22, 0.4);
+        }
+
+        .modal-mark-all-read:hover::after {
+          transform: translateX(0);
+        }
+
+        /* Modal Mobile Responsive */
+        @media (max-width: 768px) {
+          .modal-overlay {
+            padding: 0.5rem;
+          }
+
+          .modal-content {
+            max-height: 90vh;
+            border-radius: 16px;
+          }
+
+          .modal-header {
+            padding: 1.25rem 1.5rem;
+          }
+
+          .modal-header h2 {
+            font-size: 1.25rem;
+          }
+
+          .modal-notification-item {
+            padding: 1.25rem 1.5rem;
+          }
+
+          .notification-content h4 {
+            font-size: 0.925rem;
+          }
+
+          .notification-meta {
+            flex-direction: column;
+            align-items: flex-start;
+          }
+
+          .modal-footer {
+            padding: 1.25rem 1.5rem;
+          }
         }
       `}</style>
     </header>
   );
 }
+
+export default GuestHeader;
+

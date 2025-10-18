@@ -11,20 +11,21 @@ function serializeBigInt(obj) {
   ));
 }
 
-export async function GET() {
+export async function GET(request) {
   try {
-    // First, move completed bookings to history
-    const now = new Date();
-    await prisma.booking.updateMany({
-      where: {
-        isDeleted: false,
-        checkOut: { lt: now },
-        status: { in: ['Confirmed', 'Pending', 'Cancelled', 'Held'] },
-      },
-      data: { isDeleted: true },
+    // Get query parameters for pagination
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get('page')) || 1;
+    const limit = parseInt(searchParams.get('limit')) || 20;
+    const skip = (page - 1) * limit;
+    
+    // Get total count for pagination info
+    const totalBookings = await prisma.booking.count({
+      where: { isDeleted: false }
     });
-
+    
     const bookings = await prisma.booking.findMany({
+      where: { isDeleted: false },
       include: {
         user: true,
         rooms: { include: { room: true } },
@@ -35,10 +36,13 @@ export async function GET() {
         cottage: { include: { cottage: true } },
       },
       orderBy: { createdAt: 'desc' },
+      skip: skip,
+      take: limit
     });
 
     // Calculate total cost including rental amenities and cottages for each booking
-    bookings.forEach(booking => {
+    bookings.forEach((booking, index) => {
+      try {
       let rentalTotal = 0;
       if (booking.rentalAmenities && booking.rentalAmenities.length > 0) {
         rentalTotal = booking.rentalAmenities.reduce((sum, ra) => {
@@ -72,20 +76,22 @@ export async function GET() {
         ? Number(booking.totalCostWithAddons)
         : booking.totalCostWithAddons;
 
-      const reservationFee = 200000; // example reservation fee in cents
+      // Reservation fee threshold: ₱2000 per room unit booked (in cents)
+      const roomsCount = Array.isArray(booking.rooms)
+        ? booking.rooms.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
+        : 0;
+      const reservationThresholdCents = roomsCount * 2000 * 100;
 
       if (totalPaid >= totalPrice) {
-        booking.paymentOption = 'Full Payment';
-      } else if (totalPaid >= Math.floor(totalPrice / 2)) {
-        booking.paymentOption = 'Half Payment';
-      } else if (totalPaid >= reservationFee) {
+        booking.paymentOption = 'Paid';
+      } else if (totalPaid >= reservationThresholdCents) {
         booking.paymentOption = 'Reservation';
       } else {
         booking.paymentOption = 'Unpaid';
       }
 
       // Update paymentStatus to include Reservation if applicable
-      if (booking.paymentStatus.toLowerCase() === 'pending' && totalPaid >= reservationFee) {
+      if (booking.paymentStatus.toLowerCase() === 'pending' && totalPaid >= reservationThresholdCents) {
         booking.paymentStatus = 'Reservation';
       }
 
@@ -96,12 +102,40 @@ export async function GET() {
       booking.balancePaid = totalPaid;
       booking.balanceToPay = totalPrice - totalPaid;
       booking.totalPaid = totalPaid;
+      
+    } catch (error) {
+      console.error(`Error processing booking ${booking.id}:`, error);
+      throw new Error(`Failed to process booking ${booking.id}: ${error.message}`);
+    }
     });
 
-    return NextResponse.json(serializeBigInt(bookings));
+    const serializedBookings = serializeBigInt(bookings);
+    
+    // Return paginated response
+    return NextResponse.json({
+      bookings: serializedBookings,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(totalBookings / limit),
+        totalBookings: totalBookings,
+        hasNextPage: page < Math.ceil(totalBookings / limit),
+        hasPreviousPage: page > 1
+      }
+    });
   } catch (error) {
     console.error('Fetch Bookings Error:', error);
-    return NextResponse.json({ error: 'Failed to fetch bookings' }, { status: 500 });
+    
+    // Return more detailed error information in development
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    const errorResponse = {
+      error: 'Failed to fetch bookings',
+      ...(isDevelopment && {
+        details: error.message,
+        name: error.name
+      })
+    };
+    
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
@@ -128,8 +162,24 @@ export async function POST(request) {
       );
     }
 
-    const checkInDate = new Date(checkIn);
+  const checkInDate = new Date(checkIn);
     const checkOutDate = new Date(checkOut);
+    // Cooldown enforcement: for customer-initiated bookings (has userId)
+    if (userId) {
+      const user = await prisma.user.findUnique({ where: { id: parseInt(userId) } });
+      if (user) {
+        const now = new Date();
+        if (user.paymentCooldownUntil && new Date(user.paymentCooldownUntil) > now) {
+          const waitMs = new Date(user.paymentCooldownUntil).getTime() - now.getTime();
+          return NextResponse.json({
+            error: 'Booking temporarily disabled due to repeated failed payments',
+            cooldownUntil: user.paymentCooldownUntil,
+            failedPaymentAttempts: user.failedPaymentAttempts || 0,
+          }, { status: 429 });
+        }
+      }
+    }
+
 
     if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
       return NextResponse.json({ error: 'Invalid date format' }, { status: 400 });
@@ -142,6 +192,51 @@ export async function POST(request) {
     const rooms = await prisma.room.findMany({
       where: { id: { in: roomIds } }
     });
+
+    // Validate room availability for the selected dates
+    const now = new Date();
+    for (const room of rooms) {
+      const requestedQty = selectedRooms[room.id] || 0;
+      
+      // Check existing bookings that overlap with the requested dates
+      const overlappingBookings = await prisma.booking.findMany({
+        where: {
+          rooms: {
+            some: {
+              roomId: room.id
+            }
+          },
+          checkIn: { lte: checkOutDate },
+          checkOut: { gte: checkInDate },
+          status: {
+            in: ['Pending', 'Confirmed', 'Held']
+          },
+          OR: [
+            { heldUntil: null },
+            { heldUntil: { gt: now } }
+          ]
+        },
+        include: {
+          rooms: {
+            where: { roomId: room.id }
+          }
+        }
+      });
+
+      const bookedQty = overlappingBookings.reduce((sum, booking) => {
+        return sum + booking.rooms.reduce((roomSum, bookingRoom) => {
+          return roomSum + bookingRoom.quantity;
+        }, 0);
+      }, 0);
+
+      const availableQty = room.quantity - bookedQty;
+      
+      if (requestedQty > availableQty) {
+        return NextResponse.json({ 
+          error: `Room "${room.name}" has only ${availableQty} units available for the selected dates. You requested ${requestedQty}.` 
+        }, { status: 400 });
+      }
+    }
 
     // Calculate total price
     let calculatedTotalPrice = 0;
@@ -211,32 +306,60 @@ export async function POST(request) {
       }
     }
 
-    const booking = await prisma.booking.create({
-      data: {
-        guestName,
-        checkIn: checkInDate,
-        checkOut: checkOutDate,
-        status,
-        paymentStatus,
-        totalPrice: calculatedTotalPrice,
-        userId: userId ? parseInt(userId) : null,
-        ...(status === 'Pending' && { heldUntil: new Date(Date.now() + 3 * 60 * 60 * 1000) }),
-        optionalAmenities: { create: optionalAmenitiesToCreate },
-        rentalAmenities: { create: rentalAmenitiesToCreate },
-        cottage: { create: cottageToCreate },
-        rooms: {
-          create: rooms.map(room => ({
-            roomId: room.id,
-            quantity: selectedRooms[room.id] || 0,
-          })),
+    // Reserve stock and create booking in a single transaction
+    const booking = await prisma.$transaction(async (tx) => {
+      // Validate and decrement Optional Amenity stock
+      for (const item of optionalAmenitiesToCreate) {
+        const updated = await tx.optionalAmenity.updateMany({
+          where: { id: item.optionalAmenityId, quantity: { gte: item.quantity } },
+          data: { quantity: { decrement: item.quantity } },
+        });
+        if (updated.count === 0) {
+          throw new Error(`Insufficient stock for optional amenity ID ${item.optionalAmenityId}`);
+        }
+      }
+
+      // Validate and decrement Rental Amenity stock
+      for (const item of rentalAmenitiesToCreate) {
+        const updated = await tx.rentalAmenity.updateMany({
+          where: { id: item.rentalAmenityId, quantity: { gte: item.quantity } },
+          data: { quantity: { decrement: item.quantity } },
+        });
+        if (updated.count === 0) {
+          throw new Error(`Insufficient stock for rental amenity ID ${item.rentalAmenityId}`);
+        }
+      }
+
+      const created = await tx.booking.create({
+        data: {
+          guestName,
+          checkIn: checkInDate,
+          checkOut: checkOutDate,
+          status,
+          paymentStatus,
+          totalPrice: calculatedTotalPrice,
+          userId: userId ? parseInt(userId) : null,
+          // Hold inventory for 15 minutes pending reservation payment
+          ...(status === 'Pending' && { heldUntil: new Date(Date.now() + 15 * 60 * 1000) }),
+          optionalAmenities: { create: optionalAmenitiesToCreate },
+          rentalAmenities: { create: rentalAmenitiesToCreate },
+          cottage: { create: cottageToCreate },
+          rooms: {
+            create: rooms.map(room => ({
+              roomId: room.id,
+              quantity: selectedRooms[room.id] || 0,
+            })),
+          },
         },
-      },
-      include: {
-        rooms: { include: { room: true } },
-        optionalAmenities: { include: { optionalAmenity: true } },
-        rentalAmenities: { include: { rentalAmenity: true } },
-        cottage: { include: { cottage: true } },
-      },
+        include: {
+          rooms: { include: { room: true } },
+          optionalAmenities: { include: { optionalAmenity: true } },
+          rentalAmenities: { include: { rentalAmenity: true } },
+          cottage: { include: { cottage: true } },
+        },
+      });
+
+      return created;
     });
 
     // Create notification for superadmin
@@ -276,6 +399,9 @@ export async function POST(request) {
     return NextResponse.json({ booking: serializeBigInt(booking) }, { status: 201 });
   } catch (error) {
     console.error('Create Booking Error:', error);
-    return NextResponse.json({ error: 'Failed to create booking' }, { status: 500 });
+    const msg = typeof error?.message === 'string' && error.message.startsWith('Insufficient stock')
+      ? error.message
+      : 'Failed to create booking';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

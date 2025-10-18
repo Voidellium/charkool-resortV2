@@ -573,8 +573,9 @@ export default function BookingsPage() {
           </select>
           <select value={filterPaymentOption} onChange={(e) => setFilterPaymentOption(e.target.value)} style={{ padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}>
             <option value="">All Payment Options</option>
-            <option value="Full Payment">Full Payment</option>
-            <option value="Partial Payment">Partial Payment</option>
+            <option value="Reservation">Reservation</option>
+            <option value="Paid">Paid</option>
+            <option value="Unpaid">Unpaid</option>
           </select>
           <select value={filterPaymentMethod} onChange={(e) => setFilterPaymentMethod(e.target.value)} style={{ padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}>
             <option value="">All Payment Methods</option>
@@ -1410,9 +1411,7 @@ export default function BookingsPage() {
                       <td style={{ padding: '12px', border: '1px solid #ccc' }}>{booking.paymentOption || 'Unpaid'}</td>
                       <td style={{ padding: '12px', border: '1px solid #ccc' }}>{(booking.paymentMethods && booking.paymentMethods.length > 0) ? booking.paymentMethods.join(', ') : 'N/A'}</td>
                       <td style={{ padding: '12px', border: '1px solid #ccc' }}>₱{((Number(booking.totalPaid) || 0) / 100).toFixed(0)}</td>
-                      <td style={{ padding: '12px', border: '1px solid #ccc' }}>
-                        {booking.paymentOption && booking.paymentOption.toLowerCase() === 'full payment' ? '₱0' : `₱${((Number(booking.balanceToPay) || 0) / 100).toFixed(0)}`}
-                      </td>
+                      <td style={{ padding: '12px', border: '1px solid #ccc' }}>₱{((Number(booking.balanceToPay) || 0) / 100).toFixed(0)}</td>
                       <td style={{ padding: '12px', border: '1px solid #ccc' }}>₱{(Number(booking.totalCostWithAddons || booking.totalPrice) / 100).toFixed(0)}</td>
                       <td style={{ padding: '12px', border: '1px solid #ccc', display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap' }}>
                         <button
@@ -1464,8 +1463,8 @@ export default function BookingsPage() {
                       <td style={{ padding: '12px', border: '1px solid #ccc' }}>{booking.rooms && Array.isArray(booking.rooms) && booking.rooms.length > 0 ? booking.rooms.map(r => r.room.name).join(', ') : 'N/A'}</td>
                       <td style={{ padding: '12px', border: '1px solid #ccc' }}>{booking.status}</td>
 <td style={{ padding: '12px', border: '1px solid #ccc' }}>
-  <div><strong>Payment Option:</strong> {booking.paymentOption || 'N/A'}</div>
-  <div><strong>Payment Method:</strong> {(booking.paymentMethods && booking.paymentMethods.length > 0) ? booking.paymentMethods.join(', ') : 'N/A'}</div>
+  <div><strong>Payment:</strong> {booking.paymentOption || 'N/A'}</div>
+  <div><strong>Method:</strong> {(booking.paymentMethods && booking.paymentMethods.length > 0) ? booking.paymentMethods.join(', ') : 'N/A'}</div>
 </td>
                       <td style={{ padding: '12px', border: '1px solid #ccc' }}>₱{(Number(booking.totalPrice) / 100).toFixed(0)}</td>
                       <td style={{ padding: '12px', border: '1px solid #ccc', display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap' }}>

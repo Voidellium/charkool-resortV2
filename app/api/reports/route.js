@@ -11,21 +11,6 @@ export async function GET(req) {
     const userType = searchParams.get("userType");
     const status = searchParams.get("status");
 
-    // ✅ Amenities usage report
-    const amenitiesUsage = await prisma.bookingAmenity.groupBy({
-      by: ["amenityInventoryId"],
-      _count: { amenityInventoryId: true },
-    });
-
-    // Fetch from AmenityInventory
-    const amenities = await prisma.amenityInventory.findMany();
-
-    const amenityReport = amenitiesUsage.map((a) => ({
-      amenity:
-        amenities.find((am) => am.id === a.amenityInventoryId)?.name || "Unknown",
-      count: a._count.amenityInventoryId,
-    }));
-
     // ✅ Bookings (filtered by date, userType, status)
     const bookings = await prisma.booking.findMany({
       where: {
@@ -37,17 +22,13 @@ export async function GET(req) {
         user: userType && userType !== "All" ? { role: userType } : {},
       },
       include: {
-        rooms: {
-          include: {
-            room: true,
-          },
-        },
+        rooms: { include: { room: true } },
         user: true,
-        amenities: {
-          include: {
-            amenity: true,
-          },
-        },
+        // legacy amenities still loaded if ever needed
+        amenities: { include: { amenity: true } },
+        // new amenity systems
+        optionalAmenities: { include: { optionalAmenity: true } },
+        rentalAmenities: { include: { rentalAmenity: true } },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -58,7 +39,11 @@ export async function GET(req) {
       (sum, b) => sum + Number(b.totalPrice || 0),
       0
     );
-    const occupiedRooms = new Set(bookings.map((b) => b.roomId)).size;
+    // Approximate occupied room units based on BookingRoom quantities
+    const occupiedRooms = bookings.reduce((sum, b) => {
+      const qty = (b.rooms || []).reduce((s, r) => s + (r.quantity || 0), 0);
+      return sum + qty;
+    }, 0);
 
     // ✅ Monthly breakdown (group by month)
     const monthly = bookings.reduce((acc, b) => {
@@ -73,13 +58,54 @@ export async function GET(req) {
 
     const monthlyReport = Object.values(monthly);
 
+    // ✅ Monthly room type distribution (Rooms availed per month by Room.type)
+    const roomTypeMonthlyMap = {};
+    const roomTypesSet = new Set();
+    for (const b of bookings) {
+      const month = b.createdAt.toISOString().slice(0, 7);
+      if (!roomTypeMonthlyMap[month]) roomTypeMonthlyMap[month] = { month, totalRoomAvailed: 0 };
+      for (const br of b.rooms || []) {
+        const type = br.room?.type || "UNKNOWN";
+        roomTypesSet.add(type);
+        roomTypeMonthlyMap[month][type] = (roomTypeMonthlyMap[month][type] || 0) + (br.quantity || 0);
+        roomTypeMonthlyMap[month].totalRoomAvailed += (br.quantity || 0);
+      }
+    }
+    const monthlyRoomTypeReport = Object.values(roomTypeMonthlyMap)
+      // keep months in chronological order like monthlyReport
+      .sort((a, b) => a.month.localeCompare(b.month));
+    const roomTypes = Array.from(roomTypesSet);
+
+    // ✅ Amenity usage (new system): Optional & Rental
+    const optionalCounts = new Map();
+    const rentalCounts = new Map();
+    for (const b of bookings) {
+      for (const oa of b.optionalAmenities || []) {
+        const name = oa.optionalAmenity?.name || "Unknown";
+        const qty = oa.quantity || 1;
+        optionalCounts.set(name, (optionalCounts.get(name) || 0) + qty);
+      }
+      for (const ra of b.rentalAmenities || []) {
+        const name = ra.rentalAmenity?.name || "Unknown";
+        const qty = ra.quantity || 1; // count by quantity; could incorporate hoursUsed if needed
+        rentalCounts.set(name, (rentalCounts.get(name) || 0) + qty);
+      }
+    }
+
+    const optionalAmenityReport = Array.from(optionalCounts.entries()).map(([amenity, count]) => ({ amenity, count }));
+    const rentalAmenityReport = Array.from(rentalCounts.entries()).map(([amenity, count]) => ({ amenity, count }));
+
     return NextResponse.json({
       totalBookings,
       totalRevenue,
       occupancyRate:
         bookings.length > 0 ? (occupiedRooms / bookings.length) * 100 : 0,
-      amenityReport,
       monthlyReport,
+      // new datasets
+      monthlyRoomTypeReport,
+      roomTypes,
+      optionalAmenityReport,
+      rentalAmenityReport,
       bookings,
     });
   } catch (error) {

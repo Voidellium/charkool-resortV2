@@ -7,7 +7,7 @@ import { Package, Plus, Edit2, Trash2, Search, Filter, RefreshCw, Clock, AlertCi
 export default function SuperAdminAmenityInventoryPage() {
   const [amenities, setAmenities] = useState([]);
   const [filteredAmenities, setFilteredAmenities] = useState([]);
-  const [newAmenity, setNewAmenity] = useState({ name: '', quantity: '' });
+  const [newAmenity, setNewAmenity] = useState({ name: '', quantity: '', category: 'optional', pricePerUnit: '', pricePerHour: '', unitType: '', unitNote: '' });
   const [editingAmenity, setEditingAmenity] = useState(null);
   const [confirmModal, setConfirmModal] = useState({ 
     isOpen: false, 
@@ -70,15 +70,35 @@ export default function SuperAdminAmenityInventoryPage() {
   }, []);
 
   // Fetch amenities from API
+  // Fetch optional and rental amenities from their respective tables
   const fetchAmenities = async (showRefresh = false) => {
     try {
       if (showRefresh) setRefreshing(true);
       if (!showRefresh) setLoading(true);
-      
-      const res = await fetch('/api/amenities/inventory');
-      const data = await res.json();
-      setAmenities(data || []);
-      setFilteredAmenities(data || []);
+
+      // Fetch optional amenities
+  const optRes = await fetch('/api/amenities/optional');
+      const optional = await optRes.json();
+      // Fetch rental amenities
+  const rentRes = await fetch('/api/amenities/rental');
+      const rental = await rentRes.json();
+
+      // Add category field for UI
+      const optWithCat = (optional || []).map(a => ({ ...a, category: 'optional' }));
+      const rentWithCat = (rental || []).map(a => ({ ...a, category: 'rental' }));
+      const all = [...optWithCat, ...rentWithCat];
+      // Dedupe by category + id (fallback to name)
+      const seen = new Set();
+      const unique = [];
+      for (const a of all) {
+        const key = `${a.category}-${a.id ?? (a.name ? a.name.toLowerCase() : '')}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          unique.push(a);
+        }
+      }
+      setAmenities(unique);
+      setFilteredAmenities(unique);
     } catch (err) {
       console.error('Failed to fetch amenities:', err);
       error('Failed to fetch amenities');
@@ -137,43 +157,69 @@ export default function SuperAdminAmenityInventoryPage() {
     }
     
     try {
+      const category = newAmenity.category;
       if (editingAmenity) {
         if (!editingAmenity.id) {
           error('Invalid amenity selected for editing');
           return;
         }
-        
-        const res = await fetch(`/api/amenities/inventory/${editingAmenity.id}`, {
+        const endpoint = category === 'rental' 
+          ? `/api/amenities/rental/${editingAmenity.id}`
+          : `/api/amenities/optional/${editingAmenity.id}`;
+        const payload = category === 'rental'
+          ? {
+              name: newAmenity.name.trim(),
+              quantity: quantityNumber,
+              pricePerUnit: newAmenity.pricePerUnit ? parseInt(newAmenity.pricePerUnit) : undefined,
+              pricePerHour: newAmenity.pricePerHour ? parseInt(newAmenity.pricePerHour) : undefined,
+              unitType: newAmenity.unitType || undefined,
+              unitNote: newAmenity.unitNote || undefined,
+            }
+          : {
+              name: newAmenity.name.trim(),
+              quantity: quantityNumber,
+              maxQuantity: quantityNumber, // keep max in sync for optional
+            };
+        const res = await fetch(endpoint, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: newAmenity.name.trim(),
-            quantity: quantityNumber,
-          }),
+          body: JSON.stringify(payload),
         });
-        
         if (res.ok) {
           success('Amenity updated successfully');
           setEditingAmenity(null);
-          setNewAmenity({ name: '', quantity: '' });
+          setNewAmenity({ name: '', quantity: '', category: 'optional', pricePerUnit: '', pricePerHour: '', unitType: '', unitNote: '' });
           fetchAmenities();
         } else {
           const errorData = await res.json();
           throw new Error(errorData.error || `Update failed (${res.status})`);
         }
       } else {
-        const res = await fetch('/api/amenities/inventory', {
+        const endpoint = category === 'rental' 
+          ? '/api/amenities/rental'
+          : '/api/amenities/optional';
+        const payload = category === 'rental'
+          ? {
+              name: newAmenity.name.trim(),
+              quantity: quantityNumber,
+              pricePerUnit: newAmenity.pricePerUnit ? parseInt(newAmenity.pricePerUnit) : undefined,
+              pricePerHour: newAmenity.pricePerHour ? parseInt(newAmenity.pricePerHour) : undefined,
+              unitType: newAmenity.unitType || undefined,
+              unitNote: newAmenity.unitNote || undefined,
+            }
+          : {
+              name: newAmenity.name.trim(),
+              quantity: quantityNumber,
+              maxQuantity: quantityNumber,
+            };
+        const res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: newAmenity.name.trim(),
-            quantity: quantityNumber,
-          }),
+          body: JSON.stringify(payload),
         });
-        
         if (res.ok) {
           success('Amenity created successfully');
-          setNewAmenity({ name: '', quantity: '' });
+          setNewAmenity({ name: '', quantity: '', category: 'optional', pricePerUnit: '', pricePerHour: '', unitType: '', unitNote: '' });
           fetchAmenities();
         } else {
           const errorData = await res.json();
@@ -197,9 +243,12 @@ export default function SuperAdminAmenityInventoryPage() {
   };
 
   const confirmDelete = async () => {
-    const { amenityId, amenityName } = confirmModal;
+    const { amenityId, amenityName, amenityCategory } = confirmModal;
     try {
-      const res = await fetch(`/api/amenities/inventory/${amenityId}`, { method: 'DELETE' });
+      const endpoint = amenityCategory === 'rental' 
+        ? `/api/amenities/rental/${amenityId}`
+        : `/api/amenities/optional/${amenityId}`;
+      const res = await fetch(endpoint, { method: 'DELETE' });
       if (res.ok) {
         fetchAmenities();
         success(`"${amenityName}" has been permanently deleted from inventory`);
@@ -211,7 +260,7 @@ export default function SuperAdminAmenityInventoryPage() {
       console.error('Failed to delete amenity:', err);
       error(`Failed to delete "${amenityName}": ${err.message}`);
     } finally {
-      setConfirmModal({ isOpen: false, amenityId: null, amenityName: '', amenityQuantity: 0 });
+      setConfirmModal({ isOpen: false, amenityId: null, amenityName: '', amenityQuantity: 0, amenityCategory: '' });
     }
   };
 
@@ -257,13 +306,27 @@ export default function SuperAdminAmenityInventoryPage() {
 
   const handleEdit = (amenity) => {
     setEditingAmenity(amenity);
-    // Edit the simple stock quantity
-    setNewAmenity({ name: amenity.name, quantity: String(amenity.quantity) });
+    // Populate fields based on category
+    if (amenity.category === 'rental') {
+      setNewAmenity({ 
+        name: amenity.name, 
+        quantity: String(amenity.quantity),
+        category: 'rental',
+        pricePerUnit: amenity.pricePerUnit ?? '',
+        pricePerHour: amenity.pricePerHour ?? '',
+        unitType: amenity.unitType ?? '',
+        unitNote: amenity.unitNote ?? '',
+      });
+    } else {
+      setNewAmenity({ name: amenity.name, quantity: String(amenity.quantity), category: 'optional' });
+    }
   };
 
   // Helper function to get category color
   const getCategoryColor = (category) => {
     const colors = {
+      'optional': '#3b82f6',       // Blue for optional
+      'rental': '#10b981',         // Green for rental
       'Cleaning Supplies': '#10b981', // Green
       'Furniture': '#8b5cf6',         // Purple  
       'Bedding': '#3b82f6',           // Blue
@@ -409,6 +472,54 @@ export default function SuperAdminAmenityInventoryPage() {
               required
               min="0"
             />
+            <select
+              style={styles.formInputSmall}
+              className="form-input-small"
+              value={newAmenity.category}
+              onChange={e => setNewAmenity({ ...newAmenity, category: e.target.value })}
+              required
+            >
+              <option value="optional">Optional</option>
+              <option value="rental">Rental</option>
+            </select>
+            {newAmenity.category === 'rental' && (
+              <>
+                <input
+                  style={styles.formInputSmall}
+                  className="form-input-small"
+                  type="number"
+                  placeholder="Price per unit"
+                  value={newAmenity.pricePerUnit}
+                  onChange={(e) => setNewAmenity({ ...newAmenity, pricePerUnit: e.target.value })}
+                  min="0"
+                />
+                <input
+                  style={styles.formInputSmall}
+                  className="form-input-small"
+                  type="number"
+                  placeholder="Price per hour (optional)"
+                  value={newAmenity.pricePerHour}
+                  onChange={(e) => setNewAmenity({ ...newAmenity, pricePerHour: e.target.value })}
+                  min="0"
+                />
+                <input
+                  style={styles.formInputSmall}
+                  className="form-input-small"
+                  type="text"
+                  placeholder="Unit type (e.g., set, hour)"
+                  value={newAmenity.unitType}
+                  onChange={(e) => setNewAmenity({ ...newAmenity, unitType: e.target.value })}
+                />
+                <input
+                  style={styles.formInputSmall}
+                  className="form-input-small"
+                  type="text"
+                  placeholder="Unit note (optional)"
+                  value={newAmenity.unitNote}
+                  onChange={(e) => setNewAmenity({ ...newAmenity, unitNote: e.target.value })}
+                />
+              </>
+            )}
             <button type="submit" style={styles.submitButton} className="submit-button" disabled={loading}>
               <Plus size={16} />
               {editingAmenity ? 'Update' : 'Add'}
@@ -420,7 +531,7 @@ export default function SuperAdminAmenityInventoryPage() {
                 className="cancel-button"
                 onClick={() => {
                   setEditingAmenity(null);
-                  setNewAmenity({ name: '', quantity: '' });
+                  setNewAmenity({ name: '', quantity: '', category: 'optional' });
                 }}
               >
                 Cancel
@@ -466,7 +577,7 @@ export default function SuperAdminAmenityInventoryPage() {
 
               return (
                 <div
-                  key={amenity?.id ?? `amenity-${i}-${(amenity && amenity.name) || ''}`}
+                  key={`${amenity.category}-${amenity?.id ?? `amenity-${i}-${(amenity && amenity.name) || ''}`}`}
                   style={{
                     ...styles.amenityCard,
                     borderLeft: `4px solid ${categoryColor}`,
@@ -486,7 +597,7 @@ export default function SuperAdminAmenityInventoryPage() {
                         backgroundColor: categoryColor,
                         color: 'white'
                       }}>
-                        {amenity.category || 'General'}
+                        {amenity.category ? amenity.category.charAt(0).toUpperCase() + amenity.category.slice(1) : 'General'}
                       </span>
                       {isRecentlyUpdated && (
                         <span style={styles.recentBadge}>Recent</span>

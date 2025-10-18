@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { FaGoogle } from 'react-icons/fa6';
+import { Calendar, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
@@ -146,201 +147,1197 @@ export default function SignUpPage() {
 
   return (
     <>
-      <div className="page-container">
-        <div className="signup-wrapper">
-        <div className="left-panel">
-          <Image
-            src="/images/logo.png"
-            alt="Charkool Logo"
-            width={280}
-            height={280}
-            className="logo-img"
-            style={{ objectFit: 'contain', aspectRatio: '1 / 1', width: '280px', height: '280px', borderRadius: '20px' }}
-            priority
-          />
-          <p className="tagline">
-            Escape to Paradise at<br />Charkool Leisure Beach Resort
-          </p>
+        <div className="auth-page">
+        {/* Background */}
+        <div className="bg-gradient"></div>
+        
+        {/* Floating Background Shapes */}
+        <div className="floating-shapes">
+          <div className="shape shape-1"></div>
+          <div className="shape shape-2"></div>
+          <div className="shape shape-3"></div>
+          <div className="shape shape-4"></div>
+          <div className="shape shape-5"></div>
         </div>
-
-        <div className="right-panel">
-          <div className="form-card">
-            <h1 className="form-title">Create Your Account</h1>
-
-            <form className="signup-form" onSubmit={handleSubmit}>
-              <div className="input-grid">
-                <input name="firstName" placeholder="First Name *" value={form.firstName} onChange={handleChange} required />
-                <input name="middleName" placeholder="Middle Name (Optional)" value={form.middleName} onChange={handleChange} />
-                <input name="lastName" placeholder="Last Name *" value={form.lastName} onChange={handleChange} required />
-              </div>
-
-              <input
-                type="date"
-                id="birthdate"
-                name="birthdate"
-                value={form.birthdate}
-                onChange={handleChange}
-                required
-                max={maxDateStr}
-                className="birthdate-input"
-                placeholder="Your Birthday mm/dd/yyyy"
+        
+        {/* Main Content */}
+        <div className="auth-container">
+          <div className="auth-card">
+            {/* Logo Section */}
+            <div className="logo-section">
+              <Image
+                src="/images/logo.png"
+                alt="Charkool Resort"
+                width={180}
+                height={180}
+                className="logo-image"
+                priority
               />
+              <h1 className="auth-title">Sign Up</h1>
+              <p className="auth-subtitle">Create your account</p>
+            </div>
 
-              <div className="contact-wrapper">
-                <span className="prefix">+63</span>
-                <input
-                  name="contact"
-                  placeholder="10-digit number (9XXXXXXXXX) *"
-                  value={form.contact}
-                  onChange={handleChange}
-                  pattern="[9][0-9]{9}"
-                  required
-                />
+            <form className="auth-form" onSubmit={handleSubmit}>
+              {/* Personal Details Section */}
+              <div className="form-section">
+                <h3 className="section-title">Personal Details</h3>
+                <div className="field-group">
+                  <label className="field-label">First Name *</label>
+                  <div className="field-wrapper">
+                    <input 
+                      className="field-input" 
+                      name="firstName" 
+                      placeholder="Enter first name" 
+                      value={form.firstName} 
+                      onChange={handleChange} 
+                      required 
+                    />
+                  </div>
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Middle Name</label>
+                  <div className="field-wrapper">
+                    <input 
+                      className="field-input" 
+                      name="middleName" 
+                      placeholder="Optional" 
+                      value={form.middleName} 
+                      onChange={handleChange} 
+                    />
+                  </div>
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Last Name *</label>
+                  <div className="field-wrapper">
+                    <input 
+                      className="field-input" 
+                      name="lastName" 
+                      placeholder="Enter last name" 
+                      value={form.lastName} 
+                      onChange={handleChange} 
+                      required 
+                    />
+                  </div>
+                </div>
               </div>
 
-              <input name="email" type="email" placeholder="Email *" value={form.email} onChange={handleChange} required />
+              {/* Contact Details Section */}
+              <div className="form-section">
+                <h3 className="section-title">Contact Details</h3>
+                <div className="field-group">
+                  <label className="field-label">Birthday *</label>
+                  <div className="field-wrapper">
+                    <Calendar className="field-icon" size={16} />
+                    <input
+                      className="field-input"
+                      type="date"
+                      id="birthdate"
+                      name="birthdate"
+                      value={form.birthdate}
+                      onChange={handleChange}
+                      required
+                      max={maxDateStr}
+                    />
+                  </div>
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Phone Number *</label>
+                  <div className="phone-number-wrapper">
+                    <span className="country-prefix">+63</span>
+                    <div className="field-wrapper">
+                      <input
+                        className="field-input"
+                        name="contact"
+                        placeholder="9XXXXXXXXX"
+                        value={form.contact}
+                        onChange={handleChange}
+                        pattern="[9][0-9]{9}"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Email Address *</label>
+                  <div className="field-wrapper">
+                    <input 
+                      className="field-input" 
+                      name="email" 
+                      type="email" 
+                      placeholder="Enter email address" 
+                      value={form.email} 
+                      onChange={handleChange} 
+                      required 
+                    />
+                  </div>
+                </div>
+              </div>
 
-              <div className="password-wrapper">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  name="password"
-                  placeholder="Password *"
-                  value={form.password}
-                  onChange={handleChange}
-                  onFocus={() => setShowRules(true)}
-                  onBlur={() => setShowRules(false)}
-                  required
-                />
-                <button type="button" className="toggle-btn" onClick={() => setShowPassword(!showPassword)}>
-                  {showPassword ? 'Hide' : 'Show'}
-                </button>
+              {/* Security Section */}
+              <div className="form-section">
+                <h3 className="section-title">Security</h3>
+                <div className="field-group">
+                  <label className="field-label">Password *</label>
+                  <div className="field-wrapper">
+                    <input
+                      className="field-input"
+                      type={showPassword ? 'text' : 'password'}
+                      name="password"
+                      placeholder="Enter password"
+                      value={form.password}
+                      onChange={handleChange}
+                      onFocus={() => setShowRules(true)}
+                      onBlur={() => setShowRules(false)}
+                      required
+                    />
+                    <button type="button" className="toggle-btn" onClick={() => setShowPassword(!showPassword)}>
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Confirm Password *</label>
+                  <div className="field-wrapper">
+                    <input
+                      className="field-input"
+                      type={showConfirm ? 'text' : 'password'}
+                      name="confirm"
+                      placeholder="Confirm password"
+                      value={form.confirm}
+                      onChange={handleChange}
+                      required
+                    />
+                    <button type="button" className="toggle-btn" onClick={() => setShowConfirm(!showConfirm)}>
+                      {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+                
                 {showRules && (
                   <div className="password-rules">
                     {passwordRules.map((rule, idx) => (
-                      <p key={idx} className={rule.test(form.password) ? 'valid' : 'invalid'}>
-                        {rule.test(form.password) ? '✔' : '✖'} {rule.label}
-                      </p>
+                      <div key={idx} className={`rule ${rule.test(form.password) ? 'valid' : 'invalid'}`}>
+                        <span className="rule-icon">{rule.test(form.password) ? '✓' : '×'}</span>
+                        <span className="rule-text">{rule.label}</span>
+                      </div>
                     ))}
                   </div>
                 )}
               </div>
 
-              <div className="password-wrapper">
-                <input
-                  type={showConfirm ? 'text' : 'password'}
-                  name="confirm"
-                  placeholder="Confirm Password *"
-                  value={form.confirm}
-                  onChange={handleChange}
-                  required
-                />
-                <button type="button" className="toggle-btn" onClick={() => setShowConfirm(!showConfirm)}>
-                  {showConfirm ? 'Hide' : 'Show'}
-                </button>
-              </div>
-
+              {/* OTP Section */}
               {showOTPInput && (
-                <div className="otp-input-container">
-                  <input
-                    type="text"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    placeholder="Enter 6-digit OTP"
-                    required
-                    maxLength={6}
-                    pattern="\d{6}"
-                  />
-                  <p className="otp-hint">An OTP has been sent to your email address</p>
-                  {countdown > 0 ? (
-                    <p className="otp-countdown">You can request a new OTP in {countdown}s</p>
-                  ) : (
-                    <>
-                      <p className="otp-retry">You did not receive any OTP? Try again.</p>
-                      <button type="button" className="resend-btn" onClick={handleResendOTP}>Resend OTP</button>
-                    </>
-                  )}
+                <div className="form-section">
+                  <h3 className="section-title">Verification</h3>
+                  <div className="field-group">
+                    <label className="field-label">Verification Code *</label>
+                    <div className="field-wrapper">
+                      <input
+                        className="field-input otp-input"
+                        type="text"
+                        value={otp}
+                        onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        placeholder="000000"
+                        required
+                        maxLength={6}
+                        pattern="\d{6}"
+                      />
+                    </div>
+                    <p className="otp-hint">Check your email for the verification code</p>
+                    {countdown > 0 ? (
+                      <p className="otp-countdown">Resend available in {countdown}s</p>
+                    ) : (
+                      <div className="otp-actions">
+                        <p className="otp-retry">Didn't receive the code?</p>
+                        <button type="button" className="resend-btn" onClick={handleResendOTP}>
+                          Resend OTP
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
+              {/* Error Display */}
               {error && <div className="error-message">{error}</div>}
 
+              {/* Submit Button */}
               <button type="submit" className="primary-btn" disabled={isLoading}>
-                {isLoading ? 'Processing...' : (showOTPInput ? 'Verify OTP' : 'Sign Up')}
+                {isLoading ? 'Creating Account...' : (showOTPInput ? 'Verify Account' : 'Sign Up')}
               </button>
             </form>
 
+            {/* Divider */}
+            <div className="divider">
+              <span>or</span>
+            </div>
+
+            {/* Google Sign Up */}
             <button 
               className="google-btn" 
               type="button"
               onClick={() => signIn('google', { callbackUrl: '/guest/dashboard' })}
             >
-              <FaGoogle style={{ marginRight: 8 }} /> Sign Up with Google
+              <FaGoogle size={18} /> 
+              Sign up with Google
             </button>
 
-            <p className="login-text">
-              Already have an account? <Link href="/login">Log In</Link>
-            </p>
+            {/* Login Link */}
+            <div className="auth-footer">
+              <p>Already have an account? <Link href="/login" className="auth-link">Sign In</Link></p>
+            </div>
           </div>
         </div>
       </div>
-      </div>
 
       <footer className="footer">
-        <div className="footer-line"></div>
+        <div className="divider"></div>
         <p>© 2025 Charkool Beach Resort. All Rights Reserved.</p>
       </footer>
 
-      <style jsx global>{`
-        * { box-sizing: border-box; }
-        body {
-          margin: 0;
-          padding: 0;
-          background: linear-gradient(120deg,#fcd34d 0%,#fef3c7 30%,#e6f4f8 100%);
-          font-family: 'Inter', sans-serif;
-          min-height: 100vh;
-        }
-        .navbar {
-          height: 80px !important;
-          min-height: 80px !important;
-          max-height: 80px !important;
-        }
-      `}</style>
+
 
       <style jsx>{`
-        .page-container {
-          min-height: calc(100vh - 80px);
-          padding: 2rem 1rem;
+        /* Modern Authentication Page Layout */
+        .auth-page {
+          min-height: 100vh;
+          position: relative;
+          overflow: hidden;
+          background: linear-gradient(135deg, 
+            #f8fafc 0%, 
+            #f1f5f9 20%,
+            #e2e8f0 40%,
+            #cbd5e1 60%,
+            #94a3b8 80%,
+            #64748b 100%
+          );
+          padding-top: 80px;
+        }
+
+        .bg-gradient {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: linear-gradient(135deg, 
+            #ffffff 0%, 
+            #f0f9ff 15%,
+            #e0f2fe 30%,
+            #bae6fd 50%,
+            #7dd3fc 70%,
+            #38bdf8 85%,
+            #0ea5e9 100%);
+          opacity: 0.6;
+          animation: gradientShift 20s ease-in-out infinite;
+        }
+
+        @keyframes gradientShift {
+          0%, 100% { opacity: 0.6; }
+          25% { opacity: 0.4; }
+          50% { opacity: 0.7; }
+          75% { opacity: 0.5; }
+        }
+
+        /* Floating Background Shapes */
+        .floating-shapes {
+          position: absolute;
+          width: 100%;
+          height: 100%;
+          overflow: hidden;
+          pointer-events: none;
+          z-index: 1;
+        }
+
+        .shape {
+          position: absolute;
+          border-radius: 50%;
+          background: linear-gradient(135deg, 
+            rgba(59, 130, 246, 0.1), 
+            rgba(147, 197, 253, 0.15),
+            rgba(219, 234, 254, 0.1)
+          );
+          filter: blur(1px);
+          animation: float 15s ease-in-out infinite;
+        }
+
+        .shape-1 {
+          width: 200px;
+          height: 200px;
+          top: 10%;
+          left: 85%;
+          animation-delay: 0s;
+          background: linear-gradient(135deg, 
+            rgba(59, 130, 246, 0.08), 
+            rgba(147, 197, 253, 0.12)
+          );
+        }
+
+        .shape-2 {
+          width: 150px;
+          height: 150px;
+          top: 60%;
+          left: 90%;
+          animation-delay: -5s;
+          background: linear-gradient(135deg, 
+            rgba(37, 99, 235, 0.06), 
+            rgba(96, 165, 250, 0.1)
+          );
+        }
+
+        .shape-3 {
+          width: 100px;
+          height: 100px;
+          top: 20%;
+          left: -5%;
+          animation-delay: -10s;
+          background: linear-gradient(135deg, 
+            rgba(59, 130, 246, 0.1), 
+            rgba(147, 197, 253, 0.15)
+          );
+        }
+
+        .shape-4 {
+          width: 120px;
+          height: 120px;
+          top: 75%;
+          left: -3%;
+          animation-delay: -7s;
+          background: linear-gradient(135deg, 
+            rgba(37, 99, 235, 0.08), 
+            rgba(96, 165, 250, 0.12)
+          );
+        }
+
+        .shape-5 {
+          width: 80px;
+          height: 80px;
+          top: 45%;
+          left: 88%;
+          animation-delay: -12s;
+          background: linear-gradient(135deg, 
+            rgba(59, 130, 246, 0.12), 
+            rgba(147, 197, 253, 0.08)
+          );
+        }
+
+        @keyframes float {
+          0%, 100% { 
+            transform: translateY(0) translateX(0) rotate(0deg);
+          }
+          25% { 
+            transform: translateY(-20px) translateX(10px) rotate(90deg);
+          }
+          50% { 
+            transform: translateY(-10px) translateX(-15px) rotate(180deg);
+          }
+          75% { 
+            transform: translateY(-25px) translateX(5px) rotate(270deg);
+          }
+        }
+
+
+
+        .auth-container {
+          position: relative;
+          z-index: 20;
+          min-height: calc(100vh - 160px);
           display: flex;
           align-items: center;
           justify-content: center;
+          padding: 1rem 1rem;
         }
-        .signup-wrapper {
-          display: flex;
-          width: 100%;
-          max-width: 1400px;
-          min-height: 90vh;
-          background: #fff;
+
+        .auth-card {
+          background: rgba(255, 255, 255, 0.95);
+          backdrop-filter: blur(20px);
           border-radius: 20px;
+          padding: 2.5rem 2rem;
+          width: 100%;
+          max-width: 480px;
+          box-shadow: 
+            0 25px 50px -12px rgba(0, 0, 0, 0.25),
+            0 10px 25px -5px rgba(59, 130, 246, 0.1),
+            0 0 0 1px rgba(255, 255, 255, 0.3);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          animation: cardEntrance 0.8s ease-out;
+          position: relative;
           overflow: hidden;
-          box-shadow: 0 20px 50px rgba(0,0,0,0.15);
         }
-        .left-panel {
-          flex: 1.1;
-          background: linear-gradient(160deg,#fff7e6,#fff);
+
+        .auth-card::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 1px;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.8), transparent);
+        }
+
+        @keyframes cardEntrance {
+          0% {
+            opacity: 0;
+            transform: translateY(30px) scale(0.95);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+
+        .logo-section {
+          text-align: center;
+          margin-bottom: 1rem;
+          position: relative;
+        }
+
+        .logo-image {
+          border-radius: 12px;
+          margin-bottom: 0.5rem;
+          transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+          animation: logoFloat 6s ease-in-out infinite;
+          /* responsive: never smaller than 80px, scale with viewport, max 180px */
+          width: clamp(80px, 18vw, 180px);
+          height: auto;
+          object-fit: contain;
+        }
+
+        .logo-image:hover {
+          transform: scale(1.05) rotate(2deg);
+          box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        @keyframes logoFloat {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-5px); }
+        }
+
+        .auth-title {
+          font-size: 1.75rem;
+          font-weight: 700;
+          margin-bottom: 0.25rem;
+          color: #1e293b;
+          letter-spacing: -0.025em;
+          line-height: 1.1;
+        }
+
+        @keyframes titleGlow {
+          0% { filter: brightness(1); }
+          100% { filter: brightness(1.1); }
+        }
+
+        .auth-subtitle {
+          font-size: 0.9rem;
+          color: #64748b;
+          font-weight: 400;
+          line-height: 1.4;
+          margin: 0 auto 0.5rem auto;
+          max-width: 400px;
+        }
+
+        /* Form Sections */
+        .auth-form {
           display: flex;
           flex-direction: column;
-          justify-content: center;
-          align-items: center;
-          padding: 3rem;
+          gap: 1rem;
         }
-        .logo-img { max-width: 220px; width: 100%; height: auto; }
-        .tagline {
-          margin-top: 1.2rem;
-          text-align: center;
+
+        .form-section {
+          display: flex;
+          flex-direction: column;
+          gap: 0.6rem;
+          position: relative;
+        }
+
+        .section-title {
+          font-size: 0.95rem;
+          font-weight: 600;
           color: #374151;
-          font-size: 1.1rem;
+          margin-bottom: 0;
+          padding-bottom: 0.4rem;
+          position: relative;
+          letter-spacing: -0.005em;
+          border-bottom: 1px solid #e5e7eb;
+        }
+
+        @keyframes underlineGlow {
+          0% { width: 40px; opacity: 0.8; }
+          100% { width: 60px; opacity: 1; }
+        }
+
+
+
+        .field-group {
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+        }
+
+        .field-label {
+          font-size: 0.85rem;
+          font-weight: 600;
+          color: #475569;
+          letter-spacing: 0.01em;
+          margin-bottom: 0;
+          position: relative;
+          transition: color 0.3s ease;
+        }
+
+        .field-wrapper {
+          position: relative;
+          display: flex;
+          align-items: center;
+          background: #ffffff;
+          border: 1px solid #d1d5db;
+          border-radius: 8px;
+          transition: all 0.2s ease;
+          height: 44px;
+          overflow: hidden;
+        }
+
+        .field-wrapper:focus-within {
+          border-color: #2563eb;
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+          background: #ffffff;
+        }
+
+        .field-wrapper:hover {
+          border-color: #9ca3af;
+        }
+
+        .field-icon {
+          padding: 0.75rem 1.0rem; /* match login spacing */
+          color: #9ca3af;
+          flex-shrink: 0;
+          transition: color 0.2s ease;
+          border-right: 1px solid #e5e7eb;
+          background: #f9fafb;
+          margin-right: 0; /* spacing handled by input padding */
+        }
+
+        .field-wrapper:focus-within .field-icon {
+          color: #2563eb;
+        }
+
+        .field-input {
+          flex: 1;
+          padding: 0.6rem 0.6rem 0.6rem 0.95rem; /* add left padding so text clears icon */
+          border: none;
+          outline: none;
+          background: transparent;
+          font-size: 0.9rem;
+          color: #1e293b;
+          font-weight: 500;
+          letter-spacing: 0.01em;
+        }
+
+        .field-input::placeholder {
+          color: #94a3b8;
+          font-weight: 400;
+        }
+
+        /* Phone Number Field */
+        /* make the prefix and input look like a single control */
+        .phone-number-wrapper {
+          display: flex;
+          align-items: center;
+          gap: 0; /* ensure they touch */
+          width: 100%;
+          height: 44px; /* fixed control height for visual consistency */
+          border: 1px solid #d1d5db; /* unified border around both elements */
+          border-radius: 8px;
+          overflow: hidden; /* keep the two pieces clipped to the rounded corners */
+          background: #ffffff;
+        }
+
+        /* prefix: left piece */
+        .country-prefix {
+          font-size: 0.9rem;
+          font-weight: 600;
+          color: #475569;
+          padding: 0 0.5rem; /* reduce horizontal padding */
+          background: #f8fafc; /* subtle contrast */
+          flex: 0 0 48px; /* narrower fixed width */
+          min-width: 48px;
+          text-align: center;
+          height: 100%;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-right: 1px solid rgba(226,232,240,0.9); /* slight divider */
+        }
+
+        /* right piece becomes the input area; remove inner border and let wrapper handle it */
+        .phone-number-wrapper .field-wrapper {
+          flex: 1 1 auto;
+          min-width: 0; /* prevent overflow */
+          border: none; /* remove the original border so the wrapper border shows */
+          height: 100%;
+          background: transparent;
+          display: flex;
+          align-items: center;
+        }
+
+        /* input itself should fill the right area and match vertical padding */
+        .phone-number-wrapper .field-wrapper .field-input {
+          width: 100%;
+          height: 100%;
+          padding: 0 0.75rem; /* left/right padding inside input */
+          box-sizing: border-box;
+          border: none;
+          background: transparent;
+          font-size: 0.9rem;
+        }
+
+        .toggle-btn {
+          position: absolute;
+          right: 1rem;
+          background: none;
+          border: none;
+          color: #9ca3af;
+          cursor: pointer;
+          padding: 0.25rem;
+          transition: color 0.2s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .toggle-btn:hover {
+          color: #f59e0b;
+        }
+
+        /* Password Rules */
+        .password-rules {
+          margin-top: 0.75rem;
+          padding: 1rem;
+          background: rgba(248, 250, 252, 0.95);
+          backdrop-filter: blur(15px);
+          border-radius: 12px;
+          border: 1px solid rgba(226, 232, 240, 0.6);
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+          animation: rulesSlideIn 0.3s ease-out;
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 0.4rem;
+        }
+
+        @keyframes rulesSlideIn {
+          0% {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .rule {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.25rem 0;
+          font-size: 0.8rem;
+          font-weight: 500;
+          transition: all 0.3s ease;
+        }
+
+        .rule-icon {
+          font-weight: 700;
+          font-size: 0.75rem;
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.3s ease;
+          flex-shrink: 0;
+        }
+
+        .rule.valid .rule-icon {
+          color: #ffffff;
+          background: linear-gradient(135deg, #10b981, #059669);
+          box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+          transform: scale(1.1);
+        }
+
+        .rule.invalid .rule-icon {
+          color: #ffffff;
+          background: linear-gradient(135deg, #ef4444, #dc2626);
+          box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+        }
+
+        .rule.valid .rule-text {
+          color: #065f46;
+          text-decoration: line-through;
+          opacity: 0.8;
+        }
+
+        .rule.invalid .rule-text {
+          color: #374151;
+        }
+
+        /* OTP Input */
+        .otp-input {
+          text-align: center;
+          font-size: 1.5rem;
+          font-weight: 700;
+          letter-spacing: 0.75rem;
+          background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(217, 119, 6, 0.1));
+          border: 2px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .otp-input:focus {
+          border-color: #f59e0b;
+          box-shadow: 
+            0 0 0 4px rgba(245, 158, 11, 0.15),
+            0 8px 32px rgba(245, 158, 11, 0.2);
+        }
+
+        .otp-hint, .otp-countdown, .otp-retry {
+          font-size: 0.9rem;
+          color: #64748b;
+          margin-top: 0.75rem;
           font-weight: 500;
         }
+
+        .otp-actions {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          margin-top: 1rem;
+        }
+
+        .resend-btn {
+          background: linear-gradient(135deg, #f59e0b, #d97706);
+          border: none;
+          color: white;
+          font-weight: 600;
+          cursor: pointer;
+          padding: 0.75rem 1.5rem;
+          border-radius: 12px;
+          font-size: 0.9rem;
+          transition: all 0.3s ease;
+          box-shadow: 0 4px 16px rgba(245, 158, 11, 0.3);
+        }
+
+        .resend-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px rgba(245, 158, 11, 0.4);
+        }
+
+        /* Buttons */
+        .primary-btn {
+          width: 100%;
+          padding: 0.875rem;
+          background: #2563eb;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-size: 0.95rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          margin-top: 1rem;
+          height: 46px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .primary-btn:hover {
+          background: #1d4ed8;
+        }
+
+        .primary-btn:active {
+          background: #1e40af;
+        }
+
+        .primary-btn:disabled {
+          background: #9ca3af;
+          cursor: not-allowed;
+        }
+
+        .divider {
+          position: relative;
+          text-align: center;
+          margin: 0.75rem 0;
+          color: #64748b;
+          font-size: 0.8rem;
+          font-weight: 500;
+        }
+
+        .divider::before {
+          content: '';
+          position: absolute;
+          top: 50%;
+          left: 0;
+          right: 0;
+          height: 1px;
+          background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.4), transparent);
+          z-index: 1;
+        }
+
+        .divider span {
+          background: rgba(255, 255, 255, 0.98);
+          backdrop-filter: blur(10px);
+          padding: 0 1.5rem;
+          position: relative;
+          z-index: 2;
+          border-radius: 20px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .google-btn {
+          width: 100%;
+          padding: 0.875rem;
+          background: #ffffff;
+          border: 1px solid #d1d5db;
+          border-radius: 8px;
+          color: #374151;
+          font-size: 0.95rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.75rem;
+          height: 46px;
+        }
+
+        .google-btn:hover {
+          background: #f9fafb;
+          border-color: #9ca3af;
+        }
+
+        .auth-footer {
+          text-align: center;
+          margin-top: 0.75rem;
+          font-size: 0.8rem;
+          color: #64748b;
+          font-weight: 500;
+        }
+
+        .auth-link {
+          color: #f59e0b;
+          text-decoration: none;
+          font-weight: 700;
+          transition: all 0.3s ease;
+          position: relative;
+        }
+
+        .auth-link::after {
+          content: '';
+          position: absolute;
+          bottom: -2px;
+          left: 0;
+          width: 0;
+          height: 2px;
+          background: linear-gradient(90deg, #f59e0b, #d97706);
+          transition: width 0.3s ease;
+        }
+
+        .auth-link:hover::after {
+          width: 100%;
+        }
+
+        .auth-link:hover {
+          color: #d97706;
+        }
+
+        .error-message {
+          padding: 1rem 1.25rem;
+          background: rgba(254, 242, 242, 0.9);
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(254, 202, 202, 0.8);
+          border-radius: 12px;
+          color: #dc2626;
+          font-size: 0.9rem;
+          font-weight: 500;
+          text-align: center;
+          margin-top: 1rem;
+          box-shadow: 0 4px 16px rgba(220, 38, 38, 0.1);
+          animation: errorShake 0.5s ease-in-out;
+        }
+
+        @keyframes errorShake {
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-4px); }
+          75% { transform: translateX(4px); }
+        }
+
+        /* Footer Styles */
+        .footer {
+          background: rgba(232, 207, 163, 0.9);
+          text-align: center;
+          padding: 1.5rem 0;
+          color: rgba(18, 50, 56, 0.85);
+          font-size: 0.9rem;
+          backdrop-filter: blur(10px);
+          border-top: 1px solid rgba(211, 184, 133, 0.3);
+        }
+
+        .footer .divider {
+          width: 80%;
+          height: 1px;
+          background-color: #d3b885;
+          margin: 0 auto 1rem auto;
+        }
+
+        .footer p {
+          margin: 0;
+          font-weight: 500;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1024px) {
+          .auth-card {
+            max-width: 580px;
+            padding: 3rem 2.5rem;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .auth-container {
+            padding: 1rem;
+          }
+          
+          .auth-card {
+            margin: 0;
+            padding: 2.5rem 2rem;
+            border-radius: 24px;
+          }
+          
+          .auth-title {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+          }
+          
+          .auth-subtitle {
+            font-size: 1rem;
+          }
+          
+
+          
+          .phone-number-wrapper {
+            gap: 0; /* attached */
+            width: 100%;
+            height: 44px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #ffffff;
+          }
+
+          .phone-number-wrapper .field-wrapper {
+            flex: 1 1 auto;
+            min-width: 0;
+            border: none;
+            height: 100%;
+            display: flex;
+            align-items: center;
+          }
+
+          .country-prefix {
+            min-width: 48px;
+            flex: 0 0 48px;
+            height: 100%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-right: 1px solid rgba(226,232,240,0.9);
+          }
+          
+          .shape-1 { width: 180px; height: 180px; }
+          .shape-2 { width: 140px; height: 140px; }
+          .shape-3 { width: 100px; height: 100px; }
+          .shape-4 { width: 120px; height: 120px; }
+          
+          .section-title {
+            font-size: 1.125rem;
+          }
+          
+          .form-section {
+            gap: 1.25rem;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .auth-container {
+            padding: 0.5rem;
+          }
+          
+          .auth-card {
+            padding: 2rem 1.5rem;
+            border-radius: 20px;
+          }
+          
+          /* logo scales via clamp(), no fixed size needed here */
+          
+          .auth-title {
+            font-size: 1.75rem;
+          }
+          
+          .auth-subtitle {
+            font-size: 0.95rem;
+          }
+          
+          .field-wrapper {
+            height: 52px;
+          }
+          
+          .field-input {
+            font-size: 0.95rem;
+          }
+          
+          .primary-btn {
+            height: 56px;
+            font-size: 1rem;
+            padding: 1rem;
+          }
+          
+          .google-btn {
+            height: 52px;
+            font-size: 0.95rem;
+          }
+          
+          .shape-1 { width: 150px; height: 150px; }
+          .shape-2 { width: 120px; height: 120px; }
+          .shape-3 { width: 80px; height: 80px; }
+          .shape-4 { width: 100px; height: 100px; }
+        }
+
+        @media (max-width: 480px) {
+          .auth-container {
+            padding: 0.25rem;
+            min-height: calc(100vh - 60px);
+          }
+          
+          .auth-card {
+            padding: 1.5rem 1.25rem;
+            border-radius: 16px;
+            margin: 0.25rem;
+          }
+          
+          .logo-section {
+            margin-bottom: 2rem;
+          }
+          
+          /* logo scales via clamp(), no fixed size needed here */
+          
+          .auth-title {
+            font-size: 1.5rem;
+            line-height: 1.3;
+          }
+          
+          .auth-subtitle {
+            font-size: 0.9rem;
+          }
+          
+          .auth-form {
+            gap: 1.5rem;
+          }
+          
+          .form-section {
+            gap: 1rem;
+          }
+          
+          .section-title {
+            font-size: 1rem;
+            margin-bottom: 0.75rem;
+          }
+          
+          .field-wrapper {
+            height: 48px;
+          }
+          
+          .field-icon {
+            padding: 0 1rem;
+          }
+          
+          .field-input {
+            font-size: 0.9rem;
+          }
+          
+          .field-label {
+            font-size: 0.85rem;
+            margin-bottom: 0.4rem;
+          }
+          
+          .primary-btn {
+            height: 52px;
+            font-size: 0.95rem;
+            margin-top: 1.5rem;
+          }
+          
+          .google-btn {
+            height: 48px;
+            font-size: 0.9rem;
+          }
+          
+          .password-rules {
+            padding: 1rem;
+          }
+          
+          .rule {
+            font-size: 0.85rem;
+            padding: 0.4rem 0;
+          }
+          
+          .otp-input {
+            font-size: 1.25rem;
+            letter-spacing: 0.5rem;
+          }
+          
+          .floating-shapes {
+            opacity: 0.5;
+          }
+          
+          .shape-1 { width: 120px; height: 120px; }
+          .shape-2 { width: 100px; height: 100px; }
+          .shape-3 { width: 60px; height: 60px; }
+          .shape-4 { width: 80px; height: 80px; }
+        }
+
+        @media (max-width: 360px) {
+          .auth-card {
+            padding: 1.25rem 1rem;
+          }
+          
+          .auth-title {
+            font-size: 1.375rem;
+          }
+          
+          .field-wrapper {
+            height: 44px;
+          }
+          
+          .primary-btn {
+            height: 48px;
+          }
+          
+          .google-btn {
+            height: 44px;
+          }
+          
+          .otp-input {
+            font-size: 1.125rem;
+            letter-spacing: 0.4rem;
+          }
+        }
+        
+        .auth-subtitle {
+          font-size: 1.2rem;
+          font-weight: 500;
+          line-height: 1.5;
+          text-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        
         .right-panel {
           flex: 1.5;
           background: #fafafa;
@@ -352,42 +1349,119 @@ export default function SignUpPage() {
         .form-card {
           background: #fff;
           width: 100%;
-          max-width: 600px;
-          padding: 2.5rem;
+          max-width: 580px;
+          padding: 2.25rem;
           border-radius: 16px;
-          box-shadow: 0 12px 24px rgba(0,0,0,0.08);
+          box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+          border: 1px solid rgba(245, 158, 11, 0.1);
         }
         .form-title {
-          font-size: 2rem;
+          font-size: 1.8rem;
           font-weight: 700;
-          margin-bottom: 1.5rem;
+          margin-bottom: 1.2rem;
           text-align: center;
           color: #0f172a;
+          background: linear-gradient(135deg, #0f172a 0%, #374151 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+        }
+        .name-section {
+          margin-bottom: 1rem;
         }
         .input-grid {
           display: grid;
           grid-template-columns: 1fr 1fr 1fr;
-          gap: 0.8rem;
+          gap: 0.75rem;
           width: 100%;
+        }
+        .input-row {
+          display: flex;
+          gap: 0.75rem;
+          margin-bottom: 1rem;
+          width: 100%;
+        }
+        .input-field {
+          display: flex;
+          flex-direction: column;
+          width: 100%;
+        }
+        .field-label {
+          font-size: 0.85rem;
+          font-weight: 600;
+          color: #374151;
+          margin-bottom: 0.3rem;
+          letter-spacing: 0.025em;
+        }
+        .birthday-field {
+          flex: 0 0 180px;
+        }
+        .phone-field {
+          flex: 0 0 240px;
+        }
+        .email-field {
+          margin-bottom: 1rem;
+          max-width: 350px;
+        }
+        .password-section {
+          width: 100%;
+          margin-bottom: 1rem;
+        }
+        .password-field,
+        .confirm-password-field {
+          margin-bottom: 0.75rem;
+          max-width: 350px;
         }
         .signup-form {
           display: flex;
           flex-direction: column;
-          gap: 1rem;
+          gap: 0;
           align-items: center;
+          width: 100%;
+        }
+        .input-with-icon {
+          position: relative;
+          display: flex;
+          align-items: center;
+          border: 2px solid #e5e7eb;
+          border-radius: 10px;
+          background: #fff;
+          transition: all 0.2s ease;
+          height: 44px;
+        }
+        .input-with-icon:focus-within {
+          border-color: #f59e0b;
+          box-shadow: 0 0 0 3px rgba(245,158,11,0.1);
+        }
+        .input-icon {
+          padding: 0.75rem 1.25rem;
+          color: #64748b;
+          pointer-events: none;
+          user-select: none;
+          transition: color 0.2s ease;
+          flex-shrink: 0;
+          border-right: 1px solid #e2e8f0;
+          background: rgba(248, 250, 252, 0.8);
+          margin-right: 0.5rem;
+        }
+        .input-with-icon:focus-within .input-icon {
+          color: #f59e0b;
         }
         .signup-form input {
           width: 100%;
-          height: 48px;
-          padding: 0 14px;
-          border: 1px solid #e5e7eb;
-          border-radius: 10px;
+          height: 100%;
+          padding: 0 16px 0 8px;
+          border: none;
+          border-radius: 0;
           font-size: 1rem;
-          transition: border 0.2s, box-shadow 0.2s;
+          transition: all 0.2s ease;
+          font-weight: 400;
+          background: transparent;
+          box-sizing: border-box;
+          outline: none;
         }
-        .signup-form input:focus {
-          border-color: #f59e0b;
-          box-shadow: 0 0 0 3px rgba(245,158,11,0.15);
+        .signup-form input::placeholder {
+          color: #9ca3af;
         }
         .birthdate-input::placeholder {
           font-size: 0.95rem;
@@ -397,16 +1471,31 @@ export default function SignUpPage() {
           position: relative;
           width: 100%;
         }
+        .password-wrapper .input-with-icon {
+          padding-right: 0;
+        }
+        .password-wrapper .input-with-icon input {
+          padding-right: 50px;
+        }
         .toggle-btn {
           position: absolute;
-          right: 12px;
+          right: 14px;
           top: 50%;
           transform: translateY(-50%);
           background: none;
           border: none;
-          color: #f59e0b;
-          font-weight: 600;
+          color: #9ca3af;
           cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 6px;
+          transition: color 0.2s ease;
+          pointer-events: auto;
+          user-select: none;
+        }
+        .toggle-btn:hover {
+          color: #f59e0b;
         }
         .password-rules {
           position: absolute;
@@ -426,25 +1515,46 @@ export default function SignUpPage() {
         .contact-wrapper {
           display: flex;
           align-items: center;
-          border: 1px solid #e5e7eb;
+          border: 2px solid #e5e7eb;
           border-radius: 10px;
           overflow: hidden;
           width: 100%;
-          height: 48px;
+          height: 44px;
+          transition: all 0.2s ease;
+        }
+        .contact-wrapper:focus-within {
+          border-color: #f59e0b;
+          box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
         }
         .prefix {
-          padding: 0 12px;
-          background: #f3f4f6;
-          border-right: 1px solid #e5e7eb;
+          padding: 0 16px;
+          background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+          border-right: 2px solid #e5e7eb;
           color: #374151;
+          font-weight: 600;
+          font-size: 0.95rem;
+          display: flex;
+          align-items: center;
         }
-        .contact-wrapper input {
-          border: none;
+        .phone-input-wrapper {
           flex: 1;
+          display: flex;
+          align-items: center;
+          border: none;
+        }
+        .phone-input-wrapper .input-icon {
+          padding: 0 12px;
+          color: #64748b;
+          flex-shrink: 0;
+        }
+        .phone-input-wrapper input {
+          border: none;
           padding: 0 12px;
           font-size: 1rem;
           outline: none;
           height: 100%;
+          background: transparent;
+          flex: 1;
         }
         .error-message {
           color: #dc2626;
@@ -483,21 +1593,41 @@ export default function SignUpPage() {
         .primary-btn {
           width: 100%;
           height: 48px;
-          background: #f59e0b;
+          background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
           color: #fff;
           font-weight: 600;
           border: none;
           border-radius: 10px;
           cursor: pointer;
           margin-top: 1rem;
-          transition: background 0.3s;
+          transition: all 0.3s ease;
+          font-size: 0.95rem;
+          position: relative;
+          overflow: hidden;
+          box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
         }
-        .primary-btn:hover { background: #d97706; }
+        .primary-btn::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: -100%;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+          transition: left 0.5s ease;
+        }
+        .primary-btn:hover::before {
+          left: 100%;
+        }
+        .primary-btn:hover { 
+          transform: translateY(-2px);
+          box-shadow: 0 8px 25px rgba(245, 158, 11, 0.4);
+        }
         .google-btn {
-          margin-top: 1rem;
+          margin-top: 0.75rem;
           width: 100%;
           height: 48px;
-          border: 1px solid #e5e7eb;
+          border: 2px solid #e5e7eb;
           border-radius: 10px;
           background: #fff;
           display: flex;
@@ -506,42 +1636,25 @@ export default function SignUpPage() {
           gap: 10px;
           cursor: pointer;
           font-weight: 500;
+          font-size: 1rem;
+          color: #374151;
+          transition: all 0.2s ease;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
         }
-        .google-btn:hover { background: #f8fafc; }
+        .google-btn:hover { 
+          background: #f8fafc; 
+          border-color: #d1d5db;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
         .login-text {
-          margin-top: 1rem;
+          margin-top: 0.75rem;
           text-align: center;
-          font-size: 0.95rem;
+          font-size: 0.9rem;
           color: #374151;
         }
         .login-text a { color: #d97706; font-weight: 600; }
-        .footer {
-          background-color: #e8cfa3;
-          text-align: center;
-          padding: 1.5rem 0;
-          color: #123238;
-          font-size: 0.95rem;
-          margin-top: 2rem;
-        }
-        .footer-line {
-          .footer {
-          background-color: #e8cfa3;
-          text-align: center;
-          padding: 1.5rem 0;
-          color: rgba(18, 50, 56, 0.85);
-          font-size: 0.9rem;
-        }
-        @media (max-width: 1024px) {
-          .signup-wrapper { flex-direction: column; max-width: 95%; }
-          .left-panel { padding: 2rem; }
-          .form-card { padding: 2rem; }
-          .input-grid { grid-template-columns: 1fr; }
-        }
-        @media (max-width: 640px) {
-          .form-title { font-size: 1.6rem; }
-          .signup-form input, .primary-btn, .google-btn { font-size: 0.95rem; height: 44px; }
-          .password-rules { font-size: 0.8rem; }
-        }
+
       `}</style>
     </>
   );

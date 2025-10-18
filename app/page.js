@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import PromotionPopup from '@/components/PromotionPopup';
 import PolicyList from '@/components/PolicyList';
+import WelcomeModal from '@/components/WelcomeModal';
 
 export default function Home() {
   const { data: session } = useSession();
@@ -106,12 +107,14 @@ export default function Home() {
   const nextRoom = () => setRoomIndex((prev) => (prev + 1) % rooms.length);
 
   return (
-    <div className="landing">
-      <header className="hero">
-        <div className="background-images-container" aria-hidden>
-          {images.map((image, i) => (
-            <div
-              key={image + i}
+    <>
+      <WelcomeModal />
+      <div className="landing">
+        <header className="hero">
+          <div className="background-images-container" aria-hidden>
+            {images.map((image, i) => (
+              <div
+                key={image + i}
               className={`background-image ${i === currentIndex ? 'active' : ''} ${i === prevIndex && isTransitioning ? 'previous' : ''}`}
               onTransitionEnd={() => setIsTransitioning(false)}
             >
@@ -211,7 +214,7 @@ export default function Home() {
       <p>Your island escape — where every wave brings new memories.</p>
 
       <div className="location-section">
-        <h4>Follow Us</h4>
+        <h4>Follow us on facebook!</h4>
         <a
           href="https://www.facebook.com/CharkoolLeisureBeachResort"
           target="_blank"
@@ -236,7 +239,7 @@ export default function Home() {
               23.403 24 22.674V1.326C24 .597 23.403 
               0 22.675 0z" />
           </svg>
-          <span>Follow us on Facebook</span>
+          <span>Charkool Leisure Beach Resort</span>
         </a>
       </div>
 
@@ -1001,6 +1004,7 @@ export default function Home() {
           .welcome-inner p { font-size: 0.95rem; }
         }
       `}</style>
-    </div>
+      </div>
+    </>
   );
 }

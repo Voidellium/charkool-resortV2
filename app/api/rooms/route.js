@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { BookingStatus } from '@prisma/client';
 import { recordAudit } from '@/src/lib/audit';
 import { getToken } from 'next-auth/jwt';
 
@@ -12,6 +11,74 @@ export const GET = async (req) => {
     const url = new URL(req.url);
     const checkIn = url.searchParams.get('checkIn');
     const checkOut = url.searchParams.get('checkOut');
+
+    // Opportunistic cleanup: auto-cancel expired Pending bookings (heldUntil < now)
+    // This avoids relying on an external scheduler by performing small, safe maintenance
+    // during natural traffic to this endpoint. It only updates status and clears heldUntil;
+    // restoration of amenity stocks is handled in the dedicated cancellation update path.
+    try {
+      const now = new Date();
+      const expired = await prisma.booking.findMany({
+        where: {
+          status: 'Pending',
+          heldUntil: { lt: now },
+          // Do NOT auto-cancel if a reservation has already been paid or fully paid
+          paymentStatus: { notIn: ['Reservation', 'Paid'] },
+        },
+        select: { id: true },
+        take: 20, // cap per request to limit load
+      });
+      for (const item of expired) {
+        try {
+          await prisma.$transaction(async (tx) => {
+            const b = await tx.booking.findUnique({
+              where: { id: item.id },
+              include: { optionalAmenities: true, rentalAmenities: true, user: true },
+            });
+            if (!b || b.status === 'Cancelled') return;
+            if (b.paymentStatus === 'Reservation' || b.paymentStatus === 'Paid') return;
+            // Safety check: skip if reservation or paid
+            if (b.paymentStatus === 'Reservation' || b.paymentStatus === 'Paid') return;
+
+            // Restore amenity stocks
+            for (const oa of (b.optionalAmenities || [])) {
+              await tx.optionalAmenity.update({ where: { id: oa.optionalAmenityId }, data: { quantity: { increment: oa.quantity } } });
+            }
+            for (const ra of (b.rentalAmenities || [])) {
+              await tx.rentalAmenity.update({ where: { id: ra.rentalAmenityId }, data: { quantity: { increment: ra.quantity } } });
+            }
+
+            // Cancel the booking
+            await tx.booking.update({
+              where: { id: b.id },
+              data: { status: 'Cancelled', paymentStatus: 'Pending', heldUntil: null, cancellationRemarks: 'Auto-cancelled due to payment timeout' },
+            });
+
+            // Update user cooldown only for CUSTOMER-originated online bookings
+            if (b.userId && b.user && b.user.role === 'CUSTOMER') {
+              const user = await tx.user.findUnique({ where: { id: b.userId } });
+              const attempts = (user?.failedPaymentAttempts || 0) + 1;
+              let cooldownUntil = null;
+              if (attempts > 2) {
+                const minutes = (attempts - 2) * 15; // 3rd->15, 4th->30, etc.
+                cooldownUntil = new Date(Date.now() + minutes * 60 * 1000);
+              }
+              await tx.user.update({
+                where: { id: b.userId },
+                data: {
+                  failedPaymentAttempts: attempts,
+                  paymentCooldownUntil: cooldownUntil,
+                },
+              });
+            }
+          });
+        } catch (perErr) {
+          console.error('Auto-cancel transaction failed for booking', item.id, perErr);
+        }
+      }
+    } catch (cleanupErr) {
+      console.error('Opportunistic auto-cancel scan failed:', cleanupErr);
+    }
 
     let rooms = await prisma.room.findMany({ orderBy: { name: 'asc' } });
 
@@ -27,7 +94,7 @@ export const GET = async (req) => {
             checkIn: { lte: checkOutDate },
             checkOut: { gte: checkInDate },
             status: {
-              in: [BookingStatus.Pending, BookingStatus.Confirmed],
+              in: ['Pending', 'Confirmed'],
             },
             OR: [
               { heldUntil: null },

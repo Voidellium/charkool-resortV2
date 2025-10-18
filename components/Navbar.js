@@ -53,22 +53,36 @@ export default function Navbar() {
   const isActivePath = (path) => pathname === path;
 
   return (
-    <nav className="navbar">
+    <nav className={`navbar ${scrolled ? 'navbar-scrolled' : ''}`}>
       <div className="navbar-container">
         <div className="navbar-brand">
           <Link href="/" className="logo-link">
-            <Image
-              src="/images/logo.png"
-              alt="Charkool Beach Logo"
-              width={100}
-              height={70}
-              className="logo-img"
-            />
-            <span className="brand-text">Charkool</span>
+
+            <div className="brand-text-container">
+              <span className="brand-title">
+                Charkool
+                <span className="brand-glow"></span>
+              </span>
+              <span className="brand-subtitle">Beach Resort</span>
+            </div>
           </Link>
         </div>
 
         <ul>
+          <li><Link href="/">Home</Link></li>
+          <li><Link href="/virtual-tour">Virtual Tour</Link></li>
+          <li><Link href="/room">Rooms</Link></li>
+          <li><Link href="/about-us">About Us</Link></li>
+          <li>
+            {status === 'loading' ? (
+              <span style={{ color: '#fff', fontSize: '1.1rem', fontWeight: 600 }}>Login</span>
+            ) : session?.user?.role === 'CUSTOMER' ? (
+              <Link href="/guest/dashboard">Dashboard</Link>
+            ) : (
+              <Link href="/login">Login</Link>
+              
+            )}
+          </li>
           <li>
             <button
               onClick={() => {
@@ -88,44 +102,83 @@ export default function Navbar() {
               Book Now
             </button>
           </li>
-          <li><Link href="/">Home</Link></li>
-          <li><Link href="/virtual-tour">Virtual Tour</Link></li>
-          <li><Link href="/room">Rooms</Link></li>
-          <li><Link href="/about-us">About Us</Link></li>
-          <li>
-            {status === 'loading' ? (
-              <span style={{ color: '#fff', fontSize: '1.1rem', fontWeight: 600 }}>Login</span>
-            ) : session?.user?.role === 'CUSTOMER' ? (
-              <Link href="/guest/dashboard">Dashboard</Link>
-            ) : (
-              <Link href="/login">Login</Link>
-            )}
-          </li>
         </ul>
       </div>
 
       <style jsx>{`
+        .navbar *,
+        .navbar *::before,
+        .navbar *::after,
+        .navbar a,
+        .navbar a:hover,
+        .navbar a:focus,
+        .navbar a:active,
+        .navbar a:visited,
+        .navbar a:link,
+        .navbar .logo-link,
+        .navbar .logo-link:hover,
+        .navbar .logo-link:focus,
+        .navbar .logo-link:active,
+        .navbar .logo-link:visited {
+          text-decoration: none !important;
+          text-decoration-line: none !important;
+          text-decoration-style: none !important;
+          text-decoration-color: transparent !important;
+          border-bottom: none !important;
+          border-bottom-width: 0 !important;
+          border-bottom-style: none !important;
+          text-underline-offset: 0 !important;
+          text-decoration-thickness: 0 !important;
+        }
+
         .navbar {
-          background: #febe54;
-          padding: 0.8rem 0;
-          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
           position: sticky;
           top: 0;
           z-index: 1000;
-          height: 80px;
-          min-height: 80px;
-          max-height: 80px;
+          background: linear-gradient(135deg, rgba(240, 176, 53, 0.55), rgba(252, 211, 77, 0.12));
+          backdrop-filter: blur(10px);
+          /* remove thin white border that caused a visible seam */
+          border-bottom: none;
+          /* keep a subtle separation without a hard white line */
+          box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset, 0 6px 18px rgba(0,0,0,0.06);
+          padding: 1rem 0;
+          transition: background 0.4s ease, box-shadow 0.4s ease, padding 0.4s ease;
+        }
+        
+        .navbar :global(*) {
+          text-decoration: none !important;
+          border-bottom: none !important;
+        }
+
+        .navbar::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(120deg, #febe52, #EDCA60);
+          pointer-events: none;
+          opacity: 0.7;
+          transition: opacity 0.4s ease;
+        }
+
+        .navbar.navbar-scrolled {
+          background: linear-gradient(135deg, rgba(240, 176, 53, 0.95), rgba(251, 146, 60, 0.95));
+          padding: 0.8rem 0;
+          box-shadow: 0 12px 35px rgba(251, 146, 60, 0.28);
+        }
+
+        .navbar.navbar-scrolled::before {
+          opacity: 0.2;
         }
 
         .navbar-container {
+          position: relative;
           display: flex;
           justify-content: space-between;
           align-items: center;
           max-width: 1200px;
           margin: 0 auto;
-          padding: 0 1rem;
-          height: 100%;
-          flex-wrap: wrap;
+          padding: 0 1.5rem;
+          gap: 1.5rem;
         }
 
         .navbar-brand {
@@ -137,140 +190,249 @@ export default function Navbar() {
         .logo-link {
           display: flex;
           align-items: center;
-          gap: 0.6rem;
-          text-decoration: none;
+          gap: 0.9rem;
+          text-decoration: none !important;
           position: relative;
+          padding: 0.3rem 0;
+          border-bottom: none !important;
         }
 
         .logo-img {
           display: block;
-          height: 70px;
+          height: 72px;
           width: auto;
+          filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.18));
         }
 
-        .brand-text {
+        .brand-text-container {
+          display: flex;
+          flex-direction: column;
+          margin-left: 0.4rem;
+          justify-content: center;
+          align-items: flex-start;
+        }
+
+        .brand-title {
+          position: relative;
+          font-size: 2rem;
+          font-weight: 800;
+          letter-spacing: 1px;
+          text-transform: uppercase;
+          background: linear-gradient(120deg, #ffffff 10%, #fef3c7 45%, #fde68a 90%);
+          -webkit-background-clip: text;
+          color: transparent;
+          display: inline-flex;
+          align-items: center;
+          text-decoration: none;
+        }
+
+        .brand-glow {
           position: absolute;
-          left: 100%;
-          top: 50%;
-          transform: translateY(-50%);
-          margin-left: 0.7rem;
-          font-size: 1.8rem;
-          font-weight: 700;
-          color: #fff;
-          letter-spacing: 0.5px;
-          white-space: nowrap;
+          inset: 45% -18px auto auto;
+          width: 36px;
+          height: 36px;
+          background: radial-gradient(circle, rgba(255, 255, 255, 0.9), rgba(253, 230, 138, 0));
+          filter: blur(12px);
+          opacity: 0;
+          transition: transform 0.5s ease, opacity 0.5s ease;
         }
 
-        .logo-link:hover .brand-text {
-          color: #f59e0b;
+        .brand-subtitle {
+          margin-top: -0.1rem;
+          font-size: 0.9rem;
+          font-weight: 600;
+          letter-spacing: 0.65rem;
+          text-transform: uppercase;
+          color: rgba(255, 255, 255, 0.85);
+          white-space: nowrap;
+          text-decoration: none;
+        }
+
+        .logo-link:hover .brand-glow,
+        .navbar.navbar-scrolled .brand-glow {
+          opacity: 1;
+          transform: scale(1.1);
         }
 
         ul {
           list-style: none;
           display: flex;
-          gap: 1.2rem;
+          gap: 1.4rem;
           margin: 0;
+
           padding: 0;
           align-items: center;
           flex-wrap: wrap;
         }
 
-        ul li :global(a) {
-          color: #fff;
-          text-decoration: none;
-          font-size: 1.1rem;
-          font-weight: 600;
-          position: relative;
-          transition: color 0.3s ease, transform 0.3s ease;
+        ul li {
+          display: flex;
+          align-items: center;
         }
 
-        ul li :global(a)::after {
-          content: '';
-          position: absolute;
-          left: 0;
-          bottom: -4px;
-          width: 100%;
-          height: 2px;
-          background-color: #fff;
-          transform: scaleX(0);
-          transform-origin: left;
-          transition: transform 0.3s ease;
+        ul li :global(a) {
+          color: rgba(255, 255, 255, 0.9);
+          text-decoration: none !important;
+          font-size: 1rem;
+          font-weight: 600;
+          padding: 0.45rem 0.95rem;
+          border-radius: 999px;
+          transition: transform 0.3s ease, background 0.3s ease, color 0.3s ease;
+          background: rgba(255, 255, 255, 0.08);
+          backdrop-filter: blur(12px);
+          border-bottom: none !important;
         }
 
         ul li :global(a):hover {
-          color: #f59e0b;
-          transform: translateY(-2px);
-        }
-
-        ul li :global(a):hover::after {
-          transform: scaleX(1);
+          color: #ffffff;
+          background: linear-gradient(135deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.08));
+          transform: translateY(-3px);
+          box-shadow: 0 8px 18px rgba(255, 255, 255, 0.16);
+          text-decoration: none !important;
+          border-bottom: none !important;
         }
 
         .book-now-btn {
-          background: #fff;
+          background: linear-gradient(135deg, #f97316 0%, #facc15 40%, #fb923c 100%);
           border: none;
-          color: #febe52;
-          font-size: 1rem;
-          font-weight: 700;
-          padding: 0.45em 1.2em;
+          color: #fff;
+          font-size: 1.08rem;
+          font-weight: 800;
+          padding: 0.65em 1.9em;
           border-radius: 999px;
-          box-shadow: 0 2px 8px 0 rgba(245, 158, 11, 0.13);
+          box-shadow: 0 18px 35px -14px rgba(249, 115, 22, 0.8);
           cursor: pointer;
-          transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
-          letter-spacing: 0.01em;
-          margin-right: 0.2rem;
-          min-width: 110px;
-          display: inline-block;
+          transition: transform 0.35s ease, box-shadow 0.35s ease;
+          letter-spacing: 0.14em;
+          margin-right: 0.5rem;
+          min-width: 150px;
+          text-transform: uppercase;
+          position: relative;
+          overflow: hidden;
+        }
+
+        .book-now-btn::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(120deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0));
+          transform: translateX(-100%);
+          transition: transform 0.45s ease;
         }
 
         .book-now-btn:hover,
         .book-now-btn:focus {
-          background: linear-gradient(90deg, #fbbf24 0%, #f59e0b 100%);
-          color: #fff;
-          transform: translateY(-1px) scale(1.03);
-          box-shadow: 0 4px 16px 0 rgba(245, 158, 11, 0.18);
+          transform: translateY(-4px) scale(1.04);
+          box-shadow: 0 20px 40px -12px rgba(248, 113, 22, 0.7);
+        }
+
+        .book-now-btn:hover::after,
+        .book-now-btn:focus::after {
+          transform: translateX(0);
         }
 
         .book-now-btn:active {
-          transform: scale(0.98);
-          box-shadow: 0 1px 4px 0 rgba(245, 158, 11, 0.1);
+          transform: translateY(-1px) scale(1.01);
+          box-shadow: 0 16px 28px -18px rgba(248, 113, 22, 0.7);
         }
 
-        @media (max-width: 900px) {
+        @media (max-width: 1024px) {
+          .navbar-container {
+            padding: 0 1.2rem;
+            gap: 1rem;
+          }
+
+          ul {
+            gap: 1rem;
+          }
+
+          .brand-title {
+            font-size: 1.8rem;
+          }
+
+          .brand-subtitle {
+            font-size: 0.8rem;
+            letter-spacing: 0.5rem;
+          }
+        }
+
+        @media (max-width: 820px) {
           .navbar-container {
             flex-direction: column;
-            align-items: stretch;
-            padding: 0 0.5rem;
+            align-items: center;
+            padding: 0.8rem 1rem;
           }
+
           ul {
-            gap: 0.7rem;
             justify-content: center;
-            flex-wrap: wrap;
           }
-          .navbar-brand {
-            justify-content: center;
-            margin-bottom: 0.5rem;
+
+          .book-now-btn {
+            order: -1;
+            margin-right: 0;
+            margin-bottom: 0.4rem;
           }
         }
 
         @media (max-width: 600px) {
           .navbar {
-            height: 70px;
-            padding: 0.5rem 0;
+            padding: 0.75rem 0;
           }
+
           .navbar-container {
-            padding: 0 0.2rem;
+            padding: 0.6rem 0.9rem;
+            gap: 0.8rem;
           }
+
+          .logo-img {
+            height: 60px;
+          }
+
+          .brand-title {
+            font-size: 1.5rem;
+            letter-spacing: 0.5px;
+          }
+
+          .brand-subtitle {
+            font-size: 0.7rem;
+            letter-spacing: 0.35rem;
+          }
+
           ul {
-            gap: 0.4rem;
+            gap: 0.6rem;
           }
+
+          ul li :global(a) {
+            font-size: 0.95rem;
+            padding: 0.4rem 0.75rem;
+          }
+
+          .book-now-btn {
+            font-size: 1rem;
+            padding: 0.55em 1.6em;
+            letter-spacing: 0.1em;
+            min-width: 140px;
+          }
+        }
+
+        @media (max-width: 420px) {
+          .brand-title {
+            font-size: 1.35rem;
+          }
+
+          .brand-subtitle {
+            font-size: 0.6rem;
+            letter-spacing: 0.28rem;
+          }
+
+          ul li :global(a) {
+            font-size: 0.85rem;
+            padding: 0.35rem 0.65rem;
+          }
+
           .book-now-btn {
             font-size: 0.95rem;
-            padding: 0.38em 0.9em;
-            min-width: 90px;
-          }
-          .brand-text {
-            font-size: 1.3rem;
+            min-width: 125px;
           }
         }
       `}</style>
