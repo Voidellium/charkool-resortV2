@@ -307,60 +307,95 @@ export async function POST(request) {
     }
 
     // Reserve stock and create booking in a single transaction
-    const booking = await prisma.$transaction(async (tx) => {
-      // Validate and decrement Optional Amenity stock
-      for (const item of optionalAmenitiesToCreate) {
-        const updated = await tx.optionalAmenity.updateMany({
-          where: { id: item.optionalAmenityId, quantity: { gte: item.quantity } },
-          data: { quantity: { decrement: item.quantity } },
+    // Create booking with retry logic for transaction failures
+    let booking;
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount < maxRetries) {
+      try {
+        booking = await prisma.$transaction(async (tx) => {
+          // Validate and decrement Optional Amenity stock
+          for (const item of optionalAmenitiesToCreate) {
+            const updated = await tx.optionalAmenity.updateMany({
+              where: { id: item.optionalAmenityId, quantity: { gte: item.quantity } },
+              data: { quantity: { decrement: item.quantity } },
+            });
+            if (updated.count === 0) {
+              throw new Error(`Insufficient stock for optional amenity ID ${item.optionalAmenityId}`);
+            }
+          }
+
+          // Validate and decrement Rental Amenity stock
+          for (const item of rentalAmenitiesToCreate) {
+            const updated = await tx.rentalAmenity.updateMany({
+              where: { id: item.rentalAmenityId, quantity: { gte: item.quantity } },
+              data: { quantity: { decrement: item.quantity } },
+            });
+            if (updated.count === 0) {
+              throw new Error(`Insufficient stock for rental amenity ID ${item.rentalAmenityId}`);
+            }
+          }
+
+          const created = await tx.booking.create({
+            data: {
+              guestName,
+              checkIn: checkInDate,
+              checkOut: checkOutDate,
+              status,
+              paymentStatus,
+              totalPrice: calculatedTotalPrice,
+              userId: userId ? parseInt(userId) : null,
+              // Hold inventory for 15 minutes pending reservation payment
+              ...(status === 'Pending' && { heldUntil: new Date(Date.now() + 15 * 60 * 1000) }),
+              optionalAmenities: { create: optionalAmenitiesToCreate },
+              rentalAmenities: { create: rentalAmenitiesToCreate },
+              cottage: { create: cottageToCreate },
+              rooms: {
+                create: rooms.map(room => ({
+                  roomId: room.id,
+                  quantity: selectedRooms[room.id] || 0,
+                })),
+              },
+            },
+            include: {
+              rooms: { include: { room: true } },
+              optionalAmenities: { include: { optionalAmenity: true } },
+              rentalAmenities: { include: { rentalAmenity: true } },
+              cottage: { include: { cottage: true } },
+            },
+          });
+
+          return created;
+        }, {
+          maxWait: 5000, // Maximum time to wait for a transaction slot (5s)
+          timeout: 10000, // Maximum time the transaction can run (10s)
         });
-        if (updated.count === 0) {
-          throw new Error(`Insufficient stock for optional amenity ID ${item.optionalAmenityId}`);
+        
+        // If we get here, transaction succeeded
+        break;
+        
+      } catch (transactionError) {
+        console.error(`Booking transaction attempt ${retryCount + 1} failed:`, transactionError);
+        
+        // Handle specific Prisma transaction errors
+        if (transactionError.code === 'P2028') {
+          retryCount++;
+          if (retryCount >= maxRetries) {
+            return NextResponse.json(
+              { error: 'Booking creation temporarily unavailable. Please try again in a few moments.' },
+              { status: 503 }
+            );
+          }
+          // Wait before retry (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
+          continue;
         }
+        
+        // For other errors, don't retry
+        throw transactionError;
       }
-
-      // Validate and decrement Rental Amenity stock
-      for (const item of rentalAmenitiesToCreate) {
-        const updated = await tx.rentalAmenity.updateMany({
-          where: { id: item.rentalAmenityId, quantity: { gte: item.quantity } },
-          data: { quantity: { decrement: item.quantity } },
-        });
-        if (updated.count === 0) {
-          throw new Error(`Insufficient stock for rental amenity ID ${item.rentalAmenityId}`);
-        }
-      }
-
-      const created = await tx.booking.create({
-        data: {
-          guestName,
-          checkIn: checkInDate,
-          checkOut: checkOutDate,
-          status,
-          paymentStatus,
-          totalPrice: calculatedTotalPrice,
-          userId: userId ? parseInt(userId) : null,
-          // Hold inventory for 15 minutes pending reservation payment
-          ...(status === 'Pending' && { heldUntil: new Date(Date.now() + 15 * 60 * 1000) }),
-          optionalAmenities: { create: optionalAmenitiesToCreate },
-          rentalAmenities: { create: rentalAmenitiesToCreate },
-          cottage: { create: cottageToCreate },
-          rooms: {
-            create: rooms.map(room => ({
-              roomId: room.id,
-              quantity: selectedRooms[room.id] || 0,
-            })),
-          },
-        },
-        include: {
-          rooms: { include: { room: true } },
-          optionalAmenities: { include: { optionalAmenity: true } },
-          rentalAmenities: { include: { rentalAmenity: true } },
-          cottage: { include: { cottage: true } },
-        },
-      });
-
-      return created;
-    });
+    }
 
     // Create notification for superadmin
     try {
