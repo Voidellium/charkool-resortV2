@@ -796,31 +796,11 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
 };
 
 // Combined History Card Component
-const BookingHistoryCard = ({ booking, guest, onViewDetails, onReschedule }) => {
-  const [rescheduleStatus, setRescheduleStatus] = useState(null);
-  const [adminContext, setAdminContext] = useState('');
+const BookingHistoryCard = ({ booking, guest, onViewDetails, onReschedule, rescheduleRequest }) => {
+  // Use the reschedule request data passed as prop instead of fetching individually
+  const rescheduleStatus = rescheduleRequest?.status || null;
+  const adminContext = rescheduleRequest?.adminContext || '';
   const [showDeniedModal, setShowDeniedModal] = useState(false);
-
-  useEffect(() => {
-    // Fetch latest reschedule request for this booking
-    async function fetchRescheduleStatus() {
-      try {
-        const res = await fetch(`/api/reschedule-request?bookingId=${booking.id}`);
-        if (res.ok) {
-          const data = await res.json();
-          setRescheduleStatus(data.status);
-          setAdminContext(data.adminContext || '');
-        } else {
-          setRescheduleStatus(null);
-          setAdminContext('');
-        }
-      } catch {
-        setRescheduleStatus(null);
-        setAdminContext('');
-      }
-    }
-    fetchRescheduleStatus();
-  }, [booking.id]);
 
   const guestFirstName = guest?.firstName || '';
   const guestLastName = guest?.lastName || '';
@@ -1031,31 +1011,13 @@ const BookingHistoryCard = ({ booking, guest, onViewDetails, onReschedule }) => 
 };
 
 // Combined History Card Component
-const HistoryCard = ({ booking, guest, onViewDetails, onReschedule }) => {
-  const [rescheduleStatus, setRescheduleStatus] = useState(null);
-  const [adminContext, setAdminContext] = useState('');
+const HistoryCard = ({ booking, guest, onViewDetails, onReschedule, rescheduleRequests = {} }) => {
   const [showDeniedModal, setShowDeniedModal] = useState(false);
-
-  useEffect(() => {
-    // Fetch latest reschedule request for this booking
-    async function fetchRescheduleStatus() {
-      try {
-        const res = await fetch(`/api/reschedule-request?bookingId=${booking.id}`);
-        if (res.ok) {
-          const data = await res.json();
-          setRescheduleStatus(data.status);
-          setAdminContext(data.adminContext || '');
-        } else {
-          setRescheduleStatus(null);
-          setAdminContext('');
-        }
-      } catch {
-        setRescheduleStatus(null);
-        setAdminContext('');
-      }
-    }
-    fetchRescheduleStatus();
-  }, [booking.id]);
+  
+  // Get reschedule status from the batch-fetched data
+  const rescheduleData = rescheduleRequests[booking.id];
+  const rescheduleStatus = rescheduleData?.status || null;
+  const adminContext = rescheduleData?.adminContext || '';
 
   const isRescheduleAllowed = () => {
     const now = new Date();
@@ -1469,6 +1431,7 @@ export default function GuestDashboard() {
   const [promotions, setPromotions] = useState([]);
   const [selectedDetailsBooking, setSelectedDetailsBooking] = useState(null);
   const [selectedRescheduleBooking, setSelectedRescheduleBooking] = useState(null);
+  const [rescheduleRequests, setRescheduleRequests] = useState({});
   const [filters, setFilters] = useState({
     roomName: '',
     paymentStatus: '',
@@ -1495,9 +1458,28 @@ export default function GuestDashboard() {
         setGuest(data.guest);
         setBookings(data.bookings);
         setFilteredBookings(data.bookings);
+        
+        // Fetch reschedule requests for all bookings in batch
+        if (data.bookings && data.bookings.length > 0) {
+          await fetchRescheduleRequests(data.bookings);
+        }
       } catch (err) {
         console.error('Error fetching guest info:', err);
         router.push('/login');
+      }
+    }
+
+    async function fetchRescheduleRequests(bookingsList) {
+      try {
+        const bookingIds = bookingsList.map(booking => booking.id).join(',');
+        const res = await fetch(`/api/reschedule-requests/batch?bookingIds=${bookingIds}`);
+        
+        if (res.ok) {
+          const data = await res.json();
+          setRescheduleRequests(data.rescheduleRequests || {});
+        }
+      } catch (err) {
+        console.error('Error fetching reschedule requests:', err);
       }
     }
 
@@ -1678,6 +1660,7 @@ export default function GuestDashboard() {
                   guest={guest}
                   onViewDetails={setSelectedDetailsBooking}
                   onReschedule={setSelectedRescheduleBooking}
+                  rescheduleRequests={rescheduleRequests}
                 />
               ))
             ) : (
