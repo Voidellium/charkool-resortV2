@@ -3,7 +3,10 @@ import { NextResponse } from 'next/server';
 export async function POST() {
   try {
     // Call the existing hold release endpoint
-    const releaseResponse = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/hold/release`, {
+    const baseUrl = process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}` 
+      : process.env.NEXTAUTH_URL || 'http://localhost:3000';
+    const releaseResponse = await fetch(`${baseUrl}/api/hold/release`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });

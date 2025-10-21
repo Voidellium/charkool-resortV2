@@ -129,7 +129,10 @@ export const PUT = async (req, context) => {
               });
             } else {
               // For real payments, call refund API
-              const refundRes = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/payments/refund`, {
+              const baseUrl = process.env.VERCEL_URL 
+                ? `https://${process.env.VERCEL_URL}` 
+                : process.env.NEXTAUTH_URL || 'http://localhost:3000';
+              const refundRes = await fetch(`${baseUrl}/api/payments/refund`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ paymentId: payment.id, reason: 'booking_cancelled' }),

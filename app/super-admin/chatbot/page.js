@@ -7,6 +7,8 @@ export default function ChatbotManagementPage() {
   const [questions, setQuestions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const QUESTIONS_PER_PAGE = 6;
 
   const [editingQuestion, setEditingQuestion] = useState(null);
   const [formState, setFormState] = useState({
@@ -101,6 +103,16 @@ export default function ChatbotManagementPage() {
     'Location & Policies',
   ];
 
+  // Pagination calculation
+  const totalPages = Math.ceil(questions.length / QUESTIONS_PER_PAGE);
+  const startIndex = (currentPage - 1) * QUESTIONS_PER_PAGE;
+  const paginatedQuestions = questions.slice(startIndex, startIndex + QUESTIONS_PER_PAGE);
+
+  // Reset to first page when questions change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [questions.length]);
+
   return (
     <SuperAdminLayout activePage="chatbot">
       <div className="container">
@@ -160,31 +172,122 @@ export default function ChatbotManagementPage() {
 
         {/* Questions List */}
         <div className="list-card">
-          <h2 className="section-heading">Existing Questions</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+            <h2 className="section-heading">Existing Questions ({questions.length} total)</h2>
+            {totalPages > 1 && (
+              <span style={{ color: '#666', fontSize: '0.9rem' }}>
+                Page {currentPage} of {totalPages}
+              </span>
+            )}
+          </div>
           {isLoading ? (
             <p className="loading-text">Loading questions...</p>
           ) : (
-            <table className="questions-table">
-              <thead>
-                <tr>
-                  <th>Category</th>
-                  <th>Question</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {questions.map((q) => (
-                  <tr key={q.id}>
-                    <td className="category-cell">{q.category}</td>
-                    <td className="question-cell">{q.question}</td>
-                    <td className="actions-cell">
-                      <button className="action-btn edit" onClick={() => handleEdit(q)}>Edit</button>
-                      <button className="action-btn delete" onClick={() => handleDelete(q.id)}>Delete</button>
-                    </td>
+            <>
+              <table className="questions-table">
+                <thead>
+                  <tr>
+                    <th>Category</th>
+                    <th>Question</th>
+                    <th>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {paginatedQuestions.map((q) => (
+                    <tr key={q.id}>
+                      <td className="category-cell">{q.category}</td>
+                      <td className="question-cell">{q.question}</td>
+                      <td className="actions-cell">
+                        <button className="action-btn edit" onClick={() => handleEdit(q)}>Edit</button>
+                        <button className="action-btn delete" onClick={() => handleDelete(q.id)}>Delete</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginTop: '20px',
+                  gap: '1rem'
+                }}>
+                  <span style={{
+                    color: '#666',
+                    fontSize: '0.9rem'
+                  }}>
+                    Showing {startIndex + 1}-{Math.min(startIndex + QUESTIONS_PER_PAGE, questions.length)} of {questions.length} questions
+                  </span>
+                  
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <button
+                      onClick={() => setCurrentPage(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      style={{
+                        padding: '8px 12px',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px',
+                        background: currentPage === 1 ? '#f9fafb' : 'white',
+                        color: currentPage === 1 ? '#9ca3af' : '#374151',
+                        cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                        fontSize: '0.875rem',
+                        fontWeight: '500',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      Previous
+                    </button>
+                    
+                    <div style={{ display: 'flex', gap: '0.25rem' }}>
+                      {[...Array(totalPages)].map((_, i) => {
+                        const page = i + 1;
+                        return (
+                          <button
+                            key={page}
+                            onClick={() => setCurrentPage(page)}
+                            style={{
+                              padding: '8px 12px',
+                              border: '1px solid #e5e7eb',
+                              borderRadius: '8px',
+                              background: currentPage === page ? 'linear-gradient(135deg, #febe52 0%, #EBD591 100%)' : 'white',
+                              color: currentPage === page ? 'white' : '#374151',
+                              cursor: 'pointer',
+                              fontSize: '0.875rem',
+                              fontWeight: '500',
+                              minWidth: '40px',
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            {page}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    
+                    <button
+                      onClick={() => setCurrentPage(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                      style={{
+                        padding: '8px 12px',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px',
+                        background: currentPage === totalPages ? '#f9fafb' : 'white',
+                        color: currentPage === totalPages ? '#9ca3af' : '#374151',
+                        cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                        fontSize: '0.875rem',
+                        fontWeight: '500',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

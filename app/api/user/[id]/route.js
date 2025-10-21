@@ -5,19 +5,6 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/auth';
 const prisma = new PrismaClient();
 
-const ALLOWED_ORIGIN = 'http://localhost:3001';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
-  'Access-Control-Allow-Methods': 'GET, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
-
-// Preflight handler
-export async function OPTIONS() {
-  return new Response(null, { status: 204, headers: corsHeaders });
-}
-
 // GET single user by ID
 export async function GET(req, { params }) {
   try {

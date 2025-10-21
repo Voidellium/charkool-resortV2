@@ -1,10 +1,31 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { signOut } from 'next-auth/react';
+import { useNavigationGuard } from '../../hooks/useNavigationGuard.simple';
+import { NavigationConfirmationModal } from '../../components/CustomModals';
 
 export default function AmenityInventoryDashboard() {
   const [amenities, setAmenities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // Navigation Guard Setup for admin forms
+  const navigationGuard = useNavigationGuard({
+    trackForms: true,
+    formId: 'amenity-inventory-dashboard',
+    customMessage: 'Unsaved inventory changes will be lost. Please save your work before navigating away.'
+  });
+
+  // Logout Navigation Guard (always active for logout protection)
+  const logoutGuard = useNavigationGuard({
+    shouldPreventNavigation: () => true,
+    onNavigationAttempt: () => {
+      console.log('Amenity Manager Dashboard: Navigation attempt detected, showing logout confirmation');
+    },
+    customAction: () => signOut({ callbackUrl: '/login' }),
+    context: 'logout',
+    message: 'Are you sure you want to log out of your Amenity Manager dashboard?'
+  });
 
   const fetchAmenities = async () => {
     try {
@@ -143,6 +164,24 @@ export default function AmenityInventoryDashboard() {
           );
         })}
       </div>
+      
+      {/* Form Changes Navigation Modal */}
+      <NavigationConfirmationModal 
+        show={navigationGuard.showModal}
+        onStay={navigationGuard.handleStay}
+        onLeave={navigationGuard.handleLeave}
+        context="admin"
+        message={navigationGuard.message}
+      />
+
+      {/* Logout Confirmation Modal */}
+      <NavigationConfirmationModal 
+        show={logoutGuard.showModal}
+        onStay={logoutGuard.handleStay}
+        onLeave={logoutGuard.handleLeave}
+        context="logout"
+        message={logoutGuard.message}
+      />
     </div>
   );
 }

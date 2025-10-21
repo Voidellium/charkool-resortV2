@@ -226,6 +226,8 @@ model Booking {
   guestName     String           @default("Walk-in Guest")
   paymentStatus PaymentStatus    @default(Pending)
   totalPrice    Int              @default(0)
+  numberOfGuests Int             @default(1)
+  paymentMode   String           @default("cash") // Required: "cash", "gcash", "maya", "card"
   isDeleted     Boolean          @default(false)
   cancellationRemarks String?
   user          User?            @relation(fields: [userId], references: [id])

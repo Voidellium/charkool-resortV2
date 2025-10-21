@@ -2,6 +2,45 @@ import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+// Security headers configuration
+const securityHeaders = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'X-XSS-Protection': '1; mode=block',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+  'Content-Security-Policy': [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://checkout.stripe.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com",
+    "img-src 'self' data: https: blob:",
+    "connect-src 'self' https://api.stripe.com https://api.sendgrid.com https://api.resend.com wss:",
+    "frame-src 'self' https://js.stripe.com https://hooks.stripe.com",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'"
+  ].join('; ')
+};
+
+// Apply security headers to response
+function applySecurityHeaders(response: NextResponse, isLocalhost: boolean = false) {
+  Object.entries(securityHeaders).forEach(([key, value]) => {
+    // Skip HTTPS enforcement on localhost
+    if (key === 'Strict-Transport-Security' && isLocalhost) {
+      return;
+    }
+    response.headers.set(key, value);
+  });
+  
+  // Add HTTPS enforcement for production
+  if (!isLocalhost) {
+    response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  
+  return response;
+}
+
 const JWT_SECRET = process.env.NEXTAUTH_SECRET;
 const MAINTENANCE_MODE = process.env.APP_MAINTENANCE === "true";
 
@@ -71,7 +110,9 @@ export async function middleware(req: NextRequest) {
   // Allow public GET access to the chatbot API
   if (pathname.startsWith('/api/chatbot') && req.method === 'GET') {
     console.log(`[MIDDLEWARE] Allowing public access to chatbot API`);
-    return NextResponse.next();
+    const response = NextResponse.next();
+    const isLocalhost = req.url.includes('localhost') || req.url.includes('127.0.0.1');
+    return applySecurityHeaders(response, isLocalhost);
   }
 
   // Skip middleware for NextAuth internal requests and password reset routes
@@ -80,7 +121,9 @@ export async function middleware(req: NextRequest) {
       pathname === '/api/auth/verify-reset-otp' || 
       pathname === '/api/auth/reset-password') {
     console.log(`[MIDDLEWARE] Skipping auth route: ${pathname}`);
-    return NextResponse.next();
+    const response = NextResponse.next();
+    const isLocalhost = req.url.includes('localhost') || req.url.includes('127.0.0.1');
+    return applySecurityHeaders(response, isLocalhost);
   }
 
   // --- 0. Global Maintenance Mode ---
@@ -102,7 +145,7 @@ export async function middleware(req: NextRequest) {
   const isLoginOrRegister = loginAndRegisterPaths.includes(pathname);
 
   // These are the paths that don't require authentication (e.g., home)
-  const publicPaths = ["/", "/login", "/register", "/login/forgot-password", "/api/public", "/virtual-tour", "/room", "/about-us", "/booking"];
+  const publicPaths = ["/", "/login", "/register", "/login/forgot-password", "/api/public", "/virtual-tour", "/room", "/about-us"];
   const isPublicPath = publicPaths.includes(pathname);
 
   const token = await getToken({ req, secret: JWT_SECRET });
@@ -161,6 +204,22 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  // --- 2.6 Handle booking route - CUSTOMER role only ---
+  if (pathname.startsWith('/booking') && token) {
+    if (typeof token.role !== "string" || token.role.toUpperCase() !== "CUSTOMER") {
+      // Redirect non-customers to their appropriate dashboard
+      const role = typeof token.role === "string" ? token.role.toLowerCase() : "";
+      switch (role) {
+        case "superadmin": return NextResponse.redirect(new URL("/super-admin/dashboard", req.url));
+        case "admin": return NextResponse.redirect(new URL("/admin/dashboard", req.url));
+        case "receptionist": return NextResponse.redirect(new URL("/receptionist", req.url));
+        case "cashier": return NextResponse.redirect(new URL("/cashier", req.url));
+        case "amenityinventorymanager": return NextResponse.redirect(new URL("/amenityinventorymanager", req.url));
+        default: return NextResponse.redirect(new URL("/unauthorized", req.url));
+      }
+    }
+  }
+
   // --- 3. Role-based protection for specific routes ---
   const roleProtectedRoutes: Record<string, string> = {
     "/super-admin": "superadmin",
@@ -192,7 +251,10 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  return NextResponse.next();
+  // Apply security headers to all responses
+  const response = NextResponse.next();
+  const isLocalhost = req.url.includes('localhost') || req.url.includes('127.0.0.1');
+  return applySecurityHeaders(response, isLocalhost);
 }
 
 export const config = {

@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { recordAudit } from '@/src/lib/audit';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/auth';
+import { withSecurity, validateNumber, validateObject } from '@/lib/security';
 
 // Helper function to serialize BigInt values
 function serializeBigInt(obj) {
@@ -11,21 +12,34 @@ function serializeBigInt(obj) {
   ));
 }
 
-export async function GET(request) {
+async function getBookingsHandler(request) {
   try {
-    // Get query parameters for pagination
+    // Get and validate query parameters for pagination
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page')) || 1;
-    const limit = parseInt(searchParams.get('limit')) || 20;
+    
+    // Validate page parameter
+    const pageParam = searchParams.get('page');
+    const pageValidation = validateNumber(pageParam || '1', { min: 1, max: 1000, integer: true });
+    const page = pageValidation.isValid ? pageValidation.value : 1;
+    
+    // Validate limit parameter
+    const limitParam = searchParams.get('limit');
+    const limitValidation = validateNumber(limitParam || '20', { min: 1, max: 100, integer: true });
+    const limit = limitValidation.isValid ? limitValidation.value : 20;
+    
+    const includeDeleted = searchParams.get('includeDeleted') === 'true';
     const skip = (page - 1) * limit;
+    
+    // Build where clause based on includeDeleted parameter
+    const whereClause = includeDeleted ? {} : { isDeleted: false };
     
     // Get total count for pagination info
     const totalBookings = await prisma.booking.count({
-      where: { isDeleted: false }
+      where: whereClause
     });
     
     const bookings = await prisma.booking.findMany({
-      where: { isDeleted: false },
+      where: whereClause,
       include: {
         user: true,
         rooms: { include: { room: true } },
@@ -139,13 +153,40 @@ export async function GET(request) {
   }
 }
 
-export async function POST(request) {
+async function postBookingHandler(request) {
   try {
-    const data = await request.json();
+    const body = request.sanitizedBody || await request.json();
+    
+    // Enhanced input validation
+    const schema = {
+      guestName: { type: 'string', required: true, options: { minLength: 2, maxLength: 100 } },
+      checkIn: { type: 'date', required: true },
+      checkOut: { type: 'date', required: true },
+      numberOfGuests: { type: 'number', required: true, options: { integer: true, min: 1 } },
+      paymentMode: { type: 'string', required: true, options: { enum: ['cash', 'gcash', 'maya', 'card'] } },
+      selectedRooms: { type: 'object', required: true },
+      optional: { type: 'object', required: false },
+      rental: { type: 'object', required: false },
+      cottage: { type: 'object', required: false },
+      status: { type: 'string', required: false, options: { maxLength: 20 } },
+      paymentStatus: { type: 'string', required: false, options: { maxLength: 20 } },
+      userId: { type: 'number', required: false, options: { integer: true, min: 1 } }
+    };
+
+    const validation = validateObject(body, schema);
+    if (!validation.isValid) {
+      return NextResponse.json(
+        { error: 'Invalid input data', details: validation.errors },
+        { status: 400 }
+      );
+    }
+
     const {
       guestName,
       checkIn,
       checkOut,
+      numberOfGuests,
+      paymentMode,
       selectedRooms,
       optional,
       rental,
@@ -153,11 +194,12 @@ export async function POST(request) {
       status = 'Pending',
       paymentStatus = 'Pending',
       userId = null
-    } = data;
+    } = validation.data;
 
-    if (!guestName || !checkIn || !checkOut || !selectedRooms || Object.keys(selectedRooms).length === 0) {
+    // Additional validation for selectedRooms
+    if (!selectedRooms || typeof selectedRooms !== 'object' || Object.keys(selectedRooms).length === 0) {
       return NextResponse.json(
-        { error: 'Missing required fields: guestName, checkIn, checkOut, selectedRooms' },
+        { error: 'selectedRooms must be a non-empty object' },
         { status: 400 }
       );
     }
@@ -342,6 +384,8 @@ export async function POST(request) {
               guestName,
               checkIn: checkInDate,
               checkOut: checkOutDate,
+              numberOfGuests,
+              paymentMode,
               status,
               paymentStatus,
               totalPrice: calculatedTotalPrice,
@@ -440,3 +484,10 @@ export async function POST(request) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+
+// Export secured handlers
+export const GET = withSecurity(getBookingsHandler);
+export const POST = withSecurity(postBookingHandler, { 
+  rateLimit: { max: 10, window: 15 * 60 * 1000 }, 
+  validateInput: true 
+});

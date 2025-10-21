@@ -1,6 +1,9 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { signOut } from 'next-auth/react';
+import { useNavigationGuard } from '../../../hooks/useNavigationGuard.simple';
+import { NavigationConfirmationModal } from '../../../components/CustomModals';
 import BookingCalendar from '../../../components/BookingCalendar';
 import PromotionPopup from '../../../components/PromotionPopup';
 
@@ -1440,6 +1443,17 @@ export default function GuestDashboard() {
   });
   const router = useRouter();
 
+  // Logout Navigation Guard - prevents accidental logout via back button
+  const navigationGuard = useNavigationGuard({
+    shouldPreventNavigation: () => true,
+    onNavigationAttempt: () => {
+      console.log('Guest Dashboard: Navigation attempt detected, showing logout confirmation');
+    },
+    customAction: () => signOut({ callbackUrl: '/login' }),
+    context: 'logout',
+    message: 'Are you sure you want to log out? You will need to sign in again to access your account.'
+  });
+
   useEffect(() => {
     async function fetchData() {
       try {
@@ -1933,6 +1947,15 @@ export default function GuestDashboard() {
           }
         }
       `}</style>
+
+      {/* Logout Confirmation Modal */}
+      <NavigationConfirmationModal 
+        show={navigationGuard.showModal}
+        onStay={navigationGuard.handleStay}
+        onLeave={navigationGuard.handleLeave}
+        context="logout"
+        message={navigationGuard.message}
+      />
     </div>
   );
 }

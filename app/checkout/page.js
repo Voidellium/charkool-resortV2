@@ -2,6 +2,9 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { useNavigationGuard } from '../../hooks/useNavigationGuard.simple';
+import { useNavigationContext } from '../../context/NavigationContext';
+import { NavigationConfirmationModal } from '../../components/CustomModals';
 
 export default function CheckoutPage() {
   const [bookingId, setBookingId] = useState('');
@@ -18,6 +21,13 @@ export default function CheckoutPage() {
   const [heldUntil, setHeldUntil] = useState(null);
   const [timeRemaining, setTimeRemaining] = useState('');
   const [isExpired, setIsExpired] = useState(false);
+
+  // Navigation Guard Setup
+  const navigationContext = useNavigationContext();
+  const navigationGuard = useNavigationGuard({
+    trackPayment: true,
+    customMessage: 'Leaving during payment may cancel your reservation. Your booking will be lost if not completed within 15 minutes.'
+  });
 
   // Load bookingId and amount from localStorage on mount
   useEffect(() => {
@@ -68,6 +78,21 @@ export default function CheckoutPage() {
       // Keep full booking amount for display only; enteredAmount will be set from booking rooms
     }
   }, []);
+
+  // Track payment state for navigation protection
+  useEffect(() => {
+    navigationContext.updatePaymentState({
+      isActive: Boolean(bookingId && !paymentCompleted && !isExpired),
+      bookingId: bookingId
+    });
+  }, [bookingId, paymentCompleted, isExpired]);
+
+  // Clear navigation states when payment completes
+  useEffect(() => {
+    if (paymentCompleted) {
+      navigationContext.clearAllStates();
+    }
+  }, [paymentCompleted]);
 
   // Countdown timer for booking expiration
   useEffect(() => {
@@ -658,6 +683,15 @@ export default function CheckoutPage() {
           border: 1px solid #b8daff;
         }
       `}</style>
+
+      {/* Navigation Confirmation Modal */}
+      <NavigationConfirmationModal 
+        show={navigationGuard.showModal}
+        onStay={navigationGuard.handleStay}
+        onLeave={navigationGuard.handleLeave}
+        context={navigationGuard.context}
+        message={navigationGuard.message}
+      />
     </>
   );
 }

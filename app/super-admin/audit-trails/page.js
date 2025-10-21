@@ -97,6 +97,8 @@ export default function AuditTrailsPage() {
 	const [query, setQuery] = useState('');
 	const [roleFilter, setRoleFilter] = useState('ALL');
 	const [actionFilter, setActionFilter] = useState('ALL');
+	const [currentPage, setCurrentPage] = useState(1);
+	const RECORDS_PER_PAGE = 8;
 
 	useEffect(() => {
 		let mounted = true;
@@ -148,6 +150,11 @@ export default function AuditTrailsPage() {
 		});
 	}, [records, roleFilter, actionFilter, query]);
 
+	// Reset to first page when filters change
+	useEffect(() => {
+		setCurrentPage(1);
+	}, [roleFilter, actionFilter, query]);
+
 	// Group adjacent records by actor to avoid repeating actor header
 	const grouped = useMemo(() => {
 		const groups = [];
@@ -161,6 +168,11 @@ export default function AuditTrailsPage() {
 		}
 		return groups;
 	}, [filtered]);
+
+	// Pagination calculation
+	const totalPages = Math.ceil(grouped.length / RECORDS_PER_PAGE);
+	const startIndex = (currentPage - 1) * RECORDS_PER_PAGE;
+	const paginatedGroups = grouped.slice(startIndex, startIndex + RECORDS_PER_PAGE);
 
 	// Modal state for showing actor profile
 	const [modalOpen, setModalOpen] = useState(false);
@@ -329,8 +341,7 @@ export default function AuditTrailsPage() {
 			<SuperAdminLayout activePage="audit-trails">
 				<div className={styles.container}>
 					<div className={styles.header}>
-				<div>
-					<div className={styles.title}>
+						<div className={styles.title}>
 						<svg width="24" height="24" viewBox="0 0 24 24" fill="none" style={{ display: 'inline-block', marginRight: '0.5rem' }}>
 							<path d="M9.5 3V9L15 15V3C15 2.45 14.55 2 14 2H5C4.45 2 4 2.45 4 3V21C4 21.55 4.45 22 5 22H14C14.55 22 15 21.55 15 21V17L9.5 11V3Z" fill="currentColor"/>
 							<path d="M20.71 7.04C21.1 6.65 21.1 6.02 20.71 5.63L18.37 3.29C17.98 2.9 17.35 2.9 16.96 3.29L15.13 5.12L18.88 8.87L20.71 7.04Z" fill="currentColor"/>
@@ -390,7 +401,6 @@ export default function AuditTrailsPage() {
 						</select>
 					</div>
 				</div>
-			</div>
 
 			{loading ? (
 				<div className={styles.loading}>
@@ -408,8 +418,9 @@ export default function AuditTrailsPage() {
 					<div className={styles.emptySubtext}>Try adjusting your search filters or create some activity to see audit logs here.</div>
 				</div>
 			) : (
-				<div className={styles.list}>
-					{grouped.map((g, gi) => (
+				<div>
+					<div className={styles.list}>
+						{paginatedGroups.map((g, gi) => (
 						<div key={`${g.actorName}-${gi}`} className={styles.group}>
 							<div className={styles.groupItems}>
 								{g.items.map((r) => (
@@ -557,8 +568,92 @@ export default function AuditTrailsPage() {
 							</div>
 						</div>
 					))}
+					
+					{/* Pagination Controls */}
+					{totalPages > 1 && (
+						<div style={{
+							display: 'flex',
+							justifyContent: 'space-between',
+							alignItems: 'center',
+							marginTop: '2rem',
+							padding: '1rem',
+							background: 'rgba(255,255,255,0.9)',
+							borderRadius: '12px',
+							boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
+						}}>
+							<span style={{
+								color: '#666',
+								fontSize: '0.9rem'
+							}}>
+								Showing {startIndex + 1}-{Math.min(startIndex + RECORDS_PER_PAGE, grouped.length)} of {grouped.length} groups
+							</span>
+							
+							<div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+								<button
+									onClick={() => setCurrentPage(currentPage - 1)}
+									disabled={currentPage === 1}
+									style={{
+										padding: '8px 12px',
+										border: '1px solid #e5e7eb',
+										borderRadius: '8px',
+										background: currentPage === 1 ? '#f9fafb' : 'white',
+										color: currentPage === 1 ? '#9ca3af' : '#374151',
+										cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+										fontSize: '0.875rem',
+										fontWeight: '500',
+										transition: 'all 0.2s ease'
+									}}
+								>
+									Previous
+								</button>
+								
+								<div style={{ display: 'flex', gap: '0.25rem' }}>
+									{[...Array(totalPages)].map((_, i) => {
+										const page = i + 1;
+										return (
+											<button
+												key={page}
+												onClick={() => setCurrentPage(page)}
+												style={{
+													padding: '8px 12px',
+													border: '1px solid #e5e7eb',
+													borderRadius: '8px',
+													background: currentPage === page ? 'linear-gradient(135deg, #febe52 0%, #EBD591 100%)' : 'white',
+													color: currentPage === page ? 'white' : '#374151',
+													cursor: 'pointer',
+													fontSize: '0.875rem',
+													fontWeight: '500',
+													minWidth: '40px',
+													transition: 'all 0.2s ease'
+												}}
+											>
+												{page}
+											</button>
+										);
+									})}
+								</div>
+								
+								<button
+									onClick={() => setCurrentPage(currentPage + 1)}
+									disabled={currentPage === totalPages}
+									style={{
+										padding: '8px 12px',
+										border: '1px solid #e5e7eb',
+										borderRadius: '8px',
+										background: currentPage === totalPages ? '#f9fafb' : 'white',
+										color: currentPage === totalPages ? '#9ca3af' : '#374151',
+										cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+										fontSize: '0.875rem',
+										fontWeight: '500',
+										transition: 'all 0.2s ease'
+									}}
+								>
+									Next
+								</button>
+							</div>
+						</div>
+					)}
 				</div>
-			)}
 
 			{/* Actor profile modal */}
 			{modalOpen && (
@@ -827,7 +922,11 @@ export default function AuditTrailsPage() {
 					</div>
 				</div>
 			)}
-			</div>
+		</div>
+		)}
+		</div>
+
+		{/* Actor profile modal */}
 		</SuperAdminLayout>
 	);
 }

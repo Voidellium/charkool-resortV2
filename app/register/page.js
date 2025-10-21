@@ -2,10 +2,18 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { FaGoogle } from 'react-icons/fa6';
-import { Calendar, Eye, EyeOff } from 'lucide-react';
+import { Calendar, Eye, EyeOff, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { useAccountLinking } from '@/hooks/useAccountLinking';
+import {
+  useAccountLinkingModal,
+  AccountDetectionModal,
+  AccountLinkingOTPModal,
+  DataSelectionModal,
+  AccountLinkingSuccessModal
+} from '@/components/CustomModals';
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -20,7 +28,21 @@ export default function SignUpPage() {
     birthdate: '', contact: '', password: '', confirm: ''
   });
   const [showRules, setShowRules] = useState(false);
+  const [rulesTarget, setRulesTarget] = useState('password'); // 'password' | 'confirm'
   const [countdown, setCountdown] = useState(0);
+
+  // Account linking hooks
+  const [linkingModal, setLinkingModal] = useAccountLinkingModal();
+  const {
+    loading: linkingLoading,
+    error: linkingError,
+    setError: setLinkingError,
+    checkAccountLinking,
+    verifyLinkingOTP,
+    resendLinkingOTP,
+    completeLinking,
+    handleGoogleSignInWithLinking
+  } = useAccountLinking();
 
   useEffect(() => {
     let timer;
@@ -92,6 +114,12 @@ export default function SignUpPage() {
             throw new Error(`Password validation failed: ${rule.label}`);
           }
         }
+        // Apply the same password rules to Confirm Password
+        for (const rule of passwordRules) {
+          if (!rule.test(form.confirm)) {
+            throw new Error(`Confirm password validation failed: ${rule.label}`);
+          }
+        }
         const birthDate = new Date(form.birthdate);
         const today = new Date();
         const minBirthDate = new Date(today.getFullYear() - 16, today.getMonth(), today.getDate());
@@ -138,6 +166,105 @@ export default function SignUpPage() {
       setError(error.message);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Google sign-up handler with account linking
+  const handleGoogleSignUp = async () => {
+    try {
+      const result = await handleGoogleSignInWithLinking('/guest/dashboard');
+      
+      if (result.requiresLinking) {
+        // Show account linking modal
+        setLinkingModal({
+          show: true,
+          type: 'detect',
+          email: result.email,
+          googleData: result.googleData
+        });
+      }
+    } catch (error) {
+      setError(error.message);
+    }
+  };
+
+  // Account linking handlers
+  const handleProceedLinking = async () => {
+    try {
+      const result = await checkAccountLinking(linkingModal.email, linkingModal.googleData);
+      
+      setLinkingModal({
+        show: true,
+        type: 'otp',
+        email: linkingModal.email,
+        existingUser: result.existingUser,
+        googleData: linkingModal.googleData,
+        otpSent: true
+      });
+    } catch (error) {
+      setError(error.message);
+    }
+  };
+
+  const handleCancelLinking = () => {
+    setLinkingModal({ show: false });
+    setLinkingError('');
+  };
+
+  const handleVerifyOTP = async (otp) => {
+    try {
+      const result = await verifyLinkingOTP(linkingModal.email, otp);
+      
+      setLinkingModal({
+        show: true,
+        type: 'dataSelection',
+        email: linkingModal.email,
+        existingUser: result.existingUser,
+        googleData: result.googleData
+      });
+    } catch (error) {
+      // Error is handled by the hook
+    }
+  };
+
+  const handleResendLinkingOTP = async () => {
+    try {
+      await resendLinkingOTP(linkingModal.email);
+      setLinkingError('');
+    } catch (error) {
+      // Error is handled by the hook
+    }
+  };
+
+  const handleCompleteDataSelection = async (selectedData) => {
+    try {
+      await completeLinking(
+        linkingModal.email,
+        selectedData,
+        linkingModal.existingUser,
+        linkingModal.googleData
+      );
+      
+      setLinkingModal({
+        show: true,
+        type: 'success',
+        email: linkingModal.email
+      });
+    } catch (error) {
+      // Error is handled by the hook
+    }
+  };
+
+  const handleFinalSignIn = async (method) => {
+    setLinkingModal({ show: false });
+    
+    if (method === 'google') {
+      await signIn('google', {
+        callbackUrl: '/guest/dashboard',
+      });
+    } else {
+      // Redirect to login form for password authentication
+      router.push('/login');
     }
   };
 
@@ -286,7 +413,7 @@ export default function SignUpPage() {
                       placeholder="Enter password"
                       value={form.password}
                       onChange={handleChange}
-                      onFocus={() => setShowRules(true)}
+                      onFocus={() => { setShowRules(true); setRulesTarget('password'); }}
                       onBlur={() => setShowRules(false)}
                       required
                     />
@@ -305,8 +432,16 @@ export default function SignUpPage() {
                       placeholder="Confirm password"
                       value={form.confirm}
                       onChange={handleChange}
+                      onFocus={() => { setShowRules(true); setRulesTarget('confirm'); }}
+                      onBlur={() => setShowRules(false)}
                       required
                     />
+                    {/* Success indicator when passwords match */}
+                    {form.password && form.confirm && form.password === form.confirm && (
+                      <span className="success-indicator" aria-label="Passwords match">
+                        <CheckCircle size={18} />
+                      </span>
+                    )}
                     <button type="button" className="toggle-btn" onClick={() => setShowConfirm(!showConfirm)}>
                       {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
@@ -315,12 +450,16 @@ export default function SignUpPage() {
                 
                 {showRules && (
                   <div className="password-rules">
-                    {passwordRules.map((rule, idx) => (
-                      <div key={idx} className={`rule ${rule.test(form.password) ? 'valid' : 'invalid'}`}>
-                        <span className="rule-icon">{rule.test(form.password) ? '✓' : '×'}</span>
-                        <span className="rule-text">{rule.label}</span>
-                      </div>
-                    ))}
+                    {passwordRules.map((rule, idx) => {
+                      const value = rulesTarget === 'confirm' ? form.confirm : form.password;
+                      const ok = rule.test(value);
+                      return (
+                        <div key={idx} className={`rule ${ok ? 'valid' : 'invalid'}`}>
+                          <span className="rule-icon">{ok ? '✓' : '×'}</span>
+                          <span className="rule-text">{rule.label}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -376,7 +515,7 @@ export default function SignUpPage() {
             <button 
               className="google-btn" 
               type="button"
-              onClick={() => signIn('google', { callbackUrl: '/guest/dashboard' })}
+              onClick={handleGoogleSignUp}
             >
               <FaGoogle size={18} /> 
               Sign up with Google
@@ -807,6 +946,16 @@ export default function SignUpPage() {
 
         .toggle-btn:hover {
           color: #f59e0b;
+        }
+
+        /* Success indicator for matching passwords */
+        .success-indicator {
+          position: absolute;
+          right: 42px; /* sit before the eye toggle */
+          color: #10b981; /* emerald-500 */
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
         }
 
         /* Password Rules */
@@ -1656,6 +1805,36 @@ export default function SignUpPage() {
         .login-text a { color: #d97706; font-weight: 600; }
 
       `}</style>
+
+      {/* Account Linking Modals */}
+      <AccountDetectionModal
+        modal={linkingModal}
+        setModal={setLinkingModal}
+        onProceed={handleProceedLinking}
+        onCancel={handleCancelLinking}
+      />
+      
+      <AccountLinkingOTPModal
+        modal={linkingModal}
+        setModal={setLinkingModal}
+        onVerify={handleVerifyOTP}
+        onResendOTP={handleResendLinkingOTP}
+        loading={linkingLoading}
+        error={linkingError}
+      />
+      
+      <DataSelectionModal
+        modal={linkingModal}
+        setModal={setLinkingModal}
+        onComplete={handleCompleteDataSelection}
+        loading={linkingLoading}
+      />
+      
+      <AccountLinkingSuccessModal
+        modal={linkingModal}
+        setModal={setLinkingModal}
+        onSignIn={handleFinalSignIn}
+      />
     </>
   );
 }

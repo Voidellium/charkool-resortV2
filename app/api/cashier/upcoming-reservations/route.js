@@ -47,8 +47,9 @@ export async function GET(request) {
       const totalPaid = booking.payments
         .filter(p => p.status === 'Paid')
         .reduce((sum, payment) => sum + Number(payment.amount), 0);
-      
-      const totalAmount = Number(booking.totalPrice) * 100; // Convert to cents for consistency
+
+      // booking.totalPrice is already stored in cents across the app. Do NOT multiply by 100.
+      const totalAmount = Number(booking.totalPrice);
       const remainingBalance = totalAmount - totalPaid;
       
       // Calculate days until check-in

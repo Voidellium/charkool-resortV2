@@ -6,6 +6,14 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn, useSession } from 'next-auth/react';
 import { FaGoogle } from 'react-icons/fa6';
 import { Eye, EyeOff } from 'lucide-react';
+import { useAccountLinking } from '@/hooks/useAccountLinking';
+import {
+  useAccountLinkingModal,
+  AccountDetectionModal,
+  AccountLinkingOTPModal,
+  DataSelectionModal,
+  AccountLinkingSuccessModal
+} from '@/components/CustomModals';
 
 function LoginForm() {
   const [email, setEmail] = useState('');
@@ -15,6 +23,19 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
+  
+  // Account linking hooks
+  const [linkingModal, setLinkingModal] = useAccountLinkingModal();
+  const {
+    loading: linkingLoading,
+    error: linkingError,
+    setError: setLinkingError,
+    checkAccountLinking,
+    verifyLinkingOTP,
+    resendLinkingOTP,
+    completeLinking,
+    handleGoogleSignInWithLinking
+  } = useAccountLinking();
 
   useEffect(() => {
     if (status === 'authenticated') {
@@ -26,7 +47,24 @@ function LoginForm() {
 
   useEffect(() => {
     const e = searchParams.get('error');
-    if (e) {
+    const email = searchParams.get('email');
+    const googleDataStr = searchParams.get('googleData');
+    
+    if (e === 'AccountLinking' && email && googleDataStr) {
+      // Handle account linking from redirect
+      try {
+        const googleData = JSON.parse(decodeURIComponent(googleDataStr));
+        setLinkingModal({
+          show: true,
+          type: 'detect',
+          email: decodeURIComponent(email),
+          googleData
+        });
+      } catch (parseError) {
+        console.error('Error parsing account linking data:', parseError);
+        setError('Account linking failed. Please try again.');
+      }
+    } else if (e) {
       const m = {
         CredentialsSignin: 'Invalid email or password',
         OAuthSignin: 'OAuth sign-in failed.',
@@ -59,13 +97,141 @@ function LoginForm() {
   };
 
   const handleOAuthLogin = async (provider) => {
-    await signIn(provider, {
-      callbackUrl: searchParams.get('redirect') || searchParams.get('callbackUrl') || undefined,
-    });
+    if (provider === 'google') {
+      try {
+        const callbackUrl = searchParams.get('redirect') || searchParams.get('callbackUrl') || undefined;
+        const result = await handleGoogleSignInWithLinking(callbackUrl);
+        
+        if (result.requiresLinking) {
+          // Show account linking modal
+          setLinkingModal({
+            show: true,
+            type: 'detect',
+            email: result.email,
+            googleData: result.googleData
+          });
+        }
+      } catch (error) {
+        setError(error.message);
+      }
+    } else {
+      await signIn(provider, {
+        callbackUrl: searchParams.get('redirect') || searchParams.get('callbackUrl') || undefined,
+      });
+    }
+  };
+
+  // Account linking handlers
+  const handleProceedLinking = async () => {
+    try {
+      const result = await checkAccountLinking(linkingModal.email, linkingModal.googleData);
+      
+      setLinkingModal({
+        show: true,
+        type: 'otp',
+        email: linkingModal.email,
+        existingUser: result.existingUser,
+        googleData: linkingModal.googleData,
+        otpSent: true
+      });
+    } catch (error) {
+      setError(error.message);
+    }
+  };
+
+  const handleCancelLinking = () => {
+    setLinkingModal({ show: false });
+    setLinkingError('');
+  };
+
+  const handleVerifyOTP = async (otp) => {
+    try {
+      const result = await verifyLinkingOTP(linkingModal.email, otp);
+      
+      setLinkingModal({
+        show: true,
+        type: 'dataSelection',
+        email: linkingModal.email,
+        existingUser: result.existingUser,
+        googleData: result.googleData
+      });
+    } catch (error) {
+      // Error is handled by the hook
+    }
+  };
+
+  const handleResendLinkingOTP = async () => {
+    try {
+      await resendLinkingOTP(linkingModal.email);
+      setLinkingError('');
+    } catch (error) {
+      // Error is handled by the hook
+    }
+  };
+
+  const handleCompleteDataSelection = async (selectedData) => {
+    try {
+      await completeLinking(
+        linkingModal.email,
+        selectedData,
+        linkingModal.existingUser,
+        linkingModal.googleData
+      );
+      
+      setLinkingModal({
+        show: true,
+        type: 'success',
+        email: linkingModal.email
+      });
+    } catch (error) {
+      // Error is handled by the hook
+    }
+  };
+
+  const handleFinalSignIn = async (method) => {
+    setLinkingModal({ show: false });
+    
+    if (method === 'google') {
+      await signIn('google', {
+        callbackUrl: searchParams.get('redirect') || searchParams.get('callbackUrl') || undefined,
+      });
+    } else {
+      // Redirect to login form for password authentication
+      router.push('/login');
+    }
   };
 
   return (
     <>
+      {/* Account Linking Modals */}
+      <AccountDetectionModal
+        modal={linkingModal}
+        setModal={setLinkingModal}
+        onProceed={handleProceedLinking}
+        onCancel={handleCancelLinking}
+      />
+      
+      <AccountLinkingOTPModal
+        modal={linkingModal}
+        setModal={setLinkingModal}
+        onVerify={handleVerifyOTP}
+        onResendOTP={handleResendLinkingOTP}
+        loading={linkingLoading}
+        error={linkingError}
+      />
+      
+      <DataSelectionModal
+        modal={linkingModal}
+        setModal={setLinkingModal}
+        onComplete={handleCompleteDataSelection}
+        loading={linkingLoading}
+      />
+      
+      <AccountLinkingSuccessModal
+        modal={linkingModal}
+        setModal={setLinkingModal}
+        onSignIn={handleFinalSignIn}
+      />
       <div className="auth-page">
         {/* Background Elements */}
         <div className="bg-gradient"></div>

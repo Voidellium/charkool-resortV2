@@ -15,6 +15,8 @@ export default function SuperAdminRoomsPage() {
   });
   const [editingRoom, setEditingRoom] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ROOMS_PER_PAGE = 6;
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -35,6 +37,16 @@ export default function SuperAdminRoomsPage() {
       setFilteredRooms(filtered);
     }
   }, [rooms, searchTerm]);
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredRooms.length / ROOMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ROOMS_PER_PAGE;
+  const paginatedRooms = filteredRooms.slice(startIndex, startIndex + ROOMS_PER_PAGE);
+
+  // Reset pagination when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   const fetchRooms = async (showRefresh = false) => {
     try {
@@ -388,7 +400,7 @@ export default function SuperAdminRoomsPage() {
               </p>
             </div>
           ) : (
-            filteredRooms.map((room) => (
+            paginatedRooms.map((room) => (
               <div key={room.id} style={styles.roomCard}>
                 <div style={styles.roomImageContainer}>
                   {room.imageUrl ? (
@@ -464,6 +476,98 @@ export default function SuperAdminRoomsPage() {
             ))
           )}
         </div>
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginTop: '2rem',
+            padding: '1rem',
+            background: 'rgba(255,255,255,0.9)',
+            backdropFilter: 'blur(10px)',
+            borderRadius: '12px',
+            border: '1px solid rgba(255,255,255,0.2)',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.1)'
+          }}>
+            <div style={{ fontSize: '0.875rem', color: '#64748b', fontWeight: '500' }}>
+              Showing {startIndex + 1}-{Math.min(startIndex + ROOMS_PER_PAGE, filteredRooms.length)} of {filteredRooms.length} rooms
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <button
+                onClick={() => setCurrentPage(currentPage - 1)}
+                disabled={currentPage === 1}
+                style={{
+                  padding: '8px 12px',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                  background: currentPage === 1 ? '#f9fafb' : 'white',
+                  color: currentPage === 1 ? '#9ca3af' : '#374151',
+                  cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                Previous
+              </button>
+              
+              {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                let page;
+                if (totalPages <= 5) {
+                  page = i + 1;
+                } else {
+                  if (currentPage <= 3) {
+                    page = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    page = totalPages - 4 + i;
+                  } else {
+                    page = currentPage - 2 + i;
+                  }
+                }
+                
+                return (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    style={{
+                      padding: '8px 12px',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      background: currentPage === page ? 'linear-gradient(135deg, #febe52 0%, #EBD591 100%)' : 'white',
+                      color: currentPage === page ? 'white' : '#374151',
+                      cursor: 'pointer',
+                      fontSize: '0.875rem',
+                      fontWeight: '500',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    {page}
+                  </button>
+                );
+              })}
+              
+              <button
+                onClick={() => setCurrentPage(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                style={{
+                  padding: '8px 12px',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                  background: currentPage === totalPages ? '#f9fafb' : 'white',
+                  color: currentPage === totalPages ? '#9ca3af' : '#374151',
+                  cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <style jsx>{`

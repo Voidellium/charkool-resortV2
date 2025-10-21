@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Send, Bot, User, Loader2, Clock, MessageCircle, DollarSign, 
   Wifi, Users, Calendar, CheckCircle, X, ChevronDown, 
-  MapPin, Star, Coffee, Home, Phone, Smile
+  MapPin, Star, Coffee, Home, Phone, Smile, Sun, Moon
 } from 'lucide-react';
 import useChatbot from '../hooks/useChatbot';
 
@@ -140,7 +140,7 @@ const keywordSuggestions = {
       {
         id: 'contact_info',
         text: '📞 How can I contact you?',
-        answer: 'Get in touch with us:\n\n📘 Facebook: Charkool Leisure Beach Resort\n📧 Email: Available on our website\n📱 Phone: Contact details in booking confirmation\n\nFor immediate assistance, use our live chat!',
+  answer: 'You can connect with us through our Facebook page for more information about management and direct communication:\n\n📘 **Facebook**: Charkool Leisure Beach Resort\n📘 Facebook link: https://www.facebook.com/CharkoolLeisureBeachResort\n📧 **Email**: dcharkoolhausresort@gmail.com\n\nFor immediate assistance, I\'m here to help with any questions!',
         showBookNow: false,
       },
     ],
@@ -163,47 +163,121 @@ const normalizeInput = (text) => {
 // Greeting keywords with variations
 const greetingKeywords = [
   'hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening',
-  'kumusta', 'kamusta', 'halo', 'uy'
+  'kumusta', 'kamusta', 'halo', 'uy', 'sup', 'wassup', 'wassap', 'wazzup', 'wasap', 'wazap', 
+ "what's up", 'whats up', 'whatsup'
 ];
 
-// Enhanced Book Now Button Component
+// Basic explicit-language / profanity list — remove any racial slurs
+const bannedWords = [
+  'fuck', 'shit', 'bitch', 'bastard', 'asshole', 'dick', 'piss', 'motherfucker', 'puta', 'oten', 'kantot', 'bobo', 'tanga', 'inutil', 'gagu', 'tite', 'tits', 'titi', 'pussy', 'ogag', 'ugag', 'obob'
+  , 'nigga', 'niga', 'pepe', 'kantut', 'fck', 'btch', 'sht', 'bstard', 'bstrd', 'ass', 'nigger'
+];
+
+const containsProfanity = (text) => {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  return bannedWords.some((w) => new RegExp(`\\b${w}\\b`, 'i').test(lower));
+};
+
+// Mask profanity in-line: replace each offending word with asterisks of same length
+const maskProfanity = (text) => {
+  if (!text) return text;
+  let masked = text;
+  bannedWords.forEach((w) => {
+    const regex = new RegExp(`\\b(${w})\\b`, 'ig');
+    masked = masked.replace(regex, (m) => '*'.repeat(m.length));
+  });
+  return masked;
+};
+
+// Enhanced Book Now Button Component (updated UI)
 const BookNowButton = ({ variant = 'primary' }) => (
   <motion.button
-    className={`book-now-btn ${variant}`}
+    type="button"
+    role="button"
+    className={`book-now-btn chat-booknow-btn ${variant}`}
     onClick={() => window.location.href = '/booking'}
-    whileHover={{ scale: 1.05 }}
-    whileTap={{ scale: 0.95 }}
+    aria-label="Book Now"
+    whileHover={{ scale: 1.02 }}
+    whileTap={{ scale: 0.98 }}
+    style={{
+      background: 'linear-gradient(180deg, #FFD66B 0%, #FEBE52 100%)',
+      color: '#1f2937',
+      border: 'none',
+      padding: '0.75rem 0.9rem',
+      width: '100%',
+      borderRadius: '14px',
+      boxShadow: '0 12px 30px rgba(254, 190, 82, 0.22)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: '0.75rem'
+    }}
   >
-    <Calendar size={16} />
-    Book Now
+    <div
+      className="btn-left"
+      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: 'white', borderRadius: 10, boxShadow: '0 6px 18px rgba(0,0,0,0.08)', flexShrink: 0 }}
+    >
+      <Calendar size={18} />
+    </div>
+    <div className="btn-center" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1 }}>
+      <div className="btn-title" style={{ fontSize: 15, color: '#1f2937', fontWeight: 800 }}>Book Now</div>
+      <div className="btn-sub" style={{ fontSize: 12, opacity: 0.95, color: '#334155', marginTop: 2, fontWeight: 700 }}>Instant confirmation</div>
+    </div>
+    <div className="btn-badge" style={{ marginLeft: 'auto', background: '#f59e0b', color: '#fff', padding: '6px 10px', borderRadius: 999, fontSize: 12, fontWeight: 800, boxShadow: '0 6px 18px rgba(0,0,0,0.08)' }}>Best rate</div>
+
     <style jsx>{`
-      .book-now-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
+      /* Ensure message bubble places the button as a card */
+      .message-actions {
         margin-top: 0.75rem;
-        padding: 0.75rem 1.25rem;
-        background: linear-gradient(135deg, #FEBE52, #f0c14b);
-        color: white;
-        border: none;
-        border-radius: 8px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 15px rgba(254, 190, 82, 0.3);
+        display: flex;
+        gap: 0.5rem;
       }
-      .book-now-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 25px rgba(254, 190, 82, 0.4);
+
+      .message-actions .chat-booknow-btn {
+        width: 100% !important;
+        padding: 0.6rem !important;
+        border-radius: 14px !important;
       }
-      .book-now-btn.secondary {
-        background: transparent;
-        border: 2px solid #FEBE52;
-        color: #FEBE52;
+
+      .book-now-btn, .chat-booknow-btn {
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.75rem !important;
+        padding: 0.6rem 0.9rem !important;
+        background: linear-gradient(180deg, #FFD66B 0%, #FEBE52 100%) !important;
+        color: #1f2937 !important;
+        border: none !important;
+        border-radius: 14px !important;
+        font-weight: 700 !important;
+        cursor: pointer !important;
+        transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+        box-shadow: 0 10px 30px rgba(254, 190, 82, 0.18) !important;
       }
-      .book-now-btn.secondary:hover {
-        background: #FEBE52;
-        color: white;
+
+      .book-now-btn .btn-left, .chat-booknow-btn .btn-left {
+        width: 40px !important;
+        height: 40px !important;
+        border-radius: 10px !important;
+      }
+
+      .book-now-btn .btn-badge, .chat-booknow-btn .btn-badge {
+        background: #f59e0b !important;
+        color: #fff !important;
+        padding: 6px 10px !important;
+        font-weight: 800 !important;
+      }
+
+      .book-now-btn:hover, .chat-booknow-btn:hover {
+        transform: translateY(-3px) !important;
+        box-shadow: 0 18px 50px rgba(254, 190, 82, 0.22) !important;
+      }
+
+      @media (max-width: 640px) {
+        .message-actions .chat-booknow-btn {
+          padding: 0.5rem !important;
+        }
+        .book-now-btn .btn-sub, .chat-booknow-btn .btn-sub { display: none !important; }
       }
     `}</style>
   </motion.button>
@@ -227,7 +301,10 @@ export default function ChatInterface({ isModal }) {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const didWelcomeRef = useRef(false);
   const { categories, isLoading, error, fetchAnswer } = useChatbot();
+
+  // theme removed: component uses single light appearance
 
   // Enhanced welcome sequence
   useEffect(() => {
@@ -248,7 +325,7 @@ export default function ChatInterface({ isModal }) {
       await simulateTyping(2500);
       const introMessage = {
         type: 'bot', 
-        text: "I'm Kool, your AI resort concierge! 🏖️ I'm here to help you discover our amazing rooms, amenities, and make your booking process seamless.",
+        text: "I'm Kool, your chatbot resort concierge! 🏖️ I'm here to help you discover our amazing rooms, amenities, and make your booking process seamless.",
         timestamp: new Date(),
         id: Date.now() + 1
       };
@@ -270,6 +347,8 @@ export default function ChatInterface({ isModal }) {
       setLastSeen(new Date());
     };
     
+    if (didWelcomeRef.current) return;
+    didWelcomeRef.current = true;
     welcomeSequence();
   }, []);
 
@@ -312,10 +391,91 @@ export default function ChatInterface({ isModal }) {
     return Math.min(baseDelay + readingTime + thinkingTime, 4000); // Max 4 seconds
   };
 
+  // Render message content with clickable links and emails
+  // Render message content with clickable links and emails
+  const renderMessageContent = (text) => {
+    if (!text) return null;
+
+    // Helper: parse **bold** tokens into React nodes
+    const parseBold = (str, keyBase) => {
+      const nodes = [];
+      const boldRegex = /\*\*(.+?)\*\*/g;
+      let last = 0;
+      let m;
+      let idx = 0;
+      while ((m = boldRegex.exec(str)) !== null) {
+        if (m.index > last) nodes.push(str.slice(last, m.index));
+        nodes.push(<strong key={`${keyBase}-b-${idx}`}>{m[1]}</strong>);
+        last = m.index + m[0].length;
+        idx += 1;
+      }
+      if (last < str.length) nodes.push(str.slice(last));
+      // If no matches, return original string (not array)
+      return nodes.length === 1 && typeof nodes[0] === 'string' ? nodes[0] : nodes;
+    };
+
+    // Convert URLs and emails into anchors, and parse bold formatting in non-link segments
+    const linkRegex = /(https?:\/\/[^\s]+)|([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/ig;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+    let pieceKey = 0;
+    while ((match = linkRegex.exec(text)) !== null) {
+      const url = match[0];
+      const index = match.index;
+      if (index > lastIndex) {
+        const pre = text.slice(lastIndex, index);
+        const parsed = parseBold(pre, `pre-${pieceKey}`);
+        if (Array.isArray(parsed)) parsed.forEach((p, i) => parts.push(<span key={`pre-${pieceKey}-${i}`}>{p}</span>));
+        else parts.push(parsed);
+        pieceKey += 1;
+      }
+      const isUrl = /^https?:\/\//i.test(url);
+      if (isUrl) {
+        parts.push(
+          <a key={`link-${pieceKey}`} href={url} target="_blank" rel="noopener noreferrer">{url}</a>
+        );
+      } else {
+        parts.push(
+          <a key={`email-${pieceKey}`} href={`mailto:${url}`}>{url}</a>
+        );
+      }
+      lastIndex = index + url.length;
+      pieceKey += 1;
+    }
+    if (lastIndex < text.length) {
+      const rest = text.slice(lastIndex);
+      const parsed = parseBold(rest, `rest-${pieceKey}`);
+      if (Array.isArray(parsed)) parsed.forEach((p, i) => parts.push(<span key={`rest-${pieceKey}-${i}`}>{p}</span>));
+      else parts.push(parsed);
+    }
+    return parts;
+  };
+
+  // Helper to format timestamps consistently (accepts Date or string)
+  const formatTime = (ts) => {
+    if (!ts) return '';
+    try {
+      const d = ts instanceof Date ? ts : new Date(ts);
+      if (isNaN(d.getTime())) return '';
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch (e) { return ''; }
+  };
+
   // Scroll to bottom when messages update
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Keep input focused after interactions (quick replies, suggestions, questions)
+  useEffect(() => {
+    if (isTyping) return; // don't focus while bot is typing
+    // small delay to allow any DOM updates
+    const t = setTimeout(() => {
+      inputRef.current?.focus();
+    }, 60);
+    return () => clearTimeout(t);
+  }, [messages, isTyping]);
 
   // Handle category clicks from database
   const handleCategoryClick = async (category) => {
@@ -382,22 +542,58 @@ export default function ChatInterface({ isModal }) {
       setMessages((prev) => [...prev, errorMessage]);
       setMessageStatus(prev => ({ ...prev, [errorMessage.id]: 'delivered' }));
     }
+    // keep input focused after question response
+    setTimeout(() => inputRef.current?.focus(), 50);
   };
 
   // Handle suggestion clicks from predefined suggestions
   const handleSuggestionClick = async (suggestion) => {
+    // If suggestion has no prepared answer, map it to an appropriate quick-reply
+    if (!suggestion.answer || String(suggestion.answer).trim() === '') {
+      const text = (suggestion.id || suggestion.text || '').toString().toLowerCase();
+      if (text.includes('room') || text.includes('rate')) {
+        await handleQuickReply('room_rates');
+        setShowSuggestions(false);
+        return;
+      }
+      if (text.includes('book') || text.includes('booking') || text.includes('how to book')) {
+        await handleQuickReply('booking_process');
+        setShowSuggestions(false);
+        return;
+      }
+      if (text.includes('amenit') || text.includes('pool') || text.includes('beach')) {
+        await handleQuickReply('amenities');
+        setShowSuggestions(false);
+        return;
+      }
+
+      // No mapping found: show polite fallback
+      const botMessage = {
+        type: 'bot',
+        text: "Sorry, I don't have a prepared answer for that suggestion right now. Try another suggestion or ask about rooms, rates, or booking.",
+        timestamp: new Date(),
+        id: Date.now() + 1
+      };
+      setMessages((prev) => [...prev, botMessage]);
+      setMessageStatus(prev => ({ ...prev, [botMessage.id]: 'delivered' }));
+      setShowSuggestions(false);
+      setTimeout(() => inputRef.current?.focus(), 50);
+      return;
+    }
+
+    // Normal path: suggestion has an answer string
     const userMessage = {
       type: 'user', 
       text: suggestion.text, 
       timestamp: new Date(),
       id: Date.now()
     };
-    
+
     setMessages((prev) => [...prev, userMessage]);
     setMessageStatus(prev => ({ ...prev, [userMessage.id]: 'delivered' }));
-    
+
     await simulateTyping(1800);
-    
+
     const botMessage = {
       type: 'bot', 
       text: suggestion.answer, 
@@ -405,10 +601,12 @@ export default function ChatInterface({ isModal }) {
       timestamp: new Date(),
       id: Date.now() + 1
     };
-    
+
     setMessages((prev) => [...prev, botMessage]);
     setMessageStatus(prev => ({ ...prev, [botMessage.id]: 'delivered' }));
     setShowSuggestions(false);
+    // keep the input focused so the user can continue typing
+    setTimeout(() => inputRef.current?.focus(), 50);
   };
 
   // Enhanced quick reply handler
@@ -498,6 +696,30 @@ export default function ChatInterface({ isModal }) {
       id: messageId
     };
     
+    // Check for explicit language and mask the offending words inline
+    if (containsProfanity(trimmedInput)) {
+      const maskedText = maskProfanity(trimmedInput);
+      const maskedMessage = { ...userMessage, text: maskedText, masked: true };
+      setMessages((prev) => [...prev, maskedMessage]);
+      setInput('');
+      setShowQuickReplies(false);
+      setUserTyping(false);
+
+      // Add moderation bot response
+      await simulateTyping(1000);
+      const modMessage = {
+        type: 'bot',
+        text: "I'm sorry, but I can't respond to explicit language. Please rephrase your question.",
+        timestamp: new Date(),
+        id: Date.now() + 1
+      };
+      setMessages((prev) => [...prev, modMessage]);
+      setMessageStatus(prev => ({ ...prev, [modMessage.id]: 'delivered' }));
+      // keep input focused so user can re-type
+      setTimeout(() => inputRef.current?.focus(), 50);
+      return;
+    }
+
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
     setShowQuickReplies(false);
@@ -508,6 +730,9 @@ export default function ChatInterface({ isModal }) {
     setTimeout(() => {
       setMessageStatus(prev => ({ ...prev, [messageId]: 'delivered' }));
     }, 500);
+
+    // Keep focus on input after sending so typing continues
+    setTimeout(() => inputRef.current?.focus(), 60);
 
     const lowerInput = normalizeInput(trimmedInput);
     
@@ -540,7 +765,7 @@ export default function ChatInterface({ isModal }) {
       const responseId = Date.now();
       const response = {
         type: 'bot',
-        text: 'You can connect with us through our Facebook page for more information about management and direct communication:\n\n📘 **Facebook**: Charkool Leisure Beach Resort\n🌐 **Website**: Contact form available\n📧 **Email**: Provided in booking confirmation\n\nFor immediate assistance, I\'m here to help with any questions!',
+        text: 'You can connect with us through our Facebook page for more information about management and direct communication:\n\n📘 Facebook: Charkool Leisure Beach Resort\n📘 Facebook link: https://www.facebook.com/CharkoolLeisureBeachResort\n📧 Email: dcharkoolhausresort@gmail.com\n\nFor immediate assistance, I\'m here to help with any questions!',
         timestamp: new Date(),
         id: responseId
       };
@@ -611,18 +836,48 @@ export default function ChatInterface({ isModal }) {
     }
 
     // Default response with helpful suggestions
-    const responseId = Date.now();
-    const defaultResponse = {
-      type: 'bot',
-      text: 'I\'d love to help you with that! 😊 Here are some popular topics I can assist with, or feel free to ask me anything about Charkool Resort:',
-      timestamp: new Date(),
-      id: responseId
-    };
-    
-    setMessages((prev) => [...prev, defaultResponse]);
-    setMessageStatus(prev => ({ ...prev, [responseId]: 'delivered' }));
-    setShowQuickReplies(true);
+      // If nothing matched, use the unknown input handler
+      handleUnknownInput();
   };
+
+    // Fallback handler when input is not detected/matched
+    const handleUnknownInput = () => {
+      const now = Date.now();
+      const predefinedId = now;
+      const predefinedMessage = {
+        type: 'bot',
+        text: "I'm a predefined chatbot — I can help with room rates, bookings, and amenities. Tap a suggestion to continue.",
+        timestamp: new Date(),
+        id: predefinedId
+      };
+
+      const noticeId = now + 1;
+      const noticeMessage = {
+        type: 'bot',
+        text: "I can't answer like that — here are some suggestions that might help:",
+        timestamp: new Date(),
+        id: noticeId
+      };
+
+      const responseId = now + 2;
+      const fallbackText = "I couldn't find a direct match, but I can help with these common requests. Try one of the suggestions below or ask me about rooms, rates, amenities, or bookings.";
+      const fallbackMessage = {
+        type: 'bot',
+        text: fallbackText,
+        timestamp: new Date(),
+        id: responseId,
+        suggestions: [
+          { id: 'room_rates_suggestion', text: '💰 Room rates', answer: '', showBookNow: true },
+          { id: 'how_to_book_suggestion', text: '📅 How to book', answer: '', showBookNow: true },
+          { id: 'amenities_suggestion', text: '🏊‍♂️ Amenities', answer: '', showBookNow: false },
+        ]
+      };
+
+      setMessages((prev) => [...prev, predefinedMessage, noticeMessage, fallbackMessage]);
+      setMessageStatus(prev => ({ ...prev, [predefinedId]: 'delivered', [noticeId]: 'delivered', [responseId]: 'delivered' }));
+      setCurrentSuggestions(fallbackMessage.suggestions);
+      setShowSuggestions(true);
+    };
 
   if (isLoading) return (
     <div className="chat-loading">
@@ -641,9 +896,9 @@ export default function ChatInterface({ isModal }) {
   );
 
   return (
-    <div className="modern-chat-container">
+  <div className="modern-chat-container">
       {/* Chat Header */}
-      <div className="chat-header">
+  <div className="chat-header">
         <div className="agent-info">
           <div className="agent-avatar">
             <MessageCircle size={20} />
@@ -664,7 +919,7 @@ export default function ChatInterface({ isModal }) {
       </div>
 
       {/* Messages Area */}
-      <div className="messages-container">
+  <div className="messages-container">
         <AnimatePresence>
           {messages.map((msg, index) => (
             <motion.div
@@ -676,15 +931,20 @@ export default function ChatInterface({ isModal }) {
               className={`message-row ${msg.type}`}
             >              
               <div className={`message-content ${msg.type}`}>
-                {msg.type === 'suggestion' ? (
-                  <button
-                    className="suggestion-card"
-                    onClick={() => handleSuggestionClick(msg)}
-                  >
-                    <div className="suggestion-text">{msg.text}</div>
-                    <div className="suggestion-arrow">→</div>
-                  </button>
-                ) : msg.type === 'question-list' ? (
+                {msg.suggestions ? (
+                  <div className="suggestions-list">
+                    {msg.suggestions.map((suggestion, sIndex) => (
+                      <button
+                        key={suggestion.id || sIndex}
+                        className="suggestion-card"
+                        onClick={() => handleSuggestionClick(suggestion)}
+                      >
+                        <div className="suggestion-text">{suggestion.text}</div>
+                        <div className="suggestion-arrow">→</div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (msg.showQuestions || msg.questions) ? (
                   <div className="question-list-container">
                     <div className="question-list-header">{msg.text}</div>
                     <div className="question-buttons">
@@ -700,25 +960,25 @@ export default function ChatInterface({ isModal }) {
                     </div>
                   </div>
                 ) : (
-                  <div className="message-bubble">
-                    <div className="message-text">{msg.text}</div>
-                    {msg.timestamp && (
-                      <div className="message-time">
-                        {msg.timestamp.toLocaleTimeString([], { 
-                          hour: '2-digit', 
-                          minute: '2-digit' 
-                        })}
-                        {msg.type === 'user' && messageStatus[msg.id] && (
-                          <span className={`message-status ${messageStatus[msg.id]}`}>
-                            {messageStatus[msg.id] === 'sending' && <Clock size={10} />}
-                            {messageStatus[msg.id] === 'delivered' && <CheckCircle size={10} />}
-                          </span>
-                        )}
-                      </div>
+                  <div className={`message-bubble ${msg.masked ? 'masked' : ''}`}>
+                      <div className="message-text">{renderMessageContent(msg.text)}</div>
+                    {msg.masked && (
+                      <div className="masked-note">Some words were hidden due to explicit language.</div>
                     )}
                     {msg.showBookNow && (
                       <div className="message-actions">
                         <BookNowButton />
+                      </div>
+                    )}
+                    {msg.timestamp && (
+                      <div className="message-time">
+                        <span className="time-text">{formatTime(msg.timestamp)}</span>
+                        {msg.type === 'user' && messageStatus[msg.id] && (
+                          <span className={`message-status ${messageStatus[msg.id]}`}>
+                            {messageStatus[msg.id] === 'sending' && <Clock size={12} />}
+                            {messageStatus[msg.id] === 'delivered' && <CheckCircle size={12} />}
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>
@@ -762,19 +1022,19 @@ export default function ChatInterface({ isModal }) {
           >
             <div className="quick-replies-title">Quick replies:</div>
             <div className="quick-replies-buttons">
-              <button onClick={() => handleQuickReply('Room rates?')} className="quick-reply-btn">
+              <button onClick={() => handleQuickReply('room_rates')} className="quick-reply-btn">
                 <DollarSign size={14} />
                 <span>Room rates</span>
               </button>
-              <button onClick={() => handleQuickReply('Available amenities?')} className="quick-reply-btn">
+              <button onClick={() => handleQuickReply('amenities')} className="quick-reply-btn">
                 <Wifi size={14} />
                 <span>Amenities</span>
               </button>
-              <button onClick={() => handleQuickReply('Pet policies?')} className="quick-reply-btn">
+              <button onClick={() => handleQuickReply('pet_policy')} className="quick-reply-btn">
                 <Users size={14} />
                 <span>Pet policies</span>
               </button>
-              <button onClick={() => handleQuickReply('How to book?')} className="quick-reply-btn">
+              <button onClick={() => handleQuickReply('booking_process')} className="quick-reply-btn">
                 <Calendar size={14} />
                 <span>How to book</span>
               </button>
@@ -819,6 +1079,31 @@ export default function ChatInterface({ isModal }) {
 
 
       <style jsx>{`
+        /* Define variables on the component container so styled-jsx scopes work correctly */
+        .modern-chat-container {
+          --chat-bg: linear-gradient(135deg, #ffffff 0%, #fbfbfd 100%);
+          --page-bg: #ffffff;
+          --surface: #ffffff;
+          --accent-1: #FEBE52; /* primary brand yellow */
+          --accent-2: #FFD66B; /* secondary yellow */
+          --accent-strong: #f59e0b; /* badge */
+          --muted: #6b7280; /* subtle text */
+          --primary-text: #111827; /* main text */
+          --bubble-user-start: #FEBE52;
+          --bubble-user-end: #f0c14b;
+          --bubble-bot-bg: #ffffff;
+          --bubble-bot-border: #e9ecef;
+          --link: #0b66c3;
+          --shadow-1: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Use a modern system font stack with improved weights for better readability */
+        .modern-chat-container {
+          font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+          font-size: 14px;
+          color: var(--primary-text);
+        }
+
         .chat-loading, .chat-error {
           display: flex;
           flex-direction: column;
@@ -851,15 +1136,15 @@ export default function ChatInterface({ isModal }) {
           flex-direction: column;
           height: 100%;
           max-height: 600px;
-          background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+          background: var(--chat-bg);
           border-radius: 16px;
-          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.06);
           overflow: hidden;
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
 
         .chat-header {
-          background: linear-gradient(135deg, #FEBE52 0%, #f0c14b 100%);
+          background: linear-gradient(135deg, var(--accent-1) 0%, var(--accent-2) 100%);
           padding: 1rem 1.5rem;
           display: flex;
           align-items: center;
@@ -894,8 +1179,17 @@ export default function ChatInterface({ isModal }) {
           display: flex;
           align-items: center;
           justify-content: center;
-          color: #FEBE52;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          color: var(--accent-1);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .header-subtitle {
+          margin-top: 6px;
+          font-size: 12px;
+          color: rgba(255,255,255,0.95);
+          opacity: 0.95;
+          max-width: 320px;
+          line-height: 1.15;
         }
 
         .agent-details h4 {
@@ -909,9 +1203,12 @@ export default function ChatInterface({ isModal }) {
           display: flex;
           align-items: center;
           gap: 0.5rem;
-          font-size: 0.8rem;
-          color: rgba(255, 255, 255, 0.9);
+          font-size: 0.85rem;
+          color: rgba(255, 255, 255, 0.95);
         }
+
+        .status-meta { display: flex; gap: 0.4rem; align-items: center; }
+        .status-text { font-weight: 600; }
 
         .status-dot {
           width: 8px;
@@ -962,6 +1259,8 @@ export default function ChatInterface({ isModal }) {
           transform: translateY(-1px);
         }
 
+        /* theme toggle removed */
+
         .messages-container {
           flex: 1;
           padding: 1rem 1rem 2rem 1rem;
@@ -969,9 +1268,11 @@ export default function ChatInterface({ isModal }) {
           display: flex;
           flex-direction: column;
           gap: 0.75rem;
-          background: linear-gradient(to bottom, #fafafa 0%, #ffffff 100%);
+          background: linear-gradient(to bottom, #fafafa 0%, var(--surface) 100%);
           scroll-behavior: smooth;
         }
+
+        /* dark theme removed */
 
         .messages-container::-webkit-scrollbar {
           width: 6px;
@@ -990,6 +1291,7 @@ export default function ChatInterface({ isModal }) {
           display: flex;
           margin-bottom: 0.75rem;
           width: 100%;
+          align-items: flex-end;
         }
 
         .message-row.user {
@@ -1024,27 +1326,63 @@ export default function ChatInterface({ isModal }) {
           position: relative;
           word-wrap: break-word;
           line-height: 1.5;
-          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+          box-shadow: var(--shadow-1);
           backdrop-filter: blur(10px);
         }
 
+        .message-avatar {
+          width: 28px;
+          height: 28px;
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 8px;
+          background: rgba(255,255,255,0.6);
+          color: var(--accent-1);
+          box-shadow: 0 4px 12px rgba(2,6,23,0.06);
+          margin-top: 2px;
+        }
+
+        .message-body { flex: 1; }
+
+        /* Masked inline profanity: replace words with asterisks */
+        .message-bubble.masked .message-text {
+          opacity: 1;
+        }
+
+        .message-bubble.masked .masked-note {
+          display: block;
+          font-size: 0.75rem;
+          opacity: 0.85;
+          margin-top: 0.25rem;
+          color: rgba(0,0,0,0.7);
+        }
+
         .message-content.user .message-bubble {
-          background: linear-gradient(135deg, #FEBE52, #f0c14b);
+          background: linear-gradient(135deg, var(--bubble-user-start), var(--bubble-user-end));
           color: white;
           border-bottom-right-radius: 6px;
         }
 
         .message-content.bot .message-bubble {
-          background: white;
-          color: #333;
-          border: 1px solid #e9ecef;
+          background: var(--bubble-bot-bg);
+          color: var(--primary-text);
+          border: 1px solid var(--bubble-bot-border);
           border-bottom-left-radius: 6px;
         }
 
         .message-text {
-          font-size: 0.9rem;
+          font-size: 0.95rem;
           white-space: pre-wrap;
           margin-bottom: 0.25rem;
+          color: inherit;
+        }
+
+        .message-text a {
+          color: var(--link);
+          text-decoration: underline;
+          word-break: break-all;
         }
 
         .message-time {
@@ -1082,25 +1420,24 @@ export default function ChatInterface({ isModal }) {
         }
 
         .suggestion-card {
-          background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-          border: 1px solid #dee2e6;
-          border-radius: 12px;
-          padding: 1rem;
+          background: linear-gradient(180deg, var(--surface), #fbfbfd);
+          border: 1px solid rgba(15,23,42,0.06);
+          border-radius: 14px;
+          padding: 0.85rem 0.9rem;
           margin: 0.25rem 0;
           cursor: pointer;
-          transition: all 0.3s ease;
+          transition: all 0.22s cubic-bezier(.2,.9,.3,1);
           display: flex;
           justify-content: space-between;
           align-items: center;
           text-align: left;
           width: 100%;
+          box-shadow: 0 6px 18px rgba(2,6,23,0.04);
         }
 
         .suggestion-card:hover {
-          background: linear-gradient(135deg, #FEBE52, #f0c14b);
-          color: white;
-          transform: translateY(-2px);
-          box-shadow: 0 4px 20px rgba(254, 190, 82, 0.3);
+          transform: translateY(-4px);
+          box-shadow: 0 14px 50px rgba(2,6,23,0.08);
         }
 
         .suggestion-text {
@@ -1196,9 +1533,9 @@ export default function ChatInterface({ isModal }) {
 
         .typing-bubble {
           background: white;
-          border: 1px solid #e9ecef;
+          border: 1px solid rgba(15,23,42,0.04);
           border-radius: 18px;
-          padding: 1rem;
+          padding: 0.85rem 1rem;
           border-bottom-left-radius: 6px;
         }
 
@@ -1226,8 +1563,8 @@ export default function ChatInterface({ isModal }) {
 
         .quick-replies {
           padding: 1rem;
-          background: rgba(254, 190, 82, 0.05);
-          border-top: 1px solid rgba(254, 190, 82, 0.2);
+          background: rgba(254, 190, 82, 0.03);
+          border-top: 1px solid rgba(254, 190, 82, 0.06);
         }
 
         .quick-replies-title {
@@ -1245,16 +1582,16 @@ export default function ChatInterface({ isModal }) {
 
         .quick-reply-btn {
           background: white;
-          border: 1px solid #dee2e6;
+          border: 1px solid rgba(15,23,42,0.06);
           border-radius: 20px;
           padding: 0.5rem 0.75rem;
-          font-size: 0.8rem;
+          font-size: 0.85rem;
           cursor: pointer;
-          transition: all 0.3s ease;
+          transition: all 0.18s ease;
           display: flex;
           align-items: center;
           gap: 0.5rem;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+          box-shadow: 0 6px 18px rgba(2,6,23,0.04);
         }
 
         .quick-reply-btn:hover {
@@ -1263,6 +1600,17 @@ export default function ChatInterface({ isModal }) {
           border-color: #FEBE52;
           transform: translateY(-2px);
           box-shadow: 0 4px 12px rgba(254, 190, 82, 0.3);
+        }
+
+        /* Focus visible for keyboard users */
+        :focus-visible {
+          outline: 3px solid rgba(254,190,82,0.28);
+          outline-offset: 2px;
+        }
+
+        /* Respect prefers-reduced-motion */
+        @media (prefers-reduced-motion: reduce) {
+          * { transition: none !important; animation: none !important; }
         }
 
         .quick-reply-btn span {
@@ -1632,14 +1980,17 @@ export default function ChatInterface({ isModal }) {
 
         /* Fade in animation */
         @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(8px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Slightly nicer scrollbar for desktop */
+        .messages-container::-webkit-scrollbar {
+          width: 10px;
+        }
+        .messages-container::-webkit-scrollbar-thumb {
+          background: linear-gradient(180deg, rgba(254, 190, 82, 0.12), rgba(254, 190, 82, 0.2));
+          border-radius: 8px;
         }
       `}</style>
     </div>

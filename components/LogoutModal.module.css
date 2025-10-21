@@ -1,0 +1,97 @@
+/* World-class Logout Modal, aligned with global styles */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.55);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  animation: fadeIn 160ms ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal {
+  width: 94%;
+  max-width: 560px;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+  overflow: hidden;
+  transform: translateY(6px);
+  animation: slideUp 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.header {
+  padding: 18px 20px 10px;
+  background: linear-gradient(135deg, #febe52 0%, #f4a842 100%);
+  color: #111827;
+}
+.title {
+  margin: 0;
+  font-weight: 800;
+  font-size: 1.25rem;
+}
+.subtitle {
+  margin: 6px 0 0;
+  font-size: 0.925rem;
+  color: rgba(17, 24, 39, 0.85);
+}
+
+.body {
+  padding: 16px 20px 10px;
+}
+
+.user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+}
+.avatar {
+  width: 48px; height: 48px;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  font-weight: 800; color: #111827;
+  background: linear-gradient(135deg, #e3f2fd, #fef3c7);
+  border: 2px solid rgba(0,0,0,0.06);
+}
+.name { font-weight: 700; color: #111827; }
+.meta { font-size: 0.85rem; color: #6b7280; }
+.roleTag { display: inline-block; margin-top: 6px; padding: 2px 8px; border-radius: 999px; background: #111827; color: #fff; font-size: 0.75rem; font-weight: 700; }
+
+.footer {
+  padding: 16px 20px 20px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px;
+}
+.help { color: #6b7280; font-size: 0.85rem; }
+.actions { display: flex; gap: 10px; }
+.btn {
+  padding: 10px 14px; border-radius: 10px; border: 1px solid #e5e7eb; cursor: pointer; font-weight: 700;
+}
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.cancel { background: #f3f4f6; color: #111827; }
+.confirm {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: #fff; border: none;
+  box-shadow: 0 8px 20px rgba(239, 68, 68, 0.3);
+}
+.spinner {
+  width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.6); border-top-color: #fff; border-radius: 50%; display: inline-block; margin-left: 8px; animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }

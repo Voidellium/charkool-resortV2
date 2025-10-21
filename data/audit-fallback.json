@@ -1,5 +1,38 @@
 [
   {
+    "id": "f-1760992361546-7450",
+    "actorId": 6,
+    "actorName": "Dear Joe",
+    "actorRole": "CASHIER",
+    "action": "GENERATE_RECEIPT_PREVIEW",
+    "entity": "PAYMENT",
+    "entityId": 55,
+    "details": "Generated receipt preview for payment 55",
+    "timestamp": "2025-10-20T20:32:41.195Z"
+  },
+  {
+    "id": "f-1760992357011-362",
+    "actorId": 6,
+    "actorName": "Dear Joe",
+    "actorRole": "CASHIER",
+    "action": "GENERATE_RECEIPT_PREVIEW",
+    "entity": "PAYMENT",
+    "entityId": 55,
+    "details": "Generated receipt preview for payment 55",
+    "timestamp": "2025-10-20T20:32:36.639Z"
+  },
+  {
+    "id": "f-1760992343725-5323",
+    "actorId": 6,
+    "actorName": "Dear Joe",
+    "actorRole": "CASHIER",
+    "action": "GENERATE_RECEIPT_PREVIEW",
+    "entity": "PAYMENT",
+    "entityId": 55,
+    "details": "Generated receipt preview for payment 55",
+    "timestamp": "2025-10-20T20:32:23.194Z"
+  },
+  {
     "id": "f-1760361737496-439",
     "actorId": 4,
     "actorName": "Alexer Alvaro",

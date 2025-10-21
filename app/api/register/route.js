@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import { Resend } from 'resend';
 import { validateEmailWithDomain } from '@/lib/emailValidation';
+import { withAuthSecurity, validateObject, validateString, validateEmail } from '@/lib/security';
 
 const prisma = new PrismaClient();
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -12,30 +13,52 @@ function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
 }
 
-export async function POST(req) {
+// Secure registration handler with input validation
+async function registerHandler(req) {
   try {
-    const { firstName, middleName, lastName, birthdate, contactNumber, email, password } = await req.json();
+    const body = req.sanitizedBody || await req.json();
 
-    // Validate required fields
-    if (!firstName || !lastName || !birthdate || !contactNumber || !email || !password) {
-      return new Response(JSON.stringify({ error: 'Missing required fields' }), {
+    // Enhanced validation with sanitization
+    const schema = {
+      firstName: { type: 'string', required: true, options: { minLength: 2, maxLength: 50 } },
+      middleName: { type: 'string', required: false, options: { maxLength: 50 } },
+      lastName: { type: 'string', required: true, options: { minLength: 2, maxLength: 50 } },
+      birthdate: { type: 'date', required: true },
+      contactNumber: { type: 'string', required: true, options: { minLength: 12, maxLength: 12 } },
+      email: { type: 'email', required: true },
+      password: { type: 'string', required: true, options: { minLength: 8, maxLength: 128 } }
+    };
+
+    const validation = validateObject(body, schema);
+    if (!validation.isValid) {
+      return new Response(JSON.stringify({ 
+        error: 'Invalid input data', 
+        details: validation.errors 
+      }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       });
     }
 
-    // Validate contact number (should be 12 digits: 63 + 10-digit number)
-    if (contactNumber.length !== 12 || !/^639\d{9}$/.test(contactNumber)) {
+    const { firstName, middleName, lastName, birthdate, contactNumber, email, password } = validation.data;
+
+    // Additional validation for contact number (should be 12 digits: 639 + 9-digit number)
+    if (!/^639\d{9}$/.test(contactNumber)) {
       return new Response(JSON.stringify({ error: 'Contact number must be a valid 12-digit number starting with 639.' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       });
     }
 
-    // Validate birthdate (must be in the past)
+    // Additional validation for birthdate (must be in the past and reasonable age)
     const birthDate = new Date(birthdate);
-    if (isNaN(birthDate.getTime()) || birthDate >= new Date()) {
-      return new Response(JSON.stringify({ error: 'Please enter a valid birthdate.' }), {
+    const minAge = 13; // Minimum age requirement
+    const maxAge = 120; // Maximum reasonable age
+    const today = new Date();
+    const age = today.getFullYear() - birthDate.getFullYear();
+    
+    if (age < minAge || age > maxAge) {
+      return new Response(JSON.stringify({ error: `Age must be between ${minAge} and ${maxAge} years.` }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -144,3 +167,6 @@ export async function POST(req) {
     });
   }
 }
+
+// Export secured POST handler
+export const POST = withAuthSecurity(registerHandler);

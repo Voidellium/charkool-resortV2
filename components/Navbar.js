@@ -30,6 +30,7 @@ export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   // Handle scroll effect
   useEffect(() => {
@@ -49,6 +50,43 @@ export default function Navbar() {
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
+
+  // Mount state
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Handle rooms navigation
+  const handleRoomsClick = (e) => {
+    e.preventDefault();
+    if (pathname === '/') {
+      // If already on landing page, scroll to rooms section
+      const roomsSection = document.getElementById('rooms');
+      if (roomsSection) {
+        roomsSection.scrollIntoView({ behavior: 'smooth' });
+      }
+    } else {
+      // If on another page, navigate to landing page and then scroll
+      router.push('/?scrollTo=rooms');
+    }
+  };
+
+  // Handle scroll to rooms if coming from another page
+  useEffect(() => {
+    if (mounted && pathname === '/' && typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('scrollTo') === 'rooms') {
+        setTimeout(() => {
+          const roomsSection = document.getElementById('rooms');
+          if (roomsSection) {
+            roomsSection.scrollIntoView({ behavior: 'smooth' });
+          }
+          // Clean up URL
+          window.history.replaceState({}, '', '/');
+        }, 100);
+      }
+    }
+  }, [pathname, mounted]);
 
   const isActivePath = (path) => pathname === path;
 
@@ -71,7 +109,15 @@ export default function Navbar() {
         <ul>
           <li><Link href="/">Home</Link></li>
           <li><Link href="/virtual-tour">Virtual Tour</Link></li>
-          <li><Link href="/room">Rooms</Link></li>
+          <li>
+            {!mounted ? (
+              <Link href="/room">Rooms</Link>
+            ) : (
+              <button onClick={handleRoomsClick} className="rooms-nav-btn">
+                Rooms
+              </button>
+            )}
+          </li>
           <li><Link href="/about-us">About Us</Link></li>
           <li>
             {status === 'loading' ? (
@@ -93,6 +139,8 @@ export default function Navbar() {
                   if (isConfirmed) {
                     router.push('/login?redirect=/booking');
                   }
+                } else if (session.user.role !== 'CUSTOMER') {
+                  alert('Only customers can make bookings. Please contact the front desk if you need assistance.');
                 } else {
                   router.push('/booking');
                 }
@@ -292,30 +340,82 @@ export default function Navbar() {
           border-bottom: none !important;
         }
 
+        .rooms-nav-btn {
+          color: rgba(255, 255, 255, 0.9);
+          text-decoration: none !important;
+          font-size: 1rem;
+          font-weight: 600;
+          padding: 0.45rem 0.95rem;
+          border-radius: 999px;
+          transition: transform 0.3s ease, background 0.3s ease, color 0.3s ease;
+          background: rgba(255, 255, 255, 0.08);
+          backdrop-filter: blur(12px);
+          border: none !important;
+          border-bottom: none !important;
+          outline: none !important;
+          cursor: pointer;
+          font-family: inherit;
+          display: inline-flex;
+          align-items: center;
+          appearance: none;
+          -webkit-appearance: none;
+          -moz-appearance: none;
+          box-shadow: none !important;
+        }
+
+        .rooms-nav-btn:hover {
+          color: #ffffff;
+          background: linear-gradient(135deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.08));
+          transform: translateY(-3px);
+          box-shadow: 0 8px 18px rgba(255, 255, 255, 0.16) !important;
+        }
+
+        .rooms-nav-btn:focus {
+          outline: none !important;
+          box-shadow: none !important;
+        }
+
+        .rooms-nav-btn:active {
+          outline: none !important;
+          box-shadow: none !important;
+        }
+
+        /* Ensure RoomsNavButton styles match other nav links */
+        ul li {
+          display: flex;
+          align-items: center;
+        }
+
         .book-now-btn {
-          background: linear-gradient(135deg, #f97316 0%, #facc15 40%, #fb923c 100%);
-          border: none;
+          /* Premium amber-gold gradient that blends with the navbar palette */
+          background: linear-gradient(135deg, #b45309 0%, #f59e0b 52%, #fcd34d 100%);
           color: #fff;
           font-size: 1.08rem;
           font-weight: 800;
           padding: 0.65em 1.9em;
           border-radius: 999px;
-          box-shadow: 0 18px 35px -14px rgba(249, 115, 22, 0.8);
+          /* Subtle border for definition */
+          border: 1px solid rgba(253, 230, 138, 0.6);
+          /* Gentle glow for depth */
+          box-shadow: 0 18px 35px -16px rgba(245, 158, 11, 0.55), 0 0 0 1px rgba(253, 230, 138, 0.18) inset;
           cursor: pointer;
-          transition: transform 0.35s ease, box-shadow 0.35s ease;
+          transition: transform 0.35s ease, box-shadow 0.35s ease, background 0.35s ease;
           letter-spacing: 0.14em;
           margin-right: 0.5rem;
           min-width: 150px;
           text-transform: uppercase;
           position: relative;
           overflow: hidden;
+          /* Subtle outline to make it stand out without being loud */
+          outline: 1px solid rgba(255, 255, 255, 0.12);
+          outline-offset: 2px;
         }
 
         .book-now-btn::after {
           content: '';
           position: absolute;
           inset: 0;
-          background: linear-gradient(120deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0));
+          background: linear-gradient(120deg, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0));
           transform: translateX(-100%);
           transition: transform 0.45s ease;
         }
@@ -323,7 +423,8 @@ export default function Navbar() {
         .book-now-btn:hover,
         .book-now-btn:focus {
           transform: translateY(-4px) scale(1.04);
-          box-shadow: 0 20px 40px -12px rgba(248, 113, 22, 0.7);
+          /* Slightly brighter glow and a gentle halo to separate from background */
+          box-shadow: 0 22px 44px -14px rgba(245, 158, 11, 0.6), 0 0 0 2px rgba(253, 230, 138, 0.32);
         }
 
         .book-now-btn:hover::after,
@@ -333,7 +434,13 @@ export default function Navbar() {
 
         .book-now-btn:active {
           transform: translateY(-1px) scale(1.01);
-          box-shadow: 0 16px 28px -18px rgba(248, 113, 22, 0.7);
+          box-shadow: 0 16px 28px -18px rgba(245, 158, 11, 0.55);
+        }
+
+        /* Stronger, accessible focus ring without being distracting */
+        .book-now-btn:focus-visible {
+          outline: 2px solid rgba(253, 230, 138, 0.65);
+          outline-offset: 3px;
         }
 
         @media (max-width: 1024px) {
@@ -407,6 +514,11 @@ export default function Navbar() {
             padding: 0.4rem 0.75rem;
           }
 
+          .rooms-nav-btn {
+            font-size: 0.95rem;
+            padding: 0.4rem 0.75rem;
+          }
+
           .book-now-btn {
             font-size: 1rem;
             padding: 0.55em 1.6em;
@@ -426,6 +538,11 @@ export default function Navbar() {
           }
 
           ul li :global(a) {
+            font-size: 0.85rem;
+            padding: 0.35rem 0.65rem;
+          }
+
+          .rooms-nav-btn {
             font-size: 0.85rem;
             padding: 0.35rem 0.65rem;
           }

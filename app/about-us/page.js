@@ -4,6 +4,18 @@ import { motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
 import Navbar from "../../components/Navbar";
+import { Playfair_Display, Manrope } from "next/font/google";
+
+const display = Playfair_Display({
+  subsets: ["latin"],
+  weight: ["600", "700", "800"],
+  variable: "--font-display",
+});
+const sans = Manrope({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-sans",
+});
 
 function Carousel() {
   const images = [
@@ -35,8 +47,9 @@ function Carousel() {
   className="carousel-container"
   style={{
     position: "relative",
-    maxWidth: "620px",
-    margin: "40px auto",
+    maxWidth: "100%",
+    width: "100%",
+    margin: "0 auto",
     overflow: "hidden",
     borderRadius: "22px",
     background: "rgba(255, 255, 255, 0.08)",
@@ -58,15 +71,15 @@ function Carousel() {
     style={{
       position: "relative",
       width: "100%",
-      height: "380px",
+      height: "420px",
       overflow: "hidden",
     }}
   >
     <Image
       src={images[currentIndex]}
       alt="Resort view"
-      width={620}
-      height={380}
+      width={1200}
+      height={800}
       className="map-img"
       style={{
         borderRadius: "22px",
@@ -159,8 +172,8 @@ function Carousel() {
         onClick={() => setCurrentIndex(i)}
         aria-label={`Go to image ${i + 1}`}
         style={{
-          width: i === currentIndex ? "14px" : "10px",
-          height: i === currentIndex ? "14px" : "10px",
+          width: i === currentIndex ? "14px" : "11px",
+          height: i === currentIndex ? "14px" : "11px",
           borderRadius: "50%",
           border: "none",
           background: i === currentIndex ? "#FDD35C" : "#d0d0d0",
@@ -176,7 +189,7 @@ function Carousel() {
 
 export default function AboutUs() {
   return (
-    <div className="page-root">
+    <div className={`page-root ${display.variable} ${sans.variable}`}>
       <Navbar />
 
       <header className="hero">
@@ -275,53 +288,57 @@ export default function AboutUs() {
             viewport={{ once: true }}
           >
             <h2 className="section-title">Visit Us in Zambales</h2>
-            <p className="body">
-              Located along the serene coastline of San Felipe, Liwa-liwa, Zambales, Charkool Beach Resort is a few hours from Metro Manila and the perfect escape for those seeking sun, sea, and a calm shoreline. Plan your trip, enjoy our virtual tour, and arrive knowing you'll be welcomed like family.
-            </p>
 
             <div className="location-row">
               <div className="location-left">
-                <h4>📍 Our Location</h4>
-                <p className="muted">Liwliwa, San Felipe, Zambales</p>
-                <div className="map-links">
-                  <a
-                    href="https://www.waze.com/live-map/directions/ph/central-luzon/san-felipe/charkool-beach-resort?navigate=yes&to=place.ChIJeVtmpO3TlTMReawZJCvkIsg"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="map-link icon-vertical-center"
-                  >
-                    <span className="icon-label-wrap">
-                      <svg width="26" height="26" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <ellipse cx="32" cy="36" rx="24" ry="18" fill="#33CCFF" />
-                        <path d="M44 44c-4-8-16-8-20 0" stroke="#1A2A32" strokeWidth="3" strokeLinecap="round" />
-                        <ellipse cx="32" cy="32" rx="12" ry="10" fill="#fff" />
-                        <circle cx="27" cy="31" r="2.5" fill="#1A2A32" />
-                        <circle cx="37" cy="31" r="2.5" fill="#1A2A32" />
-                        <path d="M29 36c1.5 2 5.5 2 7 0" stroke="#1A2A32" strokeWidth="1.5" strokeLinecap="round" />
-                      </svg>
-                      <span>Waze</span>
-                    </span>
-                  </a>
-                  <a
-                    href="https://maps.google.com/?q=Charkool+Beach+Resort"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="map-link icon-vertical-center"
-                  >
-                    <span className="icon-label-wrap">
-                      <svg width="26" height="26" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <circle cx="32" cy="32" r="30" fill="#fff" />
-                        <circle cx="32" cy="32" r="18" fill="#4285F4" />
-                        <circle cx="32" cy="32" r="7" fill="#fff" />
-                        <circle cx="32" cy="32" r="3" fill="#4285F4" />
-                        <path d="M32 2v12" stroke="#EA4335" strokeWidth="2" />
-                        <path d="M62 32h-12" stroke="#34A853" strokeWidth="2" />
-                        <path d="M32 62V50" stroke="#FBBC05" strokeWidth="2" />
-                        <path d="M2 32h12" stroke="#4285F4" strokeWidth="2" />
-                      </svg>
-                      <span>Google Maps</span>
-                    </span>
-                  </a>
+                {/* Intro copy moved to the left column for proper alignment */}
+                <p className="body visit-intro">
+                  Located along the serene coastline of San Felipe, Liwa-liwa, Zambales, Charkool Beach Resort is a few hours from Metro Manila and the perfect escape for those seeking sun, sea, and a calm shoreline. Plan your trip, enjoy our virtual tour, and arrive knowing you'll be welcomed like family.
+                </p>
+
+                <div className="location-card">
+                  <h4>📍 Our Location</h4>
+                  <p className="muted">Liwliwa, San Felipe, Zambales</p>
+                  <div className="map-links">
+                    <a
+                      href="https://www.waze.com/live-map/directions/ph/central-luzon/san-felipe/charkool-beach-resort?navigate=yes&to=place.ChIJeVtmpO3TlTMReawZJCvkIsg"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="map-link icon-vertical-center"
+                    >
+                      <span className="icon-label-wrap">
+                        <svg width="30" height="30" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <ellipse cx="32" cy="36" rx="24" ry="18" fill="#33CCFF" />
+                          <path d="M44 44c-4-8-16-8-20 0" stroke="#1A2A32" strokeWidth="3" strokeLinecap="round" />
+                          <ellipse cx="32" cy="32" rx="12" ry="10" fill="#fff" />
+                          <circle cx="27" cy="31" r="2.5" fill="#1A2A32" />
+                          <circle cx="37" cy="31" r="2.5" fill="#1A2A32" />
+                          <path d="M29 36c1.5 2 5.5 2 7 0" stroke="#1A2A32" strokeWidth="1.5" strokeLinecap="round" />
+                        </svg>
+                        <span>Waze</span>
+                      </span>
+                    </a>
+                    <a
+                      href="https://maps.google.com/?q=Charkool+Beach+Resort"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="map-link icon-vertical-center"
+                    >
+                      <span className="icon-label-wrap">
+                        <svg width="30" height="30" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <circle cx="32" cy="32" r="30" fill="#fff" />
+                          <circle cx="32" cy="32" r="18" fill="#4285F4" />
+                          <circle cx="32" cy="32" r="7" fill="#fff" />
+                          <circle cx="32" cy="32" r="3" fill="#4285F4" />
+                          <path d="M32 2v12" stroke="#EA4335" strokeWidth="2" />
+                          <path d="M62 32h-12" stroke="#34A853" strokeWidth="2" />
+                          <path d="M32 62V50" stroke="#FBBC05" strokeWidth="2" />
+                          <path d="M2 32h12" stroke="#4285F4" strokeWidth="2" />
+                        </svg>
+                        <span>Google Maps</span>
+                      </span>
+                    </a>
+                  </div>
                 </div>
               </div>
 
@@ -441,7 +458,7 @@ export default function AboutUs() {
           }
           :global(body) {
             margin: 0;
-            font-family: "Poppins", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+            font-family: var(--font-sans), "Poppins", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
             background: linear-gradient(180deg, #fffaf0 0%, #fff2d6 100%);
@@ -489,18 +506,20 @@ export default function AboutUs() {
             padding: 20px;
           }
           .hero-title {
-            font-size: clamp(28px, 4.6vw, 48px);
+            font-family: var(--font-display), Georgia, 'Times New Roman', serif;
+            font-size: clamp(32px, 4.8vw, 56px);
             margin: 0 0 12px;
             letter-spacing: -0.02em;
             color: #ffffff;
-            text-shadow: 0 8px 28px rgba(0,0,0,0.12);
+            text-shadow: 0 10px 30px rgba(0,0,0,0.18);
             font-weight: 800;
           }
           .hero-sub {
             margin: 0 0 18px;
-            color: rgba(255,255,255,0.95);
-            font-size: clamp(15px, 1.6vw, 18px);
-            font-weight: 500;
+            color: rgba(255,255,255,0.96);
+            font-size: clamp(15px, 1.8vw, 20px);
+            font-weight: 600;
+            font-family: var(--font-sans);
             opacity: 0.95;
           }
           .hero-ctas {
@@ -527,7 +546,7 @@ export default function AboutUs() {
           .container {
             max-width: 1200px;
             margin: 0 auto;
-            padding: 56px 28px;
+            padding: 64px 28px;
           }
           .story-section {
             display: grid;
@@ -538,27 +557,30 @@ export default function AboutUs() {
             padding-bottom: 56px;
           }
           .story-card {
-            background: linear-gradient(180deg, rgba(255,251,242,0.9), rgba(255,249,238,0.9));
-            padding: 36px;
+            background: linear-gradient(180deg, rgba(255,251,242,0.94), rgba(255,249,238,0.92));
+            padding: 40px;
             border-radius: 14px;
             box-shadow: 0 18px 36px rgba(22, 32, 51, 0.06);
           }
           .section-title {
-            font-size: 28px;
+            font-family: var(--font-display), Georgia, 'Times New Roman', serif;
+            font-size: 45px;
             margin: 0 0 16px;
             color: #6a3510;
             font-weight: 800;
           }
           .lead {
-            font-size: 16px;
+            font-family: var(--font-sans);
+            font-size: 18px;
             color: #3b2e12;
-            line-height: 1.8;
-            margin-bottom: 14px;
+            line-height: 1.85;
+            margin-bottom: 16px;
           }
           .body {
-            font-size: 15px;
+            font-family: var(--font-sans);
+            font-size: 18px;
             color: #4a3a2a;
-            line-height: 1.75;
+            line-height: 1.8;
           }
           .emph {
             margin-top: 18px;
@@ -567,21 +589,19 @@ export default function AboutUs() {
             line-height: 1.6;
           }
           .highlight-grid {
-            /* use flex to force a single horizontal row of three equal columns */
-            display: flex;
-            flex-direction: row;
-            gap: 32px;
-            margin-top: 32px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            margin-top: 8px;
             width: 100%;
             align-items: stretch;
-            flex-wrap: nowrap; /* keep them in one row on wide screens */
           }
           .highlight-card {
-            background: linear-gradient(135deg, #fffbe6 0%, #e3f6ff 100%);
-            border-radius: 18px;
-            box-shadow: 0 8px 32px rgba(33, 150, 243, 0.10), 0 1.5px 6px rgba(76, 175, 80, 0.08);
+            background: linear-gradient(135deg, #fffbe6 0%, #eef8fb 100%);
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(33, 150, 243, 0.08), 0 2px 8px rgba(76, 175, 80, 0.06);
             transition: box-shadow 0.25s, transform 0.25s;
-            padding: 32px 28px 28px 28px;
+            padding: 28px 24px 24px 24px;
             position: relative;
             display: flex;
             flex-direction: column;
@@ -590,7 +610,7 @@ export default function AboutUs() {
             flex: 1 1 0; /* each card should grow/shrink equally */
           }
           .highlight-card:hover {
-            box-shadow: 0 16px 48px rgba(33, 150, 243, 0.18), 0 3px 12px rgba(76, 175, 80, 0.12);
+            box-shadow: 0 18px 48px rgba(33, 150, 243, 0.16), 0 4px 16px rgba(76, 175, 80, 0.12);
             transform: translateY(-6px) scale(1.03);
           }
           .icon-wrap {
@@ -607,15 +627,17 @@ export default function AboutUs() {
           }
           .highlight-body h3 {
             margin: 0 0 8px;
-            color: #2196F3;
-            font-size: 20px;
+            color: #6a3510;
+            font-size: 18px;
+            font-family: var(--font-display), Georgia, 'Times New Roman', serif;
             font-weight: 700;
           }
           .highlight-body p {
             margin: 0;
             color: #4a3a2a;
-            font-size: 15px;
+            font-size: 14.5px;
             line-height: 1.7;
+            font-family: var(--font-sans);
           }
           .footer-social {
             text-align: center;
@@ -649,22 +671,28 @@ export default function AboutUs() {
           }
           .visit-section {
             background: linear-gradient(180deg, rgba(255,252,245,0.6), rgba(255,249,238,0.6));
-            padding-top: 18px;
-            padding-bottom: 56px;
+            padding-top: 24px;
+            padding-bottom: 64px;
           }
           .visit-inner .section-title {
             margin-bottom: 12px;
           }
           .location-row {
-            display: flex;
+            display: grid;
+            grid-template-columns: 1.1fr 1fr;
             gap: 28px;
-            align-items: center;
+            align-items: start;
             margin-top: 18px;
           }
           .location-left {
             flex: 1;
           }
-          .location-left h4 {
+          .visit-intro {
+            text-align: left;
+            margin: 0 0 22px 0;
+            max-width: 54ch;
+          }
+          .location-card h4 {
             margin: 0 0 6px;
             color: #6a3510;
           }
@@ -672,30 +700,40 @@ export default function AboutUs() {
             color: #6b5651;
             margin-bottom: 8px;
           }
+          .location-card {
+            background: linear-gradient(180deg, #fffaf0 0%, #fff3d4 100%);
+            border-radius: 18px;
+            padding: 18px 18px 14px;
+            box-shadow: 0 12px 28px rgba(22,32,51,0.06);
+            width: fit-content;
+            margin-top: 10px; /* nudge the card a bit lower */
+          }
           .map-links {
             display: flex;
-            gap: 12px;
+            gap: 14px;
           }
           .map-link {
             display: inline-block;
             background: #fffaf0;
-            padding: 8px 12px;
+            padding: 12px 16px;
             border-radius: 999px;
             font-weight: 600;
             color: #6a3510;
             text-decoration: none;
             box-shadow: 0 8px 16px rgba(0,0,0,0.04);
             transition: transform 0.18s, box-shadow 0.18s;
+            font-size: 0.98rem;
           }
           .map-link:hover {
             transform: translateY(-3px);
             box-shadow: 0 16px 28px rgba(0,0,0,0.08);
           }
           .location-right .card-map {
-            width: 420px;
+            width: 720px;
             border-radius: 12px;
             overflow: hidden;
             box-shadow: 0 20px 40px rgba(22,32,51,0.06);
+            margin-top: -8px; /* pull carousel up to align with section title on desktop */
           }
           .map-img {
             display: block;
@@ -745,25 +783,28 @@ export default function AboutUs() {
             margin-bottom: 12px;
             
           }
+          @media (min-width: 1020px) {
+            .story-section {
+              grid-template-columns: 1.15fr 0.85fr;
+              gap: 28px;
+              align-items: stretch;
+            }
+          }
           @media (max-width: 1100px) {
             .story-section {
               grid-template-columns: 1fr;
             }
-            /* stack highlight cards on smaller screens */
             .highlight-grid {
-              display: block;
-              gap: 20px;
-            }
-            .highlight-grid {
-              display: grid;
               grid-template-columns: 1fr;
-              gap: 20px;
+              gap: 18px;
+              margin-top: 12px;
             }
             .location-right .card-map {
               width: 100%;
+              margin-top: 0; /* reset for smaller screens */
             }
             .location-row {
-              flex-direction: column-reverse;
+              grid-template-columns: 1fr;
               gap: 16px;
             }
           }
@@ -772,15 +813,11 @@ export default function AboutUs() {
               height: 48vh;
               padding: 24px;
             }
-            .hero-title {
-              font-size: 22px;
-            }
+            .hero-title { font-size: 26px; }
             .hero-sub {
               font-size: 14px;
             }
-            .container {
-              padding: 32px 18px;
-            }
+            .container { padding: 32px 18px; }
             .highlight-card {
               padding: 16px;
             }

@@ -48,16 +48,45 @@ export async function GET(req) {
       where: { ...whereClause, status: 'paid' },
     });
 
-    // Monthly revenue (last 12 months)
-    const monthlyRevenue = await prisma.$queryRaw`
-      SELECT
-        DATE_TRUNC('month', "createdAt") as month,
-        SUM(amount) as revenue
-      FROM Payment
-      WHERE status = 'paid' AND "createdAt" >= NOW() - INTERVAL '12 months'
-      GROUP BY DATE_TRUNC('month', "createdAt")
-      ORDER BY month DESC
-    `;
+    // Monthly revenue (last 12 months) - Safe Prisma query
+    const twelveMonthsAgo = new Date();
+    twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+    
+    const monthlyRevenue = await prisma.payment.groupBy({
+      by: ['createdAt'],
+      _sum: { amount: true },
+      where: {
+        status: 'paid',
+        createdAt: {
+          gte: twelveMonthsAgo
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+    
+    // Format the monthly data
+    const formattedMonthlyRevenue = monthlyRevenue.map(item => ({
+      month: new Date(item.createdAt.getFullYear(), item.createdAt.getMonth(), 1).toISOString(),
+      revenue: item._sum.amount || 0
+    }));
+    
+    // Group by month and sum revenues
+    const monthlyRevenueGrouped = formattedMonthlyRevenue.reduce((acc, item) => {
+      const month = item.month;
+      if (!acc[month]) {
+        acc[month] = 0;
+      }
+      acc[month] += item.revenue;
+      return acc;
+    }, {});
+    
+    // Convert to array format
+    const finalMonthlyRevenue = Object.entries(monthlyRevenueGrouped).map(([month, revenue]) => ({
+      month,
+      revenue
+    })).sort((a, b) => new Date(b.month) - new Date(a.month));
 
     return NextResponse.json({
       totalRevenue: totalRevenue._sum.amount || 0,
@@ -67,7 +96,7 @@ export async function GET(req) {
       failedTransactions,
       refundedTransactions,
       revenueByProvider,
-      monthlyRevenue,
+      monthlyRevenue: finalMonthlyRevenue,
     });
   } catch (error) {
     console.error('Reports Error:', error);

@@ -2,6 +2,9 @@
 import { useEffect, useState } from 'react';
 import SuperAdminLayout from '@/components/SuperAdminLayout';
 import { useToast, ConfirmModal } from '@/components/Toast';
+import { useNavigationGuard } from '../../../hooks/useNavigationGuard.simple';
+import { useNavigationContext } from '../../../context/NavigationContext';
+import { NavigationConfirmationModal } from '../../../components/CustomModals';
 import { Package, Plus, Edit2, Trash2, Search, Filter, RefreshCw, Clock, AlertCircle } from 'lucide-react';
 
 export default function SuperAdminAmenityInventoryPage() {
@@ -21,6 +24,14 @@ export default function SuperAdminAmenityInventoryPage() {
   const [refreshing, setRefreshing] = useState(false);
   
   const { success, error } = useToast();
+
+  // Navigation Guard Setup for admin forms
+  const navigationContext = useNavigationContext();
+  const navigationGuard = useNavigationGuard({
+    trackForms: true,
+    formId: 'super-admin-amenities',
+    customMessage: 'Unsaved inventory changes will be lost. Please save your work before navigating away.'
+  });
 
   // Add responsive styles
   useEffect(() => {
@@ -189,6 +200,7 @@ export default function SuperAdminAmenityInventoryPage() {
           success('Amenity updated successfully');
           setEditingAmenity(null);
           setNewAmenity({ name: '', quantity: '', category: 'optional', pricePerUnit: '', pricePerHour: '', unitType: '', unitNote: '' });
+          navigationGuard.markFormClean('super-admin-amenities');
           fetchAmenities();
         } else {
           const errorData = await res.json();
@@ -220,6 +232,7 @@ export default function SuperAdminAmenityInventoryPage() {
         if (res.ok) {
           success('Amenity created successfully');
           setNewAmenity({ name: '', quantity: '', category: 'optional', pricePerUnit: '', pricePerHour: '', unitType: '', unitNote: '' });
+          navigationGuard.markFormClean('super-admin-amenities');
           fetchAmenities();
         } else {
           const errorData = await res.json();
@@ -459,7 +472,10 @@ export default function SuperAdminAmenityInventoryPage() {
               type="text"
               placeholder={editingAmenity ? "Update amenity name" : "Amenity Name"}
               value={newAmenity.name}
-              onChange={(e) => setNewAmenity({ ...newAmenity, name: e.target.value })}
+              onChange={(e) => {
+                setNewAmenity({ ...newAmenity, name: e.target.value });
+                navigationGuard.markFormDirty('super-admin-amenities');
+              }}
               required
             />
             <input
@@ -468,7 +484,10 @@ export default function SuperAdminAmenityInventoryPage() {
               type="number"
               placeholder={editingAmenity ? "Stock quantity" : "Stock Qty"}
               value={newAmenity.quantity}
-              onChange={(e) => setNewAmenity({ ...newAmenity, quantity: e.target.value })}
+              onChange={(e) => {
+                setNewAmenity({ ...newAmenity, quantity: e.target.value });
+                navigationGuard.markFormDirty('super-admin-amenities');
+              }}
               required
               min="0"
             />
@@ -476,7 +495,10 @@ export default function SuperAdminAmenityInventoryPage() {
               style={styles.formInputSmall}
               className="form-input-small"
               value={newAmenity.category}
-              onChange={e => setNewAmenity({ ...newAmenity, category: e.target.value })}
+              onChange={e => {
+                setNewAmenity({ ...newAmenity, category: e.target.value });
+                navigationGuard.markFormDirty('super-admin-amenities');
+              }}
               required
             >
               <option value="optional">Optional</option>
@@ -735,6 +757,15 @@ export default function SuperAdminAmenityInventoryPage() {
           }
         }
       `}</style>
+
+      {/* Navigation Confirmation Modal */}
+      <NavigationConfirmationModal 
+        show={navigationGuard.showModal}
+        onStay={navigationGuard.handleStay}
+        onLeave={navigationGuard.handleLeave}
+        context={navigationGuard.context}
+        message={navigationGuard.message}
+      />
     </SuperAdminLayout>
   );
 }

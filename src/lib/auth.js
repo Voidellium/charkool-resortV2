@@ -22,8 +22,38 @@ async function safeDbOperation(operation, errorMessage = 'Database operation fai
   }
 }
 
+// Custom adapter to handle the required fields
+function CustomPrismaAdapter(prisma) {
+  const adapter = PrismaAdapter(prisma);
+  
+  return {
+    ...adapter,
+    createUser: async (data) => {
+      console.log('Creating user with data:', data);
+      
+      // Parse the name into firstName and lastName
+      const nameParts = data.name ? data.name.split(' ') : ['', ''];
+      const firstName = nameParts[0] || 'Unknown';
+      const lastName = nameParts.slice(1).join(' ') || 'User';
+      
+      return prisma.user.create({
+        data: {
+          name: data.name,
+          firstName: firstName,
+          lastName: lastName,
+          email: data.email,
+          image: data.image,
+          emailVerified: data.emailVerified,
+          birthdate: new Date('1990-01-01'), // Default birthdate for OAuth users
+          contactNumber: '0000000000', // Default contact number for OAuth users
+        },
+      });
+    },
+  };
+}
+
 export const authOptions = {
-  adapter: PrismaAdapter(prisma),
+  adapter: CustomPrismaAdapter(prisma),
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID,
@@ -107,6 +137,41 @@ export const authOptions = {
   callbacks: {
     async signIn({ user, account, profile, email, credentials }) {
       console.log('Sign in attempt:', { user: user?.email, provider: account?.provider });
+      
+      // Handle Google OAuth account linking detection
+      if (account?.provider === 'google') {
+        try {
+          const existingUser = await prisma.user.findUnique({
+            where: { email: user.email.toLowerCase() },
+            include: {
+              accounts: {
+                where: { provider: 'google' }
+              }
+            }
+          });
+          
+          if (existingUser) {
+            // Check if Google account is already linked
+            const hasGoogleAccount = existingUser.accounts.length > 0;
+            
+            if (!hasGoogleAccount && existingUser.password) {
+              // User has password-based account but no Google link
+              // Return false to prevent sign-in and let client handle linking
+              console.log('Account linking required for:', user.email);
+              return `/login?error=AccountLinking&email=${encodeURIComponent(user.email)}&googleData=${encodeURIComponent(JSON.stringify({
+                id: profile.sub,
+                name: user.name,
+                email: user.email,
+                image: user.image
+              }))}`;
+            }
+          }
+        } catch (error) {
+          console.error('Error during Google sign-in check:', error);
+          // Don't block sign-in for other errors
+        }
+      }
+      
       return true;
     },
     async session({ session, token }) {

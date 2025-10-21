@@ -2,13 +2,24 @@
   import { useState, useEffect } from 'react';
   import { ChevronDown, FileText, Clock, Eye, Shield } from 'lucide-react';
 
-  export default function PolicyList() {
+  export default function PolicyList({ embedded = true }) {
     const [policies, setPolicies] = useState([]);
     const [openPolicies, setOpenPolicies] = useState(new Set());
     const [isLoading, setIsLoading] = useState(true);
+    const [isMobile, setIsMobile] = useState(false);
 
     useEffect(() => {
       fetchPolicies();
+      
+      // Check screen size for responsive design
+      const checkScreenSize = () => {
+        setIsMobile(window.innerWidth <= 768);
+      };
+      
+      checkScreenSize();
+      window.addEventListener('resize', checkScreenSize);
+      
+      return () => window.removeEventListener('resize', checkScreenSize);
     }, []);
 
     const fetchPolicies = async () => {
@@ -42,21 +53,23 @@
     return (
       <div style={{
         width: '100%',
-        padding: '2.5rem 1.25rem',
-        background: 'linear-gradient(135deg, #FEBE52 0%, #F3EAC4 100%)',
-        minHeight: '100vh'
+        padding: embedded ? '0' : (isMobile ? '1.5rem 0.75rem' : '2.5rem 1.25rem'),
+        background: embedded ? 'transparent' : 'linear-gradient(135deg, #FEBE52 0%, #F3EAC4 100%)',
+        minHeight: embedded ? 'auto' : (isMobile ? 'auto' : '100vh'),
+        overflowX: 'hidden'
       }}>
-        {/* Header Section */}
+        {/* Header Section - show when embedded */}
+        {embedded && (
         <div style={{
           textAlign: 'center',
-          marginBottom: '3rem',
+          marginBottom: isMobile ? '2rem' : '3rem',
           background: 'rgba(255,255,255,0.9)',
-          padding: '2rem',
+          padding: isMobile ? '1.5rem' : '2rem',
           borderRadius: '16px',
           boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
           backdropFilter: 'blur(10px)',
           maxWidth: '800px',
-          margin: '0 auto 3rem auto'
+          margin: isMobile ? '0 0.5rem 2rem 0.5rem' : '0 auto 3rem auto'
         }}>
           <div style={{
             display: 'inline-flex',
@@ -76,22 +89,19 @@
           </div>
           
           <h2 style={{
-            color: '#1f2937',
-            fontSize: '2.5rem',
-            fontWeight: '700',
+            color: '#123238',
+            fontSize: isMobile ? '1.8rem' : '2.2rem',
+            fontWeight: 700,
             margin: '0 0 1rem 0',
-            background: 'linear-gradient(135deg, #febe52 0%, #f7e9afff 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-            lineHeight: '1.2'
+            lineHeight: '1.2',
+            fontFamily: 'Poppins, system-ui, -apple-system, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif'
           }}>
             Our Policies & Guidelines
           </h2>
           
           <p style={{
             color: '#6b7280',
-            fontSize: '1.1rem',
+            fontSize: isMobile ? '1rem' : '1.1rem',
             margin: 0,
             lineHeight: '1.6',
             maxWidth: '600px',
@@ -100,6 +110,7 @@
             Please review our terms and policies to understand your rights and responsibilities during your stay with us.
           </p>
         </div>
+        )}
 
         {isLoading ? (
           <div style={{
@@ -163,20 +174,22 @@
         ) : (
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
-            gap: '1.5rem',
-            maxWidth: '1200px',
-            margin: '0 auto'
+            gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(320px, 1fr))',
+            gap: isMobile ? '1rem' : '1.5rem',
+            maxWidth: embedded ? '100%' : '1200px',
+            margin: '0 auto',
+            padding: embedded ? '0' : (isMobile ? '0 0.5rem' : '0'),
+            alignItems: 'start' // This ensures cards stay in their own space when expanding
           }}>
             {policies.map((policy, index) => (
               <div key={policy.id} style={{
-                background: 'rgba(255,255,255,0.95)',
+                background: embedded ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.95)',
                 borderRadius: '16px',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+                boxShadow: embedded ? '0 4px 16px rgba(0,0,0,0.08)' : '0 8px 32px rgba(0,0,0,0.1)',
                 backdropFilter: 'blur(10px)',
                 overflow: 'hidden',
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                border: '1px solid rgba(255,255,255,0.2)',
+                border: embedded ? '1px solid rgba(255,255,255,0.4)' : '1px solid rgba(255,255,255,0.2)',
                 animation: `slideInUp 0.4s ease-out ${index * 0.1}s both`
               }}
               onMouseEnter={(e) => {
@@ -194,7 +207,7 @@
                   aria-expanded={openPolicies.has(policy.id)}
                   style={{
                     width: '100%',
-                    padding: '1.5rem 2rem',
+                    padding: isMobile ? '1rem 1.5rem' : '1.5rem 2rem',
                     background: openPolicies.has(policy.id) 
                       ? 'linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)'
                       : 'transparent',
@@ -232,7 +245,7 @@
                     
                     <div style={{ textAlign: 'left', flex: 1 }}>
                       <h3 style={{
-                        fontSize: '1.2rem',
+                        fontSize: isMobile ? '1rem' : '1.2rem',
                         fontWeight: '600',
                         color: '#1f2937',
                         margin: '0 0 0.25rem 0',

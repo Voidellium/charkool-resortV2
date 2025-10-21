@@ -2,11 +2,25 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { useSession } from 'next-auth/react';
+import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import PromotionPopup from '@/components/PromotionPopup';
 import PolicyList from '@/components/PolicyList';
 import WelcomeModal from '@/components/WelcomeModal';
+import { Playfair_Display, Manrope } from 'next/font/google';
+import { FaUsers, FaSnowflake, FaBed, FaWifi, FaSwimmingPool, FaFire, FaUtensils } from 'react-icons/fa';
+
+// Premium font pairing: elegant display + modern sans
+const display = Playfair_Display({
+  subsets: ['latin'],
+  weight: ['600', '700', '800'],
+  variable: '--font-display',
+});
+const sans = Manrope({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-sans',
+});
 
 export default function Home() {
   const { data: session } = useSession();
@@ -29,15 +43,72 @@ export default function Home() {
   const [is3DImageLoaded, setIs3DImageLoaded] = useState(false);
 
   const rooms = [
-    { image: '/images/Loft.jpg', title: 'Loft Room', desc: 'Airconditioned · 2 Beds · Mini fridge' },
-    { image: '/images/Tepee.jpg', title: 'Tepee Room', desc: 'Airconditioned · 5 Beds · Group Friendly' },
-    { image: '/images/Villa.jpg', title: 'Villa Room', desc: 'Airconditioned · 10 Beds · Private Balcony' }
+    {
+      id: 'loft',
+      name: 'Loft Room',
+      shortDescription: 'Comfortable and cozy room ideal for solo travelers or couples.',
+      description:
+        'Perfect for couples or small groups, our Loft Room offers comfort and convenience. Enjoy a cozy stay with easy access to the pool and grilling area for a relaxing getaway.',
+      capacity: 'Up to 2-3 pax',
+      amenities: [
+        { icon: <FaSnowflake />, label: 'Airconditioned' },
+        { icon: <FaBed />, label: '2 Beds' },
+        { icon: <FaUtensils />, label: 'Mini Fridge' },
+        { icon: <FaWifi />, label: 'Wi-Fi Access' },
+        { icon: <FaSwimmingPool />, label: 'Pool Access' },
+        { icon: <FaFire />, label: 'Grill Access' }
+      ],
+      images: ['/images/Loft.jpg', '/images/LoftInterior1.jpg', '/images/LoftInterior2.jpg']
+    },
+    {
+      id: 'tepee',
+      name: 'Tepee Room',
+      shortDescription: 'Perfect for groups and friends.',
+      description:
+        'Designed for larger groups, the Tepee Room blends comfort and space for a memorable stay. Ideal for group or barkada trips, complete with cooking facilities and a private grilling area.',
+      capacity: 'Up to 5 pax',
+      amenities: [
+        { icon: <FaSnowflake />, label: 'Airconditioned' },
+        { icon: <FaBed />, label: '5 Beds' },
+        { icon: <FaUtensils />, label: 'Mini Fridge' },
+        { icon: <FaWifi />, label: 'Wi-Fi Access' },
+        { icon: <FaSwimmingPool />, label: 'Pool Access' },
+        { icon: <FaUtensils />, label: 'Gas and Stove' },
+        { icon: <FaFire />, label: 'Grill Access' }
+      ],
+      images: ['/images/Tepee.jpg', '/images/TepeeInterior1.jpg', '/images/TepeeInterior2.jpg']
+    },
+    {
+      id: 'villa',
+      name: 'Villa Room',
+      shortDescription: 'Spacious room with a balcony and luxurious amenities for families.',
+      description:
+        'Our spacious Villa offers the ultimate group experience, perfect for family gatherings or company outings. With a full kitchen, multiple beds, and direct access to resort amenities, it\'s your home away from home.',
+      capacity: 'Up to 10 pax',
+      amenities: [
+        { icon: <FaSnowflake />, label: 'Airconditioned' },
+        { icon: <FaBed />, label: '10 Beds (5 Double Decks)' },
+        { icon: <FaUtensils />, label: 'Full-Size Fridge' },
+        { icon: <FaWifi />, label: 'Wi-Fi Access' },
+        { icon: <FaSwimmingPool />, label: 'Pool Access' },
+        { icon: <FaUtensils />, label: 'Gas and Stove' },
+        { icon: <FaFire />, label: 'Grill Access' }
+      ],
+      images: ['/images/Villa.jpg', '/images/VillaInterior1.jpg', '/images/VillaInterior2.jpg']
+    }
   ];
 
   const [roomIndex, setRoomIndex] = useState(0);
   const roomTimeoutRef = useRef(null);
 
+  // Modal state for room details
+  const [selectedRoom, setSelectedRoom] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(null);
+
   const [promotions, setPromotions] = useState([]);
+  // Footer inquiry state
+  const [inquiryMessage, setInquiryMessage] = useState('');
+  const [isSendingInquiry, setIsSendingInquiry] = useState(false);
 
   const startSlideshow = () => {
     clearTimeout(timeoutRef.current);
@@ -74,8 +145,32 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (session?.user?.role === 'customer') {
-      router.push('/guest/dashboard');
+    // Role-based redirection for authenticated users
+    if (session?.user?.role) {
+      const role = session.user.role;
+      switch (role) {
+        case 'CUSTOMER':
+          router.push('/guest/dashboard');
+          break;
+        case 'SUPERADMIN':
+          router.push('/super-admin/dashboard');
+          break;
+        case 'ADMIN':
+          router.push('/admin/dashboard');
+          break;
+        case 'RECEPTIONIST':
+          router.push('/receptionist');
+          break;
+        case 'CASHIER':
+          router.push('/cashier');
+          break;
+        case 'AMENITYINVENTORYMANAGER':
+          router.push('/amenityinventorymanager');
+          break;
+        default:
+          // Unknown role, stay on landing page
+          break;
+      }
     }
   }, [session, router]);
 
@@ -98,6 +193,8 @@ export default function Home() {
     if (!session) {
       alert('You must be logged in to book.');
       router.push('/login?redirect=/booking');
+    } else if (session.user.role !== 'CUSTOMER') {
+      alert('Only customers can make bookings. Please contact the front desk if you need assistance.');
     } else {
       router.push('/booking');
     }
@@ -106,11 +203,46 @@ export default function Home() {
   const prevRoom = () => setRoomIndex((prev) => (prev - 1 + rooms.length) % rooms.length);
   const nextRoom = () => setRoomIndex((prev) => (prev + 1) % rooms.length);
 
+  // Modal functions
+  const openRoom = (room) => {
+    setSelectedRoom(room);
+  };
+  const closeRoom = () => {
+    setSelectedRoom(null);
+    setSelectedImage(null);
+  };
+
+  // Send inquiry to super admin
+  const submitInquiry = async (e) => {
+    e?.preventDefault?.();
+    const message = inquiryMessage.trim();
+    if (!message) return;
+    try {
+      setIsSendingInquiry(true);
+      const res = await fetch('/api/inquiries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message })
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || 'Failed to send');
+      }
+      setInquiryMessage('');
+      alert('Thanks! Your message was sent to our super admin.');
+    } catch (err) {
+      console.error('Inquiry error', err);
+      alert('Sorry, we could not send your message. Please try again later.');
+    } finally {
+      setIsSendingInquiry(false);
+    }
+  };
+
   return (
     <>
       <WelcomeModal />
       <div className="landing">
-        <header className="hero">
+        <header className={`hero ${display.variable} ${sans.variable}`}>
           <div className="background-images-container" aria-hidden>
             {images.map((image, i) => (
               <div
@@ -151,7 +283,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="explore-3d">
+  <section className={`explore-3d ${display.variable} ${sans.variable}`}>
         <img
           src="/images/background3.jpg"
           alt=""
@@ -165,8 +297,9 @@ export default function Home() {
         </div>
       </section>
 
-     <motion.section
-        className="rooms"
+    <motion.section
+      id="rooms"
+      className={`rooms ${display.variable} ${sans.variable}`}
         initial={{ opacity: 0, y: 40 }}
         whileInView={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.7 }}
@@ -177,12 +310,11 @@ export default function Home() {
           <div className="room-carousel">
             <div className="room-slides" style={{ transform: `translateX(-${roomIndex * 100}%)` }}>
               {rooms.map((r, i) => (
-                <div className="room-slide" key={i}>
-                  <img src={r.image} alt={r.title} className="room-image" />
+                <div className={`room-slide ${i === roomIndex ? 'active' : ''}`} key={i}>
+                  <img src={r.images[0]} alt={r.name} className="room-image" />
                   <div className="room-info">
-                    <h4>{r.title}</h4>
-                    <p>{r.desc}</p>
-                    <Link href="/room"><button className="see-room">See Room</button></Link>
+                    <h4>{r.name}</h4>
+                    <button className="see-room" onClick={() => openRoom(r)}>See Room</button>
                   </div>
                 </div>
               ))}
@@ -200,12 +332,49 @@ export default function Home() {
 
       <section className="policies">
         <div className="policies-inner card">
-          <h2>Resort Policies</h2>
-          <p className="muted">Rules and regulations — quick, clear, and fair.</p>
-
           <PolicyList />
         </div>
       </section>
+
+      {/* Room Details Modal */}
+      {selectedRoom && (
+        <div className="modal-overlay" role="dialog" aria-modal="true" onClick={closeRoom}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="image-gallery">
+              {selectedRoom.images.map((img, idx) => (
+                <img key={idx} src={img} alt={`${selectedRoom.name} image ${idx + 1}`} onClick={() => setSelectedImage(img)} style={{ cursor: 'pointer' }} />
+              ))}
+            </div>
+            <h2>{selectedRoom.name}</h2>
+            <p className="capacity"><FaUsers /> {selectedRoom.capacity}</p>
+            <p className="description">{selectedRoom.description}</p>
+            <ul className="amenities">
+              {selectedRoom.amenities.map((amenity, idx) => (
+                <li key={idx} className="amenity-item">
+                  <span className="icon">{amenity.icon}</span> {amenity.label}
+                </li>
+              ))}
+            </ul>
+            <div className="modal-actions">
+              <button className="book-room-btn" onClick={handleBookNow} aria-label="Proceed to booking">
+                <span className="btn-shine" aria-hidden="true"></span>
+                Book This Room
+              </button>
+              <button className="close-btn" onClick={closeRoom} aria-label="Close details">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Modal */}
+      {selectedImage && (
+        <div className="image-modal-overlay" role="dialog" aria-modal="true" onClick={() => setSelectedImage(null)}>
+          <div className="image-modal-content" onClick={e => e.stopPropagation()}>
+            <img src={selectedImage} alt="Full view" className="full-image" />
+            <button className="close-image-btn" onClick={() => setSelectedImage(null)}>Close</button>
+          </div>
+        </div>
+      )}
 
     <footer className="site-footer">
   <div className="footer-top">
@@ -299,22 +468,22 @@ export default function Home() {
       </Link>
     </li>
     <li>
-      <Link href="/virtual-tour">
-        <div className="link-item">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M21 3H3V17H7V21L12 17H21V3Z" />
-          </svg>
-          <span>3D Tour</span>
-        </div>
-      </Link>
-    </li>
-    <li>
       <Link href="/about-us">
         <div className="link-item">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM13 17H11V11H13V17ZM13 9H11V7H13V9Z" />
           </svg>
           <span>About</span>
+        </div>
+      </Link>
+    </li>
+    <li>
+      <Link href="/virtual-tour">
+        <div className="link-item">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M21 3H3V17H7V21L12 17H21V3Z" />
+          </svg>
+          <span>3D Tour</span>
         </div>
       </Link>
     </li>
@@ -326,6 +495,23 @@ export default function Home() {
       <p>📍 Liwliwa, San Felipe, Zambales 2204</p>
       <p>📞 +63 967 217 6539</p>
       <p>📧 contact@charkoolbeachresort.com</p>
+      <div className="footer-inquiry">
+        <h5 className="inquiry-heading">Send us a message!</h5>
+        <form className="inquiry-form" onSubmit={submitInquiry}>
+          <textarea
+            className="inquiry-textarea"
+            rows={4}
+            placeholder="Write your message here…"
+            value={inquiryMessage}
+            onChange={(e) => setInquiryMessage(e.target.value)}
+            maxLength={1000}
+          />
+          <button type="submit" className="inquiry-button" disabled={isSendingInquiry || !inquiryMessage.trim()}>
+            {isSendingInquiry ? 'Sending…' : 'Send Message'}
+          </button>
+        </form>
+        <p className="inquiry-note">Messages go straight to our super admin. We’ll get back to you via your account email.</p>
+      </div>
     </div>
   </div>
 
@@ -415,15 +601,20 @@ export default function Home() {
         }
         .hero h1 {
           margin: 0 0 0.6rem 0;
-          font-size: clamp(28px, 4.6vw, 52px);
+          font-family: inherit; /* unified heading font */
+          font-size: clamp(32px, 5vw, 68px);
           line-height: 1.02;
           font-weight: 700;
-          letter-spacing: -0.02em;
+          letter-spacing: -0.01em;
+          text-shadow: 0 10px 30px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.25);
         }
         .hero .sub {
           margin: 0 0 1.2rem 0;
-          color: rgba(255,255,255,0.92);
-          font-size: clamp(14px, 1.6vw, 18px);
+          color: rgba(255,255,255,0.94);
+          font-family: var(--font-sans), 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+          font-size: clamp(15px, 1.8vw, 20px);
+          letter-spacing: 0.01em;
+          text-shadow: 0 6px 16px rgba(0,0,0,0.28);
         }
         .hero-ctas {
           display: flex;
@@ -434,14 +625,43 @@ export default function Home() {
         .btn {
           border: 0;
           padding: 10px 18px;
-          border-radius: 8px;
+          border-radius: 10px;
           cursor: pointer;
-          font-weight: 600;
-          font-size: 0.95rem;
+          font-weight: 700;
+          font-size: 0.98rem;
+          font-family: var(--font-sans), 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+          transition: all 220ms ease;
         }
-        .btn.primary { background: #FEBE54; color: #102a2a; }
-        .btn.ghost { background: rgba(255,255,255,0.12); color: white; }
-        .btn.outline { background: transparent; border: 1px solid rgba(255,255,255,0.15); color: white; }
+        /* Hero-specific CTAs with premium finish */
+        .hero-ctas .btn.primary {
+          background: linear-gradient(135deg, #FBD669 0%, #FEBE54 60%, #F7A83A 100%);
+          color: #0b2a2e;
+          box-shadow: 0 10px 26px rgba(255, 191, 84, 0.35), 0 2px 8px rgba(0,0,0,0.18);
+          text-shadow: 0 1px 0 rgba(255,255,255,0.3);
+        }
+        .hero-ctas .btn.primary:hover {
+          transform: translateY(-3px) scale(1.02);
+          box-shadow: 0 16px 36px rgba(255, 191, 84, 0.45), 0 4px 12px rgba(0,0,0,0.22);
+          filter: saturate(1.05);
+        }
+        .hero-ctas .btn.ghost {
+          background: rgba(255,255,255,0.14);
+          color: #ffffff;
+          backdrop-filter: blur(6px);
+          border: 1px solid rgba(255,255,255,0.18);
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), 0 8px 20px rgba(0,0,0,0.15);
+        }
+        .hero-ctas .btn.ghost:hover {
+          transform: translateY(-3px) scale(1.02);
+          background: rgba(255,255,255,0.18);
+        }
+        .hero-ctas .btn.outline {
+          background: rgba(255,255,255,0.06);
+          border: 1px solid rgba(255,255,255,0.22);
+          color: #ffffff;
+          text-shadow: 0 1px 0 rgba(0,0,0,0.15);
+        }
+        .hero-ctas .btn.outline:hover { background: rgba(255,255,255,0.12); transform: translateY(-3px) scale(1.02); }
         .btn.big { padding: 14px 28px; font-size: 1.05rem; }
         .btn.ghost-white {
           background: white;
@@ -465,7 +685,7 @@ export default function Home() {
           box-shadow: 0 6px 16px rgba(0,0,0,0.12);
           color: #05324b;
         }
-        .btn:hover { opacity: 0.95; transform: translateY(-2px); transition: 180ms; }
+        .btn:hover { opacity: 0.98; }
         .welcome {
           position: relative;
           color: #0b3a4a;
@@ -535,7 +755,7 @@ export default function Home() {
         .explore-overlay {
           position: absolute;
           inset: 0;
-          background: linear-gradient(180deg, rgba(0,0,0,0.5), rgba(0,0,0,0.7));
+          background: linear-gradient(180deg, rgba(0,0,0,0.4), rgba(0,0,0,0.7));
           z-index: -1;
         }
         .explore-inner {
@@ -544,18 +764,32 @@ export default function Home() {
           max-width: 920px;
           text-align: center;
           padding: 50px;
+          background: rgba(255,255,255,0.06);
+          border: 1px solid rgba(255,255,255,0.14);
+          border-radius: 16px;
+          backdrop-filter: blur(6px);
+          box-shadow: 0 20px 50px rgba(0,0,0,0.25);
         }
         .explore-inner h2 {
-          margin: 0 0 8px 0;
-          font-size: clamp(22px, 3.4vw, 36px);
+          margin: 0 0 10px 0;
+          font-size: clamp(26px, 3.8vw, 42px);
           color: #fff;
-          text-shadow: 0 6px 18px rgba(0,0,0,0.6);
+          font-family: inherit; /* unified heading font */
+          text-shadow: 0 10px 28px rgba(0,0,0,0.55);
         }
         .explore-note {
-          color: #f0f0f0;
-          margin: 0 0 24px 0;
-          font-size: 1.1rem;
+          color: #f3f6f7;
+          margin: 0 0 26px 0;
+          font-size: 1.08rem;
+          font-family: var(--font-sans), 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
         }
+        .explore-inner .btn.primary.big {
+          background: linear-gradient(135deg, #FBD669 0%, #FEBE54 60%, #F7A83A 100%);
+          color: #0b2a2e;
+          box-shadow: 0 12px 28px rgba(255, 191, 84, 0.35), 0 2px 8px rgba(0,0,0,0.2);
+          text-shadow: 0 1px 0 rgba(255,255,255,0.3);
+        }
+        .explore-inner .btn.primary.big:hover { transform: translateY(-4px) scale(1.02); box-shadow: 0 20px 40px rgba(255,191,84,0.45), 0 6px 14px rgba(0,0,0,0.25); }
         .rooms {
           background: #f9fafb;
           padding: 140px 40px 150px; /* increased bottom padding to give breathing room before policies */
@@ -567,9 +801,10 @@ export default function Home() {
         }
         .rooms-title {
           margin-bottom: 60px;
-          font-size: 2.6rem;
-          font-weight: 800;
+          font-size: clamp(28px, 3.8vw, 44px);
+          font-weight: 700; /* unified heading weight */
           color: #2b1f12;
+          font-family: inherit; /* unified heading font */
         }
         .room-carousel {
           position: relative;
@@ -578,10 +813,11 @@ export default function Home() {
           margin: 0 auto;
           border-radius: 18px;
           box-shadow: 0 10px 26px rgba(0,0,0,0.08);
+          background: #fff;
         }
         .room-slides {
           display: flex;
-          transition: transform 0.6s ease-in-out;
+          transition: transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
         }
         .room-slide {
           flex: 0 0 100%;
@@ -590,11 +826,13 @@ export default function Home() {
         }
         .room-image {
           width: 100%;
-          height: 460px;
+          height: 420px;
           object-fit: cover;
           object-position: center;
-          transform: scale(0.98);
+          transform: scale(0.985);
+          transition: transform 0.8s cubic-bezier(0.22, 1, 0.36, 1), filter 0.4s ease;
         }
+        .room-slide.active .room-image { transform: scale(1.02); filter: saturate(1.02) contrast(1.02); }
         .room-info {
           padding: 24px;
           text-align: center;
@@ -603,31 +841,35 @@ export default function Home() {
           font-size: 1.6rem;
           margin-bottom: 10px;
           color: #0b3a4a;
+          font-family: var(--font-display), Georgia, 'Times New Roman', serif;
         }
         .room-info p {
           color: #4a6a6a;
           font-size: 1rem;
+          font-family: var(--font-sans), 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
           margin-bottom: 16px;
         }
         .see-room {
           padding: 12px 22px;
-          background: #f4ae40;
+          background: linear-gradient(135deg, #FBD669 0%, #FEBE54 60%, #F7A83A 100%);
           border: none;
           border-radius: 8px;
-          font-weight: 600;
+          font-weight: 700;
           cursor: pointer;
           transition: all 0.25s ease;
+          color: #0b2a2e;
+          box-shadow: 0 10px 22px rgba(255,191,84,0.28), 0 2px 8px rgba(0,0,0,0.16);
+          text-shadow: 0 1px 0 rgba(255,255,255,0.35);
         }
         .see-room:hover {
-          background: #d8922e;
-          transform: scale(1.05);
-          box-shadow: 0 6px 14px rgba(0,0,0,0.15);
+          transform: translateY(-2px) scale(1.03);
+          box-shadow: 0 16px 36px rgba(255,191,84,0.34), 0 8px 16px rgba(0,0,0,0.18);
         }
         .nav-btn {
           position: absolute;
           top: 50%;
           transform: translateY(-50%);
-          background: rgba(0,0,0,0.4);
+          background: rgba(0,0,0,0.35);
           color: #fff;
           border: none;
           font-size: 2.2rem;
@@ -636,8 +878,10 @@ export default function Home() {
           border-radius: 50%;
           cursor: pointer;
           transition: 0.3s;
+          box-shadow: 0 8px 18px rgba(0,0,0,0.25);
+          backdrop-filter: blur(4px);
         }
-        .nav-btn:hover { background: rgba(0,0,0,0.6); }
+        .nav-btn:hover { background: rgba(0,0,0,0.55); transform: translateY(-50%) scale(1.05); }
         .nav-btn.left { left: 16px; }
         .nav-btn.right { right: 16px; }
         .dots {
@@ -655,38 +899,42 @@ export default function Home() {
           cursor: pointer;
           transition: all 0.3s;
         }
-        .dot.active { background: #f4ae40; transform: scale(1.2); }
+        .dot.active { background: #f4ae40; transform: scale(1.25); box-shadow: 0 6px 12px rgba(0,0,0,0.15); }
         @media (max-width: 1024px) {
-          .room-image { height: 380px; }
+          .room-image { height: 360px; }
         }
         @media (max-width: 768px) {
           .rooms { padding: 100px 20px 70px; }
-          .room-image { height: 280px; }
+          .room-image { height: 260px; }
           .rooms-title { font-size: 2rem; margin-bottom: 40px; }
         }
         @media (max-width: 520px) {
           .nav-btn { display: none; }
-          .room-image { height: 220px; }
+          .room-image { height: 200px; }
           .rooms-title { font-size: 1.8rem; }
         }
         .policies {
-          background: #f6f8fa;
-          padding: 80px 30px; /* slightly increased top padding to separate from rooms */
+          background: #ffffff; /* plain white background */
+          padding: 80px 30px; /* space around the centered card */
           display: flex;
           justify-content: center;
+          align-items: center;
+          overflow: hidden; /* Prevent any overflow */
         }
         .policies-inner {
           max-width: 1000px;
           width: 100%;
           text-align: left;
+          overflow: hidden; /* Prevent content overflow */
         }
         /* card treatment so policies feel separated from the content above */
         .policies-inner.card {
-          background: white;
+          /* darken yellow tones slightly for better comfort */
+          background: linear-gradient(135deg, #D9B752 0%, #EED79A 100%);
           border-radius: 14px;
           padding: 28px;
           box-shadow: 0 10px 30px rgba(12, 40, 60, 0.08);
-          transform: translateY(-28px);
+          margin: 0 auto; /* centered within white background */
         }
         .policies h2 {
           margin: 0 0 12px 0;
@@ -767,6 +1015,36 @@ export default function Home() {
             grid-template-columns: 1fr;
           }
         }
+        
+        /* Responsive styles for policies section */
+        @media (max-width: 768px) {
+          .policies {
+            padding: 60px 20px;
+          }
+          .policies-inner.card {
+            padding: 20px;
+            margin: 0 10px; /* keep centered with modest gutters */
+          }
+          .policies h2 {
+            font-size: 1.2rem;
+          }
+        }
+        
+        @media (max-width: 480px) {
+          .policies {
+            padding: 40px 15px;
+          }
+          .policies-inner.card {
+            padding: 16px;
+            margin: 0 5px; /* keep centered with small gutters */
+          }
+          .policies h2 {
+            font-size: 1.1rem;
+          }
+          .policies .muted {
+            font-size: 0.9rem;
+          }
+        }
         .site-footer {
   background: #e8cfa3;
   color: #123238;
@@ -838,7 +1116,7 @@ export default function Home() {
   left: -50%;
   width: 200%;
   height: 200%;
-  background: radial-gradient(circle at center, rgba(254,190,84,0.4), transparent 70%);
+  background: none; /* remove yellow glow */
   opacity: 0;
   transform: scale(0.5);
   transition: all 0.4s ease;
@@ -856,23 +1134,14 @@ export default function Home() {
 
 .link-item:hover {
   background: rgba(255, 255, 255, 0.15);
-  transform: translateY(-2px) scale(1.02);
+  transform: translateY(-2px); /* subtle float only */
 }
 
-.link-item:hover::before {
-  opacity: 1;
-  transform: scale(1);
-}
+.link-item:hover::before { opacity: 0; transform: none; }
 
-.link-item:hover svg {
-  transform: scale(1.3);
-  opacity: 1;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.15);
-}
+.link-item:hover svg { transform: scale(1.06); opacity: 1; box-shadow: none; }
 
-.link-item:hover span {
-  color: #FEBE54;
-}
+.link-item:hover span { color: #123238; }
 
 @media (max-width: 768px) {
   .modern-links {
@@ -904,6 +1173,44 @@ export default function Home() {
     font-size: 0.95rem;
     padding: 8px 12px;
   }
+}
+
+/* Footer inquiry form */
+.footer-inquiry { margin-top: 14px; }
+.inquiry-heading { margin: 8px 0; font-size: 1rem; color: #0b3a4a; }
+.inquiry-form { display: flex; flex-direction: column; gap: 10px; }
+.inquiry-textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(0,0,0,0.12);
+  background: rgba(255,255,255,0.85);
+  color: #123238;
+  font-family: inherit;
+}
+.inquiry-textarea:focus {
+  outline: none;
+  border-color: rgba(18,50,56,0.3);
+  box-shadow: 0 0 0 4px rgba(18,50,56,0.08);
+}
+.inquiry-button {
+  align-self: flex-start;
+  background: #123238;
+  color: #fff;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+.inquiry-button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(0,0,0,0.15); }
+.inquiry-button:disabled { opacity: 0.6; cursor: not-allowed; }
+.inquiry-note { color: rgba(18,50,56,0.8); font-size: 0.88rem; margin: 4px 0 0; }
+
+@media (max-width: 768px) {
+  .footer-inquiry { margin-top: 12px; }
 }
 .location-section {
   margin-top: 18px;
@@ -988,6 +1295,192 @@ export default function Home() {
     font-size: 1.2rem;
   }
 }
+
+        /* Modal Styles */
+        .modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0,0,0,0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+          backdrop-filter: blur(4px);
+        }
+        .modal-content {
+          background: #ffffff;
+          border-radius: 16px;
+          max-width: 720px;
+          width: 90%;
+          padding: clamp(1rem, 3vw, 2rem);
+          box-shadow: 0 10px 28px rgba(0,0,0,0.2);
+          max-height: 90vh;
+          overflow-y: auto;
+          color: #0b3a4a;
+        }
+        .modal-content h2 { 
+          color: #FEBE54; 
+          margin: 0 0 0.5rem 0;
+          font-size: 1.6rem;
+          font-weight: 700;
+        }
+        .image-gallery {
+          display: flex;
+          gap: 0.75rem;
+          overflow-x: auto;
+          margin-bottom: 1rem;
+          scroll-snap-type: x mandatory;
+        }
+        .image-gallery img {
+          width: 180px;
+          height: 110px;
+          object-fit: cover;
+          border-radius: 8px;
+          flex-shrink: 0;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+          scroll-snap-align: start;
+          transition: transform 0.25s ease, box-shadow 0.25s ease;
+        }
+        .image-gallery img:hover { 
+          transform: translateY(-2px); 
+          box-shadow: 0 6px 16px rgba(0,0,0,0.18); 
+        }
+        .capacity {
+          font-weight: 600;
+          font-size: 1.1rem;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          color: #0b3a4a;
+          margin-bottom: 0.5rem;
+        }
+        .description {
+          margin-bottom: 1rem;
+          color: #0b3a4a;
+          line-height: 1.5;
+        }
+        .amenities {
+          list-style: none;
+          padding: 0;
+          margin: 0 0 1rem 0;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 1rem;
+        }
+        .amenity-item {
+          display: flex;
+          align-items: center;
+          color: #4b5563;
+        }
+        .icon {
+          margin-right: 0.5rem;
+          color: #FEBE54;
+        }
+        .modal-actions { 
+          display: flex; 
+          gap: 0.75rem; 
+          flex-wrap: wrap; 
+        }
+        .book-room-btn {
+          position: relative;
+          overflow: hidden;
+          background: linear-gradient(135deg, #FEBE54 0%, #e6ac3f 100%);
+          color: #1e1e1e;
+          border: none;
+          padding: 0.85rem 1.4rem;
+          border-radius: 12px;
+          font-weight: 800;
+          cursor: pointer;
+          margin-right: 0.5rem;
+          transition: transform 0.2s ease, box-shadow 0.3s ease, filter 0.2s ease;
+          box-shadow: 0 8px 22px rgba(254, 190, 82, 0.45);
+          outline: none;
+        }
+        .book-room-btn:hover { 
+          transform: translateY(-2px); 
+          filter: brightness(1.02); 
+          box-shadow: 0 12px 28px rgba(254, 190, 82, 0.55); 
+        }
+        .book-room-btn:active { transform: translateY(0); }
+        .book-room-btn:focus-visible { 
+          box-shadow: 0 0 0 3px rgba(254,190,82,0.35), 0 8px 22px rgba(254, 190, 82, 0.5); 
+        }
+        .btn-shine {
+          position: absolute;
+          top: 0;
+          left: -100%;
+          width: 200%;
+          height: 100%;
+          background: linear-gradient(120deg, transparent 35%, rgba(255,255,255,0.6) 50%, transparent 65%);
+          transform: skewX(-20deg);
+          transition: transform 0.6s ease;
+          pointer-events: none;
+        }
+        .book-room-btn:hover .btn-shine { 
+          transform: translateX(50%) skewX(-20deg); 
+        }
+        .close-btn {
+          background-color: #e5e7eb;
+          color: #0b3a4a;
+          border: none;
+          padding: 0.7rem 1.2rem;
+          border-radius: 10px;
+          font-weight: 600;
+          cursor: pointer;
+        }
+        .close-btn:hover { background-color: #d1d5db; }
+        
+        /* Image Modal */
+        .image-modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0,0,0,0.8);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1100;
+          backdrop-filter: blur(4px);
+        }
+        .image-modal-content {
+          background: #fff;
+          border-radius: 16px;
+          max-width: 90%;
+          max-height: 90%;
+          padding: 1rem;
+          box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          color: #0b3a4a;
+        }
+        .full-image {
+          max-width: 100%;
+          max-height: 80vh;
+          object-fit: contain;
+          border-radius: 6px;
+        }
+        .close-image-btn {
+          margin-top: 1rem;
+          background-color: #e5e7eb;
+          color: #0b3a4a;
+          border: none;
+          padding: 0.5rem 1rem;
+          border-radius: 10px;
+          cursor: pointer;
+        }
+        .close-image-btn:hover { background-color: #d1d5db; }
+        
+        @media (max-width: 640px) {
+          .book-room-btn,
+          .close-btn { 
+            width: 100%; 
+            margin-bottom: 0.5rem; 
+          }
+          .image-gallery img { 
+            width: 120px; 
+            height: 80px; 
+          }
+        }
 
         }
         @media (max-width: 900px) {

@@ -1,7 +1,8 @@
 'use client';
 import React, { useEffect, useState, useRef } from 'react';
-import { useEarlyCheckInModal, EarlyCheckInModal } from '@/components/CustomModals';
+import { useEarlyCheckInModal, EarlyCheckInModal, NavigationConfirmationModal } from '@/components/CustomModals';
 import { signOut } from 'next-auth/react';
+import { useNavigationGuard } from '../../hooks/useNavigationGuard.simple';
 import './receptionist-styles.css';
 import RoomAmenitiesSelector from '@/components/RoomAmenitiesSelector';
 import RentalAmenitiesSelector from '@/components/RentalAmenitiesSelector';
@@ -46,6 +47,17 @@ export default function ReceptionistDashboard() {
     rental: []
   });
   
+  // Logout Navigation Guard
+  const navigationGuard = useNavigationGuard({
+    shouldPreventNavigation: () => true,
+    onNavigationAttempt: () => {
+      console.log('Receptionist Dashboard: Navigation attempt detected, showing logout confirmation');
+    },
+    customAction: () => signOut({ callbackUrl: '/login' }),
+    context: 'logout',
+    message: 'Are you sure you want to log out of your Receptionist dashboard?'
+  });
+
   // Modal management functions
   const openModal = (modalType, data = null) => {
     setActiveModal(modalType);
@@ -68,6 +80,7 @@ export default function ReceptionistDashboard() {
     checkIn: '',
     checkOut: '',
     numberOfGuests: 1,
+    paymentMode: 'cash', // Default to cash
     selectedRooms: {},
     selectedAmenities: { optional: {}, rental: {}, cottage: null },
   });
@@ -1717,6 +1730,7 @@ export default function ReceptionistDashboard() {
                     checkIn: '',
                     checkOut: '',
                     numberOfGuests: 1,
+                    paymentMode: 'cash',
                     selectedRooms: {},
                     selectedAmenities: { optional: {}, rental: {}, cottage: null },
                   });
@@ -1811,6 +1825,7 @@ export default function ReceptionistDashboard() {
                       checkIn: createBookingForm.checkIn,
                       checkOut: createBookingForm.checkOut,
                       numberOfGuests: createBookingForm.numberOfGuests,
+                      paymentMode: createBookingForm.paymentMode,
                       selectedRooms: createBookingForm.selectedRooms,
                       optional,
                       rental,
@@ -1839,6 +1854,7 @@ export default function ReceptionistDashboard() {
                     checkIn: '',
                     checkOut: '',
                     numberOfGuests: 1,
+                    paymentMode: 'cash',
                     selectedRooms: {},
                     selectedAmenities: { optional: {}, rental: {}, cottage: null },
                   });
@@ -2152,6 +2168,14 @@ export default function ReceptionistDashboard() {
                                       <span className="price-label">Price:</span>
                                       <span className="price-value">₱{(room.price / 100).toFixed(2)}</span>
                                     </div>
+                                    <div className="room-availability" style={{
+                                      fontSize: '12px',
+                                      color: room.remaining > 0 ? '#059669' : '#dc2626',
+                                      fontWeight: '500',
+                                      marginTop: '4px'
+                                    }}>
+                                      {room.remaining > 0 ? `${room.remaining} available` : 'Fully booked'}
+                                    </div>
                                   </div>
                                   {isSelected && (
                                     <div className="quantity-selector">
@@ -2229,6 +2253,56 @@ export default function ReceptionistDashboard() {
                         })()}
                       </div>
                     )}
+
+                    {/* Payment Mode Selection */}
+                    <div style={{ 
+                      backgroundColor: '#FFF7ED',
+                      padding: '20px',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(254, 190, 82, 0.3)',
+                      marginTop: '20px'
+                    }}>
+                      <h4 style={{ color: '#92400E', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>💳</span>
+                        Payment Mode Selection
+                      </h4>
+                      <p style={{ fontSize: '14px', color: '#666', marginBottom: '15px' }}>
+                        Choose the payment method the customer will use for this booking:
+                      </p>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '12px' }}>
+                        {[
+                          { value: 'cash', label: 'Cash', icon: '💵' },
+                          { value: 'gcash', label: 'GCash', icon: '📱' },
+                          { value: 'maya', label: 'Maya', icon: '💳' },
+                          { value: 'card', label: 'Card', icon: '💳' }
+                        ].map((mode) => (
+                          <label key={mode.value} style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '10px',
+                            borderRadius: '6px',
+                            border: `2px solid ${createBookingForm.paymentMode === mode.value ? '#FEBE52' : '#e5e7eb'}`,
+                            backgroundColor: createBookingForm.paymentMode === mode.value ? '#FEF3C7' : '#f9fafb',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            fontSize: '14px',
+                            fontWeight: createBookingForm.paymentMode === mode.value ? '600' : '400'
+                          }}>
+                            <input
+                              type="radio"
+                              name="paymentMode"
+                              value={mode.value}
+                              checked={createBookingForm.paymentMode === mode.value}
+                              onChange={(e) => setCreateBookingForm(prev => ({ ...prev, paymentMode: e.target.value }))}
+                              style={{ margin: 0 }}
+                            />
+                            <span>{mode.icon}</span>
+                            <span>{mode.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </>
               )}
@@ -2348,7 +2422,7 @@ export default function ReceptionistDashboard() {
                       <h4 style={{ color: '#92400E', marginBottom: '10px' }}>Selected Rooms</h4>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                         {Object.entries(createBookingForm.selectedRooms).map(([roomId, quantity]) => {
-                          const room = availableRooms.find(r => r.id === roomId);
+                          const room = availableRooms.find(r => r.id === parseInt(roomId));
                           if (!room) return null;
                           return (
                             <div key={roomId} style={{
@@ -2419,7 +2493,7 @@ export default function ReceptionistDashboard() {
                       
                       {/* Room Costs */}
                       {Object.entries(createBookingForm.selectedRooms).map(([roomId, quantity]) => {
-                        const room = availableRooms.find(r => r.id === roomId);
+                        const room = availableRooms.find(r => r.id === parseInt(roomId));
                         if (!room) return null;
                         const nights = Math.max(1, (new Date(createBookingForm.checkOut) - new Date(createBookingForm.checkIn)) / (1000 * 60 * 60 * 24));
                         const roomTotal = (room.price * quantity * nights);
@@ -2599,6 +2673,7 @@ export default function ReceptionistDashboard() {
                       checkIn: '',
                       checkOut: '',
                       numberOfGuests: 1,
+                      paymentMode: 'cash',
                       selectedRooms: {},
                       selectedAmenities: { optional: {}, rental: {}, cottage: null },
                     });
@@ -2616,25 +2691,28 @@ export default function ReceptionistDashboard() {
                 </button>
               </div>
 
-              {/* Live Total Display - Fixed Bottom */}
+              {/* Total Price Display - Inside Modal */}
               {createTotalPrice > 0 && (
                 <div style={{ 
-                  position: 'fixed', 
-                  bottom: '20px', 
-                  right: '20px', 
-                  fontWeight: 'bold', 
-                  fontSize: '1.2rem', 
-                  color: '#B45309',
-                  backgroundColor: 'rgba(254, 248, 237, 0.95)',
-                  padding: '12px 18px',
-                  borderRadius: '8px',
-                  border: '2px solid #FEBE52',
-                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-                  zIndex: 200,
-                  minWidth: '200px',
-                  textAlign: 'center'
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  marginTop: '20px',
+                  marginBottom: '20px'
                 }}>
-                  Total Price: ₱{(createTotalPrice / 100).toLocaleString('en-PH', { minimumFractionDigits: 0 })}
+                  <div style={{ 
+                    fontWeight: 'bold', 
+                    fontSize: '1.2rem', 
+                    color: '#B45309',
+                    backgroundColor: 'rgba(254, 248, 237, 0.95)',
+                    padding: '12px 18px',
+                    borderRadius: '8px',
+                    border: '2px solid #FEBE52',
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                    minWidth: '200px',
+                    textAlign: 'center'
+                  }}>
+                    Total Price: ₱{(createTotalPrice / 100).toLocaleString('en-PH', { minimumFractionDigits: 0 })}
+                  </div>
                 </div>
               )}
 
@@ -3180,6 +3258,34 @@ export default function ReceptionistDashboard() {
                 </ul>
               </div>
             )}
+
+            <div style={{ marginBottom: '10px' }}>
+              <strong>Payment Mode:</strong> 
+              <span style={{
+                marginLeft: '10px',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                backgroundColor: '#FEF3C7',
+                border: '1px solid #FEBE52',
+                fontSize: '14px',
+                fontWeight: '500',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}>
+                {(() => {
+                  const mode = modalData.paymentMode?.toLowerCase() || 'cash';
+                  const icons = { cash: '💵', gcash: '📱', maya: '💳', card: '💳' };
+                  const labels = { cash: 'Cash', gcash: 'GCash', maya: 'Maya', card: 'Card' };
+                  return (
+                    <>
+                      <span>{icons[mode] || '💵'}</span>
+                      <span>{labels[mode] || 'Cash'}</span>
+                    </>
+                  );
+                })()}
+              </span>
+            </div>
 
             <div style={{ marginBottom: '10px' }}>
               <strong>Price Breakdown:</strong>
@@ -4333,6 +4439,15 @@ export default function ReceptionistDashboard() {
           }
         }
       `}</style>
+
+      {/* Logout Confirmation Modal */}
+      <NavigationConfirmationModal 
+        show={navigationGuard.showModal}
+        onStay={navigationGuard.handleStay}
+        onLeave={navigationGuard.handleLeave}
+        context="logout"
+        message={navigationGuard.message}
+      />
     </div>
   );
 }

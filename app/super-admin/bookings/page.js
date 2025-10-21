@@ -60,6 +60,8 @@ export default function BookingsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const BOOKINGS_PER_PAGE = 8;
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
@@ -383,10 +385,19 @@ export default function BookingsPage() {
   const fetchBookings = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/bookings', { headers: { 'Content-Type': 'application/json' } });
+      const res = await fetch('/api/bookings?includeDeleted=true', { headers: { 'Content-Type': 'application/json' } });
       const data = await res.json();
-      setBookings(data.filter(b => !b.isDeleted));
-      setHistoryBookings(data.filter(b => b.isDeleted));
+      
+      // Handle paginated response structure
+      const bookingsData = data.bookings || data; // Support both old and new API structure
+      
+      if (Array.isArray(bookingsData)) {
+        setBookings(bookingsData.filter(b => !b.isDeleted));
+        setHistoryBookings(bookingsData.filter(b => b.isDeleted));
+      } else {
+        console.error('Invalid bookings data format:', data);
+        setMessage({ type: 'error', text: 'Invalid bookings data format received' });
+      }
     } catch (err) {
       console.error('Failed to fetch bookings:', err);
       setMessage({ type: 'error', text: 'Failed to load bookings' });
@@ -430,6 +441,16 @@ export default function BookingsPage() {
     const matchesSearch = !searchQuery || booking.guestName.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesStatus && matchesPaymentOption && matchesPaymentMethod && matchesSearch;
   });
+
+  // Pagination calculation
+  const totalPages = Math.ceil(filteredBookings.length / BOOKINGS_PER_PAGE);
+  const startIndex = (currentPage - 1) * BOOKINGS_PER_PAGE;
+  const paginatedBookings = filteredBookings.slice(startIndex, startIndex + BOOKINGS_PER_PAGE);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterStatus, filterPaymentOption, filterPaymentMethod, searchQuery]);
 
   // Handle status change
   const handleStatusChange = async (id, newStatus) => {
@@ -1396,12 +1417,12 @@ export default function BookingsPage() {
                   <td colSpan={8} style={{ padding: '20px', textAlign: 'center' }}>Loading...</td>
                 </tr>
               ) : currentTab === 'active' ? (
-                filteredBookings.length === 0 ? (
+                paginatedBookings.length === 0 ? (
                   <tr>
                     <td colSpan={8} style={{ padding: '12px', textAlign: 'center' }}>No active bookings found</td>
                   </tr>
                 ) : (
-                  filteredBookings.map((booking) => (
+                  paginatedBookings.map((booking) => (
                     <tr key={`booking-${booking.id}`} style={{ transition: 'background 0.2s', cursor: 'pointer' }} onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f1f1f1')} onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}>
                       <td style={{ padding: '12px', border: '1px solid #ccc' }}>{booking.guestName}</td>
                       <td style={{ padding: '12px', border: '1px solid #ccc' }}>{new Date(booking.checkIn).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</td>
@@ -1551,6 +1572,91 @@ export default function BookingsPage() {
               )}
             </tbody>
           </table>
+
+          {/* Pagination Controls */}
+          {currentTab === 'active' && totalPages > 1 && (
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginTop: '20px',
+              padding: '1rem',
+              background: 'rgba(255,255,255,0.9)',
+              borderRadius: '12px',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
+            }}>
+              <span style={{
+                color: '#666',
+                fontSize: '0.9rem'
+              }}>
+                Showing {startIndex + 1}-{Math.min(startIndex + BOOKINGS_PER_PAGE, filteredBookings.length)} of {filteredBookings.length} bookings
+              </span>
+              
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <button
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  style={{
+                    padding: '8px 12px',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    background: currentPage === 1 ? '#f9fafb' : 'white',
+                    color: currentPage === 1 ? '#9ca3af' : '#374151',
+                    cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  Previous
+                </button>
+                
+                <div style={{ display: 'flex', gap: '0.25rem' }}>
+                  {[...Array(totalPages)].map((_, i) => {
+                    const page = i + 1;
+                    return (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        style={{
+                          padding: '8px 12px',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '8px',
+                          background: currentPage === page ? 'linear-gradient(135deg, #febe52 0%, #EBD591 100%)' : 'white',
+                          color: currentPage === page ? 'white' : '#374151',
+                          cursor: 'pointer',
+                          fontSize: '0.875rem',
+                          fontWeight: '500',
+                          minWidth: '40px',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        {page}
+                      </button>
+                    );
+                  })}
+                </div>
+                
+                <button
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  style={{
+                    padding: '8px 12px',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    background: currentPage === totalPages ? '#f9fafb' : 'white',
+                    color: currentPage === totalPages ? '#9ca3af' : '#374151',
+                    cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Cancellation Modal */}

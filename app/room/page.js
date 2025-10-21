@@ -1,6 +1,6 @@
 'use client'
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useMemo, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Navbar from '../../components/Navbar'
 import { FaUsers, FaSnowflake, FaBed, FaWifi, FaSwimmingPool, FaFire, FaUtensils } from 'react-icons/fa'
 
@@ -64,6 +64,34 @@ export default function RoomPage() {
   const [selectedRoom, setSelectedRoom] = useState(null)
   const [selectedImage, setSelectedImage] = useState(null)
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  const roomMap = useMemo(() => Object.fromEntries(rooms.map(r => [r.id, r])), [])
+
+  // Auto-open modal based on ?room=slug
+  useEffect(() => {
+    const slug = searchParams?.get('room')
+    if (!slug) return
+    const match = roomMap[slug]
+    if (match) {
+      setSelectedRoom(match)
+    }
+  }, [searchParams, roomMap])
+
+  // Keep URL in sync when selecting/closing
+  const openRoom = (room) => {
+    setSelectedRoom(room)
+    const params = new URLSearchParams(searchParams?.toString() || '')
+    params.set('room', room.id)
+    router.replace(`/room?${params.toString()}`)
+  }
+  const closeRoom = () => {
+    setSelectedRoom(null)
+    const params = new URLSearchParams(searchParams?.toString() || '')
+    params.delete('room')
+    const qs = params.toString()
+    router.replace(qs ? `/room?${qs}` : '/room')
+  }
 
   return (
     <>
@@ -82,7 +110,7 @@ export default function RoomPage() {
             <div className="room-content">
               <h2>{room.name}</h2>
               <p>{room.shortDescription}</p>
-              <button className="view-details-btn" onClick={() => setSelectedRoom(room)} aria-label={`View details for ${room.name}`}>
+              <button className="view-details-btn" onClick={() => openRoom(room)} aria-label={`View details for ${room.name}`}>
                 <span className="btn-shine" aria-hidden="true"></span>
                 View Room
               </button>
@@ -92,7 +120,7 @@ export default function RoomPage() {
       </main>
 
       {selectedRoom && (
-        <div className="modal-overlay" role="dialog" aria-modal="true" onClick={() => setSelectedRoom(null)}>
+        <div className="modal-overlay" role="dialog" aria-modal="true" onClick={closeRoom}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="image-gallery">
               {selectedRoom.images.map((img, idx) => (
@@ -114,7 +142,7 @@ export default function RoomPage() {
                 <span className="btn-shine" aria-hidden="true"></span>
                 Book This Room
               </button>
-              <button className="close-btn" onClick={() => setSelectedRoom(null)} aria-label="Close details">Close</button>
+              <button className="close-btn" onClick={closeRoom} aria-label="Close details">Close</button>
             </div>
           </div>
         </div>

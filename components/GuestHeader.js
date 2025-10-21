@@ -8,19 +8,18 @@ import { useUser } from '../context/UserContext';
 import { useRouter, usePathname } from 'next/navigation';
 import { Bell, User, LogOut, Settings, Check, AlertCircle, Info, CalendarCheck2, CreditCard, Menu, X, ChevronDown } from 'lucide-react';
 import { NotificationsModal } from './NotificationsModal';
+import { useNavigationGuard } from '../hooks/useNavigationGuard.simple';
+import { useNavigationContext } from '../context/NavigationContext';
+import { NavigationConfirmationModal } from './CustomModals';
 
-function GuestHeader() {
+function GuestHeader({ sessionUser }) {
   const router = useRouter();
-  const { user } = useUser();
   const pathname = usePathname();
-
+  
+  // ALL HOOKS MUST BE DECLARED FIRST - Before any conditional logic
   const [isNotificationDropdownOpen, setIsNotificationDropdownOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
-
-  const profileDropdownRef = useRef(null);
-  const notificationDropdownRef = useRef(null);
-
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [bellColor, setBellColor] = useState('white');
@@ -29,40 +28,65 @@ function GuestHeader() {
   const [hasScrolled, setHasScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showAllNotificationsModal, setShowAllNotificationsModal] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  // Helper functions for notifications
-  const getNotificationIcon = (type) => {
-    switch (type?.toLowerCase()) {
-      case 'info': return <Info size={16} />;
-      case 'booking': return <CalendarCheck2 size={16} />;
-      case 'payment': return <CreditCard size={16} />;
-      case 'alert': return <AlertCircle size={16} />;
-      default: return <Bell size={16} />;
+  const profileDropdownRef = useRef(null);
+  const notificationDropdownRef = useRef(null);
+
+  // Try to get user from context, fallback to sessionUser prop
+  let contextUser = null;
+  try {
+    const { user } = useUser();
+    contextUser = user;
+  } catch (error) {
+    // UserContext not available, will use sessionUser instead
+    contextUser = null;
+  }
+  
+  // Use context user if available, otherwise use session user
+  const user = contextUser || sessionUser;
+
+  // Navigation Guard Setup - only protect when there's actual booking progress
+  const navigationContext = useNavigationContext();
+  const isOnBookingPage = pathname?.includes('/booking');
+  
+  // Check if there's actual booking progress that needs protection
+  const hasActiveBooking = navigationContext?.bookingState?.isActive && navigationContext?.bookingState?.hasData;
+  
+  const navigationGuard = useNavigationGuard({
+    customMessage: 'You have an active booking in progress. Leaving now may lose your selection and require starting over.'
+  });
+
+  // Role validation - only CUSTOMER should see this header
+  useEffect(() => {
+    if (user && user.role !== 'CUSTOMER') {
+      // Non-customer user accessing guest header, redirect to appropriate dashboard
+      const role = user.role;
+      switch (role) {
+        case 'SUPERADMIN':
+          router.push('/super-admin/dashboard');
+          break;
+        case 'ADMIN':
+          router.push('/admin/dashboard');
+          break;
+        case 'RECEPTIONIST':
+          router.push('/receptionist');
+          break;
+        case 'CASHIER':
+          router.push('/cashier');
+          break;
+        case 'AMENITYINVENTORYMANAGER':
+          router.push('/amenityinventorymanager');
+          break;
+        default:
+          router.push('/unauthorized');
+          break;
+      }
     }
-  };
+  }, [user, router]);
 
-  const getNotificationAccent = (type) => {
-    switch (type?.toLowerCase()) {
-      case 'info': return 'linear-gradient(135deg, #3B82F6, #1D4ED8)';
-      case 'booking': return 'linear-gradient(135deg, #10B981, #059669)';
-      case 'payment': return 'linear-gradient(135deg, #F59E0B, #D97706)';
-      case 'alert': return 'linear-gradient(135deg, #EF4444, #DC2626)';
-      default: return 'linear-gradient(135deg, #6B7280, #4B5563)';
-    }
-  };
-
-  const timeAgo = (dateString) => {
-    const now = new Date();
-    const date = new Date(dateString);
-    const diffInMs = now - date;
-    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
-    const diffInDays = Math.floor(diffInHours / 24);
-
-    if (diffInHours < 1) return 'Just now';
-    if (diffInHours < 24) return `${diffInHours}h ago`;
-    if (diffInDays < 7) return `${diffInDays}d ago`;
-    return date.toLocaleDateString();
-  };
+  // Don't render header for non-customers - but still call all hooks
+  const shouldRender = user && user.role === 'CUSTOMER';
 
   // Ensure component is mounted before rendering dynamic content
   useEffect(() => {
@@ -83,7 +107,7 @@ function GuestHeader() {
 
   // Fetch notifications for user and update bell color and count
   useEffect(() => {
-    if (!isMounted) return;
+    if (!isMounted || !shouldRender) return;
     
     let isMountedLocal = true;
     
@@ -139,10 +163,50 @@ function GuestHeader() {
       clearInterval(interval);
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [user?.id, isMounted]);
+  }, [user?.id, isMounted, shouldRender]);
+
+  // Helper functions for notifications
+  const getNotificationIcon = (type) => {
+    switch (type?.toLowerCase()) {
+      case 'info': return <Info size={16} />;
+      case 'booking': return <CalendarCheck2 size={16} />;
+      case 'payment': return <CreditCard size={16} />;
+      case 'alert': return <AlertCircle size={16} />;
+      default: return <Bell size={16} />;
+    }
+  };
+
+  const getNotificationAccent = (type) => {
+    switch (type?.toLowerCase()) {
+      case 'info': return 'linear-gradient(135deg, #3B82F6, #1D4ED8)';
+      case 'booking': return 'linear-gradient(135deg, #10B981, #059669)';
+      case 'payment': return 'linear-gradient(135deg, #F59E0B, #D97706)';
+      case 'alert': return 'linear-gradient(135deg, #EF4444, #DC2626)';
+      default: return 'linear-gradient(135deg, #6B7280, #4B5563)';
+    }
+  };
+
+  const timeAgo = (dateString) => {
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffInMs = now - date;
+    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+    const diffInDays = Math.floor(diffInHours / 24);
+
+    if (diffInHours < 1) return 'Just now';
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    if (diffInDays < 7) return `${diffInDays}d ago`;
+    return date.toLocaleDateString();
+  };
 
   const handleBookNow = () => {
-    router.push('/booking');
+    // If we're on booking page with active booking, show confirmation before navigating
+    if (hasActiveBooking && isOnBookingPage) {
+      navigationGuard.navigate('/booking');
+    } else {
+      // Not on booking page or no active booking, use router directly
+      router.push('/booking');
+    }
   };
 
   const handleProfileClick = () => {
@@ -150,7 +214,24 @@ function GuestHeader() {
   };
 
   const handleSignOut = async () => {
+    // Check if there's actual booking progress that needs protection
+    if (hasActiveBooking) {
+      // Show logout confirmation modal
+      setShowLogoutModal(true);
+    } else {
+      // No active booking, proceed with logout directly
+      await signOut({ callbackUrl: '/' });
+    }
+  };
+
+  const handleLogoutConfirm = async () => {
+    setShowLogoutModal(false);
+    navigationContext?.clearAllStates?.();
     await signOut({ callbackUrl: '/' });
+  };
+
+  const handleLogoutCancel = () => {
+    setShowLogoutModal(false);
   };
 
   // Mark single notification as read
@@ -199,7 +280,35 @@ function GuestHeader() {
   };
 
   const handleEditProfile = () => {
-    router.push('/guest/profile');
+    // If we're on booking page with active booking, show confirmation before navigating
+    if (hasActiveBooking && isOnBookingPage) {
+      navigationGuard.navigate('/guest/profile');
+    } else {
+      // Not on booking page or no active booking, use router directly
+      router.push('/guest/profile');
+    }
+  };
+
+  // Custom Link wrapper that uses navigation guard only when ON booking page with progress
+  const GuardedLink = ({ href, children, className, ...props }) => {
+    const handleClick = (e) => {
+      e.preventDefault();
+      
+      // Only use navigation guard if we're ON the booking page with active booking
+      // and trying to navigate away from it
+      if (hasActiveBooking && isOnBookingPage) {
+        navigationGuard.navigate(href);
+      } else {
+        // Not on booking page or no active booking, use router directly
+        router.push(href);
+      }
+    };
+
+    return (
+      <a href={href} onClick={handleClick} className={className} {...props}>
+        {children}
+      </a>
+    );
   };
 
   const handleNotificationBellClick = async () => {
@@ -231,6 +340,11 @@ function GuestHeader() {
 
   const hasNotifications = notifications.length > 0;
 
+  // Don't render header for non-customers
+  if (!shouldRender) {
+    return null;
+  }
+
   return (
     <header className={`guest-header ${hasScrolled ? 'scrolled' : ''}`}>
       <div className="guest-header-container">
@@ -244,7 +358,7 @@ function GuestHeader() {
             {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
           
-          <Link href="/guest/dashboard" className="logo-link">
+          <GuardedLink href="/guest/dashboard" className="logo-link">
             <Image
               src="/images/logo.png"
               alt="Resort Logo"
@@ -252,21 +366,21 @@ function GuestHeader() {
               height={40}
               className="logo"
             />
-          </Link>
+          </GuardedLink>
           <span className="resort-name">Charkool</span>
         </div>
 
         {/* Center Section - Navigation */}
         <nav className={`nav-links ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
-          <Link href="/guest/dashboard" className={pathname === '/guest/dashboard' ? 'active' : ''}>
+          <GuardedLink href="/guest/dashboard" className={pathname === '/guest/dashboard' ? 'active' : ''}>
             <span>Dashboard</span>
-          </Link>
-          <Link href="/guest/3dview" className={pathname === '/guest/3dview' ? 'active' : ''}>
+          </GuardedLink>
+          <GuardedLink href="/guest/3dview" className={pathname === '/guest/3dview' ? 'active' : ''}>
             <span>3D View</span>
-          </Link>
-          <Link href="/guest/chat" className={pathname === '/guest/chat' ? 'active' : ''}>
+          </GuardedLink>
+          <GuardedLink href="/guest/chat" className={pathname === '/guest/chat' ? 'active' : ''}>
             <span>Chat</span>
-          </Link>
+          </GuardedLink>
           
           {/* Mobile-only Reserve */}
           <div className="mobile-book-container">
@@ -1712,6 +1826,28 @@ function GuestHeader() {
           }
         }
       `}</style>
+
+      {/* Navigation Confirmation Modal - only show when ON booking page with active booking */}
+      {hasActiveBooking && isOnBookingPage && (
+        <NavigationConfirmationModal 
+          show={navigationGuard.showModal}
+          onStay={navigationGuard.handleStay}
+          onLeave={navigationGuard.handleLeave}
+          context={navigationGuard.context}
+          message={navigationGuard.message}
+        />
+      )}
+
+      {/* Logout Confirmation Modal - show when there's active booking from any page */}
+      {hasActiveBooking && (
+        <NavigationConfirmationModal 
+          show={showLogoutModal}
+          onStay={handleLogoutCancel}
+          onLeave={handleLogoutConfirm}
+          context="logout"
+          message="You have an active booking in progress. Logging out will lose your current selection. Are you sure you want to logout?"
+        />
+      )}
     </header>
   );
 }

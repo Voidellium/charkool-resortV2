@@ -1,5 +1,6 @@
 import ClientNavbarWrapper from '../components/ClientNavbarWrapper';
 import BrowserFingerprintProvider from '../components/BrowserFingerprintProvider';
+import { NavigationProvider } from '../context/NavigationContext';
 import { Poppins } from 'next/font/google';
 import { getServerSession } from 'next-auth';
 import SessionWrapper from '../SessionWrapper';
@@ -29,14 +30,16 @@ export default async function RootLayout({ children }) {
           refetchInterval={0} // Disable auto refetch
           basePath="/api/auth" // Use internal API routes in merged app
         >
-          <BrowserFingerprintProvider>
-            {/* Navbar wrapper (renders navbar and handles client auth state) */}
-            <ClientNavbarWrapper />
+          <NavigationProvider>
+            <BrowserFingerprintProvider>
+              {/* Navbar wrapper (renders navbar and handles client auth state) */}
+              <ClientNavbarWrapper />
 
-            {/* Page content */}
-            <main>{children}</main>
-            <Chatbot /> {/* Add the new Chatbot component here */}
-          </BrowserFingerprintProvider>
+              {/* Page content */}
+              <main>{children}</main>
+              <Chatbot /> {/* Add the new Chatbot component here */}
+            </BrowserFingerprintProvider>
+          </NavigationProvider>
         </SessionWrapper>
       </body>
     </html>

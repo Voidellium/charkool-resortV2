@@ -20,21 +20,25 @@ import {
   User,
   Menu,
   X,
-  Check
+  Check,
+  DollarSign
 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import styles from './SuperAdminLayout.module.css';
 
 export default function SuperAdminLayout({ children, activePage, reportMenu, user }) {
-  const [reportsOpen, setReportsOpen] = useState(false);
-  const [configOpen, setConfigOpen] = useState(false);
+  const [roomsAmenitiesOpen, setRoomsAmenitiesOpen] = useState(false);
+  const [bookingsPaymentsOpen, setBookingsPaymentsOpen] = useState(false);
+  const [usersChatbotOpen, setUsersChatbotOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [navConfigOpen, setNavConfigOpen] = useState(false);
   const [profileImage, setProfileImage] = useState(user?.profileImage || null);
   const [notifications, setNotifications] = useState([]);
   const fileInputRef = useRef(null);
   const profileRef = useRef(null);
   const notifRef = useRef(null);
+  const navConfigRef = useRef(null);
   const router = useRouter();
 
   const [sidebarVisible, setSidebarVisible] = useState(true);
@@ -42,6 +46,8 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
   const [togglePressed, setTogglePressed] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [collapsedDropdownOpen, setCollapsedDropdownOpen] = useState(null);
+
 
   const toggleSidebar = () => {
     setSidebarCollapsed((s) => {
@@ -50,6 +56,10 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
         localStorage.setItem('superadmin_sidebar_collapsed', JSON.stringify(next));
       } catch (e) {
         // ignore
+      }
+      // Close collapsed dropdown when toggling sidebar
+      if (!next) {
+        setCollapsedDropdownOpen(null);
       }
       return next;
     });
@@ -75,10 +85,24 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
   }, []);
 
   useEffect(() => {
-    if (activePage === "reports") setReportsOpen(true);
-    else setReportsOpen(false);
-    if (activePage === "config") setConfigOpen(true);
-    else setConfigOpen(false);
+    // Set dropdown states based on active page
+    if (activePage === "amenities" || activePage === "rooms") {
+      setRoomsAmenitiesOpen(true);
+    } else {
+      setRoomsAmenitiesOpen(false);
+    }
+    
+    if (activePage === "bookings" || activePage === "payments") {
+      setBookingsPaymentsOpen(true);
+    } else {
+      setBookingsPaymentsOpen(false);
+    }
+    
+    if (activePage === "users" || activePage === "chatbot") {
+      setUsersChatbotOpen(true);
+    } else {
+      setUsersChatbotOpen(false);
+    }
   }, [activePage]);
 
   useEffect(() => {
@@ -87,10 +111,17 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
         setProfileOpen(false);
       if (notifRef.current && !notifRef.current.contains(event.target))
         setNotifOpen(false);
+      if (navConfigRef.current && !navConfigRef.current.contains(event.target))
+        setNavConfigOpen(false);
+      
+      // Close collapsed dropdown when clicking outside - but not when clicking on the menu item itself
+      if (collapsedDropdownOpen && !event.target.closest('[data-collapsed-menu]')) {
+        setCollapsedDropdownOpen(null);
+      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  }, [collapsedDropdownOpen, profileRef, notifRef, navConfigRef]);
 
   useEffect(() => {
     const fetchNotifications = async () => {
@@ -113,18 +144,37 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
 
   const menu = [
     { key: 'dashboard', label: 'Dashboard', path: '/super-admin/dashboard', icon: <Home size={18} /> },
-    { key: 'amenities', label: 'Amenities', path: '/super-admin/amenities', icon: <Layers size={18} /> },
-    { key: 'rooms', label: 'Rooms', path: '/super-admin/rooms', icon: <DoorOpen size={18} /> },
-    { key: 'bookings', label: 'Bookings', path: '/super-admin/bookings', icon: <Book size={18} /> },
-    { key: 'payments', label: 'Payments', path: '/super-admin/payments', icon: <CreditCard size={18} /> },
-    { key: 'users', label: 'Users', path: '/super-admin/users', icon: <Users size={18} /> },
+    { 
+      key: 'rooms-amenities', 
+      label: 'Rooms and Amenities', 
+      path: '', 
+      icon: <DoorOpen size={18} />, 
+      dropdown: [
+        { label: 'Rooms', onClick: () => router.push('/super-admin/rooms') },
+        { label: 'Amenities', onClick: () => router.push('/super-admin/amenities') }
+      ] 
+    },
+    { 
+      key: 'bookings-payments', 
+      label: 'Bookings and Payments', 
+      path: '', 
+      icon: <Book size={18} />, 
+      dropdown: [
+        { label: 'Bookings', onClick: () => router.push('/super-admin/bookings') },
+        { label: 'Payments', onClick: () => router.push('/super-admin/payments') }
+      ] 
+    },
+    { 
+      key: 'users-chatbot', 
+      label: 'Users and Chatbot Management', 
+      path: '', 
+      icon: <Users size={18} />, 
+      dropdown: [
+        { label: 'User Management', onClick: () => router.push('/super-admin/users') },
+        { label: 'Chatbot Management', onClick: () => router.push('/super-admin/chatbot') }
+      ] 
+    },
     { key: 'audit-trails', label: 'Audit Trails', path: '/super-admin/audit-trails', icon: <FileText size={18} /> },
-    { key: 'chatbot', label: 'Chatbot Management', path: '/super-admin/chatbot', icon: <MessageCircle size={18} /> },
-    { key: 'config', label: 'Configurations', path: '/super-admin/configurations/promotions', icon: <Settings size={18} />, dropdown: [
-      { label: 'Promotions', onClick: () => router.push('/super-admin/configurations/promotions') },
-      { label: 'Policies', onClick: () => router.push('/super-admin/configurations/policies') }
-    ] },
-    { key: 'reports', label: 'Reports', path: '/super-admin/reports', icon: <FileText size={18} />, dropdown: reportMenu || [] },
   ];
 
   const handleLogout = async () => {
@@ -199,7 +249,7 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
           onMouseUp={() => setTogglePressed(false)}
           onMouseLeave={() => setTogglePressed(false)}
           style={{
-            left: isMobile ? 'auto' : (sidebarCollapsed ? '104px' : '304px'),
+            left: isMobile ? 'auto' : (sidebarCollapsed ? '94px' : '274px'),
             right: isMobile ? '20px' : 'auto',
             top: isMobile ? 'auto' : '50%',
             bottom: isMobile ? '20px' : 'auto',
@@ -224,11 +274,11 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
           {/* Header */}
           {!sidebarCollapsed && (
             <h2 className={styles.sidebarHeader}>
-              Super Admin Panel
+              {user?.name ? `Super Admin ${user.name.split(' ')[0]}` : 'Super Admin'}
             </h2>
           )}
           {/* Navigation */}
-          <nav className={styles.navigation}>
+          <nav className={styles.navigation} style={{ position: 'relative', overflow: 'visible' }}>
             <ul className={styles.navigationList}>
               {menu.map((item) => (
                 <li 
@@ -239,63 +289,109 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                 >
                   {sidebarCollapsed ? (
                     <div
+                      data-collapsed-menu={item.key}
                       role="button"
                       tabIndex={0}
                       aria-label={item.label}
                       title={item.label}
-                      onClick={() => router.push(item.path)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') router.push(item.path); }}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (item.dropdown && item.dropdown.length > 0) {
+                          // Toggle dropdown for collapsed state
+                          const newState = collapsedDropdownOpen === item.key ? null : item.key;
+                          setCollapsedDropdownOpen(newState);
+                        } else {
+                          router.push(item.path);
+                        }
+                      }}
+                      onKeyDown={(e) => { 
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          if (item.dropdown && item.dropdown.length > 0) {
+                            setCollapsedDropdownOpen(collapsedDropdownOpen === item.key ? null : item.key);
+                          } else {
+                            router.push(item.path);
+                          }
+                        }
+                      }}
                       className={`${styles.menuItemCollapsed} ${
-                        activePage === item.key ? styles.menuItemCollapsedActive : ''
+                        (activePage === item.key || 
+                         (item.key === 'rooms-amenities' && (activePage === 'rooms' || activePage === 'amenities')) ||
+                         (item.key === 'bookings-payments' && (activePage === 'bookings' || activePage === 'payments')) ||
+                         (item.key === 'users-chatbot' && (activePage === 'users' || activePage === 'chatbot'))) 
+                        ? styles.menuItemCollapsedActive : ''
                       }`}
+                      style={{ position: 'relative', overflow: 'visible', zIndex: 10000 }}
                     >
                       {React.cloneElement(item.icon, { 
-                        color: activePage === item.key ? '#fff' : '#333', 
+                        color: (activePage === item.key || 
+                               (item.key === 'rooms-amenities' && (activePage === 'rooms' || activePage === 'amenities')) ||
+                               (item.key === 'bookings-payments' && (activePage === 'bookings' || activePage === 'payments')) ||
+                               (item.key === 'users-chatbot' && (activePage === 'users' || activePage === 'chatbot'))) 
+                              ? '#fff' : '#333', 
                         size: 20 
                       })}
+                      {item.dropdown && item.dropdown.length > 0 && (
+                        <ChevronRight 
+                          size={14} 
+                          style={{ 
+                            position: 'absolute', 
+                            bottom: '2px', 
+                            right: '2px',
+                            color: (activePage === item.key || 
+                                   (item.key === 'rooms-amenities' && (activePage === 'rooms' || activePage === 'amenities')) ||
+                                   (item.key === 'bookings-payments' && (activePage === 'bookings' || activePage === 'payments')) ||
+                                   (item.key === 'users-chatbot' && (activePage === 'users' || activePage === 'chatbot'))) 
+                                  ? '#fff' : '#333',
+                            backgroundColor: 'rgba(255,255,255,0.2)',
+                            borderRadius: '50%',
+                            padding: '2px'
+                          }} 
+                        />
+                      )}
+
                     </div>
                   ) : (
                     item.dropdown ? (
                       <>
                         <div style={{ position: 'relative', width: '100%' }}>
-                          <Link
-                            href={item.path}
+                          <div
                             className={`${styles.menuItemExpanded} ${
-                              activePage === item.key ? styles.menuItemExpandedActive : ''
+                              (activePage === item.key || 
+                               (item.key === 'rooms-amenities' && (activePage === 'rooms' || activePage === 'amenities')) ||
+                               (item.key === 'bookings-payments' && (activePage === 'bookings' || activePage === 'payments')) ||
+                               (item.key === 'users-chatbot' && (activePage === 'users' || activePage === 'chatbot'))) 
+                              ? styles.menuItemExpandedActive : ''
                             }`}
                             onClick={(e) => {
                               e.preventDefault();
-                              // Only toggle dropdown when the item has dropdown entries.
-                              if (item.key === 'reports') {
-                                if (item.dropdown && item.dropdown.length > 0) {
-                                  setReportsOpen(!reportsOpen);
-                                  setConfigOpen(false);
-                                  return;
-                                }
-                                // If no dropdown items (clicked from other pages), navigate to reports page
-                                router.push(item.path);
-                                return;
+                              
+                              // Close all other dropdowns first
+                              if (item.key === 'rooms-amenities') {
+                                setBookingsPaymentsOpen(false);
+                                setUsersChatbotOpen(false);
+                                setRoomsAmenitiesOpen(!roomsAmenitiesOpen);
+                              } else if (item.key === 'bookings-payments') {
+                                setRoomsAmenitiesOpen(false);
+                                setUsersChatbotOpen(false);
+                                setBookingsPaymentsOpen(!bookingsPaymentsOpen);
+                              } else if (item.key === 'users-chatbot') {
+                                setRoomsAmenitiesOpen(false);
+                                setBookingsPaymentsOpen(false);
+                                setUsersChatbotOpen(!usersChatbotOpen);
                               }
-                              if (item.key === 'config') {
-                                if (item.dropdown && item.dropdown.length > 0) {
-                                  setConfigOpen(!configOpen);
-                                  setReportsOpen(false);
-                                  return;
-                                }
-                                router.push(item.path);
-                                return;
-                              }
-                              router.push(item.path);
                             }}
+                            style={{ cursor: 'pointer' }}
                           >
                             <span style={{ marginRight: '12px' }}>
                               {React.cloneElement(item.icon, { size: 18 })}
                             </span>
                             {item.label}
-                          </Link>
+                          </div>
 
-                          {/* Dropdown panel */}
-                          {item.key === 'reports' && reportsOpen && (
+                          {/* Dropdown panels */}
+                          {item.key === 'rooms-amenities' && roomsAmenitiesOpen && (
                             <ul className={styles.dropdown}>
                               {item.dropdown.map((sub) => (
                                 <li key={sub.label} className={styles.dropdownItem}>
@@ -310,7 +406,22 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                             </ul>
                           )}
 
-                          {item.key === 'config' && configOpen && (
+                          {item.key === 'bookings-payments' && bookingsPaymentsOpen && (
+                            <ul className={styles.dropdown}>
+                              {item.dropdown.map((sub) => (
+                                <li key={sub.label} className={styles.dropdownItem}>
+                                  <div
+                                    onClick={sub.onClick}
+                                    className={styles.dropdownLink}
+                                  >
+                                    {sub.label}
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+
+                          {item.key === 'users-chatbot' && usersChatbotOpen && (
                             <ul className={styles.dropdown}>
                               {item.dropdown.map((sub) => (
                                 <li key={sub.label} className={styles.dropdownItem}>
@@ -334,7 +445,11 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                         }`}
                         onClick={(e) => {
                           e.preventDefault();
-                          router.push(item.path);
+                        // Close all dropdowns when navigating to a regular page
+                        setRoomsAmenitiesOpen(false);
+                        setBookingsPaymentsOpen(false);
+                        setUsersChatbotOpen(false);
+                        router.push(item.path);
                         }}
                       >
                         <span style={{ marginRight: '12px' }}>
@@ -348,6 +463,53 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
               ))}
             </ul>
           </nav>
+
+          {/* Collapsed Dropdown - positioned outside menu items */}
+          {sidebarCollapsed && collapsedDropdownOpen && (
+            <div 
+              className={styles.collapsedDropdown}
+              data-collapsed-menu="dropdown"
+              style={{
+                position: 'absolute',
+                left: '70px',
+                top: `${20 + (menu.findIndex(item => item.key === collapsedDropdownOpen) * 68)}px`,
+                zIndex: 10001
+              }}
+            >
+              {(() => {
+                const activeItem = menu.find(item => item.key === collapsedDropdownOpen);
+                return activeItem ? (
+                  <>
+                    <div className={styles.collapsedDropdownHeader}>
+                      {activeItem.label}
+                    </div>
+                    {activeItem.dropdown.map((sub) => (
+                      <div
+                        key={sub.label}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          sub.onClick();
+                          setCollapsedDropdownOpen(null);
+                        }}
+                        className={styles.collapsedDropdownItem}
+                      >
+                        <span style={{ marginRight: '8px' }}>
+                          {sub.label === 'Rooms' ? <DoorOpen size={16} /> :
+                           sub.label === 'Amenities' ? <Layers size={16} /> :
+                           sub.label === 'Bookings' ? <Book size={16} /> :
+                           sub.label === 'Payments' ? <CreditCard size={16} /> :
+                           sub.label === 'User Management' ? <Users size={16} /> :
+                           sub.label === 'Chatbot Management' ? <MessageCircle size={16} /> :
+                           <div style={{ width: '16px', height: '16px' }} />}
+                        </span>
+                        {sub.label}
+                      </div>
+                    ))}
+                  </>
+                ) : null;
+              })()}
+            </div>
+          )}
         </aside>
 
         {/* Main Content Area */}
@@ -627,6 +789,130 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                 )}
               </div>
 
+              {/* Configuration Dropdown */}
+              <div ref={navConfigRef} style={{ position: 'relative' }}>
+                <button
+                  onClick={() => setNavConfigOpen(!navConfigOpen)}
+                  className={styles.configButton}
+                  aria-label="Resort Promotions and Policies"
+                  title="Resort Promotions and Policies"
+                >
+                  <Settings size={22} color="#333" />
+                </button>
+                {navConfigOpen && (
+                  <div className={styles.configDropdown}>
+                    {/* Header */}
+                    <div className={styles.configDropdownHeader}>
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: '700', color: 'white' }}>
+                          Configurations
+                        </h3>
+                        <p style={{ 
+                          margin: '0.25rem 0 0 0', 
+                          fontSize: '0.8rem', 
+                          opacity: 0.9,
+                          fontWeight: '400',
+                          color: 'white'
+                        }}>
+                          Resort Promotions and Policies
+                        </p>
+                      </div>
+                      <div style={{
+                        background: 'rgba(255,255,255,0.2)',
+                        borderRadius: '20px',
+                        padding: '0.5rem 1rem',
+                        fontSize: '0.875rem',
+                        fontWeight: '600',
+                        color: 'white'
+                      }}>
+                        <Settings size={16} />
+                      </div>
+                    </div>
+
+                    {/* Configuration Items */}
+                    <div className={styles.configDropdownContent}>
+                      <div 
+                        className={styles.configDropdownItem}
+                        onClick={() => {
+                          router.push('/super-admin/configurations/promotions');
+                          setNavConfigOpen(false);
+                        }}
+                      >
+                        <div style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '10px',
+                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}>
+                          <DollarSign size={16} style={{ color: 'white' }} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <p style={{
+                            margin: '0 0 0.25rem 0',
+                            fontSize: '0.875rem',
+                            fontWeight: '600',
+                            color: '#1f2937',
+                            lineHeight: '1.4'
+                          }}>
+                            Promotions
+                          </p>
+                          <span style={{
+                            fontSize: '0.75rem',
+                            color: '#9ca3af',
+                            fontWeight: '400'
+                          }}>
+                            Manage resort promotions and offers
+                          </span>
+                        </div>
+                      </div>
+
+                      <div 
+                        className={styles.configDropdownItem}
+                        onClick={() => {
+                          router.push('/super-admin/configurations/policies');
+                          setNavConfigOpen(false);
+                        }}
+                      >
+                        <div style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '10px',
+                          background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}>
+                          <FileText size={16} style={{ color: 'white' }} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <p style={{
+                            margin: '0 0 0.25rem 0',
+                            fontSize: '0.875rem',
+                            fontWeight: '600',
+                            color: '#1f2937',
+                            lineHeight: '1.4'
+                          }}>
+                            Policies
+                          </p>
+                          <span style={{
+                            fontSize: '0.75rem',
+                            color: '#9ca3af',
+                            fontWeight: '400'
+                          }}>
+                            Manage resort policies and rules
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Profile */}
               <div ref={profileRef} style={{ position: 'relative' }}>
                 <div
@@ -647,7 +933,7 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                 {profileOpen && (
                   <div className={styles.profilePanel}>
                     <div className={styles.profileHeader}>
-                      Super Admin – {user?.name || 'Unknown'}
+                      {user?.name || 'Unknown User'}
                     </div>
                     <div
                       className={`${styles.profileAction} ${styles.profileActionPrimary}`}

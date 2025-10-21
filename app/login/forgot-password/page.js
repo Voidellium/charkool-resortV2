@@ -4,6 +4,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Shield } from 'lucide-react';
+import ClientNavbarWrapper from '../../../components/ClientNavbarWrapper';
+import Footer from '../../../components/Footer';
 
 
 export default function ForgotPasswordPage() {
@@ -189,7 +191,9 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="login-wrapper">
+    <div>
+      <ClientNavbarWrapper />
+      <div className="login-wrapper">
       <div className="login-card">
         <div className="login-left">
           <Image src="/images/logo.png" alt="Charkool Logo" width={180} height={180} className="logo-img"/>
@@ -315,29 +319,34 @@ export default function ForgotPasswordPage() {
           <Link href="/login" className="forgot-password-link">Back to Login</Link>
         </div>
       </div>
+      </div>
+      <Footer />
 
       <style jsx>{`
         .login-wrapper {
           display: flex;
-          min-height: 100vh;
+          min-height: calc(100vh - 200px);
           align-items: center;
           justify-content: center;
-          background-color: #f0f2f5;
-          padding: 1rem;
+          background: linear-gradient(135deg, #f0f2f5 0%, #e6f4f8 100%);
+          padding: 2rem 1rem;
+          margin-top: 0;
         }
         .login-card {
           display: flex;
           background: white;
-          border-radius: 10px;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          border-radius: 15px;
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
           overflow: hidden;
           width: 100%;
           max-width: 900px;
           min-height: 500px;
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(255, 255, 255, 0.2);
         }
         .login-left {
           flex: 1;
-          background: linear-gradient(135deg, #fcd34d 36%, #e6f4f8 100%);
+          background: linear-gradient(135deg, #f59e0b 0%, #fcd34d 50%, #e6f4f8 100%);
           padding: 2rem;
           display: flex;
           flex-direction: column;
@@ -345,23 +354,48 @@ export default function ForgotPasswordPage() {
           justify-content: center;
           color: white;
           text-align: center;
+          position: relative;
+          overflow: hidden;
+        }
+        .login-left::before {
+          content: '';
+          position: absolute;
+          top: -50%;
+          right: -50%;
+          width: 200%;
+          height: 200%;
+          background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+          animation: float 6s ease-in-out infinite;
         }
         .login-right {
           flex: 1;
           padding: 1.75rem;
           display: flex;
           flex-direction: column;
+          background: linear-gradient(145deg, #ffffff 0%, #fafbfc 100%);
+          position: relative;
         }
         .logo-img {
           width: 180px;
           height: auto;
           object-fit: contain;
           margin-bottom: 0.75rem;
+          filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15));
+          z-index: 1;
+          position: relative;
+          transition: transform 0.3s ease;
+        }
+        .logo-img:hover {
+          transform: scale(1.05);
         }
         .tagline {
           font-size: 1.1rem;
           line-height: 1.6rem;
           margin-top: 0.75rem;
+          text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          font-weight: 500;
+          z-index: 1;
+          position: relative;
         }
         .login-title {
           font-size: 1.65rem;
@@ -561,6 +595,21 @@ export default function ForgotPasswordPage() {
           .login-form {
             gap: 0.8rem;
           }
+        }
+        
+        @keyframes float {
+          0%, 100% { transform: translateY(0px) rotate(0deg); }
+          50% { transform: translateY(-20px) rotate(180deg); }
+        }
+        
+        /* Enhance page transitions */
+        .login-wrapper {
+          animation: fadeIn 0.5s ease-in-out;
+        }
+        
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
         }
         }
           padding: 2rem;

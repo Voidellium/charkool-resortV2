@@ -1,16 +1,10 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { 
-  Crown, 
-  Building2, 
-  Package, 
-  Briefcase, 
-  DollarSign,
   Search,
   Edit,
   Trash2,
   X,
-  User,
   Plus
 } from 'lucide-react';
 import SuperAdminLayout from '@/components/SuperAdminLayout';
@@ -26,6 +20,8 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isTablet, setIsTablet] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const USERS_PER_PAGE = 5;
   
   const { success, error } = useToast();
 
@@ -126,6 +122,16 @@ export default function UsersPage() {
   const filteredUsers = users
     .filter(u => filterRole ? u.role === filterRole : true)
     .filter(u => u.name.toLowerCase().includes(searchQuery.toLowerCase()) || u.email.toLowerCase().includes(searchQuery.toLowerCase()));
+
+  // Pagination calculation
+  const totalPages = Math.ceil(filteredUsers.length / USERS_PER_PAGE);
+  const startIndex = (currentPage - 1) * USERS_PER_PAGE;
+  const paginatedUsers = filteredUsers.slice(startIndex, startIndex + USERS_PER_PAGE);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterRole, searchQuery]);
 
   return (
     <SuperAdminLayout activePage="users">
@@ -295,56 +301,7 @@ export default function UsersPage() {
           </button>
         </div>
 
-        {/* Users Grid */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: isMobile 
-            ? '1fr' 
-            : isTablet 
-              ? 'repeat(auto-fill, minmax(350px, 1fr))' 
-              : 'repeat(auto-fill, minmax(400px, 1fr))',
-          gap: isMobile ? '1rem' : '1.5rem',
-          marginBottom: isMobile ? '1rem' : '2rem'
-        }}>
-          {loading ? (
-            <div style={{ 
-              gridColumn: '1 / -1', 
-              textAlign: 'center', 
-              padding: '3rem',
-              background: 'rgba(255,255,255,0.9)',
-              borderRadius: '16px',
-              fontSize: '1.1rem',
-              color: '#666'
-            }}>
-              Loading users...
-            </div>
-          ) : filteredUsers.length === 0 ? (
-            <div style={{ 
-              gridColumn: '1 / -1', 
-              textAlign: 'center', 
-              padding: '3rem',
-              background: 'rgba(255,255,255,0.9)',
-              borderRadius: '16px',
-              fontSize: '1.1rem',
-              color: '#666'
-            }}>
-              No users found matching your criteria
-            </div>
-          ) : (
-            filteredUsers.map((user) => (
-              <UserCard 
-                key={user.id} 
-                user={user} 
-                onEdit={handleEdit} 
-                onDelete={handleDelete}
-                isMobile={isMobile}
-                isTablet={isTablet}
-              />
-            ))
-          )}
-        </div>
-
-        {/* Legacy Table View Toggle */}
+        {/* User Management Table */}
         <div style={{
           background: 'rgba(255,255,255,0.9)',
           borderRadius: '16px',
@@ -352,14 +309,28 @@ export default function UsersPage() {
           boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
           backdropFilter: 'blur(10px)'
         }}>
-          <h3 style={{ 
-            marginBottom: isMobile ? '1rem' : '1.5rem', 
-            color: '#333', 
-            fontSize: isMobile ? '1.2rem' : '1.4rem',
-            fontWeight: '600'
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            marginBottom: isMobile ? '1rem' : '1.5rem' 
           }}>
-            Table View
-          </h3>
+            <h3 style={{ 
+              color: '#333', 
+              fontSize: isMobile ? '1.2rem' : '1.4rem',
+              fontWeight: '600',
+              margin: 0
+            }}>
+              User Management ({filteredUsers.length} users)
+            </h3>
+            <span style={{ 
+              color: '#666', 
+              fontSize: '0.9rem' 
+            }}>
+              Page {currentPage} of {totalPages}
+            </span>
+          </div>
+          
           <div style={{ 
             overflowX: 'auto',
             borderRadius: '12px',
@@ -420,7 +391,7 @@ export default function UsersPage() {
                     Loading users...
                   </td>
                 </tr>
-              ) : filteredUsers.length === 0 ? (
+              ) : paginatedUsers.length === 0 ? (
                 <tr>
                   <td colSpan={4} style={{ 
                     padding: '2rem', 
@@ -434,7 +405,7 @@ export default function UsersPage() {
                   </td>
                 </tr>
               ) : (
-                filteredUsers.map((user, index) => (
+                paginatedUsers.map((user, index) => (
                   <tr 
                     key={user.id} 
                     style={{ 
@@ -577,6 +548,118 @@ export default function UsersPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginTop: '1.5rem',
+              gap: '1rem'
+            }}>
+              <span style={{
+                color: '#666',
+                fontSize: '0.9rem'
+              }}>
+                Showing {startIndex + 1}-{Math.min(startIndex + USERS_PER_PAGE, filteredUsers.length)} of {filteredUsers.length} users
+              </span>
+              
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <button
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  style={{
+                    padding: '8px 12px',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    background: currentPage === 1 ? '#f9fafb' : 'white',
+                    color: currentPage === 1 ? '#9ca3af' : '#374151',
+                    cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (currentPage !== 1) {
+                      e.currentTarget.style.background = '#f3f4f6';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (currentPage !== 1) {
+                      e.currentTarget.style.background = 'white';
+                    }
+                  }}
+                >
+                  Previous
+                </button>
+                
+                <div style={{ display: 'flex', gap: '0.25rem' }}>
+                  {[...Array(totalPages)].map((_, i) => {
+                    const page = i + 1;
+                    return (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        style={{
+                          padding: '8px 12px',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '8px',
+                          background: currentPage === page ? 'linear-gradient(135deg, #febe52 0%, #EBD591 100%)' : 'white',
+                          color: currentPage === page ? 'white' : '#374151',
+                          cursor: 'pointer',
+                          fontSize: '0.875rem',
+                          fontWeight: '500',
+                          minWidth: '40px',
+                          transition: 'all 0.2s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (currentPage !== page) {
+                            e.currentTarget.style.background = '#f3f4f6';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (currentPage !== page) {
+                            e.currentTarget.style.background = 'white';
+                          }
+                        }}
+                      >
+                        {page}
+                      </button>
+                    );
+                  })}
+                </div>
+                
+                <button
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  style={{
+                    padding: '8px 12px',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    background: currentPage === totalPages ? '#f9fafb' : 'white',
+                    color: currentPage === totalPages ? '#9ca3af' : '#374151',
+                    cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (currentPage !== totalPages) {
+                      e.currentTarget.style.background = '#f3f4f6';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (currentPage !== totalPages) {
+                      e.currentTarget.style.background = 'white';
+                    }
+                  }}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Modal for Add/Edit */}
@@ -797,157 +880,5 @@ export default function UsersPage() {
         variant="danger"
       />
     </SuperAdminLayout>
-  );
-}
-
-function UserCard({ user, onEdit, onDelete, isMobile, isTablet }) {
-  const roleColors = {
-    SUPERADMIN: '#eb7407',
-    RECEPTIONIST: '#ebb307', 
-    AMENITYINVENTORYMANAGER: '#febe52',
-    MANAGER: '#f59e0b',
-    CASHIER: '#EBEA07'
-  };
-
-  const roleIcons = {
-    SUPERADMIN: <Crown size={16} style={{color: '#667eea'}} />,
-    RECEPTIONIST: <Building2 size={16} style={{color: '#667eea'}} />,
-    AMENITYINVENTORYMANAGER: <Package size={16} style={{color: '#667eea'}} />,
-    MANAGER: <Briefcase size={16} style={{color: '#667eea'}} />,
-    CASHIER: <DollarSign size={16} style={{color: '#667eea'}} />
-  };
-
-  return (
-    <div style={{
-      background: 'rgba(255,255,255,0.9)',
-      borderRadius: isMobile ? '12px' : '16px',
-      padding: isMobile ? '1rem' : isTablet ? '1.25rem' : '1.5rem',
-      boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
-      backdropFilter: 'blur(10px)',
-      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-      border: '1px solid rgba(255,255,255,0.2)',
-      position: 'relative',
-      overflow: 'hidden'
-    }}
-    onMouseEnter={(e) => {
-      e.currentTarget.style.transform = 'translateY(-8px)';
-      e.currentTarget.style.boxShadow = '0 16px 40px rgba(0,0,0,0.15)';
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.transform = 'translateY(0)';
-      e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,0,0,0.1)';
-    }}
-    >
-      {/* Role Badge */}
-      <div style={{
-        position: 'absolute',
-        top: '1rem',
-        right: '1rem',
-        background: roleColors[user.role] || '#6b7280',
-        color: 'white',
-        padding: '0.5rem 1rem',
-        borderRadius: '20px',
-        fontSize: '0.8rem',
-        fontWeight: '600',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.5rem'
-      }}>
-        {roleIcons[user.role] || <User size={16} style={{color: '#6b7280'}} />}
-        {user.role.replace('AMENITYINVENTORYMANAGER', 'INVENTORY')}
-      </div>
-
-      {/* User Info */}
-      <div style={{ marginTop: '1rem' }}>
-        <h3 style={{
-          fontSize: isMobile ? '1.1rem' : isTablet ? '1.2rem' : '1.3rem',
-          fontWeight: '600',
-          color: '#1f2937',
-          margin: '0 0 0.5rem 0',
-          paddingRight: isMobile ? '4rem' : '6rem'
-        }}>
-          {user.name}
-        </h3>
-        
-        <p style={{
-          color: '#6b7280',
-          margin: isMobile ? '0 0 1rem 0' : '0 0 1.5rem 0',
-          fontSize: isMobile ? '0.9rem' : '1rem',
-          wordBreak: 'break-word'
-        }}>
-          {user.email}
-        </p>
-        
-        <div style={{
-          display: 'flex',
-          gap: '0.75rem',
-          marginTop: '1rem'
-        }}>
-          <button
-            onClick={() => onEdit(user)}
-            style={{
-              flex: 1,
-              padding: '0.75rem 1rem',
-              background: 'linear-gradient(135deg, #febe52 0%, #EBD591 100%)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '0.9rem',
-              fontWeight: '500',
-              cursor: 'pointer',
-              transition: 'all 0.3s ease'
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.transform = 'translateY(-2px)';
-              e.target.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.4)';
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.transform = 'translateY(0)';
-              e.target.style.boxShadow = 'none';
-            }}
-          >
-            <Edit size={16} style={{ marginRight: '4px' }} /> Edit
-          </button>
-          
-          <button
-            onClick={() => onDelete(user.id)}
-            style={{
-              flex: 1,
-              padding: '0.75rem 1rem',
-              background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '0.9rem',
-              fontWeight: '500',
-              cursor: 'pointer',
-              transition: 'all 0.3s ease'
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.transform = 'translateY(-2px)';
-              e.target.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.4)';
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.transform = 'translateY(0)';
-              e.target.style.boxShadow = 'none';
-            }}
-          >
-            <Trash2 size={16} style={{ marginRight: '4px' }} /> Delete
-          </button>
-        </div>
-      </div>
-      
-      {/* Decorative Element */}
-      <div style={{
-        position: 'absolute',
-        bottom: -20,
-        right: -20,
-        width: 80,
-        height: 80,
-        background: `linear-gradient(135deg, ${roleColors[user.role] || '#6b7280'}20, ${roleColors[user.role] || '#6b7280'}10)`,
-        borderRadius: '50%',
-        zIndex: 0
-      }} />
-    </div>
   );
 }
