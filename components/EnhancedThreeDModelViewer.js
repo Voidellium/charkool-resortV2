@@ -8,9 +8,188 @@ import { useLoader } from "@react-three/fiber";
 import { useSpring } from "@react-spring/three";
 import * as THREE from "three";
 
-function Model({ url, onObjectClick, onPositionsComputed }) {
-  const gltf = useLoader(GLTFLoader, url);
+// Error Boundary for handling Three.js and React errors
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('3D Model Viewer Error:', error, errorInfo);
+    // Check if this is the specific R3F error
+    if (error.message && error.message.includes('R3F: Div is not part of the THREE namespace')) {
+      console.warn('React Three Fiber namespace error detected - this is likely due to improper HTML element usage in Canvas context');
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: '#f0f0f0',
+          color: '#666',
+          flexDirection: 'column',
+          gap: '10px'
+        }}>
+          <div style={{ fontSize: '48px' }}>⚠️</div>
+          <div style={{ fontSize: '16px', fontWeight: 'bold' }}>3D Model Loading Error</div>
+          <div style={{ fontSize: '14px', textAlign: 'center', maxWidth: '300px' }}>
+            There was an issue loading the 3D model. This may be due to missing textures or corrupted model files.
+          </div>
+          <button 
+            onClick={() => this.setState({ hasError: false, error: null })}
+            style={{
+              padding: '8px 16px',
+              background: '#007bff',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+// Custom hook for loading GLTF with enhanced error handling
+function useEnhancedGLTFLoader(url) {
+  const [gltf, setGltf] = useState(null);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loader = new GLTFLoader();
+    const loadingManager = new THREE.LoadingManager();
+    
+    loadingManager.onError = (failedUrl) => {
+      console.warn(`Failed to load resource: ${failedUrl} - Continuing with fallback`);
+      // Check if it's a CSP-related error for data URIs
+      if (failedUrl && failedUrl.startsWith('data:')) {
+        console.warn('CSP blocking data URI - this should be fixed now with updated CSP policy');
+      }
+      // Don't treat texture loading errors as fatal
+    };
+
+    loader.manager = loadingManager;
+
+    setLoading(true);
+    setError(null);
+
+    loader.load(
+      url,
+      (loadedGltf) => {
+        // Process the loaded GLTF to handle texture issues
+        loadedGltf.scene.traverse((child) => {
+          if (child.isMesh && child.material) {
+            const materials = Array.isArray(child.material) ? child.material : [child.material];
+            
+            materials.forEach((material, index) => {
+              // Create a robust material that doesn't break on texture errors
+              const safeMaterial = material.clone();
+              
+              // Handle texture loading errors gracefully
+              const textureProperties = ['map', 'normalMap', 'emissiveMap', 'roughnessMap', 'metalnessMap', 'aoMap'];
+              
+              textureProperties.forEach(prop => {
+                if (safeMaterial[prop]) {
+                  const texture = safeMaterial[prop];
+                  
+                  // Add comprehensive error handling for textures
+                  if (texture.image === undefined || texture.image === null) {
+                    console.warn(`Missing texture image for ${prop} in material: ${material.name || 'unnamed'}`);
+                    safeMaterial[prop] = null;
+                    // Provide visual feedback with color
+                    if (prop === 'map') {
+                      safeMaterial.color = new THREE.Color(0x888888);
+                    }
+                  } else if (texture.image) {
+                    // Add error event listener for runtime texture loading failures
+                    const originalImage = texture.image;
+                    if (originalImage.addEventListener) {
+                      originalImage.addEventListener('error', () => {
+                        console.warn(`Runtime texture loading error for ${prop} in material: ${material.name || 'unnamed'}`);
+                        safeMaterial[prop] = null;
+                        if (prop === 'map') {
+                          safeMaterial.color = new THREE.Color(0x888888);
+                        }
+                        safeMaterial.needsUpdate = true;
+                      });
+                    }
+                  }
+                }
+              });
+              
+              safeMaterial.needsUpdate = true;
+              
+              if (Array.isArray(child.material)) {
+                child.material[index] = safeMaterial;
+              } else {
+                child.material = safeMaterial;
+              }
+            });
+          }
+        });
+
+        console.log('3D Model loaded successfully with texture fallbacks applied');
+        setGltf(loadedGltf);
+        setLoading(false);
+      },
+      (progress) => {
+        // Progress callback - can be used for loading indicator
+      },
+      (error) => {
+        console.error('Error loading GLTF:', error);
+        
+        // Categorize the error for better user feedback
+        let errorMessage = 'Failed to load 3D model';
+        if (error.message && error.message.includes('404')) {
+          errorMessage = 'Model file not found';
+        } else if (error.message && error.message.includes('CSP')) {
+          errorMessage = 'Content Security Policy blocking model resources';
+        } else if (error.message && error.message.includes('texture')) {
+          errorMessage = 'Texture loading error';
+        }
+        
+        setError({ ...error, userMessage: errorMessage });
+        setLoading(false);
+      }
+    );
+  }, [url]);
+
+  return { gltf, error, loading };
+}
+
+function Model({ url, onObjectClick, onPositionsComputed, onError }) {
+  // Use custom hook with enhanced error handling
+  const { gltf, error, loading } = useEnhancedGLTFLoader(url);
   const sceneRef = useRef();
+
+  // Report errors to parent component instead of rendering HTML in Canvas
+  useEffect(() => {
+    if (error && onError) {
+      onError(error);
+    }
+  }, [error, onError]);
+
+  // IMPORTANT: Do not return early before declaring hooks below.
+  // Returning early conditionally would change the hooks order between renders
+  // and cause "Rendered more hooks than during the previous render" errors.
 
   useEffect(() => {
     if (gltf) {
@@ -57,7 +236,8 @@ function Model({ url, onObjectClick, onPositionsComputed }) {
     }
   }, [positions, onPositionsComputed]);
 
-  return (
+  // Render only when gltf is ready; otherwise render nothing.
+  return gltf ? (
     <primitive
       ref={sceneRef}
       object={gltf.scene}
@@ -68,12 +248,45 @@ function Model({ url, onObjectClick, onPositionsComputed }) {
         }
       }}
     />
-  );
+  ) : null;
 }
 
 function Loader() {
-  const { progress } = useProgress();
-  return <Html center>{progress.toFixed(0)} % loaded</Html>;
+  const { progress, errors, item, loaded, total } = useProgress();
+  
+  // Show error message if there are loading errors
+  if (errors.length > 0) {
+    console.warn('Loading errors detected:', errors);
+    return (
+      <Html center>
+        <div style={{ 
+          color: 'white', 
+          background: 'rgba(0,0,0,0.8)', 
+          padding: '10px', 
+          borderRadius: '5px',
+          textAlign: 'center' 
+        }}>
+          Loading model with texture fallbacks...
+          <br />
+          {progress.toFixed(0)}% loaded
+        </div>
+      </Html>
+    );
+  }
+  
+  return (
+    <Html center>
+      <div style={{ 
+        color: 'white', 
+        background: 'rgba(0,0,0,0.8)', 
+        padding: '10px', 
+        borderRadius: '5px',
+        textAlign: 'center' 
+      }}>
+        {progress.toFixed(0)}% loaded
+      </div>
+    </Html>
+  );
 }
 
 function AnimatedControls({ target, position, isLocked }) {
@@ -166,9 +379,10 @@ function AnimatedControls({ target, position, isLocked }) {
   );
 }
 
-export default function EnhancedThreeDModelViewer({ selectedObject, onSelectObject }) {
+function EnhancedThreeDModelViewerInner({ selectedObject, onSelectObject }) {
   const [objectPositions, setObjectPositions] = useState({});
   const [isLocked, setIsLocked] = useState(false);
+  const [modelError, setModelError] = useState(null);
   const canvasRef = useRef();
   const modelPath = "/models/WholeMap_Separated_Textured.gltf";
 
@@ -202,7 +416,47 @@ export default function EnhancedThreeDModelViewer({ selectedObject, onSelectObje
     setObjectPositions(positions);
   }, []);
 
+  const handleModelError = useCallback((error) => {
+    setModelError(error);
+  }, []);
+
   const { target, position } = getObjectPosition(selectedObject);
+
+  // Show error UI outside of Canvas if model fails to load
+  if (modelError) {
+    return (
+      <div style={{
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#f0f0f0',
+        color: '#666',
+        flexDirection: 'column',
+        gap: '10px'
+      }}>
+        <div style={{ fontSize: '48px' }}>⚠️</div>
+        <div style={{ fontSize: '16px', fontWeight: 'bold' }}>3D Model Loading Error</div>
+        <div style={{ fontSize: '14px', textAlign: 'center', maxWidth: '300px' }}>
+          {modelError.userMessage || 'There was an issue loading the 3D model. This may be due to missing textures or corrupted model files.'}
+        </div>
+        <button 
+          onClick={() => setModelError(null)}
+          style={{
+            padding: '8px 16px',
+            background: '#007bff',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -221,6 +475,11 @@ export default function EnhancedThreeDModelViewer({ selectedObject, onSelectObje
           width: '100%',
           height: '100%',
         }}
+        onError={(error) => {
+          console.error('Canvas Error:', error);
+          // Set model error to show fallback UI
+          setModelError({ userMessage: 'Canvas initialization failed', originalError: error });
+        }}
       >
         <ambientLight intensity={0.8} />
         <hemisphereLight intensity={0.6} skyColor="#E09D28" groundColor="#000000" />
@@ -232,10 +491,20 @@ export default function EnhancedThreeDModelViewer({ selectedObject, onSelectObje
             url={modelPath}
             onObjectClick={handleObjectSelection}
             onPositionsComputed={handlePositionsComputed}
+            onError={handleModelError}
           />
           <AnimatedControls target={target} position={position} isLocked={isLocked} />
         </Suspense>
       </Canvas>
     </div>
+  );
+}
+
+// Wrap with ErrorBoundary at the highest level
+export default function EnhancedThreeDModelViewer(props) {
+  return (
+    <ErrorBoundary>
+      <EnhancedThreeDModelViewerInner {...props} />
+    </ErrorBoundary>
   );
 }

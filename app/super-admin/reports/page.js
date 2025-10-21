@@ -7,7 +7,7 @@
     CartesianGrid, Legend, LineChart, Line, Area, AreaChart
   } from "recharts";
   import { 
-    FileText, Download, Calendar, Users, DollarSign, TrendingUp, 
+    FileText, Download, Calendar, Users, TrendingUp, 
     ChevronLeft, ChevronRight, Search, Filter, BarChart3, 
     Table as TableIcon, Eye, MoreVertical 
   } from 'lucide-react';
@@ -807,7 +807,7 @@
                     alignItems: 'center',
                     justifyContent: 'center'
                   }}>
-                    <DollarSign size={24} color="white" />
+                    <span style={{ fontSize: '24px', color: 'white', fontWeight: 'bold' }}>₱</span>
                   </div>
                   <h3 style={{
                     fontSize: '1rem',

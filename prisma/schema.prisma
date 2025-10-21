@@ -63,6 +63,9 @@ model User {
   // Relations for cashier verification and remarks
   verifiedPayments Payment[]        @relation("VerifiedPaymentsByUser")
   remarksAuthored  BookingRemark[]  @relation("RemarksAuthored")
+  
+  // Relations for developer 3D model uploads
+  uploadedModels   ThreeDModel[]
 }
 
 model OTP {
@@ -366,6 +369,7 @@ enum Role {
   RECEPTIONIST
   CASHIER
   AMENITYINVENTORYMANAGER
+  DEVELOPER
 }
 
 enum RoomType {
@@ -463,4 +467,21 @@ model AuditTrail {
 
   @@index([actorId])
   @@index([timestamp])
+}
+
+// Track 3D models for the virtual tour system
+model ThreeDModel {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  fileName    String   @unique // e.g., "WholeMap_Separated_Textured.gltf"
+  filePath    String   // full path in public folder
+  fileType    String   // "GLTF" or "OBJ"
+  fileSize    Int?     // size in bytes
+  isActive    Boolean  @default(false) // only one can be active at a time
+  uploadedBy  Int?     // developer who uploaded
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  description String?
+  
+  developer   User?    @relation(fields: [uploadedBy], references: [id])
 }

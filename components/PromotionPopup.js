@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { X, Tag, Calendar, Percent, DollarSign, Sparkles } from 'lucide-react';
+import { X, Tag, Calendar, Percent, Sparkles } from 'lucide-react';
 
 export default function PromotionPopup({ promotions }) {
   const [currentPromotion, setCurrentPromotion] = useState(null);
@@ -195,7 +195,7 @@ export default function PromotionPopup({ promotions }) {
             }}>
               {currentPromotion.discountType === 'percentage' ? 
                 <Percent size={20} color="white" /> : 
-                <DollarSign size={20} color="white" />
+                <span style={{fontSize: '20px', color: 'white', fontWeight: 'bold'}}>₱</span>
               }
             </div>
             <div>

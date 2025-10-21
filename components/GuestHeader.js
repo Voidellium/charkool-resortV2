@@ -345,10 +345,15 @@ function GuestHeader({ sessionUser }) {
     return null;
   }
 
+  // Prevent hydration mismatch - always render the same structure
+  if (!isMounted) {
+    return null;
+  }
+
   return (
     <header className={`guest-header ${hasScrolled ? 'scrolled' : ''}`}>
       <div className="guest-header-container">
-        {/* Left Section - Logo */}
+        {/* Left Section - Brand */}
         <div className="logo-container">
           <button
             className="mobile-menu-toggle"
@@ -359,39 +364,43 @@ function GuestHeader({ sessionUser }) {
           </button>
           
           <GuardedLink href="/guest/dashboard" className="logo-link">
-            <Image
-              src="/images/logo.png"
-              alt="Resort Logo"
-              width={40}
-              height={40}
-              className="logo"
-            />
+            <div className="brand-text-container">
+              <span className="brand-title">
+                Charkool
+                <span className="brand-glow"></span>
+              </span>
+              <span className="brand-subtitle">Beach Resort</span>
+            </div>
           </GuardedLink>
-          <span className="resort-name">Charkool</span>
         </div>
 
-        {/* Center Section - Navigation */}
-        <nav className={`nav-links ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
-          <GuardedLink href="/guest/dashboard" className={pathname === '/guest/dashboard' ? 'active' : ''}>
-            <span>Dashboard</span>
-          </GuardedLink>
-          <GuardedLink href="/guest/3dview" className={pathname === '/guest/3dview' ? 'active' : ''}>
-            <span>3D View</span>
-          </GuardedLink>
-          <GuardedLink href="/guest/chat" className={pathname === '/guest/chat' ? 'active' : ''}>
-            <span>Chat</span>
-          </GuardedLink>
-          
-          {/* Mobile-only Reserve */}
-          <div className="mobile-book-container">
-            <button className="mobile-book-btn" onClick={() => { setIsMobileMenuOpen(false); handleBookNow(); }}>
-              Reserve Room
-            </button>
-          </div>
-        </nav>
-
-        {/* Right Section - Actions */}
+        {/* Right Section - Navigation & Actions */}
         <div className="action-links">
+          {/* Navigation Links */}
+          <nav className={`nav-links ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
+            <GuardedLink href="/guest/dashboard" className={pathname === '/guest/dashboard' ? 'active' : ''}>
+              <span>Dashboard</span>
+            </GuardedLink>
+            <GuardedLink href="/guest/3dview" className={pathname === '/guest/3dview' ? 'active' : ''}>
+              <span>Virtual Tour</span>
+            </GuardedLink>
+            <GuardedLink href="/guest/chat" className={pathname === '/guest/chat' ? 'active' : ''}>
+              <span>Chat</span>
+            </GuardedLink>
+            
+            {/* Mobile-only Book Now */}
+            <div className="mobile-book-container">
+              <button className="mobile-book-btn" onClick={() => { setIsMobileMenuOpen(false); handleBookNow(); }}>
+                Book Now
+              </button>
+            </div>
+          </nav>
+
+          {/* Book Now Button */}
+          <button className="book-now-btn" onClick={handleBookNow}>
+            Book Now
+          </button>
+
           {/* Notifications */}
           <div className="notification-container" ref={notificationDropdownRef}>
             <button
@@ -546,11 +555,6 @@ function GuestHeader({ sessionUser }) {
             )}
           </div>
 
-          {/* Reserve Room Button */}
-          <button className="book-now-btn" onClick={handleBookNow}>
-            Reserve Room
-          </button>
-
           {/* Profile Dropdown */}
           <div className="profile-container" ref={profileDropdownRef}>
             <button
@@ -558,30 +562,13 @@ function GuestHeader({ sessionUser }) {
               onClick={handleProfileClick}
               aria-label="Profile"
             >
-              <div className="menu-icon">
-                <span></span>
-                <span></span>
-                <span></span>
+              <div className="profile-avatar-fallback">
+                {user?.name ? (
+                  user.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
+                ) : (
+                  <User size={18} />
+                )}
               </div>
-              {user?.image ? (
-                <div className="profile-avatar">
-                  <Image
-                    src={user.image}
-                    alt="Profile"
-                    width={32}
-                    height={32}
-                    style={{ borderRadius: '50%', objectFit: 'cover' }}
-                  />
-                </div>
-              ) : (
-                <div className="profile-avatar-fallback">
-                  {user?.name ? (
-                    user.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
-                  ) : (
-                    <User size={18} />
-                  )}
-                </div>
-              )}
               <ChevronDown size={16} className="profile-chevron" />
             </button>
             {isProfileDropdownOpen && (
@@ -680,22 +667,17 @@ function GuestHeader({ sessionUser }) {
           border-bottom: none !important;
         }
 
-        .logo {
-          display: block;
-          height: 60px;
-          width: auto;
-          filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.18));
-          border-radius: 4px;
-          transition: transform 0.3s ease;
+        .brand-text-container {
+          display: flex;
+          flex-direction: column;
+          margin-left: 0.4rem;
+          justify-content: center;
+          align-items: flex-start;
         }
 
-        .logo:hover {
-          transform: rotate(2deg) scale(1.05);
-        }
-
-        .resort-name {
+        .brand-title {
           position: relative;
-          font-size: 1.5rem;
+          font-size: 2rem;
           font-weight: 800;
           letter-spacing: 1px;
           text-transform: uppercase;
@@ -705,6 +687,34 @@ function GuestHeader({ sessionUser }) {
           display: inline-flex;
           align-items: center;
           text-decoration: none;
+        }
+
+        .brand-glow {
+          position: absolute;
+          inset: 45% -18px auto auto;
+          width: 36px;
+          height: 36px;
+          background: radial-gradient(circle, rgba(255, 255, 255, 0.9), rgba(253, 230, 138, 0));
+          filter: blur(12px);
+          opacity: 0;
+          transition: transform 0.5s ease, opacity 0.5s ease;
+        }
+
+        .brand-subtitle {
+          margin-top: -0.1rem;
+          font-size: 0.9rem;
+          font-weight: 600;
+          letter-spacing: 0.65rem;
+          text-transform: uppercase;
+          color: rgba(255, 255, 255, 0.85);
+          white-space: nowrap;
+          text-decoration: none;
+        }
+
+        .logo-link:hover .brand-glow,
+        .guest-header.scrolled .brand-glow {
+          opacity: 1;
+          transform: scale(1.1);
         }
 
         .mobile-menu-toggle {
@@ -728,8 +738,6 @@ function GuestHeader({ sessionUser }) {
         .nav-links {
           display: flex;
           gap: 1.4rem;
-          flex: 1;
-          justify-content: center;
           align-items: center;
           list-style: none;
           margin: 0;
@@ -1139,31 +1147,44 @@ function GuestHeader({ sessionUser }) {
           transform: translateY(-1px);
         }
 
-        /* Reserve Room Button */
+        /* Action Links Container */
+        .action-links {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+        }
+
+        /* Book Now Button */
         .book-now-btn {
-          background: linear-gradient(135deg, #f97316 0%, #facc15 40%, #fb923c 100%);
-          border: none;
+          /* Premium amber-gold gradient that blends with the navbar palette */
+          background: linear-gradient(135deg, #b45309 0%, #f59e0b 52%, #fcd34d 100%);
           color: #fff;
           font-size: 1.08rem;
           font-weight: 800;
           padding: 0.65em 1.9em;
           border-radius: 999px;
-          box-shadow: 0 18px 35px -14px rgba(249, 115, 22, 0.8);
+          /* Subtle border for definition */
+          border: 1px solid rgba(253, 230, 138, 0.6);
+          /* Gentle glow for depth */
+          box-shadow: 0 18px 35px -16px rgba(245, 158, 11, 0.55), 0 0 0 1px rgba(253, 230, 138, 0.18) inset;
           cursor: pointer;
-          transition: transform 0.35s ease, box-shadow 0.35s ease;
+          transition: transform 0.35s ease, box-shadow 0.35s ease, background 0.35s ease;
           letter-spacing: 0.14em;
           margin-right: 0.5rem;
           min-width: 150px;
           text-transform: uppercase;
           position: relative;
           overflow: hidden;
+          /* Subtle outline to make it stand out without being loud */
+          outline: 1px solid rgba(255, 255, 255, 0.12);
+          outline-offset: 2px;
         }
 
         .book-now-btn::after {
           content: '';
           position: absolute;
           inset: 0;
-          background: linear-gradient(120deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0));
+          background: linear-gradient(120deg, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0));
           transform: translateX(-100%);
           transition: transform 0.45s ease;
         }
@@ -1171,7 +1192,8 @@ function GuestHeader({ sessionUser }) {
         .book-now-btn:hover,
         .book-now-btn:focus {
           transform: translateY(-4px) scale(1.04);
-          box-shadow: 0 20px 40px -12px rgba(248, 113, 22, 0.7);
+          /* Slightly brighter glow and a gentle halo to separate from background */
+          box-shadow: 0 22px 44px -14px rgba(245, 158, 11, 0.6), 0 0 0 2px rgba(253, 230, 138, 0.32);
         }
 
         .book-now-btn:hover::after,
@@ -1181,7 +1203,13 @@ function GuestHeader({ sessionUser }) {
 
         .book-now-btn:active {
           transform: translateY(-1px) scale(1.01);
-          box-shadow: 0 16px 28px -18px rgba(248, 113, 22, 0.7);
+          box-shadow: 0 16px 28px -18px rgba(245, 158, 11, 0.55);
+        }
+
+        /* Stronger, accessible focus ring without being distracting */
+        .book-now-btn:focus-visible {
+          outline: 2px solid rgba(253, 230, 138, 0.65);
+          outline-offset: 3px;
         }
 
         /* Profile */
@@ -1313,8 +1341,13 @@ function GuestHeader({ sessionUser }) {
             gap: 1rem;
           }
 
-          .resort-name {
-            font-size: 1.3rem;
+          .brand-title {
+            font-size: 1.8rem;
+          }
+
+          .brand-subtitle {
+            font-size: 0.8rem;
+            letter-spacing: 0.5rem;
           }
         }
 
@@ -1408,13 +1441,14 @@ function GuestHeader({ sessionUser }) {
             gap: 0.8rem;
           }
 
-          .logo {
-            height: 50px;
+          .brand-title {
+            font-size: 1.5rem;
+            letter-spacing: 0.5px;
           }
 
-          .resort-name {
-            font-size: 1.2rem;
-            letter-spacing: 0.5px;
+          .brand-subtitle {
+            font-size: 0.7rem;
+            letter-spacing: 0.35rem;
           }
 
           .nav-links {
@@ -1427,8 +1461,10 @@ function GuestHeader({ sessionUser }) {
           }
 
           .book-now-btn {
-            font-size: 0.95rem;
-            min-width: 125px;
+            font-size: 1rem;
+            padding: 0.55em 1.6em;
+            letter-spacing: 0.1em;
+            min-width: 140px;
           }
 
           .notification-dropdown {
@@ -1438,8 +1474,13 @@ function GuestHeader({ sessionUser }) {
         }
 
         @media (max-width: 420px) {
-          .resort-name {
-            font-size: 1.1rem;
+          .brand-title {
+            font-size: 1.35rem;
+          }
+
+          .brand-subtitle {
+            font-size: 0.6rem;
+            letter-spacing: 0.28rem;
           }
 
           .nav-links :global(a) {
@@ -1448,8 +1489,8 @@ function GuestHeader({ sessionUser }) {
           }
 
           .book-now-btn {
-            font-size: 0.9rem;
-            min-width: 120px;
+            font-size: 0.95rem;
+            min-width: 125px;
           }
         }
 

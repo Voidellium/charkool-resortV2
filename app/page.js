@@ -473,7 +473,7 @@ export default function Home() {
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM13 17H11V11H13V17ZM13 9H11V7H13V9Z" />
           </svg>
-          <span>About</span>
+          <span>About Us</span>
         </div>
       </Link>
     </li>
@@ -483,7 +483,7 @@ export default function Home() {
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
             <path d="M21 3H3V17H7V21L12 17H21V3Z" />
           </svg>
-          <span>3D Tour</span>
+          <span>Virtual Tour</span>
         </div>
       </Link>
     </li>

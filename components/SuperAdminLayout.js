@@ -20,8 +20,7 @@ import {
   User,
   Menu,
   X,
-  Check,
-  DollarSign
+  Check
 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import styles from './SuperAdminLayout.module.css';
@@ -848,7 +847,7 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                           justifyContent: 'center',
                           flexShrink: 0
                         }}>
-                          <DollarSign size={16} style={{ color: 'white' }} />
+                          <span style={{ fontSize: '16px', color: 'white', fontWeight: 'bold' }}>₱</span>
                         </div>
                         <div style={{ flex: 1 }}>
                           <p style={{

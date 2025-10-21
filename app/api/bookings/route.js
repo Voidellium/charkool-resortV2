@@ -163,7 +163,7 @@ async function postBookingHandler(request) {
       checkIn: { type: 'date', required: true },
       checkOut: { type: 'date', required: true },
       numberOfGuests: { type: 'number', required: true, options: { integer: true, min: 1 } },
-      paymentMode: { type: 'string', required: true, options: { enum: ['cash', 'gcash', 'maya', 'card'] } },
+      paymentMode: { type: 'string', required: false, options: { enum: ['cash', 'gcash', 'maya', 'card'] } },
       selectedRooms: { type: 'object', required: true },
       optional: { type: 'object', required: false },
       rental: { type: 'object', required: false },

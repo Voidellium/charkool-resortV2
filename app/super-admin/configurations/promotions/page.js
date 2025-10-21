@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import SuperAdminLayout from '@/components/SuperAdminLayout';
 import PromotionModal from '@/components/PromotionModal';
 import { useToast, ConfirmModal } from '@/components/Toast';
-import { Plus, Calendar, Target, Percent, DollarSign, Edit2, Trash2, TrendingUp, Users, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, Calendar, Target, Percent, Edit2, Trash2, TrendingUp, Users, Clock, CheckCircle, XCircle } from 'lucide-react';
 import styles from './page.module.css';
 
 export default function PromotionsPage() {
@@ -230,7 +230,7 @@ export default function PromotionsPage() {
                 <div className={styles.cardContent}>
                   <div className={styles.discountDisplay}>
                     <div className={styles.discountIcon}>
-                      {promotion.discountType === 'percentage' ? <Percent size={20} /> : <DollarSign size={20} />}
+                      {promotion.discountType === 'percentage' ? <Percent size={20} /> : <span style={{fontSize: '20px', fontWeight: 'bold'}}>₱</span>}
                     </div>
                     <div className={styles.discountText}>
                       <span className={styles.discountValue}>
@@ -292,7 +292,7 @@ export default function PromotionsPage() {
                     </td>
                     <td className={styles.tableCell}>
                       <div className={styles.discountCell}>
-                        {promotion.discountType === 'percentage' ? <Percent size={14} /> : <DollarSign size={14} />}
+                        {promotion.discountType === 'percentage' ? <Percent size={14} /> : <span style={{fontSize: '14px', fontWeight: 'bold'}}>₱</span>}
                         {promotion.discountType === 'percentage' 
                           ? `${promotion.discountValue / 100}%` 
                           : `₱${promotion.discountValue / 100}`}

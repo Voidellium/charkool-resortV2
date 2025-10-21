@@ -81,6 +81,7 @@ function LoginForm() {
       case 'admin': return router.push('/admin/dashboard');
       case 'receptionist': return router.push('/receptionist');
       case 'amenityinventorymanager': return router.push('/amenityinventorymanager');
+      case 'developer': return router.push('/developer/dashboard');
       case 'customer': return router.push('/guest/dashboard');
       default: return router.push('/');
     }
@@ -89,11 +90,30 @@ function LoginForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    await signIn('credentials', {
-      email: email.toLowerCase(),
-      password,
-      callbackUrl: searchParams.get('redirect') || searchParams.get('callbackUrl') || undefined,
-    });
+    
+    console.log('Login attempt:', { email: email.toLowerCase() });
+    
+    try {
+      const result = await signIn('credentials', {
+        email: email.toLowerCase(),
+        password,
+        callbackUrl: searchParams.get('redirect') || searchParams.get('callbackUrl') || undefined,
+        redirect: false, // Prevent automatic redirect to handle errors
+      });
+      
+      console.log('SignIn result:', result);
+      
+      if (result?.error) {
+        console.error('SignIn error:', result.error);
+        setError(result.error === 'CredentialsSignin' ? 'Invalid email or password' : 'Login failed. Please try again.');
+      } else if (result?.ok) {
+        // Successful login, trigger redirect
+        window.location.reload(); // Force reload to update session
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      setError('An unexpected error occurred. Please try again.');
+    }
   };
 
   const handleOAuthLogin = async (provider) => {

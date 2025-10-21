@@ -15,7 +15,7 @@ const securityHeaders = {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: https: blob:",
-    "connect-src 'self' https://api.stripe.com https://api.sendgrid.com https://api.resend.com wss:",
+    "connect-src 'self' data: blob: https://api.stripe.com https://api.sendgrid.com https://api.resend.com wss:",
     "frame-src 'self' https://js.stripe.com https://hooks.stripe.com",
     "object-src 'none'",
     "base-uri 'self'",
@@ -164,6 +164,7 @@ export async function middleware(req: NextRequest) {
         "receptionist": ["/receptionist", "/booking"],
         "cashier": ["/cashier", "/booking"],
         "amenityinventorymanager": ["/amenityinventorymanager", "/booking"],
+        "developer": ["/developer", "/booking"],
       };
 
       const allowedRedirects = safeRedirects[role] || [];
@@ -183,6 +184,7 @@ export async function middleware(req: NextRequest) {
         case "receptionist": return NextResponse.redirect(new URL("/receptionist", req.url));
         case "cashier": return NextResponse.redirect(new URL("/cashier", req.url));
         case "amenityinventorymanager": return NextResponse.redirect(new URL("/amenityinventorymanager", req.url));
+        case "developer": return NextResponse.redirect(new URL("/developer/dashboard", req.url));
         case "customer": return NextResponse.redirect(new URL("/guest/dashboard", req.url));
         default: return NextResponse.redirect(new URL("/", req.url));
       }
@@ -215,6 +217,7 @@ export async function middleware(req: NextRequest) {
         case "receptionist": return NextResponse.redirect(new URL("/receptionist", req.url));
         case "cashier": return NextResponse.redirect(new URL("/cashier", req.url));
         case "amenityinventorymanager": return NextResponse.redirect(new URL("/amenityinventorymanager", req.url));
+        case "developer": return NextResponse.redirect(new URL("/developer/dashboard", req.url));
         default: return NextResponse.redirect(new URL("/unauthorized", req.url));
       }
     }
@@ -226,6 +229,7 @@ export async function middleware(req: NextRequest) {
     "/receptionist": "receptionist",
     "/cashier": "cashier",
     "/amenityinventorymanager": "amenityinventorymanager",
+    "/developer": "developer",
     "/customer": "customer",
   };
 

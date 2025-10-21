@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import SuperAdminLayout from '@/components/SuperAdminLayout';
-import { DoorOpen, Plus, Edit2, Trash2, Search, Upload, Eye, RefreshCw, BedDouble, Users, DollarSign } from 'lucide-react';
+import { DoorOpen, Plus, Edit2, Trash2, Search, Upload, Eye, RefreshCw, BedDouble, Users } from 'lucide-react';
 
 export default function SuperAdminRoomsPage() {
   const [rooms, setRooms] = useState([]);
@@ -87,8 +87,11 @@ export default function SuperAdminRoomsPage() {
       const addedRoom = await res.json();
       setRooms((prev) => [...prev, addedRoom]);
       setNewRoom({ name: '', type: '', price: 0, quantity: 1, image: null });
+      setShowAddForm(false);
+      alert('Room added successfully!');
     } catch (err) {
       console.error('Error adding room:', err);
+      alert('Failed to add room. Please try again.');
     }
   };
 
@@ -112,8 +115,12 @@ export default function SuperAdminRoomsPage() {
       const updatedRoom = await res.json();
       setRooms((prev) => prev.map((room) => (room.id === id ? updatedRoom : room)));
       setEditingRoom(null);
+      setShowAddForm(false);
+      // Optionally show a success message
+      alert('Room updated successfully!');
     } catch (err) {
       console.error('Error updating room:', err);
+      alert('Failed to update room. Please try again.');
     }
   };
 
@@ -212,7 +219,7 @@ export default function SuperAdminRoomsPage() {
 
           <div style={styles.statCard}>
             <div style={styles.statIcon}>
-              <DollarSign size={24} style={{ color: '#f59e0b' }} />
+              <span style={{ fontSize: '24px', color: '#f59e0b', fontWeight: 'bold' }}>₱</span>
             </div>
             <div>
               <div style={styles.statValue}>
@@ -335,7 +342,7 @@ export default function SuperAdminRoomsPage() {
               </div>
               <div style={styles.formGroup}>
                 <label style={styles.label}>Room Image</label>
-                <div style={styles.fileInputContainer}>
+                <label style={styles.fileInputContainer}>
                   <Upload size={20} style={{ color: '#9ca3af' }} />
                   <input
                     type="file"
@@ -355,7 +362,7 @@ export default function SuperAdminRoomsPage() {
                       : 'Choose image file'
                     }
                   </span>
-                </div>
+                </label>
               </div>
               <div style={styles.formActions}>
                 <button type="submit" style={styles.submitButton} disabled={loading}>
@@ -403,9 +410,9 @@ export default function SuperAdminRoomsPage() {
             paginatedRooms.map((room) => (
               <div key={room.id} style={styles.roomCard}>
                 <div style={styles.roomImageContainer}>
-                  {room.imageUrl ? (
+                  {room.image ? (
                     <img
-                      src={room.imageUrl}
+                      src={room.image}
                       alt={room.name}
                       style={styles.roomImage}
                     />
@@ -435,7 +442,7 @@ export default function SuperAdminRoomsPage() {
 
                   <div style={styles.roomStats}>
                     <div style={styles.roomStat}>
-                      <DollarSign size={16} style={{ color: '#10b981' }} />
+                      <span style={{ fontSize: '16px', color: '#10b981', fontWeight: 'bold' }}>₱</span>
                       <span style={styles.roomPrice}>₱{(room.price / 100).toLocaleString()}</span>
                       <span style={styles.roomPriceLabel}>per night</span>
                     </div>

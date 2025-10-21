@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Send, Bot, User, Loader2, Clock, MessageCircle, DollarSign, 
+  Send, Bot, User, Loader2, Clock, MessageCircle,
   Wifi, Users, Calendar, CheckCircle, X, ChevronDown, 
   MapPin, Star, Coffee, Home, Phone, Smile, Sun, Moon
 } from 'lucide-react';
@@ -1023,7 +1023,7 @@ export default function ChatInterface({ isModal }) {
             <div className="quick-replies-title">Quick replies:</div>
             <div className="quick-replies-buttons">
               <button onClick={() => handleQuickReply('room_rates')} className="quick-reply-btn">
-                <DollarSign size={14} />
+                <span style={{fontSize: '14px', fontWeight: 'bold'}}>₱</span>
                 <span>Room rates</span>
               </button>
               <button onClick={() => handleQuickReply('amenities')} className="quick-reply-btn">

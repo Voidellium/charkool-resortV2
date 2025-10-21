@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import { signOut, useSession } from 'next-auth/react';
 import SuperAdminLayout from "@/components/SuperAdminLayout";
 import { 
-  Calendar, Users, DollarSign, TrendingUp, BarChart3, Building2, Clock, CheckCircle, AlertCircle,
+  Calendar, Users, TrendingUp, BarChart3, Building2, Clock, CheckCircle, AlertCircle,
   FileText, Download, Filter, Search, ChevronLeft, ChevronRight, TableIcon as Table, XCircle,
   TableIcon
 } from 'lucide-react';
@@ -418,7 +418,7 @@ export default function SuperAdminDashboard() {
             title="Total Revenue" 
             value={formatCurrency(stats.totalRevenue)} 
             color="#10b981" 
-            icon={DollarSign}
+            icon={() => <span style={{fontSize: '24px', fontWeight: 'bold'}}>₱</span>}
             trend="up"
             trendValue="+8%"
           />

@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { X, Save, Calendar, Image as ImageIcon, Tag, Percent, DollarSign } from 'lucide-react';
+import { X, Save, Calendar, Image as ImageIcon, Tag, Percent } from 'lucide-react';
 
 export default function PromotionModal({ promotion, onSave, onClose }) {
   const [formData, setFormData] = useState({
@@ -227,7 +227,7 @@ export default function PromotionModal({ promotion, onSave, onClose }) {
                 color: '#374151',
                 marginBottom: '0.5rem'
               }}>
-                {formData.discountType === 'percentage' ? <Percent size={16} /> : <DollarSign size={16} />}
+                {formData.discountType === 'percentage' ? <Percent size={16} /> : <span style={{fontSize: '16px', fontWeight: 'bold'}}>₱</span>}
                 Discount Type *
               </label>
               <select 
