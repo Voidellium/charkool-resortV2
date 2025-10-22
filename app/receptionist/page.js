@@ -82,6 +82,7 @@ export default function ReceptionistDashboard() {
     numberOfGuests: 1,
     paymentMode: 'cash', // Default to cash
     selectedRooms: {},
+    selectedRoomDetails: {},
     selectedAmenities: { optional: {}, rental: {}, cottage: null },
   });
   const [availableRooms, setAvailableRooms] = useState([]);
@@ -1732,6 +1733,7 @@ export default function ReceptionistDashboard() {
                     numberOfGuests: 1,
                     paymentMode: 'cash',
                     selectedRooms: {},
+                    selectedRoomDetails: {},
                     selectedAmenities: { optional: {}, rental: {}, cottage: null },
                   });
                 }}
@@ -1856,6 +1858,7 @@ export default function ReceptionistDashboard() {
                     numberOfGuests: 1,
                     paymentMode: 'cash',
                     selectedRooms: {},
+                    selectedRoomDetails: {},
                     selectedAmenities: { optional: {}, rental: {}, cottage: null },
                   });
                   await fetchBookings();
@@ -2123,6 +2126,7 @@ export default function ReceptionistDashboard() {
                                     if (isDisabled && !isSelected) return;
                                     setCreateBookingForm(prev => {
                                       const selectedRooms = { ...prev.selectedRooms };
+                                      const selectedRoomDetails = { ...prev.selectedRoomDetails };
                                       const currentCapacity = Object.entries(selectedRooms).reduce((acc, [rId, qty]) => {
                                         const r = availableRooms.find(r => r.id === rId);
                                         if (!r) return acc;
@@ -2134,80 +2138,233 @@ export default function ReceptionistDashboard() {
                                       }, 0);
 
                                       if (!selectedRooms[room.id]) {
-                                        // Adding a room
+                                        // Adding a room - store details
                                         selectedRooms[room.id] = 1;
+                                        selectedRoomDetails[room.id] = {
+                                          name: room.name,
+                                          type: room.type,
+                                          price: room.price,
+                                          image: room.image,
+                                          remaining: room.remaining
+                                        };
                                       } else {
-                                        // Removing a room
+                                        // Removing a room - remove details
                                         delete selectedRooms[room.id];
+                                        delete selectedRoomDetails[room.id];
                                       }
-                                      return { ...prev, selectedRooms };
+                                      return { ...prev, selectedRooms, selectedRoomDetails };
                                     });
                                   }}
                                 >
-                                  <div className="room-image-container">
+                                  {/* Room Image with Availability Badge */}
+                                  <div style={{ position: 'relative', width: '100%', height: '140px' }}>
                                     <img 
                                       src={room.image || '/images/default-room.jpg'} 
                                       alt={room.name}
-                                      className="room-image"
+                                      style={{
+                                        width: '100%',
+                                        height: '100%',
+                                        objectFit: 'cover',
+                                        borderRadius: '8px 8px 0 0'
+                                      }}
                                     />
-                                    <div className="room-type-badge">
-                                      {room.type === 'TEPEE' ? '🏕️' : room.type === 'LOFT' ? '🏠' : '🏰'}
-                                    </div>
-                                  </div>
-                                  <div className="room-content">
-                                    <h4 className="room-name">{room.name}</h4>
-                                    <p className="room-capacity">
-                                      <span className="capacity-icon">👥</span>
-                                      {
-                                        room.type === 'TEPEE' ? '1-5 guests' :
-                                        room.type === 'LOFT' ? '1-3 guests' :
-                                        room.type === 'VILLA' ? '1-10 guests' : 'N/A'
-                                      }
-                                    </p>
-                                    <div className="room-price">
-                                      <span className="price-label">Price:</span>
-                                      <span className="price-value">₱{(room.price / 100).toFixed(2)}</span>
-                                    </div>
-                                    <div className="room-availability" style={{
-                                      fontSize: '12px',
-                                      color: room.remaining > 0 ? '#059669' : '#dc2626',
-                                      fontWeight: '500',
-                                      marginTop: '4px'
+                                    {/* Availability Badge */}
+                                    <div style={{
+                                      position: 'absolute',
+                                      top: '8px',
+                                      right: '8px',
+                                      padding: '4px 8px',
+                                      borderRadius: '4px',
+                                      fontSize: '11px',
+                                      fontWeight: '600',
+                                      backgroundColor: room.remaining === 0 ? '#ef4444' : room.remaining <= 3 ? '#f59e0b' : '#10b981',
+                                      color: 'white',
+                                      boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
                                     }}>
-                                      {room.remaining > 0 ? `${room.remaining} available` : 'Fully booked'}
+                                      {room.remaining === 0 ? 'Full' : `${room.remaining} left`}
+                                    </div>
+                                    {/* Selected Checkmark */}
+                                    {isSelected && (
+                                      <div style={{
+                                        position: 'absolute',
+                                        top: '8px',
+                                        left: '8px',
+                                        width: '24px',
+                                        height: '24px',
+                                        borderRadius: '50%',
+                                        backgroundColor: '#10b981',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        color: 'white',
+                                        fontSize: '14px',
+                                        fontWeight: 'bold',
+                                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                      }}>
+                                        ✓
+                                      </div>
+                                    )}
+                                  </div>
+                                  
+                                  {/* Room Content */}
+                                  <div style={{ padding: '12px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                                    <h4 style={{ 
+                                      margin: '0 0 8px 0',
+                                      fontSize: '16px',
+                                      fontWeight: '600',
+                                      color: '#1f2937'
+                                    }}>
+                                      {room.name}
+                                    </h4>
+                                    
+                                    {/* Type and Capacity Tags */}
+                                    <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                                      <span style={{
+                                        padding: '2px 8px',
+                                        borderRadius: '4px',
+                                        fontSize: '11px',
+                                        fontWeight: '500',
+                                        backgroundColor: '#fef3c7',
+                                        color: '#92400e',
+                                        border: '1px solid #fcd34d'
+                                      }}>
+                                        {room.type === 'TEPEE' ? '🏕️ Tepee' : room.type === 'LOFT' ? '🏠 Loft' : '🏰 Villa'}
+                                      </span>
+                                      <span style={{
+                                        padding: '2px 8px',
+                                        borderRadius: '4px',
+                                        fontSize: '11px',
+                                        fontWeight: '500',
+                                        backgroundColor: '#dbeafe',
+                                        color: '#1e40af',
+                                        border: '1px solid #93c5fd'
+                                      }}>
+                                        👥 {room.type === 'TEPEE' ? '1-5' : room.type === 'LOFT' ? '1-3' : '1-10'} guests
+                                      </span>
+                                    </div>
+                                    
+                                    {/* Price */}
+                                    <div style={{ 
+                                      marginTop: 'auto',
+                                      paddingTop: '8px'
+                                    }}>
+                                      <div style={{ 
+                                        fontSize: '18px',
+                                        fontWeight: '700',
+                                        color: '#92400e'
+                                      }}>
+                                        ₱{(room.price / 100).toFixed(2)}
+                                        <span style={{ fontSize: '12px', fontWeight: '400', color: '#6b7280' }}>/night</span>
+                                      </div>
                                     </div>
                                   </div>
+                                  
+                                  {/* Quantity Controls */}
                                   {isSelected && (
-                                    <div className="quantity-selector">
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setCreateBookingForm(prev => {
-                                            const selectedRooms = { ...prev.selectedRooms };
-                                            selectedRooms[room.id] = Math.max(1, (selectedRooms[room.id] || 1) - 1);
-                                            return { ...prev, selectedRooms };
-                                          });
-                                        }}
-                                        className="quantity-btn decrease"
-                                      >
-                                        −
-                                      </button>
-                                      <span className="quantity-display">{selectedQty}</span>
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setCreateBookingForm(prev => {
-                                            const selectedRooms = { ...prev.selectedRooms };
-                                            if ((selectedRooms[room.id] || 0) < room.remaining) {
-                                              selectedRooms[room.id] = (selectedRooms[room.id] || 0) + 1;
+                                    <div style={{
+                                      borderTop: '1px solid #e5e7eb',
+                                      padding: '8px 12px',
+                                      backgroundColor: '#fffbeb',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between'
+                                    }}>
+                                      <span style={{ fontSize: '13px', fontWeight: '500', color: '#92400e' }}>Quantity:</span>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setCreateBookingForm(prev => {
+                                              const selectedRooms = { ...prev.selectedRooms };
+                                              if (selectedRooms[room.id] > 1) {
+                                                selectedRooms[room.id] = selectedRooms[room.id] - 1;
+                                              }
+                                              return { ...prev, selectedRooms };
+                                            });
+                                          }}
+                                          disabled={selectedQty <= 1}
+                                          style={{
+                                            width: '28px',
+                                            height: '28px',
+                                            borderRadius: '4px',
+                                            border: '1px solid #d1d5db',
+                                            backgroundColor: selectedQty <= 1 ? '#f3f4f6' : 'white',
+                                            color: selectedQty <= 1 ? '#9ca3af' : '#374151',
+                                            cursor: selectedQty <= 1 ? 'not-allowed' : 'pointer',
+                                            fontSize: '16px',
+                                            fontWeight: '600',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            transition: 'all 0.2s'
+                                          }}
+                                          onMouseEnter={(e) => {
+                                            if (selectedQty > 1) {
+                                              e.currentTarget.style.borderColor = '#FEBE52';
+                                              e.currentTarget.style.backgroundColor = '#fffbeb';
                                             }
-                                            return { ...prev, selectedRooms };
-                                          });
-                                        }}
-                                        className="quantity-btn increase"
-                                      >
-                                        +
-                                      </button>
+                                          }}
+                                          onMouseLeave={(e) => {
+                                            if (selectedQty > 1) {
+                                              e.currentTarget.style.borderColor = '#d1d5db';
+                                              e.currentTarget.style.backgroundColor = 'white';
+                                            }
+                                          }}
+                                        >
+                                          −
+                                        </button>
+                                        <span style={{
+                                          minWidth: '30px',
+                                          textAlign: 'center',
+                                          fontSize: '15px',
+                                          fontWeight: '600',
+                                          color: '#1f2937'
+                                        }}>
+                                          {selectedQty}
+                                        </span>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setCreateBookingForm(prev => {
+                                              const selectedRooms = { ...prev.selectedRooms };
+                                              if ((selectedRooms[room.id] || 0) < room.remaining) {
+                                                selectedRooms[room.id] = (selectedRooms[room.id] || 0) + 1;
+                                              }
+                                              return { ...prev, selectedRooms };
+                                            });
+                                          }}
+                                          disabled={selectedQty >= room.remaining}
+                                          style={{
+                                            width: '28px',
+                                            height: '28px',
+                                            borderRadius: '4px',
+                                            border: '1px solid #d1d5db',
+                                            backgroundColor: selectedQty >= room.remaining ? '#f3f4f6' : 'white',
+                                            color: selectedQty >= room.remaining ? '#9ca3af' : '#374151',
+                                            cursor: selectedQty >= room.remaining ? 'not-allowed' : 'pointer',
+                                            fontSize: '16px',
+                                            fontWeight: '600',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            transition: 'all 0.2s'
+                                          }}
+                                          onMouseEnter={(e) => {
+                                            if (selectedQty < room.remaining) {
+                                              e.currentTarget.style.borderColor = '#FEBE52';
+                                              e.currentTarget.style.backgroundColor = '#fffbeb';
+                                            }
+                                          }}
+                                          onMouseLeave={(e) => {
+                                            if (selectedQty < room.remaining) {
+                                              e.currentTarget.style.borderColor = '#d1d5db';
+                                              e.currentTarget.style.backgroundColor = 'white';
+                                            }
+                                          }}
+                                        >
+                                          +
+                                        </button>
+                                      </div>
                                     </div>
                                   )}
                                 </div>
@@ -2320,11 +2477,11 @@ export default function ReceptionistDashboard() {
                       <h4 style={{ color: '#92400E', marginBottom: '15px' }}>Selected Rooms:</h4>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                         {Object.entries(createBookingForm.selectedRooms).map(([roomId, quantity]) => {
-                        const room = availableRooms.find(r => r.id === roomId);
-                        if (!room) return null;
+                        const roomDetails = createBookingForm.selectedRoomDetails[roomId];
+                        if (!roomDetails) return null;
                         return (
                           <div key={`selected-room-${roomId}`}>
-                            {room.name} x{quantity}
+                            {roomDetails.name} x{quantity}
                           </div>
                         );
                       })}
@@ -2334,13 +2491,13 @@ export default function ReceptionistDashboard() {
                     <div style={{ display: 'grid', gap: '20px' }}>
                       {/* Room Type Based Amenities */}
                       {Object.entries(createBookingForm.selectedRooms).map(([roomId, quantity]) => {
-                        const room = availableRooms.find(r => r.id === roomId);
-                        if (!room) return null;
+                        const roomDetails = createBookingForm.selectedRoomDetails[roomId];
+                        if (!roomDetails) return null;
                         return (
                           <div key={roomId}>
-                            <h4 style={{ color: '#92400E', marginBottom: '10px' }}>{room.name} Included Amenities:</h4>
+                            <h4 style={{ color: '#92400E', marginBottom: '10px' }}>{roomDetails.name} Included Amenities:</h4>
                             <RoomAmenitiesSelector
-                              roomTypes={[room.type]}
+                              roomTypes={[roomDetails.type]}
                               selectedAmenities={createBookingForm.selectedAmenities}
                               onAmenitiesChange={(newAmenities) => setCreateBookingForm(prev => ({ 
                                 ...prev, 
@@ -2422,8 +2579,8 @@ export default function ReceptionistDashboard() {
                       <h4 style={{ color: '#92400E', marginBottom: '10px' }}>Selected Rooms</h4>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                         {Object.entries(createBookingForm.selectedRooms).map(([roomId, quantity]) => {
-                          const room = availableRooms.find(r => r.id === parseInt(roomId));
-                          if (!room) return null;
+                          const roomDetails = createBookingForm.selectedRoomDetails[roomId];
+                          if (!roomDetails) return null;
                           return (
                             <div key={roomId} style={{
                               padding: '8px 12px',
@@ -2432,7 +2589,7 @@ export default function ReceptionistDashboard() {
                               border: '1px solid rgba(254, 190, 82, 0.3)',
                               fontSize: '14px'
                             }}>
-                              {room.name} x{quantity}
+                              {roomDetails.name} x{quantity}
                             </div>
                           );
                         })}
@@ -2493,13 +2650,13 @@ export default function ReceptionistDashboard() {
                       
                       {/* Room Costs */}
                       {Object.entries(createBookingForm.selectedRooms).map(([roomId, quantity]) => {
-                        const room = availableRooms.find(r => r.id === parseInt(roomId));
-                        if (!room) return null;
+                        const roomDetails = createBookingForm.selectedRoomDetails[roomId];
+                        if (!roomDetails) return null;
                         const nights = Math.max(1, (new Date(createBookingForm.checkOut) - new Date(createBookingForm.checkIn)) / (1000 * 60 * 60 * 24));
-                        const roomTotal = (room.price * quantity * nights);
+                        const roomTotal = (roomDetails.price * quantity * nights);
                         return (
                           <div key={roomId} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                            <span>{room.name} x{quantity} ({nights} nights)</span>
+                            <span>{roomDetails.name} x{quantity} ({nights} nights)</span>
                             <span>₱{(roomTotal / 100).toFixed(2)}</span>
                           </div>
                         );
@@ -2675,6 +2832,7 @@ export default function ReceptionistDashboard() {
                       numberOfGuests: 1,
                       paymentMode: 'cash',
                       selectedRooms: {},
+                      selectedRoomDetails: {},
                       selectedAmenities: { optional: {}, rental: {}, cottage: null },
                     });
                   }}
@@ -2910,9 +3068,26 @@ export default function ReceptionistDashboard() {
                       Details
                     </button>
                     
-                    {booking.status === 'HELD' ? (
+                    {booking.status === 'HELD' || booking.status === 'Pending' ? (
                       <>
-                        {/* Removed confirm button - only super admin and cashier can confirm bookings */}
+                        {/* Pending bookings can only be confirmed by super admin or cashier */}
+                        {booking.status === 'Pending' && (
+                          <div className="action-btn info" style={{ 
+                            backgroundColor: '#FEF3C7', 
+                            color: '#92400E', 
+                            cursor: 'default',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            padding: '8px 12px',
+                            border: '1px solid #FDE68A'
+                          }}>
+                            <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: '16px', height: '16px' }}>
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                            </svg>
+                            Awaiting Confirmation
+                          </div>
+                        )}
                         <button 
                           className="action-btn danger" 
                           onClick={() => openStatusModal(booking.id, 'Cancelled')}
@@ -3859,52 +4034,30 @@ export default function ReceptionistDashboard() {
         /* Enhanced room card styling */
         .room-card {
           border: 2px solid #e5e7eb;
-          border-radius: 16px;
-          padding: 20px;
-          background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+          border-radius: 12px;
+          background: white;
           cursor: pointer;
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          transition: all 0.3s ease;
           position: relative;
           overflow: hidden;
-        }
-        
-        .room-card::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: 4px;
-          background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ef4444);
-          transform: translateX(-100%);
-          transition: transform 0.3s ease;
-        }
-        
-        .room-card:hover::before {
-          transform: translateX(0);
+          display: flex;
+          flex-direction: column;
         }
         
         .room-card:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
-          border-color: #3b82f6;
+          transform: translateY(-2px);
+          box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+          border-color: #FEBE52;
         }
         
         .room-card.selected {
           border-color: #FEBE52;
-          background: linear-gradient(145deg, #FFF7ED 0%, #FFFBEB 100%);
-          box-shadow: 0 8px 25px rgba(254, 190, 82, 0.2);
-        }
-        
-        .room-card.selected::before {
-          background: linear-gradient(90deg, #FEBE52, #f59e0b);
-          transform: translateX(0);
+          box-shadow: 0 6px 15px rgba(254, 190, 82, 0.3);
         }
         
         .room-card.disabled {
-          opacity: 0.5;
+          opacity: 0.6;
           cursor: not-allowed;
-          transform: none;
         }
         
         .room-card.disabled:hover {
@@ -4044,8 +4197,8 @@ export default function ReceptionistDashboard() {
         /* Rooms grid layout */
         .rooms-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-          gap: 24px;
+          grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+          gap: 20px;
           transition: opacity 0.3s ease;
         }
         

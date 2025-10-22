@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from "react";
 import { signOut, useSession } from 'next-auth/react';
 import SuperAdminLayout from "@/components/SuperAdminLayout";
+import Loading, { ButtonLoading } from '@/components/Loading';
 import { 
   Calendar, Users, TrendingUp, BarChart3, Building2, Clock, CheckCircle, AlertCircle,
   FileText, Download, Filter, Search, ChevronLeft, ChevronRight, TableIcon as Table, XCircle,
@@ -298,12 +299,35 @@ export default function SuperAdminDashboard() {
     })}`;
   };
 
+  // Helper function to format room information
+  const formatRoomInfo = (booking) => {
+    if (!booking.rooms || booking.rooms.length === 0) return "N/A";
+    
+    // Group rooms by type and sum quantities
+    const roomsByType = booking.rooms.reduce((acc, bookingRoom) => {
+      const roomType = bookingRoom.room?.type || 'Unknown';
+      const quantity = bookingRoom.quantity || 0;
+      
+      if (!acc[roomType]) {
+        acc[roomType] = 0;
+      }
+      acc[roomType] += quantity;
+      return acc;
+    }, {});
+    
+    // Format as "Type (qty), Type (qty)"
+    return Object.entries(roomsByType)
+      .map(([type, qty]) => `${type} (${qty})`)
+      .join(', ');
+  };
+
   // Filter bookings based on search term
   const filteredBookings = report?.bookings?.filter(booking => {
     const searchLower = searchTerm.toLowerCase();
+    const roomInfo = formatRoomInfo(booking).toLowerCase();
     return (
       booking.user?.name?.toLowerCase().includes(searchLower) ||
-      booking.room?.name?.toLowerCase().includes(searchLower) ||
+      roomInfo.includes(searchLower) ||
       booking.status.toLowerCase().includes(searchLower) ||
       new Date(booking.createdAt).toLocaleDateString().includes(searchLower)
     );
@@ -327,11 +351,11 @@ export default function SuperAdminDashboard() {
     doc.text("Dashboard Report", 14, 20);
     autoTable(doc, {
       startY: 30,
-      head: [["Date", "Customer", "Room", "Total Price", "Status"]],
+      head: [["Date", "Customer", "Rooms", "Total Price", "Status"]],
       body: filteredBookings.map(b => [
         new Date(b.createdAt).toLocaleDateString(),
         b.user?.name || "N/A",
-        b.room?.name || "N/A",
+        formatRoomInfo(b),
         formatCurrency(b.totalPrice),
         b.status
       ]),
@@ -346,7 +370,7 @@ export default function SuperAdminDashboard() {
     const ws = XLSX.utils.json_to_sheet(filteredBookings.map(b => ({
       Date: new Date(b.createdAt).toLocaleDateString(),
       Customer: b.user?.name || "N/A",
-      Room: b.room?.name || "N/A",
+      "Rooms": formatRoomInfo(b),
       "Total Price": formatCurrency(b.totalPrice),
       Status: b.status,
     })));
@@ -358,16 +382,11 @@ export default function SuperAdminDashboard() {
   if (isLoading) {
     return (
       <SuperAdminLayout activePage="dashboard" user={session?.user}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          height: '400px',
-          fontSize: '1.125rem',
-          color: '#6b7280'
-        }}>
-          Loading dashboard...
-        </div>
+        <Loading 
+          fullPage={true} 
+          text="Loading dashboard..." 
+          size="large"
+        />
       </SuperAdminLayout>
     );
   }
@@ -742,7 +761,11 @@ export default function SuperAdminDashboard() {
                 cursor: isReportsLoading ? 'not-allowed' : 'pointer'
               }}
             >
-              <BarChart3 size={16} />
+              {isReportsLoading ? (
+                <ButtonLoading size="small" color="#ffffff" />
+              ) : (
+                <BarChart3 size={16} />
+              )}
               {isReportsLoading ? 'Generating...' : 'Generate Report'}
             </button>
 
@@ -1166,7 +1189,7 @@ export default function SuperAdminDashboard() {
                         Customer
                       </th>
                       <th style={{ padding: isMobile ? '0.5rem' : '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: '#374151' }}>
-                        Room
+                        Rooms
                       </th>
                       <th style={{ padding: isMobile ? '0.5rem' : '1rem', textAlign: 'right', fontSize: '0.875rem', fontWeight: '600', color: '#374151' }}>
                         Total Price
@@ -1186,7 +1209,7 @@ export default function SuperAdminDashboard() {
                           {booking.user?.name || "N/A"}
                         </td>
                         <td style={{ padding: isMobile ? '0.5rem' : '1rem', fontSize: '0.875rem', color: '#374151' }}>
-                          {booking.room?.name || "N/A"}
+                          {formatRoomInfo(booking)}
                         </td>
                         <td style={{ padding: isMobile ? '0.5rem' : '1rem', fontSize: '0.875rem', fontWeight: '600', color: '#059669', textAlign: 'right' }}>
                           {formatCurrency(booking.totalPrice)}
@@ -1328,18 +1351,11 @@ export default function SuperAdminDashboard() {
 
         {/* Loading state for reports */}
         {isReportsLoading && (
-          <div style={{
-            background: 'rgba(255,255,255,0.95)',
-            borderRadius: '16px',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
-            backdropFilter: 'blur(10px)',
-            padding: '4rem',
-            textAlign: 'center'
-          }}>
-            <p style={{ color: '#6b7280', fontSize: '1.125rem' }}>
-              Generating reports and analytics...
-            </p>
-          </div>
+          <Loading 
+            overlay={true}
+            text="Generating reports and analytics..."
+            size="large"
+          />
         )}
 
         {/* Logout Confirmation Modal */}

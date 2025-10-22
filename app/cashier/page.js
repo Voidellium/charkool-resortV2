@@ -47,7 +47,7 @@
                  *    - Supports multiple export formats
                  */// Helper function to format payment IDs consistently
 function formatPaymentId(id) {
-  if (!id) return '—';
+  if (!id) return 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â';
   
   // If it's a cuid (from Prisma), format it nicely
   if (typeof id === 'string' && id.length > 10) {
@@ -1186,7 +1186,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                     <header className={styles.headerBar}>
                       <div className={styles.headerLeft}>
                         <div className={styles.headerTitle}>
-                          🏨 Welcome back, {session?.user?.name || 'Cashier'}!
+                          Welcome back, {session?.user?.name || 'Cashier'}!
                         </div>
                       </div>
         <div className={styles.headerRight}>
@@ -1237,7 +1237,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                     <span>View Profile</span>
                   </button>
                   <button
-                    onClick={() => { setUserMenuOpen(false); navigationGuard.handleLeave(); }}
+                    onClick={() => { setUserMenuOpen(false); signOut({ callbackUrl: '/login' }); }}
                                   className={`${styles.menuItem} ${styles.menuItemLogout}`}
                                   role="menuitem"
                                 >
@@ -1332,7 +1332,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                   className={styles.toolbarButton}
                                   aria-label="Refresh checkout transactions"
                                 >
-                                  🔄 Refresh
+                                  Refresh
                                 </button>
                               </div>
                             </div>
@@ -1430,11 +1430,11 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                           <td className={styles.td}>
                                             {isUnpaid ? (
                                               <div className="font-semibold text-red-600">
-                                                ₱{(remainingBalance / 100).toLocaleString()}
+                                                  ₱{(remainingBalance / 100).toLocaleString()}
                                               </div>
                                             ) : (
                                               <div className="text-green-600 font-medium">
-                                                ✓ Paid
+                                                ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ Paid
                                               </div>
                                             )}
                                           </td>
@@ -1493,7 +1493,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                             return checkoutTotalPages > 1 && (
                               <div className={`${styles.paginationBar} ${styles.barRelative}`} style={{marginTop: '16px'}}>
                                 <div className={styles.paginationInfo}>
-                                  Page {checkoutPage} of {checkoutTotalPages} • {checkoutTransactions.length} checkouts
+                                  Page {checkoutPage} of {checkoutTotalPages} ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ {checkoutTransactions.length} checkouts
                                 </div>
                                 <div className={styles.paginationButtons}>
                                   <button
@@ -1587,167 +1587,6 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                           </button>
                         </div>
 
-                        {/* Upcoming Reservations Section */}
-                        <div className={styles.card}>
-                          <div className={`px-4 py-3 border-b border-slate-200 ${styles.cardHeaderPrimary}`}>
-                            <div className={styles.sectionTitleBar}>
-                              <div className={`${styles.sectionTitle} text-white`} style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-                                <Hotel className="h-5 w-5" />
-                                Upcoming Reservations (Next 15 Days)
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <div className={styles.sectionBadge}>{upcomingTransactionsList.length}</div>
-                                <button
-                                  onClick={refreshAll}
-                                  className={styles.toolbarButton}
-                                  disabled={isLoading}
-                                >
-                                  {isLoading ? '⟳ Loading...' : '↻ Refresh'}
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-
-                          {debug && (
-                            <div className="px-3 py-2 text-xs text-slate-600 border-b border-slate-100">
-                              Debug · paidPayments: {paidPayments.length} · filteredPaid: {filteredPaidPayments.length} · pagedPaid: {pagedPaid.length} · bookings: {bookings.length}
-                            </div>
-                          )}
-                          
-                          <div className={styles.tableWrap}>
-                            <table className={styles.table}>
-                              <thead>
-                                <tr>
-                                  <th className={styles.th}>
-                                    <input
-                                      type="checkbox"
-                                      aria-label="Select all"
-                                    />
-                                  </th>
-                                  <th className={styles.th} role="columnheader">
-                                    <button className="underline-offset-2 hover:underline">Booking ID</button>
-                                  </th>
-                                  <th className={styles.th} role="columnheader">
-                                    <button className="underline-offset-2 hover:underline">Guest Name</button>
-                                  </th>
-                                  <th className={styles.th} role="columnheader">
-                                    <button className="underline-offset-2 hover:underline">Check-in Date</button>
-                                  </th>
-                                  <th className={styles.th} role="columnheader">
-                                    <button className="underline-offset-2 hover:underline">Total Amount</button>
-                                  </th>
-                                  <th className={styles.th} role="columnheader">
-                                    <button className="underline-offset-2 hover:underline">Status</button>
-                                  </th>
-                                  <th className={styles.th} role="columnheader">
-                                    <button className="underline-offset-2 hover:underline">Days Until</button>
-                                  </th>
-                                  <th className={styles.th}>Actions</th>
-                                </tr>
-                              </thead>
-                            <tbody className={styles.fadeIn}>
-                              {pagedPaid.map((p) => {
-                                const badge = (status) => {
-                                  const common =
-                                    "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold";
-                                  switch ((status || "").toLowerCase()) {
-                                    case "verified":
-                                      return `${common} bg-green-100 text-green-700`;
-                                    case "pending":
-                                    case "unverified":
-                                      return `${common} bg-amber-100 text-amber-700`;
-                                    case "flagged":
-                                      return `${common} bg-slate-200 text-slate-700`;
-                                    case "cancelled":
-                                      return `${common} bg-red-100 text-red-700`;
-                                    default:
-                                      return `${common} bg-slate-100 text-slate-600`;
-                                  }
-                                };
-                                const verifiedLabel = (p.verificationStatus || "").toLowerCase();
-                                const statusLabel = (p.booking?.status || p.status || "").toLowerCase();
-                                return (
-                                  <tr
-                                    key={p.id}
-                                    onClick={() => openPaymentModal(p)}
-                                    tabIndex={0}
-                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPaymentModal(p); } }}
-                                    className={`${styles.trClickable} ${selectedRows.has(p.id) ? styles.rowSelected : ''}`}
-                                  >
-                                    <td className={styles.td} onClick={(e) => e.stopPropagation()}>
-                                      <input
-                                        type="checkbox"
-                                        checked={selectedRows.has(p.id)}
-                                        onChange={() => toggleRowSelection(p.id)}
-                                        aria-label={`Select payment ${p.id}`}
-                                      />
-                                    </td>
-                                    <td className={styles.td}>{formatPaymentId(p.id)}</td>
-                                    <td className={styles.td}>
-                                      {p.booking?.user?.name || p.booking?.guestName || "N/A"}
-                                    </td>
-                                    <td className={styles.td}>{formatCurrency(Number(p.amount))}</td>
-                                    <td className={styles.td}>{p.method || p.provider || "—"}</td>
-                                    <td className={styles.td}>
-                                      <span className={badge(statusLabel)}>
-                                        {p.status || p.booking?.status || "—"}
-                                      </span>
-                                    </td>
-                                    <td className={styles.td}>
-                                      <span className={badge(verifiedLabel)}>
-                                        {p.verificationStatus || "—"}
-                                      </span>
-                                    </td>
-                                    <td className={styles.td}>
-                                      <button
-                                        type="button"
-                                        onClick={(e) => { e.stopPropagation(); openPaymentModal(p); }}
-                                        className={`${styles.button} ${styles.btnReview}`}
-                                        aria-label={`Open payment ${p.id}`}
-                                      >
-                                        Review
-                                      </button>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                              {filteredPaidPayments.length === 0 && (
-                                <tr>
-                                  <td colSpan={8} className={`${styles.td} text-center text-slate-500 py-10`}>
-                                    No paid transactions today
-                                  </td>
-                                </tr>
-                              )}
-                            </tbody>
-                          </table>
-                        </div>
-                          
-                          {/* Pagination */}
-                          {paidTotalPages > 1 && (
-                            <div className={`${styles.paginationBar} ${styles.barRelative}`}>
-                              {refreshLoading && <div className={`${styles.refreshBar} ${styles.topBar}`} />}
-                              <div className={styles.paginationInfo}>
-                                Page {paidPage} of {paidTotalPages}
-                              </div>
-                              <div className={styles.paginationButtons}>
-                                <button
-                                  onClick={() => setPaidPage((p) => Math.max(1, p - 1))}
-                                  disabled={paidPage === 1}
-                                  className={styles.paginationBtn}
-                                >
-                                  Prev
-                                </button>
-                                <button
-                                  onClick={() => setPaidPage((p) => Math.min(paidTotalPages, p + 1))}
-                                  disabled={paidPage === paidTotalPages}
-                                  className={styles.paginationBtn}
-                                >
-                                  Next
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
 
                         {/* Upcoming Reservations Section */}
                         <div className={styles.card}>
@@ -1764,10 +1603,10 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                   className={styles.toolbarButton}
                                   disabled={isLoading}
                                 >
-                                  {isLoading ? '⟳ Loading...' : '↻ Refresh'}
+                                  {isLoading ? 'Loading...' : 'Refresh'}
                                 </button>
                                 <button onClick={exportCSV} className={styles.toolbarButton}>
-                                  ⬇ Export CSV
+                                  Export CSV
                                 </button>
                               </div>
                             </div>
@@ -1964,7 +1803,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                   className={styles.toolbarButton}
                                   aria-label="Refresh checkout transactions"
                                 >
-                                  🔄 Refresh
+                                  Refresh
                                 </button>
                               </div>
                             </div>
@@ -2071,11 +1910,11 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                           <td className={styles.td}>
                                             {isUnpaid ? (
                                               <div className="font-semibold text-red-600">
-                                                ₱{(remainingBalance / 100).toLocaleString()}
+                                                  ₱{(remainingBalance / 100).toLocaleString()}
                                               </div>
                                             ) : (
                                               <div className="text-green-600 font-medium">
-                                                ✓ Paid
+                                                ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ Paid
                                               </div>
                                             )}
                                           </td>
@@ -2134,7 +1973,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                             return checkoutTotalPages > 1 && (
                               <div className={`${styles.paginationBar} ${styles.barRelative}`} style={{marginTop: '16px'}}>
                                 <div className={styles.paginationInfo}>
-                                  Page {checkoutPage} of {checkoutTotalPages} • {checkoutTransactions.length} checkouts
+                                  Page {checkoutPage} of {checkoutTotalPages} ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ {checkoutTransactions.length} checkouts
                                 </div>
                                 <div className={styles.paginationButtons}>
                                   <button
@@ -2193,7 +2032,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                   }}
                                   className={styles.toolbarButton}
                                 >
-                                  ⬇ Export CSV
+                                  Export CSV
                                 </button>
                               </div>
                             </div>
@@ -2309,7 +2148,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                               return completedTotalPages > 1 && (
                                 <div className={`${styles.paginationBar} ${styles.barRelative}`} style={{marginTop: '16px'}}>
                                   <div className={styles.paginationInfo}>
-                                    Page {completedPage} of {completedTotalPages} • {completedTransactions.length} transactions
+                                    Page {completedPage} of {completedTotalPages} ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ {completedTransactions.length} transactions
                                   </div>
                                   <div className={styles.paginationButtons}>
                                     <button
@@ -2445,7 +2284,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                       decisionModal.payment?.method ||
                                       decisionModal.payment?.provider ||
                                       decisionModal.payment?.paymentMethod ||
-                                      "—"
+                                      "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"
                                     } 
                                     readOnly 
                                     style={{padding: '12px 16px', fontSize: '16px', width: '100%', backgroundColor: '#f8fafc', color: '#64748b'}}
@@ -2548,9 +2387,9 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                         <div className="text-sm text-gray-600 mb-1">Change Due</div>
                                         <div className={`text-lg font-bold ${isInsufficient ? 'text-red-600' : 'text-green-600'}`}>
                                           {isInsufficient ? 
-                                            `Insufficient (₱${((required - paid)/100).toLocaleString()} short)` :
-                                            `₱${(change/100).toLocaleString()}`
-                                          }
+                                              `Insufficient (₱${((required - paid)/100).toLocaleString()} short)` :
+                                              `₱${(change/100).toLocaleString()}`
+                                            }
                                         </div>
                                       </div>
                                     </div>
@@ -2680,13 +2519,13 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                               onClick={() => setDecisionModal({ show: false, payment: null })}
                               className={`${styles.button} ${styles.btnNeutral}`}
                             >
-                              ✕ Close
+                              ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¢ Close
                             </button>
                             <button
                               onClick={generateReceipt}
                               className={`${styles.button} ${styles.btnNote}`}
                             >
-                              🧾 Generate Receipt
+                              ÃƒÂ°Ã…Â¸Ã‚Â§Ã‚Â¾ Generate Receipt
                             </button>
                             {(() => {
                               const payment = decisionModal.payment;
@@ -2700,7 +2539,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                     disabled={actionLoading}
                                     className={`${styles.button} ${styles.btnFlag}`}
                                   >
-                                    ❌ Cancel Transaction
+                                    ÃƒÂ¢Ã‚ÂÃ…â€™ Cancel Transaction
                                     {actionLoading && <span className={styles.inlineSpinner} />}
                                   </button>
                                   <button
@@ -2709,7 +2548,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                     className={`${styles.button} ${styles.btnVerify}`}
                                     title={!paymentMethod ? 'Select a payment method' : (paid < required ? 'Amount tendered is less than required' : undefined)}
                                   >
-                                    ✅ Confirm Payment
+                                    ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Confirm Payment
                                     {actionLoading && <span className={styles.inlineSpinner} />}
                                   </button>
                                 </>
@@ -3017,7 +2856,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                     <NavigationConfirmationModal
                       show={navigationGuard.showModal}
                       onStay={navigationGuard.handleStay}
-                      onLeave={() => signOut()}
+                      onLeave={() => signOut({ callbackUrl: '/login' })}
                       context="logout"
                       message={navigationGuard.message}
                     />

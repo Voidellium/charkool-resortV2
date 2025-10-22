@@ -458,14 +458,14 @@ export default function Home() {
   <h4>Quick Links</h4>
   <ul className="modern-links">
     <li>
-      <Link href="/room">
+      <a href="#rooms" onClick={(e) => { e.preventDefault(); const roomsSection = document.getElementById('rooms'); if (roomsSection) { roomsSection.scrollIntoView({ behavior: 'smooth' }); } }} style={{ cursor: 'pointer' }}>
         <div className="link-item">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
             <path d="M4 10V21H20V10L12 3L4 10ZM6 11.5L12 6L18 11.5V19H6V11.5Z" />
           </svg>
           <span>Rooms</span>
         </div>
-      </Link>
+      </a>
     </li>
     <li>
       <Link href="/about-us">
@@ -492,7 +492,7 @@ export default function Home() {
 
     <div className="footer-contact">
       <h4>Contact</h4>
-      <p>📍 Liwliwa, San Felipe, Zambales 2204</p>
+      <p>📍Sitio Liwliwa, Brgy. Sto Niño, Zambales 2204 San Felipe, Philippines</p>
       <p>📞 +63 967 217 6539</p>
       <p>📧 contact@charkoolbeachresort.com</p>
       <div className="footer-inquiry">
@@ -806,6 +806,10 @@ export default function Home() {
           color: #2b1f12;
           font-family: inherit; /* unified heading font */
         }
+        @keyframes floatCarousel {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-8px); }
+        }
         .room-carousel {
           position: relative;
           overflow: hidden;
@@ -814,6 +818,8 @@ export default function Home() {
           border-radius: 18px;
           box-shadow: 0 10px 26px rgba(0,0,0,0.08);
           background: #fff;
+          animation: floatCarousel 3s ease-in-out infinite;
+          padding-bottom: 8px;
         }
         .room-slides {
           display: flex;
@@ -888,7 +894,8 @@ export default function Home() {
           display: flex;
           justify-content: center;
           gap: 10px;
-          margin: 18px 0 0;
+          margin: 20px 0 24px 0;
+          padding: 0 10px;
         }
         .dot {
           width: 12px;
@@ -902,16 +909,30 @@ export default function Home() {
         .dot.active { background: #f4ae40; transform: scale(1.25); box-shadow: 0 6px 12px rgba(0,0,0,0.15); }
         @media (max-width: 1024px) {
           .room-image { height: 360px; }
+          .dots { margin: 18px 0 20px 0; }
         }
         @media (max-width: 768px) {
           .rooms { padding: 100px 20px 70px; }
           .room-image { height: 260px; }
           .rooms-title { font-size: 2rem; margin-bottom: 40px; }
+          .room-carousel { padding-bottom: 6px; }
+          .dots { margin: 16px 0 20px 0; gap: 8px; }
+          @keyframes floatCarousel {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-6px); }
+          }
         }
         @media (max-width: 520px) {
           .nav-btn { display: none; }
           .room-image { height: 200px; }
           .rooms-title { font-size: 1.8rem; }
+          .room-carousel { padding-bottom: 4px; }
+          .dots { margin: 14px 0 18px 0; gap: 7px; }
+          .dot { width: 10px; height: 10px; }
+          @keyframes floatCarousel {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-4px); }
+          }
         }
         .policies {
           background: #ffffff; /* plain white background */

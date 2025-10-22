@@ -118,7 +118,8 @@ export const useNavigationGuard = ({
     return () => {
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [navigationContext]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependencies - navigationContext methods are stable
 
   // Mouse button navigation handler
   useEffect(() => {
@@ -168,7 +169,8 @@ export const useNavigationGuard = ({
       document.removeEventListener('mousedown', handleMouseDown, true);
       document.removeEventListener('mouseup', handleMouseUp, true);
     };
-  }, [navigationContext]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependencies - navigationContext methods are stable
 
   // Page refresh/close handler (F5, Ctrl+R, etc.)
   useEffect(() => {
@@ -195,7 +197,8 @@ export const useNavigationGuard = ({
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [navigationContext, customMessage]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customMessage]); // Only re-run if customMessage changes
 
   // Touch/gesture navigation for mobile
   useEffect(() => {
@@ -251,7 +254,8 @@ export const useNavigationGuard = ({
       document.removeEventListener('touchstart', handleTouchStart);
       document.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [navigationContext]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependencies - navigationContext methods are stable
 
   // Form state management
   useEffect(() => {
@@ -262,9 +266,11 @@ export const useNavigationGuard = ({
     return () => {
       navigationContext.unregisterForm(formId);
     };
-  }, [trackForms, formId, navigationContext]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trackForms, formId]); // Removed navigationContext from dependencies to prevent infinite loop
 
-  // Cleanup on unmount
+  // Remove duplicate cleanup effect - already handled in the above useEffect
+  /* REMOVED DUPLICATE useEffect that was causing infinite re-renders
   useEffect(() => {
     return () => {
       if (formId) {
@@ -272,6 +278,7 @@ export const useNavigationGuard = ({
       }
     };
   }, [formId, navigationContext]);
+  */
 
   // Public methods for manual navigation (simplified to avoid circular deps)
   const navigate = useCallback((path) => {
@@ -281,7 +288,8 @@ export const useNavigationGuard = ({
     }
     setPendingNavigation(() => () => router.push(path));
     setShowModal(true);
-  }, [router, shouldBypass, navigationContext]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router, shouldBypass]); // navigationContext methods are stable
 
   const replace = useCallback((path) => {
     if (shouldBypass(path) || !navigationContext.shouldPreventNavigation()) {
@@ -290,7 +298,8 @@ export const useNavigationGuard = ({
     }
     setPendingNavigation(() => () => router.replace(path));
     setShowModal(true);
-  }, [router, shouldBypass, navigationContext]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router, shouldBypass]); // navigationContext methods are stable
 
   const back = useCallback(() => {
     if (shouldBypass() || !navigationContext.shouldPreventNavigation()) {
@@ -299,20 +308,23 @@ export const useNavigationGuard = ({
     }
     setPendingNavigation(() => () => router.back());
     setShowModal(true);
-  }, [router, shouldBypass, navigationContext]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router, shouldBypass]); // navigationContext methods are stable
 
   // Form state helpers
   const markFormDirty = useCallback((dirty = true) => {
     if (formId) {
       navigationContext.updateFormState(formId, dirty);
     }
-  }, [formId, navigationContext]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formId]); // navigationContext methods are stable
 
   const markFormClean = useCallback(() => {
     if (formId) {
       navigationContext.updateFormState(formId, false);
     }
-  }, [formId, navigationContext]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formId]); // navigationContext methods are stable
 
   return {
     // Modal state

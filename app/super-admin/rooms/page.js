@@ -95,7 +95,9 @@ export default function SuperAdminRoomsPage() {
     }
   };
 
-  const handleUpdateRoom = async (id) => {
+  const handleUpdateRoom = async (e, id) => {
+    e.preventDefault();
+    
     if (!editingRoom?.name || !editingRoom?.type) {
       alert('Please fill in all fields');
       return;
@@ -107,16 +109,21 @@ export default function SuperAdminRoomsPage() {
       formData.append('type', editingRoom.type);
       formData.append('price', editingRoom.price * 100);
       formData.append('quantity', editingRoom.quantity);
-      if (editingRoom.image) formData.append('image', editingRoom.image);
+      // Only append image if it's a File object (new upload), not a string (existing path)
+      if (editingRoom.image && editingRoom.image instanceof File) {
+        formData.append('image', editingRoom.image);
+      }
 
       const res = await fetch(`/api/rooms/${id}`, { method: 'PUT', body: formData });
-      if (!res.ok) throw new Error('Failed to update room');
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to update room');
+      }
 
       const updatedRoom = await res.json();
       setRooms((prev) => prev.map((room) => (room.id === id ? updatedRoom : room)));
       setEditingRoom(null);
       setShowAddForm(false);
-      // Optionally show a success message
       alert('Room updated successfully!');
     } catch (err) {
       console.error('Error updating room:', err);
@@ -265,7 +272,7 @@ export default function SuperAdminRoomsPage() {
                 {editingRoom ? 'Edit Room' : 'Add New Room'}
               </h3>
             </div>
-            <form onSubmit={editingRoom ? () => handleUpdateRoom(editingRoom.id) : handleAddRoom} style={styles.form}>
+            <form onSubmit={editingRoom ? (e) => handleUpdateRoom(e, editingRoom.id) : handleAddRoom} style={styles.form}>
               <div style={styles.formRow}>
                 <div style={styles.formGroup}>
                   <label style={styles.label}>Room Name</label>
@@ -357,10 +364,18 @@ export default function SuperAdminRoomsPage() {
                     style={styles.fileInput}
                   />
                   <span style={styles.fileInputText}>
-                    {(editingRoom?.image || newRoom.image) 
-                      ? (editingRoom?.image?.name || newRoom.image?.name)
-                      : 'Choose image file'
-                    }
+                    {(() => {
+                      const currentImage = editingRoom?.image || newRoom.image;
+                      if (!currentImage) return 'Choose image file';
+                      // If it's a File object, show the file name
+                      if (currentImage instanceof File) return currentImage.name;
+                      // If it's a string (existing image path), show "Current image" or extract filename
+                      if (typeof currentImage === 'string') {
+                        const fileName = currentImage.split('/').pop();
+                        return `Current: ${fileName}`;
+                      }
+                      return 'Choose image file';
+                    })()}
                   </span>
                 </label>
               </div>
@@ -424,7 +439,10 @@ export default function SuperAdminRoomsPage() {
                   <div style={styles.roomImageOverlay}>
                     <button
                       onClick={() => {
-                        setEditingRoom(room);
+                        setEditingRoom({
+                          ...room,
+                          price: room.price / 100, // Convert cents to pesos for editing
+                        });
                         setShowAddForm(true);
                       }}
                       style={styles.quickEditButton}
@@ -462,7 +480,10 @@ export default function SuperAdminRoomsPage() {
                   <div style={styles.roomActions}>
                     <button
                       onClick={() => {
-                        setEditingRoom(room);
+                        setEditingRoom({
+                          ...room,
+                          price: room.price / 100, // Convert cents to pesos for editing
+                        });
                         setShowAddForm(true);
                       }}
                       style={styles.editActionButton}

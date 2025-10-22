@@ -345,11 +345,23 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
   const details = fullBookingDetails || booking;
   const totalAmount = details.payments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
   const room = details.rooms?.[0]?.room;
+  const isCancelled = String(details.status).toLowerCase() === 'cancelled';
 
   return (
     <div className="unified-modal">
+      {/* Cancellation Notice Banner */}
+      {isCancelled && (
+        <div className="cancellation-banner">
+          <div className="banner-icon">⚠️</div>
+          <div className="banner-content">
+            <h3>Booking Cancelled</h3>
+            <p>This booking has been cancelled and is no longer active.</p>
+          </div>
+        </div>
+      )}
+
       <div className="modal-header">
-        <h2>Booking & Payment Details</h2>
+        <h2>{isCancelled ? 'Cancelled Booking Details' : 'Booking & Payment Details'}</h2>
         <div className="modal-actions">
           <button className="action-btn secondary" onClick={handlePrintDetails}>
             🖨️ Print
@@ -394,16 +406,18 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
                 })} at 12:00 PM
               </span>
             </div>
-            <div className="detail-item">
-              <span className="label">Number of Guests</span>
-              <span className="value">{details.guests} {details.guests === 1 ? 'guest' : 'guests'}</span>
-            </div>
+            {!isCancelled && (
+              <div className="detail-item">
+                <span className="label">Number of Guests</span>
+                <span className="value">{details.guests} {details.guests === 1 ? 'guest' : 'guests'}</span>
+              </div>
+            )}
             <div className="detail-item">
               <span className="label">Booking Status</span>
               <span className={`value status-${details.status.toLowerCase()}`}>{details.status}</span>
             </div>
             <div className="detail-item">
-              <span className="label">Booking Date</span>
+              <span className="label">{isCancelled ? 'Originally Booked' : 'Booking Date'}</span>
               <span className="value">
                 {new Date(details.createdAt).toLocaleDateString('en-US', {
                   year: 'numeric',
@@ -416,43 +430,86 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
                 })}
               </span>
             </div>
+            {isCancelled && details.updatedAt && (
+              <div className="detail-item">
+                <span className="label">Cancelled On</span>
+                <span className="value cancellation-date">
+                  {new Date(details.updatedAt).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  })} at {new Date(details.updatedAt).toLocaleTimeString('en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true
+                  })}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Guest Information */}
-        <div className="details-section">
-          <h3>👤 Guest Information</h3>
-          <div className="details-grid">
-            <div className="detail-item">
-              <span className="label">Name</span>
-              <span className="value">{guest ? `${guest.firstName} ${guest.lastName}` : 'N/A'}</span>
-            </div>
-            <div className="detail-item">
-              <span className="label">Email</span>
-              <span className="value">{guest?.email || 'N/A'}</span>
-            </div>
-            <div className="detail-item">
-              <span className="label">Contact Number</span>
-              <span className="value">{guest?.contactNumber || 'N/A'}</span>
+        {/* Cancellation Details - Only show for cancelled bookings */}
+        {isCancelled && details.cancellationRemarks && (
+          <div className="details-section cancellation-section">
+            <h3>📝 Cancellation Information</h3>
+            <div className="cancellation-remarks">
+              <div className="remarks-label">Reason for Cancellation:</div>
+              <div className="remarks-text">{details.cancellationRemarks}</div>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Guest Information - Hide for cancelled */}
+        {!isCancelled && (
+          <div className="details-section">
+            <h3>👤 Guest Information</h3>
+            <div className="details-grid">
+              <div className="detail-item">
+                <span className="label">Name</span>
+                <span className="value">{guest ? `${guest.firstName} ${guest.lastName}` : 'N/A'}</span>
+              </div>
+              <div className="detail-item">
+                <span className="label">Email</span>
+                <span className="value">{guest?.email || 'N/A'}</span>
+              </div>
+              <div className="detail-item">
+                <span className="label">Contact Number</span>
+                <span className="value">{guest?.contactNumber || 'N/A'}</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Payment Information */}
         <div className="details-section">
-          <h3>💳 Payment Details</h3>
+          <h3>💳 {isCancelled ? 'Payment Summary' : 'Payment Details'}</h3>
           <div className="payment-summary">
-            <div className="summary-row">
-              <span className="label">Total Amount</span>
-              <span className="value amount">₱{(totalAmount / 100).toFixed(2)}</span>
-            </div>
-            <div className="summary-row">
-              <span className="label">Payment Status</span>
-              <span className={`value status-${details.paymentStatus.toLowerCase()}`}>{details.paymentStatus}</span>
-            </div>
+            {isCancelled ? (
+              <>
+                <div className="summary-row">
+                  <span className="label">Reservation Amount Paid</span>
+                  <span className="value amount">₱{(totalAmount / 100).toFixed(2)}</span>
+                </div>
+                <div className="cancellation-notice">
+                  <p><strong>Note:</strong> Reservation payments are non-refundable as per our cancellation policy.</p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="summary-row">
+                  <span className="label">Total Amount</span>
+                  <span className="value amount">₱{(totalAmount / 100).toFixed(2)}</span>
+                </div>
+                <div className="summary-row">
+                  <span className="label">Payment Status</span>
+                  <span className={`value status-${details.paymentStatus.toLowerCase()}`}>{details.paymentStatus}</span>
+                </div>
+              </>
+            )}
           </div>
 
-          {details.payments && details.payments.length > 0 && (
+          {!isCancelled && details.payments && details.payments.length > 0 && (
             <div className="payments-list">
               <h4>Payment Transactions</h4>
               {details.payments.map((payment, index) => (
@@ -507,7 +564,7 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
         </div>
 
         {/* Additional Services */}
-        {(details.optionalAmenities?.length > 0 || details.rentalAmenities?.length > 0 || details.cottage?.length > 0) && (
+        {!isCancelled && (details.optionalAmenities?.length > 0 || details.rentalAmenities?.length > 0 || details.cottage?.length > 0) && (
           <div className="details-section">
             <h3>🛎️ Additional Services</h3>
             {details.optionalAmenities?.map((amenity, index) => (
@@ -546,6 +603,36 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
         .unified-modal {
           max-width: 700px;
           margin: 0 auto;
+        }
+        
+        .cancellation-banner {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+          background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+          border: 2px solid #ef4444;
+          border-radius: 12px;
+          padding: 1.5rem;
+          margin-bottom: 1.5rem;
+          box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15);
+        }
+        
+        .banner-icon {
+          font-size: 2.5rem;
+          line-height: 1;
+        }
+        
+        .banner-content h3 {
+          color: #dc2626;
+          margin: 0 0 0.25rem 0;
+          font-size: 1.25rem;
+          font-weight: 700;
+        }
+        
+        .banner-content p {
+          color: #991b1b;
+          margin: 0;
+          font-size: 0.95rem;
         }
         
         .modal-header {
@@ -631,6 +718,56 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
         .value.status-confirmed { color: #28a745; font-weight: 600; }
         .value.status-pending { color: #ffc107; font-weight: 600; }
         .value.status-cancelled { color: #dc3545; font-weight: 600; }
+        .value.status-refunded { color: #28a745; font-weight: 600; }
+        .value.status-processing { color: #ffc107; font-weight: 600; }
+        .value.cancellation-date { color: #dc2626; font-weight: 600; }
+        
+        .cancellation-section {
+          background: linear-gradient(135deg, #fff5f5 0%, #ffe4e6 100%);
+          border: 1px solid #fecaca;
+        }
+        
+        .cancellation-remarks {
+          padding: 1rem;
+          background: white;
+          border-radius: 8px;
+          border-left: 4px solid #ef4444;
+        }
+        
+        .remarks-label {
+          font-size: 0.85rem;
+          color: #991b1b;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          margin-bottom: 0.5rem;
+        }
+        
+        .remarks-text {
+          font-size: 1rem;
+          color: #dc2626;
+          line-height: 1.6;
+          font-weight: 500;
+        }
+        
+        .cancellation-notice {
+          margin-top: 1rem;
+          padding: 0.75rem;
+          background: #fff3cd;
+          border: 1px solid #ffc107;
+          border-radius: 6px;
+          font-size: 0.9rem;
+          color: #856404;
+        }
+        
+        .cancellation-notice p {
+          margin: 0;
+        }
+        
+        .cancellation-notice strong {
+          color: #664d03;
+        }
+        
         .value.status-paid { color: #28a745; font-weight: 600; }
         .value.status-failed { color: #dc3545; font-weight: 600; }
         .value.status-refunded { color: #17a2b8; font-weight: 600; }
@@ -657,6 +794,18 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
           font-size: 1.4rem;
           font-weight: 700;
           color: #654321;
+        }
+        
+        .refund-row {
+          padding-top: 0.75rem;
+          margin-top: 0.75rem;
+          border-top: 1px solid rgba(139, 69, 19, 0.2);
+        }
+        
+        .refund-amount-row .value.refund-amount {
+          color: #28a745;
+          font-size: 1.5rem;
+          font-weight: 800;
         }
         
         .payments-list h4 {
@@ -833,6 +982,13 @@ const BookingHistoryCard = ({ booking, guest, onViewDetails, onReschedule, resch
     return booking.status === 'Confirmed' && booking.status !== 'Cancelled';
   };
 
+  const isCancelled = String(booking.status).toLowerCase() === 'cancelled';
+  const refundedPayments = isCancelled 
+    ? booking.payments?.filter(p => p.status === 'Refunded' || p.status === 'refunded') || []
+    : [];
+  const totalPaid = booking.payments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
+  const totalRefunded = refundedPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+
   return (
     <div className="booking-history-card">
       <div className="card-header">
@@ -852,7 +1008,7 @@ const BookingHistoryCard = ({ booking, guest, onViewDetails, onReschedule, resch
           day: 'numeric', 
           year: 'numeric'
         })} at 12:00 PM</p>
-        <p><strong>Booked on:</strong> {new Date(booking.createdAt).toLocaleDateString('en-US', { 
+        <p><strong>{isCancelled ? 'Originally Booked' : 'Booked on'}:</strong> {new Date(booking.createdAt).toLocaleDateString('en-US', { 
           month: 'long', 
           day: 'numeric', 
           year: 'numeric',
@@ -861,54 +1017,86 @@ const BookingHistoryCard = ({ booking, guest, onViewDetails, onReschedule, resch
           minute: '2-digit',
           hour12: true
         })}</p>
-        <p><strong>Guests:</strong> {booking.guests}</p>
-        {/* Hide payment status when booking is cancelled */}
-        {String(booking.status).toLowerCase() !== 'cancelled' && (
+        {isCancelled && booking.updatedAt && (
+          <p style={{ color: '#dc2626', fontWeight: '600' }}>
+            <strong>Cancelled on:</strong> {new Date(booking.updatedAt).toLocaleDateString('en-US', { 
+              month: 'long', 
+              day: 'numeric', 
+              year: 'numeric'
+            })} at {new Date(booking.updatedAt).toLocaleTimeString('en-US', {
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true
+            })}
+          </p>
+        )}
+        {!isCancelled && (
+          <p><strong>Guests:</strong> {booking.guests}</p>
+        )}
+        {/* Show refund status for cancelled bookings */}
+        {isCancelled ? (
+          totalRefunded > 0 ? (
+            <p style={{ color: '#28a745', fontWeight: '600' }}>
+              <strong>Refund Status:</strong> ✅ Refunded ₱{(totalRefunded / 100).toFixed(0)}
+            </p>
+          ) : totalPaid > 0 ? (
+            <p style={{ color: '#ffc107', fontWeight: '600' }}>
+              <strong>Refund Status:</strong> ⏳ Processing Refund
+            </p>
+          ) : null
+        ) : (
           <p><strong>Payment Status:</strong> {booking.paymentStatus}</p>
         )}
-        <p><strong>Total Paid:</strong> ₱{(booking.payments?.reduce((sum, p) => sum + Number(p.amount), 0) / 100).toFixed(0)}</p>
+        {!isCancelled && (
+          <p><strong>Total Paid:</strong> ₱{(totalPaid / 100).toFixed(0)}</p>
+        )}
       </div>
       <div className="card-actions">
         <button className="view-details-btn" onClick={() => onViewDetails(booking)}>
           View Details
         </button>
-        {/* Reschedule button/status logic */}
-        {rescheduleStatus === 'PENDING' && (
-          <button className="reschedule-btn" disabled style={{ backgroundColor: '#e0e0e0', color: '#888', cursor: 'not-allowed' }}>
-            Waiting for approval
-          </button>
-        )}
-        {rescheduleStatus === 'APPROVED' && (
-          <span className="reschedule-success">Request Approved</span>
-        )}
-        {rescheduleStatus === 'DENIED' && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-            <span className="reschedule-denied">Request Denied</span>
-            <button className="view-details-btn" style={{ marginTop: 6, background: '#eee', color: '#92400E' }} onClick={() => setShowDeniedModal(true)}>
-              View Details
-            </button>
-          </div>
-        )}
-        {shouldShowRescheduleButton() && (!rescheduleStatus || rescheduleStatus === 'DENIED') && (
-          isRescheduleAllowed() ? (
-            <button className="reschedule-btn" onClick={() => onReschedule(booking)}>
-              Reschedule
-            </button>
-          ) : isWithinTwoWeeks() ? (
-            <button 
-              className="reschedule-btn" 
-              disabled 
-              style={{ 
-                backgroundColor: '#e0e0e0', 
-                color: '#888', 
-                cursor: 'not-allowed',
-                position: 'relative'
+        {/* Only show reschedule actions for non-cancelled bookings */}
+        {!isCancelled && (
+          <>
+            {/* Reschedule button/status logic */}
+            {rescheduleStatus === 'PENDING' && (
+              <button className="reschedule-btn" disabled style={{ backgroundColor: '#e0e0e0', color: '#888', cursor: 'not-allowed' }}>
+                Waiting for approval
+              </button>
+            )}
+            {rescheduleStatus === 'APPROVED' && (
+              <span className="reschedule-success">Request Approved</span>
+            )}
+            {rescheduleStatus === 'DENIED' && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                <span className="reschedule-denied">Request Denied</span>
+                <button className="view-details-btn" style={{ marginTop: 6, background: '#eee', color: '#92400E' }} onClick={() => setShowDeniedModal(true)}>
+                  View Details
+                </button>
+              </div>
+            )}
+            {shouldShowRescheduleButton() && (!rescheduleStatus || rescheduleStatus === 'DENIED') && (
+              isRescheduleAllowed() ? (
+                <button className="reschedule-btn" onClick={() => onReschedule(booking)}>
+                  Reschedule
+                </button>
+              ) : isWithinTwoWeeks() ? (
+                <button 
+                  className="reschedule-btn" 
+                  disabled 
+                  style={{ 
+                    backgroundColor: '#e0e0e0', 
+                    color: '#888', 
+                    cursor: 'not-allowed',
+                    position: 'relative'
               }}
               title="Reschedule not available - must be done at least 2 weeks before check-in date"
             >
               Reschedule
             </button>
           ) : null
+        )}
+          </>
         )}
       </div>
 

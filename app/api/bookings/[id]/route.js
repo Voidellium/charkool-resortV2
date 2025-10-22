@@ -376,7 +376,7 @@ export const PUT = async (req, context) => {
       console.error('Failed to record audit for booking update:', auditErr);
     }
 
-    return NextResponse.json(serializeBigInt(updatedBooking));
+    return NextResponse.json(serializeBigInt(updatedBookingFull));
   } catch (error) {
     console.error('❌ Booking PUT Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

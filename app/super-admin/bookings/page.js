@@ -1,7 +1,13 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus } from 'lucide-react';
+import { 
+  Plus, Search, Filter, Calendar, Users, DollarSign, 
+  TrendingUp, Eye, Edit, Trash2, CheckCircle, XCircle, 
+  Clock, MapPin, Phone, Mail, Star, MoreHorizontal,
+  Download, RefreshCw, Settings, ArrowUpDown, ChevronDown, Circle
+} from 'lucide-react';
 import SuperAdminLayout from '@/components/SuperAdminLayout';
+import Loading, { TableLoading, ButtonLoading } from '@/components/Loading';
 import RoomAmenitiesSelector from '@/components/RoomAmenitiesSelector';
 import RentalAmenitiesSelector from '@/components/RentalAmenitiesSelector';
 import OptionalAmenitiesSelector from '@/components/OptionalAmenitiesSelector';
@@ -65,6 +71,10 @@ export default function BookingsPage() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showMoreActionsModal, setShowMoreActionsModal] = useState(false);
+  const [selectedBookings, setSelectedBookings] = useState([]);
+  const [showBulkActionsModal, setShowBulkActionsModal] = useState(false);
   const [cancelRemarks, setCancelRemarks] = useState('');
   const [currentBooking, setCurrentBooking] = useState(null);
   const [historyBookings, setHistoryBookings] = useState([]);
@@ -77,16 +87,20 @@ export default function BookingsPage() {
   const [overrideModal, setOverrideModal] = useOverrideModal();
   
   // Toast notifications
-  const { showToast, success, error } = useToast();
+  const { success, error, warning, info } = useToast();
 
   // New state for booking creation form
   const [createBookingStep, setCreateBookingStep] = useState(1);
   const [createBookingForm, setCreateBookingForm] = useState({
-    guestName: '',
+    firstName: '',
+    middleName: '',
+    lastName: '',
     checkIn: '',
     checkOut: '',
     numberOfGuests: 1,
-    selectedRooms: {},
+    paymentMode: 'cash', // Default to cash
+    selectedRooms: {}, // { roomId: quantity }
+    selectedRoomDetails: {}, // { roomId: { name, type, price, image } }
     selectedAmenities: { optional: {}, rental: {}, cottage: null },
   });
   const [availableRooms, setAvailableRooms] = useState([]);
@@ -107,6 +121,15 @@ export default function BookingsPage() {
 
   // Submit ref to prevent multiple submissions
   const submittingRef = useRef(false);
+
+  // Modern UI state variables
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  const [sortBy, setSortBy] = useState('createdAt');
+  const [sortOrder, setSortOrder] = useState('desc');
+  const [viewMode, setViewMode] = useState('table'); // 'table' or 'cards'
+  const [showBulkActions, setShowBulkActions] = useState(false);
 
   // Fetch initial availability data
   useEffect(() => {
@@ -392,8 +415,8 @@ export default function BookingsPage() {
       const bookingsData = data.bookings || data; // Support both old and new API structure
       
       if (Array.isArray(bookingsData)) {
-        setBookings(bookingsData.filter(b => !b.isDeleted));
-        setHistoryBookings(bookingsData.filter(b => b.isDeleted));
+        setBookings(bookingsData.filter(b => b && !b.isDeleted));
+        setHistoryBookings(bookingsData.filter(b => b && b.isDeleted));
       } else {
         console.error('Invalid bookings data format:', data);
         setMessage({ type: 'error', text: 'Invalid bookings data format received' });
@@ -407,6 +430,77 @@ export default function BookingsPage() {
   };
 
   useEffect(() => { fetchBookings(); }, []);
+
+  // Handle booking edit
+  const handleEdit = (booking) => {
+    setCurrentBooking(booking);
+    setShowEditModal(true);
+  };
+
+  // Handle more actions
+  const handleMoreActions = (booking) => {
+    setCurrentBooking(booking);
+    setShowMoreActionsModal(true);
+  };
+
+  // Handle bulk actions
+  const handleBulkAction = (action) => {
+    if (selectedBookings.length === 0) {
+      alert('Please select bookings first');
+      return;
+    }
+    setShowBulkActionsModal(true);
+  };
+
+  // Toggle booking selection
+  const toggleBookingSelection = (bookingId) => {
+    setSelectedBookings(prev => 
+      prev.includes(bookingId) 
+        ? prev.filter(id => id !== bookingId)
+        : [...prev, bookingId]
+    );
+  };
+
+  // Select all bookings
+  const toggleSelectAll = () => {
+    setSelectedBookings(prev => 
+      prev.length === paginatedBookings.length 
+        ? [] 
+        : paginatedBookings.filter(booking => booking && booking.id).map(booking => booking.id)
+    );
+  };
+
+  // Export bookings
+  const exportBookings = () => {
+    const csvData = filteredBookings.filter(booking => booking).map(booking => ({
+      'Booking ID': booking.id || 'N/A',
+      'Guest Name': booking.guestName || 'N/A',
+      'Check-in': booking.checkInDate || 'N/A',
+      'Check-out': booking.checkOutDate || 'N/A',
+      'Room': booking.roomNumber || 'N/A',
+      'Status': booking.status || 'N/A',
+      'Total': `₱${booking.totalAmount || 0}`,
+      'Payment': booking.paymentOption || 'N/A'
+    }));
+    
+    if (csvData.length === 0) {
+      alert('No bookings to export');
+      return;
+    }
+    
+    const csvString = [
+      Object.keys(csvData[0]).join(','),
+      ...csvData.map(row => Object.values(row).join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvString], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'bookings-export.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
 
   const handleDelete = async (id) => {
     if (!confirm('Are you sure you want to move this booking to history?')) return;
@@ -435,10 +529,15 @@ export default function BookingsPage() {
 
   // Filter bookings based on search and filters
   const filteredBookings = bookings.filter((booking) => {
+    // Add null check for booking object
+    if (!booking) return false;
+    
     const matchesStatus = !filterStatus || booking.status === filterStatus;
     const matchesPaymentOption = !filterPaymentOption || booking.paymentOption === filterPaymentOption;
     const matchesPaymentMethod = !filterPaymentMethod || (booking.paymentMethods && booking.paymentMethods.includes(filterPaymentMethod));
-    const matchesSearch = !searchQuery || booking.guestName.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = !searchTerm || 
+                         (booking.guestName && booking.guestName.toLowerCase().includes(searchTerm.toLowerCase())) || 
+                         (booking.id && booking.id.toString().includes(searchTerm));
     return matchesStatus && matchesPaymentOption && matchesPaymentMethod && matchesSearch;
   });
 
@@ -450,7 +549,7 @@ export default function BookingsPage() {
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterStatus, filterPaymentOption, filterPaymentMethod, searchQuery]);
+  }, [filterStatus, filterPaymentOption, filterPaymentMethod, searchTerm]);
 
   // Handle status change
   const handleStatusChange = async (id, newStatus) => {
@@ -505,157 +604,293 @@ export default function BookingsPage() {
 
   return (
     <SuperAdminLayout>
-      <div style={{ padding: '20px', backgroundColor: '#f9f9f9', minHeight: '100vh' }}>
-        <h1 style={{ marginBottom: '20px', color: '#333' }}>Bookings Management</h1>
+      <div style={styles.container}>
+        {/* Modern Header Section */}
+        <div style={styles.header}>
+          <div style={styles.headerContent}>
+            <div style={styles.titleSection}>
+              <h1 style={styles.title}>Bookings Management</h1>
+              <p style={styles.subtitle}>Manage reservations, track occupancy, and optimize your business</p>
+            </div>
+            <div style={styles.headerActions}>
+              <button
+                onClick={() => setShowCreateBookingModal(true)}
+                style={styles.primaryButton}
+              >
+                <Plus size={20} />
+                New Booking
+              </button>
+              <button style={styles.secondaryButton}>
+                <Download size={20} />
+                Export
+              </button>
+              <button style={styles.iconButton}>
+                <RefreshCw size={20} />
+              </button>
+            </div>
+          </div>
+        </div>
 
-        {/* Message Display */}
+        {/* KPI Cards Section */}
+        <div style={styles.kpiSection}>
+          <div style={styles.kpiGrid}>
+            <div style={styles.kpiCard}>
+              <div style={styles.kpiContent}>
+                <div style={styles.kpiIcon}>
+                  <Calendar size={24} />
+                </div>
+                <div style={styles.kpiInfo}>
+                  <h3 style={styles.kpiValue}>{bookings.length}</h3>
+                  <p style={styles.kpiLabel}>Total Bookings</p>
+                </div>
+              </div>
+              <div style={styles.kpiTrend}>
+                <TrendingUp size={16} style={{ color: '#10b981' }} />
+                <span style={{ color: '#10b981', fontSize: '0.875rem' }}>+12%</span>
+              </div>
+            </div>
+
+            <div style={styles.kpiCard}>
+              <div style={styles.kpiContent}>
+                <div style={{ ...styles.kpiIcon, backgroundColor: '#fef3c7' }}>
+                  <Users size={24} style={{ color: '#f59e0b' }} />
+                </div>
+                <div style={styles.kpiInfo}>
+                  <h3 style={styles.kpiValue}>{bookings.filter(b => b.status === 'confirmed').length}</h3>
+                  <p style={styles.kpiLabel}>Active Bookings</p>
+                </div>
+              </div>
+              <div style={styles.kpiTrend}>
+                <TrendingUp size={16} style={{ color: '#10b981' }} />
+                <span style={{ color: '#10b981', fontSize: '0.875rem' }}>+8%</span>
+              </div>
+            </div>
+
+            <div style={styles.kpiCard}>
+              <div style={styles.kpiContent}>
+                <div style={{ ...styles.kpiIcon, backgroundColor: '#ddd6fe' }}>
+                  <DollarSign size={24} style={{ color: '#8b5cf6' }} />
+                </div>
+                <div style={styles.kpiInfo}>
+                  <h3 style={styles.kpiValue}>₱{(bookings.reduce((sum, b) => sum + (b.totalPrice || 0), 0)).toLocaleString()}</h3>
+                  <p style={styles.kpiLabel}>Total Revenue</p>
+                </div>
+              </div>
+              <div style={styles.kpiTrend}>
+                <TrendingUp size={16} style={{ color: '#10b981' }} />
+                <span style={{ color: '#10b981', fontSize: '0.875rem' }}>+15%</span>
+              </div>
+            </div>
+
+            <div style={styles.kpiCard}>
+              <div style={styles.kpiContent}>
+                <div style={{ ...styles.kpiIcon, backgroundColor: '#fecaca' }}>
+                  <Star size={24} style={{ color: '#ef4444' }} />
+                </div>
+                <div style={styles.kpiInfo}>
+                  <h3 style={styles.kpiValue}>4.8</h3>
+                  <p style={styles.kpiLabel}>Avg Rating</p>
+                </div>
+              </div>
+              <div style={styles.kpiTrend}>
+                <TrendingUp size={16} style={{ color: '#10b981' }} />
+                <span style={{ color: '#10b981', fontSize: '0.875rem' }}>+0.2</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Enhanced Search and Filters Section */}
+        <div style={styles.filtersCard}>
+          <div style={styles.filtersHeader}>
+            <div style={styles.searchContainer}>
+              <Search size={20} style={styles.searchIcon} />
+              <input
+                type="text"
+                placeholder="Search by guest name..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                style={styles.searchInput}
+              />
+            </div>
+            
+            <div style={styles.quickFilters}>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                style={styles.quickFilterSelect}
+              >
+                <option value="">All Statuses</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="pending">Pending</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="completed">Completed</option>
+              </select>
+              
+              <select
+                value={filterPaymentOption}
+                onChange={(e) => setFilterPaymentOption(e.target.value)}
+                style={styles.quickFilterSelect}
+              >
+                <option value="">All Payment Options</option>
+                <option value="full">Full Payment</option>
+                <option value="partial">Partial Payment</option>
+                <option value="deposit">Deposit Only</option>
+              </select>
+              
+              <select
+                value={filterPaymentMethod}
+                onChange={(e) => setFilterPaymentMethod(e.target.value)}
+                style={styles.quickFilterSelect}
+              >
+                <option value="">All Payment Methods</option>
+                <option value="cash">Cash</option>
+                <option value="card">Card</option>
+                <option value="bank">Bank Transfer</option>
+                <option value="gcash">GCash</option>
+              </select>
+              
+              <button
+                onClick={() => {
+                  setShowCreateBookingModal(true);
+                }}
+                style={styles.addBookingButton}
+              >
+                <Plus size={20} />
+              </button>
+            </div>
+            
+            <div style={styles.filterActions}>
+              {selectedBookings.length > 0 && (
+                <div style={styles.bulkActionsContainer}>
+                  <span style={styles.selectedCount}>
+                    {selectedBookings.length} selected
+                  </span>
+                  <button
+                    onClick={() => handleBulkAction('cancel')}
+                    style={styles.bulkActionButton}
+                  >
+                    <Trash2 size={16} />
+                    Cancel Selected
+                  </button>
+                  <button
+                    onClick={() => setSelectedBookings([])}
+                    style={styles.bulkActionButtonSecondary}
+                  >
+                    Clear Selection
+                  </button>
+                </div>
+              )}
+              <button
+                onClick={exportBookings}
+                style={styles.exportButton}
+              >
+                <Download size={20} />
+                Export
+              </button>
+              <div style={styles.viewToggle}>
+                <button
+                  onClick={() => setViewMode('table')}
+                  style={{
+                    ...styles.viewToggleButton,
+                    backgroundColor: viewMode === 'table' ? '#3b82f6' : '#f8fafc',
+                    color: viewMode === 'table' ? '#ffffff' : '#64748b'
+                  }}
+                >
+                  Table
+                </button>
+                <button
+                  onClick={() => setViewMode('cards')}
+                  style={{
+                    ...styles.viewToggleButton,
+                    backgroundColor: viewMode === 'cards' ? '#3b82f6' : '#f8fafc',
+                    color: viewMode === 'cards' ? '#ffffff' : '#64748b'
+                  }}
+                >
+                  Cards
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Modern Message Display */}
         {message && (
-          <div
-            style={{
-              padding: '10px',
-              marginBottom: '20px',
-              borderRadius: '4px',
-              color: message.type === 'success' ? '#155724' : '#721c24',
-              backgroundColor: message.type === 'success' ? '#d4edda' : '#f8d7da',
-              border: `1px solid ${message.type === 'success' ? '#c3e6cb' : '#f5c6cb'}`,
-            }}
-          >
-            {message.text}
-            <button
-              onClick={() => setMessage(null)}
-              style={{
-                marginLeft: '10px',
-                background: 'none',
-                border: 'none',
-                color: 'inherit',
-                cursor: 'pointer',
-                fontWeight: 'bold',
-              }}
-            >
-              ×
-            </button>
+          <div style={styles.messageCard}>
+            <div style={{
+              ...styles.messageContent,
+              backgroundColor: message.type === 'success' ? '#f0f9ff' : '#fef2f2',
+              borderColor: message.type === 'success' ? '#0ea5e9' : '#ef4444',
+            }}>
+              <div style={styles.messageIcon}>
+                {message.type === 'success' ? 
+                  <CheckCircle size={20} style={{ color: '#0ea5e9' }} /> : 
+                  <XCircle size={20} style={{ color: '#ef4444' }} />
+                }
+              </div>
+              <div style={styles.messageText}>
+                {message.text}
+              </div>
+              <button
+                onClick={() => setMessage(null)}
+                style={styles.messageClose}
+              >
+                <XCircle size={16} />
+              </button>
+            </div>
           </div>
         )}
 
-        {/* Tab Navigation */}
-        <div style={{ marginBottom: '20px' }}>
-          <button
-            onClick={() => setCurrentTab('active')}
-            style={{
-              padding: '10px 20px',
-              marginRight: '10px',
-              border: 'none',
-              borderRadius: '4px',
-              backgroundColor: currentTab === 'active' ? '#FEBE52' : '#e9ecef',
-              color: currentTab === 'active' ? '#fff' : '#333',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-            }}
-          >
-            Active Bookings
-          </button>
-          <button
-            onClick={() => setCurrentTab('history')}
-            style={{
-              padding: '10px 20px',
-              border: 'none',
-              borderRadius: '4px',
-              backgroundColor: currentTab === 'history' ? '#FEBE52' : '#e9ecef',
-              color: currentTab === 'history' ? '#fff' : '#333',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-            }}
-          >
-            History
-          </button>
-        </div>
-
-        {/* Filters and Search */}
-        <div style={{ marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
-          <input
-            type="text"
-            placeholder="Search by guest name..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{
-              padding: '8px',
-              border: '1px solid #ccc',
-              borderRadius: '4px',
-              minWidth: '200px',
-            }}
-          />
-          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}>
-            <option value="">All Statuses</option>
-            <option value="Pending">Pending</option>
-            <option value="Confirmed">Confirmed</option>
-            <option value="CheckedIn">Checked In</option>
-            <option value="CheckedOut">Checked Out</option>
-            <option value="Cancelled">Cancelled</option>
-          </select>
-          <select value={filterPaymentOption} onChange={(e) => setFilterPaymentOption(e.target.value)} style={{ padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}>
-            <option value="">All Payment Options</option>
-            <option value="Reservation">Reservation</option>
-            <option value="Paid">Paid</option>
-            <option value="Unpaid">Unpaid</option>
-          </select>
-          <select value={filterPaymentMethod} onChange={(e) => setFilterPaymentMethod(e.target.value)} style={{ padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}>
-            <option value="">All Payment Methods</option>
-            <option value="Cash">Cash</option>
-            <option value="Card">Card</option>
-            <option value="Online">Online</option>
-          </select>
-          <div
-            style={{
-              position: 'relative',
-              display: 'inline-block'
-            }}
-          >
-            <button
-              onClick={() => setShowCreateBookingModal(true)}
-              style={{
-                width: '40px',
-                height: '40px',
-                backgroundColor: '#28a745',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '50%',
-                cursor: 'pointer',
-                fontWeight: 'bold',
-                fontSize: '24px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                position: 'relative'
-              }}
-              title="Create Booking"
-            >
-              <Plus size={24} />
-            </button>
-            <div
-              style={{
-                position: 'absolute',
-                bottom: '-30px',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                color: 'white',
-                padding: '4px 8px',
-                borderRadius: '4px',
-                fontSize: '12px',
-                whiteSpace: 'nowrap',
-                opacity: 0,
-                transition: 'opacity 0.2s',
-                pointerEvents: 'none'
-              }}
-              className="tooltip"
-            >
-              Create Booking
+        {/* Modern Tab Navigation */}
+        <div style={styles.tabsCard}>
+          <div style={styles.tabsContainer}>
+            <div style={styles.tabsList}>
+              <button
+                onClick={() => setCurrentTab('active')}
+                style={{
+                  ...styles.tabButton,
+                  ...(currentTab === 'active' ? styles.tabButtonActive : {})
+                }}
+              >
+                <Calendar size={18} />
+                Active Bookings
+                <span style={styles.tabBadge}>
+                  {bookings.filter(b => b.status !== 'cancelled' && b.status !== 'completed').length}
+                </span>
+              </button>
+              <button
+                onClick={() => setCurrentTab('history')}
+                style={{
+                  ...styles.tabButton,
+                  ...(currentTab === 'history' ? styles.tabButtonActive : {})
+                }}
+              >
+                <Clock size={18} />
+                History
+                <span style={styles.tabBadge}>
+                  {historyBookings.length}
+                </span>
+              </button>
             </div>
-            <style jsx>{`
-              button:hover + .tooltip {
-                opacity: 1;
-              }
-            `}</style>
+            
+            {/* Quick Stats in Tabs */}
+            <div style={styles.tabsStats}>
+              <div style={styles.quickStat}>
+                <Users size={16} />
+                <span>Today: {bookings.filter(b => {
+                  const today = new Date().toDateString();
+                  return new Date(b.checkIn).toDateString() === today;
+                }).length}</span>
+              </div>
+              <div style={styles.quickStat}>
+                <TrendingUp size={16} />
+                <span>This Week: {bookings.filter(b => {
+                  const weekAgo = new Date();
+                  weekAgo.setDate(weekAgo.getDate() - 7);
+                  return new Date(b.createdAt) >= weekAgo;
+                }).length}</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -697,22 +932,55 @@ export default function BookingsPage() {
                   e.preventDefault();
                   if (submittingRef.current) return;
 
+                  // Validation: Required name fields
+                  if (!createBookingForm.firstName?.trim()) {
+                    error('❌ First name is required.');
+                    return;
+                  }
+                  
+                  if (!createBookingForm.lastName?.trim()) {
+                    error('❌ Last name is required.');
+                    return;
+                  }
+
+                  // Validation: Number of guests
+                  if (createBookingForm.numberOfGuests < 1) {
+                    error('❌ Number of guests must be at least 1.');
+                    return;
+                  }
+
                   // Validation: date validity
                   if (!isDateSelectionValid()) {
-                    error('Please select both check-in and check-out dates (single date selection is not allowed).');
+                    error('❌ Please select both check-in and check-out dates (single date selection is not allowed).');
+                    return;
+                  }
+
+                  // Validation: Check-in date not in the past
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  const checkInDate = new Date(createBookingForm.checkIn);
+                  if (checkInDate < today) {
+                    error('❌ Check-in date cannot be in the past.');
+                    return;
+                  }
+
+                  // Validation: Check-out after check-in
+                  const checkOutDate = new Date(createBookingForm.checkOut);
+                  if (checkOutDate <= checkInDate) {
+                    error('❌ Check-out date must be after check-in date.');
                     return;
                   }
 
                   // Validation: selected rooms exist
                   if (Object.keys(createBookingForm.selectedRooms).length === 0) {
-                    error('Please select at least one room.');
+                    error('❌ Please select at least one room.');
                     return;
                   }
 
                   // Validation: capacity meets guests
                   const totalCapacity = computeTotalCapacity();
                   if (totalCapacity < createBookingForm.numberOfGuests) {
-                    error(`Selected rooms can accommodate ${totalCapacity} guest(s), but you have ${createBookingForm.numberOfGuests} guests. Add more rooms or decrease guest count.`);
+                    error(`❌ Selected rooms can accommodate ${totalCapacity} guest(s), but you have ${createBookingForm.numberOfGuests} guests. Add more rooms or decrease guest count.`);
                     return;
                   }
 
@@ -733,20 +1001,24 @@ export default function BookingsPage() {
                     const optional = createBookingForm.selectedAmenities.optional || {};
                     const cottage = createBookingForm.selectedAmenities.cottage;
 
+                    // Combine the name fields for submission
+                    const guestName = `${createBookingForm.firstName}${createBookingForm.middleName ? ' ' + createBookingForm.middleName : ''} ${createBookingForm.lastName}`.trim();
+
                     const response = await fetch('/api/bookings', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
-                        guestName: createBookingForm.guestName,
+                        guestName,
                         checkIn: createBookingForm.checkIn,
                         checkOut: createBookingForm.checkOut,
                         numberOfGuests: createBookingForm.numberOfGuests,
+                        paymentMode: createBookingForm.paymentMode,
                         selectedRooms: createBookingForm.selectedRooms,
                         optional,
                         rental,
                         cottage,
                         nights,
-                        status: 'Confirmed',
+                        status: 'Confirmed', // Super Admin creates confirmed bookings
                         paymentStatus: 'Pending'
                       })
                     });
@@ -755,24 +1027,29 @@ export default function BookingsPage() {
                       throw new Error('Failed to create booking');
                     }
 
-                    const newBooking = await response.json();
-                    setBookings([...bookings, newBooking]);
-                    success('Booking created successfully');
+                    const newBookingData = await response.json();
+                    setBookings([...bookings, newBookingData]);
+                    success('✅ Booking created successfully!');
 
                     // Reset form
                     setShowCreateBookingModal(false);
                     setCreateBookingStep(1);
                     setCreateBookingForm({
-                      guestName: '',
+                      firstName: '',
+                      middleName: '',
+                      lastName: '',
                       checkIn: '',
                       checkOut: '',
                       numberOfGuests: 1,
+                      paymentMode: 'cash',
                       selectedRooms: {},
+                      selectedRoomDetails: {},
                       selectedAmenities: { optional: {}, rental: {}, cottage: null },
                     });
+                    await fetchBookings();
                   } catch (err) {
-                    console.error('Booking Error:', err);
-                    error(`Booking Failed: ${err.message}`);
+                    console.error('❌ Booking Error:', err);
+                    error(`❌ Booking Failed: ${err.message}`);
                   } finally {
                     submittingRef.current = false;
                     setShowSubmitModal(false);
@@ -802,33 +1079,86 @@ export default function BookingsPage() {
                         <div style={{ flex: '1' }}>
                           {/* Right side - Guest Info and Dates */}
                           <div style={{ 
-                            backgroundColor: '#FFF8E1',
+                            backgroundColor: '#FFF7ED',
                             padding: '15px',
                             borderRadius: '8px',
-                            border: '1px solid rgba(251, 190, 82, 0.3)'
+                            border: '1px solid rgba(254, 190, 82, 0.3)'
                           }}>
-                            <label style={{ display: 'block', marginBottom: '15px' }}>
-                              Guest Name:
-                              <input
-                                type="text"
-                                name="guestName"
-                                value={createBookingForm.guestName}
-                                onChange={(e) => setCreateBookingForm(prev => ({ ...prev, guestName: e.target.value }))}
-                                required
-                                style={{
-                                  width: '100%',
-                                  padding: '8px',
-                                  marginTop: '4px',
-                                  borderRadius: '4px',
-                                  border: '1px solid #ccc',
-                                }}
-                              />
-                            </label>
+                            <div style={{ marginBottom: '15px' }}>
+                              <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>
+                                Guest Information
+                              </label>
+                              
+                              {/* First Name */}
+                              <div style={{ marginBottom: '10px' }}>
+                                <label style={{ display: 'block', fontSize: '14px', marginBottom: '4px', color: '#374151' }}>
+                                  First Name <span style={{ color: 'red' }}>*</span>
+                                </label>
+                                <input
+                                  type="text"
+                                  name="firstName"
+                                  value={createBookingForm.firstName}
+                                  onChange={(e) => setCreateBookingForm(prev => ({ ...prev, firstName: e.target.value }))}
+                                  required
+                                  placeholder="Enter first name"
+                                  style={{
+                                    width: '100%',
+                                    padding: '8px',
+                                    borderRadius: '4px',
+                                    border: '1px solid #ccc',
+                                    fontSize: '14px'
+                                  }}
+                                />
+                              </div>
+
+                              {/* Middle Name */}
+                              <div style={{ marginBottom: '10px' }}>
+                                <label style={{ display: 'block', fontSize: '14px', marginBottom: '4px', color: '#374151' }}>
+                                  Middle Name (Optional)
+                                </label>
+                                <input
+                                  type="text"
+                                  name="middleName"
+                                  value={createBookingForm.middleName}
+                                  onChange={(e) => setCreateBookingForm(prev => ({ ...prev, middleName: e.target.value }))}
+                                  placeholder="Enter middle name"
+                                  style={{
+                                    width: '100%',
+                                    padding: '8px',
+                                    borderRadius: '4px',
+                                    border: '1px solid #ccc',
+                                    fontSize: '14px'
+                                  }}
+                                />
+                              </div>
+
+                              {/* Last Name */}
+                              <div style={{ marginBottom: '10px' }}>
+                                <label style={{ display: 'block', fontSize: '14px', marginBottom: '4px', color: '#374151' }}>
+                                  Last Name <span style={{ color: 'red' }}>*</span>
+                                </label>
+                                <input
+                                  type="text"
+                                  name="lastName"
+                                  value={createBookingForm.lastName}
+                                  onChange={(e) => setCreateBookingForm(prev => ({ ...prev, lastName: e.target.value }))}
+                                  required
+                                  placeholder="Enter last name"
+                                  style={{
+                                    width: '100%',
+                                    padding: '8px',
+                                    borderRadius: '4px',
+                                    border: '1px solid #ccc',
+                                    fontSize: '14px'
+                                  }}
+                                />
+                              </div>
+                            </div>
 
                             <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
                               <div style={{ flex: '1' }}>
                                 <label style={{ display: 'block', fontSize: '14px', marginBottom: '4px' }}>
-                                  Number of Guests:
+                                  Number of Guests <span style={{ color: 'red' }}>*</span>
                                 </label>
                                 <input
                                   type="number"
@@ -844,6 +1174,30 @@ export default function BookingsPage() {
                                     border: '1px solid #ccc',
                                   }}
                                 />
+                              </div>
+                              
+                              {/* Payment Mode */}
+                              <div style={{ flex: '1' }}>
+                                <label style={{ display: 'block', fontSize: '14px', marginBottom: '4px' }}>
+                                  Payment Mode <span style={{ color: 'red' }}>*</span>
+                                </label>
+                                <select
+                                  name="paymentMode"
+                                  value={createBookingForm.paymentMode}
+                                  onChange={(e) => setCreateBookingForm(prev => ({ ...prev, paymentMode: e.target.value }))}
+                                  required
+                                  style={{
+                                    width: '100%',
+                                    padding: '8px',
+                                    borderRadius: '4px',
+                                    border: '1px solid #ccc',
+                                  }}
+                                >
+                                  <option value="cash">Cash</option>
+                                  <option value="gcash">GCash</option>
+                                  <option value="card">Card</option>
+                                  <option value="bank_transfer">Bank Transfer</option>
+                                </select>
                               </div>
                             </div>
 
@@ -896,14 +1250,16 @@ export default function BookingsPage() {
                         <div style={{ marginTop: '20px' }}>
                           <h3 style={{ marginBottom: '15px', color: '#5a3e00' }}>Available Rooms</h3>
                           {loadingRooms ? (
-                            <p>Loading rooms...</p>
+                            <div style={{ position: 'relative', height: '100px' }}>
+                              <Loading size="medium" text="Loading rooms..." />
+                            </div>
                           ) : availableRooms.length === 0 ? (
                             <p>No rooms available for the selected dates.</p>
                           ) : (
                             <div style={{ 
                               display: 'grid', 
-                              gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', 
-                              gap: '15px' 
+                              gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', 
+                              gap: '20px' 
                             }}>
                               {availableRooms
                                 .filter(room => room.type !== 'FAMILY_LODGE')
@@ -925,22 +1281,28 @@ export default function BookingsPage() {
 
                                 const isCapacitySatisfied = totalCapacity >= createBookingForm.numberOfGuests;
                                 const isDisabled = (isFull || (isCapacitySatisfied && !isSelected));
+                                
+                                const roomCapacity = room.type === 'TEPEE' ? 5 : room.type === 'LOFT' ? 3 : room.type === 'VILLA' ? 10 : 1;
 
                                 return (
                                   <div
                                     key={room.id}
                                     style={{
-                                      border: isSelected ? '2px solid #FEBE52' : '1px solid #e2e8f0',
-                                      borderRadius: '8px',
-                                      padding: '10px',
-                                      backgroundColor: isSelected ? '#FFF8E1' : 'white',
-                                      cursor: isFull ? 'not-allowed' : 'pointer',
-                                      opacity: isFull ? 0.6 : 1,
+                                      border: isSelected ? '2px solid #FEBE52' : '1px solid #d1d5db',
+                                      borderRadius: '12px',
+                                      padding: '0',
+                                      backgroundColor: 'white',
+                                      cursor: (isFull || isDisabled) ? 'not-allowed' : 'pointer',
+                                      opacity: (isFull || (isDisabled && !isSelected)) ? 0.5 : 1,
+                                      transition: 'all 0.2s ease',
+                                      overflow: 'hidden',
+                                      position: 'relative'
                                     }}
                                     onClick={() => {
                                       if (isDisabled && !isSelected) return;
                                       setCreateBookingForm(prev => {
                                         const selectedRooms = { ...prev.selectedRooms };
+                                        const selectedRoomDetails = { ...prev.selectedRoomDetails };
                                         const currentCapacity = Object.entries(selectedRooms).reduce((acc, [rId, qty]) => {
                                           const r = availableRooms.find(r => r.id === rId);
                                           if (!r) return acc;
@@ -954,90 +1316,186 @@ export default function BookingsPage() {
                                         if (!selectedRooms[room.id]) {
                                           // Adding a room
                                           selectedRooms[room.id] = 1;
+                                          selectedRoomDetails[room.id] = {
+                                            name: room.name,
+                                            type: room.type,
+                                            price: room.price,
+                                            image: room.image,
+                                            remaining: room.remaining
+                                          };
                                         } else {
                                           // Removing a room
                                           delete selectedRooms[room.id];
+                                          delete selectedRoomDetails[room.id];
                                         }
-                                        return { ...prev, selectedRooms };
+                                        return { ...prev, selectedRooms, selectedRoomDetails };
                                       });
                                     }}
                                   >
-                                    <img 
-                                      src={room.image || '/images/default-room.jpg'} 
-                                      alt={room.name}
-                                      style={{
-                                        width: '100%',
-                                        height: '120px',
-                                        objectFit: 'cover',
-                                        borderRadius: '4px',
-                                        marginBottom: '8px'
-                                      }}
-                                    />
-                                    <h4 style={{ margin: '0 0 4px 0', fontSize: '16px' }}>{room.name}</h4>
-                                    <p style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#666' }}>
-                                      Capacity: {
-                                        room.type === 'TEPEE' ? '1-5 guests' :
-                                        room.type === 'LOFT' ? '1-3 guests' :
-                                        room.type === 'VILLA' ? '1-10 guests' : 'N/A'
-                                      }
-                                    </p>
-                                    <p style={{ margin: '0', fontSize: '16px', fontWeight: 'bold', color: '#FEBE52' }}>
-                                      ₱{(room.price / 100).toFixed(2)}
-                                    </p>
+                                    <div style={{ position: 'relative' }}>
+                                      <img 
+                                        src={room.image || '/images/default-room.jpg'} 
+                                        alt={room.name}
+                                        style={{
+                                          width: '100%',
+                                          height: '140px',
+                                          objectFit: 'cover'
+                                        }}
+                                      />
+                                      {/* Availability Badge */}
+                                      <span style={{
+                                        position: 'absolute',
+                                        top: '8px',
+                                        right: '8px',
+                                        backgroundColor: isFull ? '#ef4444' : room.remaining <= 3 ? '#f59e0b' : '#10b981',
+                                        color: 'white',
+                                        padding: '4px 10px',
+                                        borderRadius: '12px',
+                                        fontSize: '12px',
+                                        fontWeight: '600',
+                                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                      }}>
+                                        {isFull ? 'Full' : `${room.remaining} left`}
+                                      </span>
+                                      {/* Selected Indicator */}
+                                      {isSelected && (
+                                        <div style={{
+                                          position: 'absolute',
+                                          top: '8px',
+                                          left: '8px',
+                                          backgroundColor: '#FEBE52',
+                                          color: 'white',
+                                          width: '28px',
+                                          height: '28px',
+                                          borderRadius: '50%',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          fontSize: '16px',
+                                          fontWeight: 'bold',
+                                          boxShadow: '0 2px 6px rgba(0,0,0,0.3)'
+                                        }}>
+                                          ✓
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div style={{ padding: '12px' }}>
+                                      <h4 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: '600', color: '#1f2937' }}>
+                                        {room.name}
+                                      </h4>
+                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '10px' }}>
+                                        {/* Room Type Tag */}
+                                        <span style={{
+                                          backgroundColor: '#e5e7eb',
+                                          color: '#374151',
+                                          padding: '3px 8px',
+                                          borderRadius: '4px',
+                                          fontSize: '11px',
+                                          fontWeight: '600',
+                                          textTransform: 'uppercase'
+                                        }}>
+                                          {room.type}
+                                        </span>
+                                        {/* Capacity Tag */}
+                                        <span style={{
+                                          backgroundColor: '#dbeafe',
+                                          color: '#1e40af',
+                                          padding: '3px 8px',
+                                          borderRadius: '4px',
+                                          fontSize: '11px',
+                                          fontWeight: '600',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '3px'
+                                        }}>
+                                          👥 {roomCapacity} guests
+                                        </span>
+                                      </div>
+                                      {/* Price */}
+                                      <p style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: 'bold', color: '#FEBE52' }}>
+                                        ₱{(room.price / 100).toLocaleString()}<span style={{ fontSize: '12px', fontWeight: 'normal', color: '#6b7280' }}>/night</span>
+                                      </p>
+                                    </div>
                                     {isSelected && (
                                       <div style={{ 
                                         display: 'flex', 
                                         alignItems: 'center', 
                                         justifyContent: 'center',
-                                        gap: '10px',
-                                        marginTop: '10px' 
+                                        gap: '12px',
+                                        padding: '12px',
+                                        borderTop: '1px solid #e5e7eb',
+                                        backgroundColor: '#fef3c7'
                                       }}>
                                         <button
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             setCreateBookingForm(prev => {
                                               const selectedRooms = { ...prev.selectedRooms };
-                                              selectedRooms[room.id] = Math.max(1, (selectedRooms[room.id] || 1) - 1);
-                                              return { ...prev, selectedRooms };
+                                              const selectedRoomDetails = { ...prev.selectedRoomDetails };
+                                              if (selectedRooms[room.id] > 1) {
+                                                selectedRooms[room.id] = selectedRooms[room.id] - 1;
+                                              }
+                                              return { ...prev, selectedRooms, selectedRoomDetails };
                                             });
                                           }}
+                                          disabled={selectedQty <= 1}
                                           style={{
-                                            width: '30px',
-                                            height: '30px',
+                                            width: '32px',
+                                            height: '32px',
                                             borderRadius: '50%',
-                                            border: 'none',
-                                            backgroundColor: '#FEBE52',
-                                            color: 'white',
-                                            cursor: 'pointer',
-                                            fontWeight: 'bold'
+                                            border: '2px solid #FEBE52',
+                                            backgroundColor: 'white',
+                                            color: '#FEBE52',
+                                            cursor: selectedQty <= 1 ? 'not-allowed' : 'pointer',
+                                            fontWeight: 'bold',
+                                            fontSize: '18px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            opacity: selectedQty <= 1 ? 0.5 : 1
                                           }}
                                         >
-                                          -
+                                          −
                                         </button>
-                                        <span>{selectedQty}</span>
+                                        <span style={{ 
+                                          fontWeight: 'bold', 
+                                          fontSize: '16px',
+                                          minWidth: '30px',
+                                          textAlign: 'center',
+                                          color: '#92400e'
+                                        }}>
+                                          {selectedQty}
+                                        </span>
                                         <button
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             setCreateBookingForm(prev => {
                                               const selectedRooms = { ...prev.selectedRooms };
+                                              const selectedRoomDetails = { ...prev.selectedRoomDetails };
                                               if ((selectedRooms[room.id] || 0) < room.remaining) {
                                                 selectedRooms[room.id] = (selectedRooms[room.id] || 0) + 1;
                                               }
-                                              return { ...prev, selectedRooms };
+                                              return { ...prev, selectedRooms, selectedRoomDetails };
                                             });
                                           }}
+                                          disabled={selectedQty >= room.remaining}
                                           style={{
-                                            width: '30px',
-                                            height: '30px',
+                                            width: '32px',
+                                            height: '32px',
                                             borderRadius: '50%',
                                             border: 'none',
                                             backgroundColor: '#FEBE52',
                                             color: 'white',
-                                            cursor: 'pointer',
-                                            fontWeight: 'bold'
+                                            cursor: selectedQty >= room.remaining ? 'not-allowed' : 'pointer',
+                                            fontWeight: 'bold',
+                                            fontSize: '18px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            opacity: selectedQty >= room.remaining ? 0.5 : 1
                                           }}
                                         >
-                                          <Plus size={16} />
+                                          +
                                         </button>
                                       </div>
                                     )}
@@ -1145,10 +1603,13 @@ export default function BookingsPage() {
                         <h4 style={{ color: '#5a3e00', marginBottom: '10px' }}>Guest Information</h4>
                         <div style={{ display: 'grid', gap: '10px' }}>
                           <div>
-                            <strong>Guest Name:</strong> {createBookingForm.guestName}
+                            <strong>Guest Name:</strong> {createBookingForm.firstName} {createBookingForm.middleName && createBookingForm.middleName + ' '}{createBookingForm.lastName}
                           </div>
                           <div>
                             <strong>Number of Guests:</strong> {createBookingForm.numberOfGuests}
+                          </div>
+                          <div>
+                            <strong>Payment Mode:</strong> {createBookingForm.paymentMode.charAt(0).toUpperCase() + createBookingForm.paymentMode.slice(1).replace('_', ' ')}
                           </div>
                           <div>
                             <strong>Check-in:</strong> {new Date(createBookingForm.checkIn).toLocaleDateString()}
@@ -1167,8 +1628,8 @@ export default function BookingsPage() {
                         <h4 style={{ color: '#5a3e00', marginBottom: '10px' }}>Selected Rooms</h4>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                           {Object.entries(createBookingForm.selectedRooms).map(([roomId, quantity]) => {
-                            const room = availableRooms.find(r => r.id === roomId);
-                            if (!room) return null;
+                            const roomDetails = createBookingForm.selectedRoomDetails[roomId];
+                            if (!roomDetails) return null;
                             return (
                               <div key={roomId} style={{
                                 padding: '8px 12px',
@@ -1177,7 +1638,7 @@ export default function BookingsPage() {
                                 border: '1px solid rgba(251, 190, 82, 0.3)',
                                 fontSize: '14px'
                               }}>
-                                {room.name} x{quantity}
+                                {roomDetails.name} x{quantity}
                               </div>
                             );
                           })}
@@ -1238,19 +1699,17 @@ export default function BookingsPage() {
                         
                         {/* Room Costs */}
                         {Object.entries(createBookingForm.selectedRooms).map(([roomId, quantity]) => {
-                          const room = availableRooms.find(r => r.id === roomId);
-                          if (!room) return null;
+                          const roomDetails = createBookingForm.selectedRoomDetails[roomId];
+                          if (!roomDetails) return null;
                           const nights = Math.max(1, (new Date(createBookingForm.checkOut) - new Date(createBookingForm.checkIn)) / (1000 * 60 * 60 * 24));
-                          const roomTotal = (room.price * quantity * nights);
+                          const roomTotal = (roomDetails.price * quantity * nights);
                           return (
                             <div key={roomId} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                              <span>{room.name} x{quantity} ({nights} nights)</span>
+                              <span>{roomDetails.name} x{quantity} ({nights} nights)</span>
                               <span>₱{(roomTotal / 100).toFixed(2)}</span>
                             </div>
                           );
-                        })}
-
-                        {/* Optional Amenities */}
+                        })}                        {/* Optional Amenities */}
                         {Object.entries(createBookingForm.selectedAmenities.optional).map(([amenityId, quantity]) => {
                           const amenity = optionalAmenitiesData.find(a => a.id === parseInt(amenityId));
                           if (!quantity) return null;
@@ -1351,11 +1810,15 @@ export default function BookingsPage() {
                       setShowCreateBookingModal(false);
                       setCreateBookingStep(1);
                       setCreateBookingForm({
-                        guestName: '',
+                        firstName: '',
+                        middleName: '',
+                        lastName: '',
                         checkIn: '',
                         checkOut: '',
                         numberOfGuests: 1,
+                        paymentMode: 'cash',
                         selectedRooms: {},
+                        selectedRoomDetails: {},
                         selectedAmenities: { optional: {}, rental: {}, cottage: null },
                       });
                     }}
@@ -1393,273 +1856,407 @@ export default function BookingsPage() {
           </div>
         )}
 
-        {/* Bookings Table */}
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '800px' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#f4f4f4' }}>
-                <th style={{ padding: '12px', border: '1px solid #ccc', position  : 'sticky', top: 0, backgroundColor: '#f9f9f9' }}>Guest Name</th>
-                <th style={{ padding: '12px', border: '1px solid #ccc', position: 'sticky', top: 0, backgroundColor: '#f9f9f9' }}>Check-in</th>
-                <th style={{ padding: '12px', border: '1px solid #ccc', position: 'sticky', top: 0, backgroundColor: '#f9f9f9' }}>Check-out</th>
-                <th style={{ padding: '12px', border: '1px solid #ccc', position: 'sticky', top: 0, backgroundColor: '#f9f9f9' }}>Room</th>
-                <th style={{ padding: '12px', border: '1px solid #ccc', position: 'sticky', top: 0, backgroundColor: '#f9f9f9' }}>Booking Status</th>
-            <th style={{ padding: '12px', border: '1px solid #ccc', position: 'sticky', top: 0, backgroundColor: '#f9f9f9' }}>Payment Option</th>
-            <th style={{ padding: '12px', border: '1px solid #ccc', position: 'sticky', top: 0, backgroundColor: '#f9f9f9' }}>Payment Method</th>
-            <th style={{ padding: '12px', border: '1px solid #ccc', position: 'sticky', top: 0, backgroundColor: '#f9f9f9' }}>Paid</th>
-            <th style={{ padding: '12px', border: '1px solid #ccc', position: 'sticky', top: 0, backgroundColor: '#f9f9f9' }}>Remaining Balance</th>
-                <th style={{ padding: '12px', border: '1px solid #ccc', position: 'sticky', top: 0, backgroundColor: '#f9f9f9' }}>Total Price</th>
-                <th style={{ padding: '12px', border: '1px solid #ccc', position: 'sticky', top: 0, backgroundColor: '#f9f9f9', textAlign: 'center' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={8} style={{ padding: '20px', textAlign: 'center' }}>Loading...</td>
-                </tr>
-              ) : currentTab === 'active' ? (
-                paginatedBookings.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} style={{ padding: '12px', textAlign: 'center' }}>No active bookings found</td>
-                  </tr>
-                ) : (
-                  paginatedBookings.map((booking) => (
-                    <tr key={`booking-${booking.id}`} style={{ transition: 'background 0.2s', cursor: 'pointer' }} onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f1f1f1')} onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}>
-                      <td style={{ padding: '12px', border: '1px solid #ccc' }}>{booking.guestName}</td>
-                      <td style={{ padding: '12px', border: '1px solid #ccc' }}>{new Date(booking.checkIn).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</td>
-                      <td style={{ padding: '12px', border: '1px solid #ccc' }}>{new Date(booking.checkOut).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</td>
-                      <td style={{ padding: '12px', border: '1px solid #ccc' }}>{booking.rooms && Array.isArray(booking.rooms) && booking.rooms.length > 0 ? booking.rooms.map(r => r.room.name).join(', ') : 'N/A'}</td>
-                      <td style={{ padding: '12px', border: '1px solid #ccc' }}>{booking.status}</td>
-                      <td style={{ padding: '12px', border: '1px solid #ccc' }}>{booking.paymentOption || 'Unpaid'}</td>
-                      <td style={{ padding: '12px', border: '1px solid #ccc' }}>{(booking.paymentMethods && booking.paymentMethods.length > 0) ? booking.paymentMethods.join(', ') : 'N/A'}</td>
-                      <td style={{ padding: '12px', border: '1px solid #ccc' }}>₱{((Number(booking.totalPaid) || 0) / 100).toFixed(0)}</td>
-                      <td style={{ padding: '12px', border: '1px solid #ccc' }}>₱{((Number(booking.balanceToPay) || 0) / 100).toFixed(0)}</td>
-                      <td style={{ padding: '12px', border: '1px solid #ccc' }}>₱{(Number(booking.totalCostWithAddons || booking.totalPrice) / 100).toFixed(0)}</td>
-                      <td style={{ padding: '12px', border: '1px solid #ccc', display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                        <button
-                          aria-label={`View details for ${booking.guestName}`}
-                          onClick={() => {
-                            setCurrentBooking(booking);
-                            setShowDetailsModal(true);
-                          }}
-                          style={{
-                            padding: '8px 12px',
-                            borderRadius: '6px',
-                            border: 'none',
-                            backgroundColor: '#FEBE52',
-                            color: '#fff',
-                            cursor: 'pointer',
-                            fontSize: '12px',
-                            fontWeight: 'bold',
-                            transition: 'all 0.2s',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = '#FAC975';
-                            e.currentTarget.style.transform = 'translateY(-1px)';
-                            e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = '#FEBE52';
-                            e.currentTarget.style.transform = 'translateY(0)';
-                            e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-                          }}
-                        >
-                          View Details
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )
-              ) : (
-                historyBookings.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} style={{ padding: '12px', textAlign: 'center' }}>No history bookings found</td>
-                  </tr>
-                ) : (
-                  historyBookings.map((booking) => (
-                    <tr key={booking.id} style={{ transition: 'background 0.2s', cursor: 'pointer' }} onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f1f1f1')} onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}>
-                      <td style={{ padding: '12px', border: '1px solid #ccc' }}>{booking.guestName}</td>
-                      <td style={{ padding: '12px', border: '1px solid #ccc' }}>{new Date(booking.checkIn).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</td>
-                      <td style={{ padding: '12px', border: '1px solid #ccc' }}>{new Date(booking.checkOut).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</td>
-                      <td style={{ padding: '12px', border: '1px solid #ccc' }}>{booking.rooms && Array.isArray(booking.rooms) && booking.rooms.length > 0 ? booking.rooms.map(r => r.room.name).join(', ') : 'N/A'}</td>
-                      <td style={{ padding: '12px', border: '1px solid #ccc' }}>{booking.status}</td>
-<td style={{ padding: '12px', border: '1px solid #ccc' }}>
-  <div><strong>Payment:</strong> {booking.paymentOption || 'N/A'}</div>
-  <div><strong>Method:</strong> {(booking.paymentMethods && booking.paymentMethods.length > 0) ? booking.paymentMethods.join(', ') : 'N/A'}</div>
-</td>
-                      <td style={{ padding: '12px', border: '1px solid #ccc' }}>₱{(Number(booking.totalPrice) / 100).toFixed(0)}</td>
-                      <td style={{ padding: '12px', border: '1px solid #ccc', display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                        <button
-                          aria-label={`View details for ${booking.guestName}`}
-                          onClick={() => {
-                            setHistoryBookingDetails(booking);
-                            setShowHistoryModal(true);
-                          }}
-                          style={{
-                            padding: '8px 12px',
-                            borderRadius: '6px',
-                            border: 'none',
-                            backgroundColor: '#febe52',
-                            color: '#fff',
-                            cursor: 'pointer',
-                            fontSize: '12px',
-                            fontWeight: 'bold',
-                            transition: 'all 0.2s',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = '#e6a73cff';
-                            e.currentTarget.style.transform = 'translateY(-1px)';
-                            e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = '#febe52';
-                            e.currentTarget.style.transform = 'translateY(0)';
-                            e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-                          }}
-                        >
-                          View Details
-                        </button>
-                        <button
-                          aria-label={`Delete booking for ${booking.guestName}`}
-                          onClick={async () => {
-                            if (!confirm('Are you sure you want to permanently delete this booking?')) return;
-                            setLoading(true);
-                            try {
-                              const res = await fetch(`/api/bookings/${booking.id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' } });
-                              if (res.ok) {
-                                setHistoryBookings(historyBookings.filter(b => b.id !== booking.id));
-                                setMessage({ type: 'success', text: 'Booking deleted permanently.' });
-                              } else {
-                                throw new Error('Delete failed');
-                              }
-                            } catch (err) {
-                              console.error(err);
-                              setMessage({ type: 'error', text: 'Failed to delete booking' });
-                            } finally {
-                              setLoading(false);
-                            }
-                          }}
-                          style={{
-                            padding: '8px 12px',
-                            borderRadius: '6px',
-                            border: 'none',
-                            backgroundColor: '#dc3545',
-                            color: '#fff',
-                            cursor: 'pointer',
-                            fontSize: '12px',
-                            fontWeight: 'bold',
-                            transition: 'all 0.2s',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = '#c82333';
-                            e.currentTarget.style.transform = 'translateY(-1px)';
-                            e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = '#dc3545';
-                            e.currentTarget.style.transform = 'translateY(0)';
-                            e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-                          }}
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )
-              )}
-            </tbody>
-          </table>
-
-          {/* Pagination Controls */}
-          {currentTab === 'active' && totalPages > 1 && (
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginTop: '20px',
-              padding: '1rem',
-              background: 'rgba(255,255,255,0.9)',
-              borderRadius: '12px',
-              boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
-            }}>
-              <span style={{
-                color: '#666',
-                fontSize: '0.9rem'
-              }}>
-                Showing {startIndex + 1}-{Math.min(startIndex + BOOKINGS_PER_PAGE, filteredBookings.length)} of {filteredBookings.length} bookings
-              </span>
-              
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                <button
-                  onClick={() => setCurrentPage(currentPage - 1)}
-                  disabled={currentPage === 1}
-                  style={{
-                    padding: '8px 12px',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px',
-                    background: currentPage === 1 ? '#f9fafb' : 'white',
-                    color: currentPage === 1 ? '#9ca3af' : '#374151',
-                    cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
-                    fontSize: '0.875rem',
-                    fontWeight: '500',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  Previous
-                </button>
-                
-                <div style={{ display: 'flex', gap: '0.25rem' }}>
-                  {[...Array(totalPages)].map((_, i) => {
-                    const page = i + 1;
-                    return (
-                      <button
-                        key={page}
-                        onClick={() => setCurrentPage(page)}
-                        style={{
-                          padding: '8px 12px',
-                          border: '1px solid #e5e7eb',
-                          borderRadius: '8px',
-                          background: currentPage === page ? 'linear-gradient(135deg, #febe52 0%, #EBD591 100%)' : 'white',
-                          color: currentPage === page ? 'white' : '#374151',
-                          cursor: 'pointer',
-                          fontSize: '0.875rem',
-                          fontWeight: '500',
-                          minWidth: '40px',
-                          transition: 'all 0.2s ease'
-                        }}
-                      >
-                        {page}
-                      </button>
-                    );
-                  })}
+        {/* Modern Bookings Display */}
+        <div style={styles.bookingsCard}>
+          {viewMode === 'table' ? (
+            /* Modern Table View */
+            <div style={styles.tableContainer}>
+              <div style={styles.tableHeader}>
+                <h3 style={styles.tableTitle}>
+                  {currentTab === 'active' ? 'Active Bookings' : 'Booking History'}
+                </h3>
+                <div style={styles.tableActions}>
+                  <button 
+                    onClick={() => handleBulkAction('settings')}
+                    style={styles.bulkActionButton}
+                  >
+                    <Settings size={16} />
+                    Bulk Actions
+                  </button>
                 </div>
-                
-                <button
-                  onClick={() => setCurrentPage(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                  style={{
-                    padding: '8px 12px',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px',
-                    background: currentPage === totalPages ? '#f9fafb' : 'white',
-                    color: currentPage === totalPages ? '#9ca3af' : '#374151',
-                    cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
-                    fontSize: '0.875rem',
-                    fontWeight: '500',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  Next
-                </button>
+              </div>
+              
+              <div style={styles.tableWrapper}>
+                {loading ? (
+                  <div style={{ 
+                    position: 'relative', 
+                    height: '300px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: '#f8fafc'
+                  }}>
+                    <Loading size="large" text="Loading bookings..." />
+                  </div>
+                ) : (
+                  <table style={styles.modernTable}>
+                    <thead style={styles.tableHead}>
+                      <tr>
+                        <th style={styles.tableHeadCell}>
+                          <div style={styles.tableHeadContent}>
+                            <input 
+                              type="checkbox" 
+                              style={styles.headerCheckbox}
+                              checked={selectedBookings.length === paginatedBookings.length && paginatedBookings.length > 0}
+                              onChange={toggleSelectAll}
+                            />
+                            Guest
+                            <ArrowUpDown size={14} />
+                          </div>
+                        </th>
+                        <th style={styles.tableHeadCell}>
+                          <div style={styles.tableHeadContent}>
+                            Dates
+                            <ArrowUpDown size={14} />
+                          </div>
+                        </th>
+                        <th style={styles.tableHeadCell}>
+                          <div style={styles.tableHeadContent}>
+                            Room & Guests
+                            <ArrowUpDown size={14} />
+                          </div>
+                        </th>
+                        <th style={styles.tableHeadCell}>
+                          <div style={styles.tableHeadContent}>
+                            Status
+                            <ArrowUpDown size={14} />
+                          </div>
+                        </th>
+                        <th style={styles.tableHeadCell}>
+                          <div style={styles.tableHeadContent}>
+                            Payment
+                            <ArrowUpDown size={14} />
+                          </div>
+                        </th>
+                        <th style={styles.tableHeadCell}>
+                          <div style={styles.tableHeadContent}>
+                            Total
+                            <ArrowUpDown size={14} />
+                          </div>
+                        </th>
+                        <th style={styles.tableHeadCell}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody style={styles.tableBody}>
+                      {currentTab === 'active' ? (
+                        paginatedBookings.length === 0 ? (
+                          <tr>
+                            <td colSpan={7} style={styles.emptyState}>
+                              <Calendar size={48} style={{ color: '#94a3b8' }} />
+                              <h3>No active bookings found</h3>
+                              <p>Create a new booking to get started</p>
+                            </td>
+                          </tr>
+                        ) : (
+                          paginatedBookings.filter(booking => booking).map((booking) => (
+                            <tr key={`booking-${booking.id}`} style={styles.tableRow}>
+                              <td style={styles.tableCell}>
+                                <div style={styles.guestInfo}>
+                                  <input 
+                                    type="checkbox" 
+                                    style={styles.rowCheckbox}
+                                    checked={selectedBookings.includes(booking.id)}
+                                    onChange={() => toggleBookingSelection(booking.id)}
+                                  />
+                                  <div style={styles.guestAvatar}>
+                                    {booking.guestName?.charAt(0).toUpperCase()}
+                                  </div>
+                                  <div style={styles.guestDetails}>
+                                    <div style={styles.guestName}>{booking.guestName}</div>
+                                    <div style={styles.bookingId}>#{booking.id}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td style={styles.tableCell}>
+                                <div style={styles.dateInfo}>
+                                  <div style={styles.checkInDate}>
+                                    <Calendar size={14} />
+                                    {new Date(booking.checkIn).toLocaleDateString('en-US', { 
+                                      month: 'short', day: 'numeric' 
+                                    })}
+                                  </div>
+                                  <div style={styles.checkOutDate}>
+                                    <Clock size={14} />
+                                    {new Date(booking.checkOut).toLocaleDateString('en-US', { 
+                                      month: 'short', day: 'numeric' 
+                                    })}
+                                  </div>
+                                  <div style={styles.duration}>
+                                    {Math.ceil((new Date(booking.checkOut) - new Date(booking.checkIn)) / (1000 * 60 * 60 * 24))} nights
+                                  </div>
+                                </div>
+                              </td>
+                              <td style={styles.tableCell}>
+                                <div style={styles.roomInfo}>
+                                  <div style={styles.roomName}>
+                                    <MapPin size={14} />
+                                    {booking.rooms && Array.isArray(booking.rooms) && booking.rooms.length > 0 
+                                      ? booking.rooms.map(r => r.room.name).join(', ') 
+                                      : 'N/A'
+                                    }
+                                  </div>
+                                  <div style={styles.guestCount}>
+                                    <Users size={14} />
+                                    {booking.numberOfGuests || 1} guests
+                                  </div>
+                                </div>
+                              </td>
+                              <td style={styles.tableCell}>
+                                <div style={styles.statusContainer}>
+                                  <span style={{
+                                    ...styles.statusBadge,
+                                    ...getStatusStyle(booking.status)
+                                  }}>
+                                    {getStatusIcon(booking.status)}
+                                    {booking.status}
+                                  </span>
+                                  <div style={styles.paymentStatus}>
+                                    {booking.paymentOption || 'Pending'}
+                                  </div>
+                                </div>
+                              </td>
+                              <td style={styles.tableCell}>
+                                <div style={styles.paymentInfo}>
+                                  <div style={styles.paidAmount}>
+                                    Paid: ₱{((Number(booking.totalPaid) || 0) / 100).toLocaleString()}
+                                  </div>
+                                  <div style={styles.balanceAmount}>
+                                    Balance: ₱{((Number(booking.balanceToPay) || 0) / 100).toLocaleString()}
+                                  </div>
+                                </div>
+                              </td>
+                              <td style={styles.tableCell}>
+                                <div style={styles.totalAmount}>
+                                  ₱{(Number(booking.totalCostWithAddons || booking.totalPrice) / 100).toLocaleString()}
+                                </div>
+                              </td>
+                              <td style={styles.tableCell}>
+                                <div style={styles.actionButtons}>
+                                  <button
+                                    onClick={() => {
+                                      setCurrentBooking(booking);
+                                      setShowDetailsModal(true);
+                                    }}
+                                    style={styles.actionButton}
+                                    title="View Details"
+                                  >
+                                    <Eye size={16} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleEdit(booking)}
+                                    style={styles.actionButton}
+                                    title="Edit Booking"
+                                  >
+                                    <Edit size={16} />
+                                  </button>
+                                  <button
+                                    style={styles.actionButtonDanger}
+                                    title="Cancel Booking"
+                                    onClick={() => {
+                                      setCurrentBooking(booking);
+                                      setShowCancelModal(true);
+                                    }}
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleMoreActions(booking)}
+                                    style={styles.actionButton}
+                                    title="More Actions"
+                                  >
+                                    <MoreHorizontal size={16} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        )
+                      ) : (
+                        /* History bookings content will be similar but filtered */
+                        <tr>
+                          <td colSpan={7} style={styles.emptyState}>
+                            <Clock size={48} style={{ color: '#94a3b8' }} />
+                            <h3>No booking history</h3>
+                            <p>Completed bookings will appear here</p>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          ) : (
+            /* Cards View */
+            <div style={styles.cardsContainer}>
+              <div style={styles.cardsGrid}>
+                {currentTab === 'active' ? (
+                  paginatedBookings.length === 0 ? (
+                    <div style={styles.emptyCards}>
+                      <Calendar size={64} style={{ color: '#94a3b8' }} />
+                      <h3>No active bookings</h3>
+                      <p>Create a new booking to get started</p>
+                    </div>
+                  ) : (
+                    paginatedBookings.filter(booking => booking).map((booking) => (
+                      <div key={`card-${booking.id}`} style={styles.bookingCard}>
+                        <div style={styles.cardHeader}>
+                          <div style={styles.cardGuestInfo}>
+                            <div style={styles.cardAvatar}>
+                              {booking.guestName?.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <h4 style={styles.cardGuestName}>{booking.guestName}</h4>
+                              <p style={styles.cardBookingId}>#{booking.id}</p>
+                            </div>
+                          </div>
+                          <span style={{
+                            ...styles.cardStatusBadge,
+                            ...getStatusStyle(booking.status)
+                          }}>
+                            {getStatusIcon(booking.status)}
+                            {booking.status}
+                          </span>
+                        </div>
+                        
+                        <div style={styles.cardContent}>
+                          <div style={styles.cardRow}>
+                            <div style={styles.cardIcon}>
+                              <Calendar size={16} />
+                            </div>
+                            <div>
+                              <strong>Check-in:</strong> {new Date(booking.checkIn).toLocaleDateString()}
+                            </div>
+                          </div>
+                          <div style={styles.cardRow}>
+                            <div style={styles.cardIcon}>
+                              <Clock size={16} />
+                            </div>
+                            <div>
+                              <strong>Check-out:</strong> {new Date(booking.checkOut).toLocaleDateString()}
+                            </div>
+                          </div>
+                          <div style={styles.cardRow}>
+                            <div style={styles.cardIcon}>
+                              <MapPin size={16} />
+                            </div>
+                            <div>
+                              <strong>Room:</strong> {booking.rooms && Array.isArray(booking.rooms) && booking.rooms.length > 0 
+                                ? booking.rooms.map(r => r.room.name).join(', ') 
+                                : 'N/A'
+                              }
+                            </div>
+                          </div>
+                          <div style={styles.cardRow}>
+                            <div style={styles.cardIcon}>
+                              <Users size={16} />
+                            </div>
+                            <div>
+                              <strong>Guests:</strong> {booking.numberOfGuests || 1}
+                            </div>
+                          </div>
+                          <div style={styles.cardRow}>
+                            <div style={styles.cardIcon}>
+                              <DollarSign size={16} />
+                            </div>
+                            <div>
+                              <strong>Total:</strong> ₱{(Number(booking.totalCostWithAddons || booking.totalPrice) / 100).toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div style={styles.cardActions}>
+                          <button
+                            onClick={() => {
+                              setCurrentBooking(booking);
+                              setShowDetailsModal(true);
+                            }}
+                            style={styles.cardActionButton}
+                          >
+                            <Eye size={16} />
+                            View Details
+                          </button>
+                          <button
+                            onClick={() => handleEdit(booking)}
+                            style={styles.cardActionButton}
+                          >
+                            <Edit size={16} />
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => {
+                              setCurrentBooking(booking);
+                              setShowCancelModal(true);
+                            }}
+                            style={styles.cardActionButtonDanger}
+                          >
+                            <Trash2 size={16} />
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )
+                ) : (
+                  <div style={styles.emptyCards}>
+                    <Clock size={64} style={{ color: '#94a3b8' }} />
+                    <h3>No booking history</h3>
+                    <p>Completed bookings will appear here</p>
+                  </div>
+                )}
               </div>
             </div>
           )}
         </div>
 
-        {/* Cancellation Modal */}
+        {/* Pagination */}
+        {currentTab === 'active' && totalPages > 1 && (
+          <div style={styles.paginationContainer}>
+            <div style={styles.paginationInfo}>
+              Showing {((currentPage - 1) * BOOKINGS_PER_PAGE) + 1} to {Math.min(currentPage * BOOKINGS_PER_PAGE, bookings.length)} of {bookings.length} bookings
+            </div>
+            <div style={styles.paginationControls}>
+              <button
+                onClick={() => setCurrentPage(currentPage - 1)}
+                disabled={currentPage === 1}
+                style={{
+                  ...styles.paginationButton,
+                  opacity: currentPage === 1 ? 0.5 : 1,
+                  cursor: currentPage === 1 ? 'not-allowed' : 'pointer'
+                }}
+              >
+                Previous
+              </button>
+              
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                <button
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  style={{
+                    ...styles.paginationButton,
+                    ...(page === currentPage ? styles.paginationButtonActive : {})
+                  }}
+                >
+                  {page}
+                </button>
+              ))}
+              
+              <button
+                onClick={() => setCurrentPage(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                style={{
+                  ...styles.paginationButton,
+                  opacity: currentPage === totalPages ? 0.5 : 1,
+                  cursor: currentPage === totalPages ? 'not-allowed' : 'pointer'
+                }}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Cancel Booking Modal */}
         {showCancelModal && currentBooking && (
           <div
             style={{
@@ -1668,6 +2265,7 @@ export default function BookingsPage() {
               left: 0,
               width: '100%',
               height: '100%',
+              backdropFilter: 'blur(5px)',
               backdropFilter: 'blur(5px)',
               display: 'flex',
               justifyContent: 'center',
@@ -1929,7 +2527,7 @@ export default function BookingsPage() {
               {/* Action Buttons */}
               <div style={{ marginTop: '20px', display: 'flex', gap: '10px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                 {/* Confirm and Cancel for new bookings (not confirmed or checked in/out) */}
-                {(['PENDING', 'HELD', 'NEW'].includes(currentBooking.status) && !currentBooking.actualCheckIn) && (
+                {(['Pending', 'PENDING', 'HELD', 'Held', 'NEW', 'New'].includes(currentBooking.status) && !currentBooking.actualCheckIn) && (
                   <>
                     <button
                       onClick={() => {
@@ -2045,6 +2643,11 @@ export default function BookingsPage() {
                     Check Out
                   </button>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Override Modal for Super Admin (shared) */}
         <OverrideModal
           modal={overrideModal}
@@ -2059,10 +2662,6 @@ export default function BookingsPage() {
             setCurrentBooking(null);
           }}
         />
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Confirmation Modal */}
         {showConfirmModal && currentBooking && (
@@ -2231,7 +2830,1386 @@ export default function BookingsPage() {
             </div>
           </div>
         )}
+
+        {/* Edit Booking Modal */}
+        {showEditModal && currentBooking && (
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 1000,
+              padding: '1rem',
+              backdropFilter: 'blur(4px)',
+            }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setShowEditModal(false);
+                setCurrentBooking(null);
+              }
+            }}
+          >
+            <div
+              style={{
+                background: 'rgba(255,255,255,0.98)',
+                padding: '2rem',
+                borderRadius: '16px',
+                width: '100%',
+                maxWidth: '600px',
+                maxHeight: '90vh',
+                overflow: 'auto',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+              }}
+            >
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '1.5rem',
+                borderBottom: '1px solid #e2e8f0',
+                paddingBottom: '1rem'
+              }}>
+                <h2 style={{
+                  margin: 0,
+                  color: '#1e293b',
+                  fontSize: '1.5rem',
+                  fontWeight: '600'
+                }}>
+                  Edit Booking #{currentBooking.id}
+                </h2>
+                <button
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setCurrentBooking(null);
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: '1.5rem',
+                    cursor: 'pointer',
+                    color: '#64748b',
+                    padding: '0.5rem',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+              
+              <div style={{ color: '#64748b', textAlign: 'center', padding: '2rem' }}>
+                <Edit size={48} style={{ marginBottom: '1rem', color: '#3b82f6' }} />
+                <p>Edit booking functionality coming soon...</p>
+                <p>Guest: {currentBooking.guestName}</p>
+                <p>Room: {currentBooking.roomNumber}</p>
+              </div>
+              
+              <div style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '0.5rem',
+                marginTop: '1.5rem',
+                borderTop: '1px solid #e2e8f0',
+                paddingTop: '1rem'
+              }}>
+                <button
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setCurrentBooking(null);
+                  }}
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    background: '#f1f5f9',
+                    color: '#475569',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* More Actions Modal */}
+        {showMoreActionsModal && currentBooking && (
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 1000,
+              padding: '1rem',
+              backdropFilter: 'blur(4px)',
+            }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setShowMoreActionsModal(false);
+                setCurrentBooking(null);
+              }
+            }}
+          >
+            <div
+              style={{
+                background: 'rgba(255,255,255,0.98)',
+                padding: '2rem',
+                borderRadius: '16px',
+                width: '100%',
+                maxWidth: '400px',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+              }}
+            >
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '1.5rem',
+                borderBottom: '1px solid #e2e8f0',
+                paddingBottom: '1rem'
+              }}>
+                <h3 style={{
+                  margin: 0,
+                  color: '#1e293b',
+                  fontSize: '1.25rem',
+                  fontWeight: '600'
+                }}>
+                  More Actions
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowMoreActionsModal(false);
+                    setCurrentBooking(null);
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: '1.5rem',
+                    cursor: 'pointer',
+                    color: '#64748b',
+                    padding: '0.5rem',
+                    borderRadius: '8px'
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <button
+                  onClick={() => {
+                    setShowMoreActionsModal(false);
+                    setShowDetailsModal(true);
+                  }}
+                  style={{
+                    padding: '0.75rem 1rem',
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    textAlign: 'left',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <Eye size={16} />
+                  View Full Details
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setShowMoreActionsModal(false);
+                    setShowEditModal(true);
+                  }}
+                  style={{
+                    padding: '0.75rem 1rem',
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    textAlign: 'left',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <Edit size={16} />
+                  Edit Booking
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setShowMoreActionsModal(false);
+                    setShowCancelModal(true);
+                  }}
+                  style={{
+                    padding: '0.75rem 1rem',
+                    background: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    textAlign: 'left',
+                    color: '#dc2626',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <Trash2 size={16} />
+                  Cancel Booking
+                </button>
+                
+                <button
+                  onClick={() => {
+                    const csvData = `Booking ID,Guest Name,Check-in,Check-out,Room,Status,Total,Payment
+${currentBooking.id},${currentBooking.guestName},${currentBooking.checkInDate},${currentBooking.checkOutDate},${currentBooking.roomNumber},${currentBooking.status},₱${currentBooking.totalAmount},${currentBooking.paymentOption}`;
+                    
+                    const blob = new Blob([csvData], { type: 'text/csv' });
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `booking-${currentBooking.id}.csv`;
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    
+                    setShowMoreActionsModal(false);
+                  }}
+                  style={{
+                    padding: '0.75rem 1rem',
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    textAlign: 'left',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <Download size={16} />
+                  Export Booking Details
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Bulk Actions Modal */}
+        {showBulkActionsModal && (
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 1000,
+              padding: '1rem',
+              backdropFilter: 'blur(4px)',
+            }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setShowBulkActionsModal(false);
+              }
+            }}
+          >
+            <div
+              style={{
+                background: 'rgba(255,255,255,0.98)',
+                padding: '2rem',
+                borderRadius: '16px',
+                width: '100%',
+                maxWidth: '500px',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+              }}
+            >
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '1.5rem',
+                borderBottom: '1px solid #e2e8f0',
+                paddingBottom: '1rem'
+              }}>
+                <h3 style={{
+                  margin: 0,
+                  color: '#1e293b',
+                  fontSize: '1.25rem',
+                  fontWeight: '600'
+                }}>
+                  Bulk Actions
+                </h3>
+                <button
+                  onClick={() => setShowBulkActionsModal(false)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: '1.5rem',
+                    cursor: 'pointer',
+                    color: '#64748b',
+                    padding: '0.5rem',
+                    borderRadius: '8px'
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+              
+              <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>
+                {selectedBookings.length} booking(s) selected
+              </p>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <button
+                  onClick={() => {
+                    if (confirm(`Cancel ${selectedBookings.length} selected booking(s)?`)) {
+                      // Bulk cancel logic would go here
+                      alert('Bulk cancel functionality coming soon...');
+                      setShowBulkActionsModal(false);
+                      setSelectedBookings([]);
+                    }
+                  }}
+                  style={{
+                    padding: '0.75rem 1rem',
+                    background: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    textAlign: 'left',
+                    color: '#dc2626',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <Trash2 size={16} />
+                  Cancel Selected Bookings
+                </button>
+                
+                <button
+                  onClick={() => {
+                    const selectedBookingData = filteredBookings.filter(b => selectedBookings.includes(b.id));
+                    const csvData = [
+                      'Booking ID,Guest Name,Check-in,Check-out,Room,Status,Total,Payment',
+                      ...selectedBookingData.map(booking => 
+                        `${booking.id},${booking.guestName},${booking.checkInDate},${booking.checkOutDate},${booking.roomNumber},${booking.status},₱${booking.totalAmount},${booking.paymentOption}`
+                      )
+                    ].join('\n');
+                    
+                    const blob = new Blob([csvData], { type: 'text/csv' });
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'selected-bookings.csv';
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    
+                    setShowBulkActionsModal(false);
+                  }}
+                  style={{
+                    padding: '0.75rem 1rem',
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    textAlign: 'left',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <Download size={16} />
+                  Export Selected Bookings
+                </button>
+              </div>
+              
+              <div style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '0.5rem',
+                marginTop: '1.5rem',
+                borderTop: '1px solid #e2e8f0',
+                paddingTop: '1rem'
+              }}>
+                <button
+                  onClick={() => setShowBulkActionsModal(false)}
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    background: '#f1f5f9',
+                    color: '#475569',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontWeight: '500',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </SuperAdminLayout>
   );
+}
+
+const styles = {
+  container: {
+    padding: '0',
+    backgroundColor: '#f8fafc',
+    minHeight: '100vh',
+  },
+  
+  // Header Section
+  header: {
+    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    color: '#ffffff',
+    padding: '2rem 2rem 3rem',
+    borderRadius: '0 0 24px 24px',
+    marginBottom: '2rem',
+  },
+  headerContent: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    maxWidth: '1400px',
+    margin: '0 auto',
+  },
+  titleSection: {
+    flex: 1,
+  },
+  title: {
+    fontSize: '2.5rem',
+    fontWeight: '700',
+    margin: '0 0 0.5rem 0',
+    textShadow: '0 2px 4px rgba(0,0,0,0.1)',
+  },
+  subtitle: {
+    fontSize: '1.125rem',
+    opacity: 0.9,
+    margin: 0,
+    fontWeight: '400',
+  },
+  headerActions: {
+    display: 'flex',
+    gap: '1rem',
+    alignItems: 'center',
+  },
+  primaryButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    padding: '0.75rem 1.5rem',
+    backgroundColor: '#ffffff',
+    color: '#667eea',
+    border: 'none',
+    borderRadius: '12px',
+    fontSize: '1rem',
+    fontWeight: '600',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+  },
+  secondaryButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    padding: '0.75rem 1.5rem',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    color: '#ffffff',
+    border: '1px solid rgba(255,255,255,0.3)',
+    borderRadius: '12px',
+    fontSize: '1rem',
+    fontWeight: '500',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    backdropFilter: 'blur(10px)',
+  },
+  iconButton: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '48px',
+    height: '48px',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    color: '#ffffff',
+    border: '1px solid rgba(255,255,255,0.3)',
+    borderRadius: '12px',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    backdropFilter: 'blur(10px)',
+  },
+  
+  // KPI Section
+  kpiSection: {
+    maxWidth: '1400px',
+    margin: '0 auto 2rem',
+    padding: '0 2rem',
+  },
+  kpiGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+    gap: '1.5rem',
+  },
+  kpiCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: '16px',
+    padding: '1.5rem',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+    border: '1px solid #e2e8f0',
+    transition: 'all 0.3s ease',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  kpiContent: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '1rem',
+    marginBottom: '1rem',
+  },
+  kpiIcon: {
+    width: '60px',
+    height: '60px',
+    borderRadius: '16px',
+    backgroundColor: '#e0f2fe',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#0284c7',
+  },
+  kpiInfo: {
+    flex: 1,
+  },
+  kpiValue: {
+    fontSize: '2rem',
+    fontWeight: '700',
+    color: '#1e293b',
+    margin: '0 0 0.25rem 0',
+  },
+  kpiLabel: {
+    fontSize: '0.875rem',
+    color: '#64748b',
+    margin: 0,
+    fontWeight: '500',
+  },
+  kpiTrend: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  
+  // Filters Section
+  filtersCard: {
+    maxWidth: '1400px',
+    margin: '0 auto 2rem',
+    padding: '0 2rem',
+  },
+  filtersHeader: {
+    backgroundColor: '#ffffff',
+    borderRadius: '16px',
+    padding: '1.5rem',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+    border: '1px solid #e2e8f0',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '1rem',
+    flexWrap: 'wrap',
+    '@media (max-width: 768px)': {
+      flexDirection: 'column',
+      alignItems: 'stretch',
+      gap: '1rem',
+    },
+  },
+  searchContainer: {
+    position: 'relative',
+    flex: '1 1 300px',
+    minWidth: '250px',
+    maxWidth: '400px',
+    '@media (max-width: 768px)': {
+      maxWidth: '100%',
+      minWidth: '100%',
+    },
+  },
+  searchIcon: {
+    position: 'absolute',
+    left: '1rem',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    color: '#64748b',
+    pointerEvents: 'none',
+  },
+  searchInput: {
+    width: '100%',
+    padding: '0.75rem 1rem 0.75rem 3rem',
+    border: '2px solid #e2e8f0',
+    borderRadius: '12px',
+    fontSize: '1rem',
+    backgroundColor: '#f8fafc',
+    transition: 'all 0.2s ease',
+    outline: 'none',
+    '&:focus': {
+      borderColor: '#3b82f6',
+      backgroundColor: '#ffffff',
+      boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.1)',
+    },
+  },
+  quickFilters: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    flexShrink: 0,
+    flexWrap: 'wrap',
+    '@media (max-width: 768px)': {
+      width: '100%',
+      justifyContent: 'stretch',
+    },
+  },
+  quickFilterSelect: {
+    padding: '0.75rem 1rem',
+    border: '2px solid #e2e8f0',
+    borderRadius: '12px',
+    fontSize: '0.875rem',
+    backgroundColor: '#ffffff',
+    color: '#475569',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    outline: 'none',
+    minWidth: '140px',
+    '@media (max-width: 768px)': {
+      flex: '1',
+      minWidth: '120px',
+    },
+    '&:hover': {
+      borderColor: '#cbd5e1',
+      backgroundColor: '#f8fafc',
+    },
+    '&:focus': {
+      borderColor: '#3b82f6',
+      boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.1)',
+    },
+  },
+  addBookingButton: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '48px',
+    height: '48px',
+    backgroundColor: '#10b981',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '50%',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+    '&:hover': {
+      backgroundColor: '#059669',
+      transform: 'translateY(-2px)',
+      boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)',
+    },
+  },
+  filterActions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '1rem',
+    flexWrap: 'wrap',
+    '@media (max-width: 768px)': {
+      width: '100%',
+      justifyContent: 'center',
+    },
+  },
+  filterButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    padding: '0.75rem 1rem',
+    backgroundColor: '#f8fafc',
+    border: '2px solid #e2e8f0',
+    borderRadius: '12px',
+    fontSize: '1rem',
+    fontWeight: '500',
+    color: '#475569',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+  },
+  viewToggle: {
+    display: 'flex',
+    backgroundColor: '#f1f5f9',
+    borderRadius: '10px',
+    padding: '4px',
+  },
+  viewToggleButton: {
+    padding: '0.5rem 1rem',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '0.875rem',
+    fontWeight: '500',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+  },
+  filtersContent: {
+    backgroundColor: '#ffffff',
+    borderRadius: '0 0 16px 16px',
+    padding: '1.5rem',
+    marginTop: '-1px',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+    border: '1px solid #e2e8f0',
+    borderTop: 'none',
+  },
+  filterRow: {
+    display: 'flex',
+    alignItems: 'flex-end',
+    gap: '1.5rem',
+    flexWrap: 'wrap',
+  },
+  filterGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  filterLabel: {
+    fontSize: '0.875rem',
+    fontWeight: '500',
+    color: '#374151',
+  },
+  filterSelect: {
+    padding: '0.75rem',
+    border: '2px solid #e2e8f0',
+    borderRadius: '8px',
+    fontSize: '0.875rem',
+    backgroundColor: '#ffffff',
+    minWidth: '140px',
+  },
+  dateRangeContainer: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  dateInput: {
+    padding: '0.75rem',
+    border: '2px solid #e2e8f0',
+    borderRadius: '8px',
+    fontSize: '0.875rem',
+    backgroundColor: '#ffffff',
+  },
+  dateSeparator: {
+    fontSize: '0.875rem',
+    color: '#64748b',
+    fontWeight: '500',
+  },
+  clearFiltersButton: {
+    padding: '0.75rem 1rem',
+    backgroundColor: '#f3f4f6',
+    border: '2px solid #d1d5db',
+    borderRadius: '8px',
+    fontSize: '0.875rem',
+    fontWeight: '500',
+    color: '#374151',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+  },
+  
+  // Message Card
+  messageCard: {
+    maxWidth: '1400px',
+    margin: '0 auto 1.5rem',
+    padding: '0 2rem',
+  },
+  messageContent: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '1rem',
+    padding: '1rem 1.5rem',
+    borderRadius: '12px',
+    border: '2px solid',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+  },
+  messageIcon: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  messageText: {
+    flex: 1,
+    fontSize: '1rem',
+    fontWeight: '500',
+  },
+  messageClose: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '32px',
+    height: '32px',
+    border: 'none',
+    borderRadius: '8px',
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+  },
+  
+  // Tabs
+  tabsCard: {
+    maxWidth: '1400px',
+    margin: '0 auto 2rem',
+    padding: '0 2rem',
+  },
+  tabsContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: '16px',
+    padding: '1.5rem',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+    border: '1px solid #e2e8f0',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  tabsList: {
+    display: 'flex',
+    gap: '0.5rem',
+    backgroundColor: '#f8fafc',
+    borderRadius: '12px',
+    padding: '0.5rem',
+  },
+  tabButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    padding: '0.75rem 1.5rem',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '1rem',
+    fontWeight: '500',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    backgroundColor: 'transparent',
+    color: '#64748b',
+  },
+  tabButtonActive: {
+    backgroundColor: '#3b82f6',
+    color: '#ffffff',
+    boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
+  },
+  tabBadge: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    color: 'inherit',
+    borderRadius: '12px',
+    padding: '0.25rem 0.5rem',
+    fontSize: '0.75rem',
+    fontWeight: '600',
+    minWidth: '20px',
+    textAlign: 'center',
+  },
+  tabsStats: {
+    display: 'flex',
+    gap: '2rem',
+  },
+  quickStat: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    color: '#64748b',
+    fontSize: '0.875rem',
+    fontWeight: '500',
+  },
+  
+  // Modern Table Styles
+  bookingsCard: {
+    maxWidth: '1400px',
+    margin: '0 auto 2rem',
+    padding: '0 2rem',
+  },
+  tableContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: '16px',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+    border: '1px solid #e2e8f0',
+    overflow: 'hidden',
+  },
+  tableHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '1.5rem',
+    borderBottom: '1px solid #e2e8f0',
+  },
+  tableTitle: {
+    fontSize: '1.25rem',
+    fontWeight: '600',
+    color: '#1e293b',
+    margin: 0,
+  },
+  tableActions: {
+    display: 'flex',
+    gap: '0.5rem',
+  },
+  bulkActionButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    padding: '0.5rem 1rem',
+    backgroundColor: '#f8fafc',
+    border: '1px solid #e2e8f0',
+    borderRadius: '8px',
+    fontSize: '0.875rem',
+    cursor: 'pointer',
+  },
+  tableWrapper: {
+    overflowX: 'auto',
+  },
+  modernTable: {
+    width: '100%',
+    borderCollapse: 'collapse',
+  },
+  tableHead: {
+    backgroundColor: '#f8fafc',
+  },
+  tableHeadCell: {
+    padding: '1rem',
+    textAlign: 'left',
+    fontSize: '0.875rem',
+    fontWeight: '600',
+    color: '#374151',
+    borderBottom: '1px solid #e5e7eb',
+  },
+  tableHeadContent: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    cursor: 'pointer',
+  },
+  headerCheckbox: {
+    margin: 0,
+  },
+  tableBody: {
+    backgroundColor: '#ffffff',
+  },
+  tableRow: {
+    borderBottom: '1px solid #e5e7eb',
+    transition: 'all 0.2s ease',
+    cursor: 'pointer',
+  },
+  tableCell: {
+    padding: '1rem',
+    verticalAlign: 'top',
+  },
+  guestInfo: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  rowCheckbox: {
+    margin: 0,
+  },
+  guestAvatar: {
+    width: '40px',
+    height: '40px',
+    borderRadius: '50%',
+    backgroundColor: '#3b82f6',
+    color: '#ffffff',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '1rem',
+    fontWeight: '600',
+  },
+  guestDetails: {
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  guestName: {
+    fontSize: '0.875rem',
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  bookingId: {
+    fontSize: '0.75rem',
+    color: '#64748b',
+  },
+  dateInfo: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  checkInDate: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    fontSize: '0.875rem',
+    color: '#059669',
+  },
+  checkOutDate: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    fontSize: '0.875rem',
+    color: '#dc2626',
+  },
+  duration: {
+    fontSize: '0.75rem',
+    color: '#64748b',
+  },
+  roomInfo: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  roomName: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    fontSize: '0.875rem',
+    fontWeight: '500',
+  },
+  guestCount: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    fontSize: '0.75rem',
+    color: '#64748b',
+  },
+  statusContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  statusBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+    padding: '0.25rem 0.75rem',
+    borderRadius: '12px',
+    fontSize: '0.75rem',
+    fontWeight: '600',
+  },
+  paymentStatus: {
+    fontSize: '0.75rem',
+    color: '#64748b',
+  },
+  paymentInfo: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+  },
+  paidAmount: {
+    fontSize: '0.875rem',
+    color: '#059669',
+    fontWeight: '500',
+  },
+  balanceAmount: {
+    fontSize: '0.875rem',
+    color: '#dc2626',
+    fontWeight: '500',
+  },
+  totalAmount: {
+    fontSize: '1rem',
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  actionButtons: {
+    display: 'flex',
+    gap: '0.5rem',
+  },
+  actionButton: {
+    width: '32px',
+    height: '32px',
+    border: 'none',
+    borderRadius: '6px',
+    backgroundColor: '#f3f4f6',
+    color: '#374151',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'all 0.2s ease',
+  },
+  actionButtonDanger: {
+    width: '32px',
+    height: '32px',
+    border: 'none',
+    borderRadius: '6px',
+    backgroundColor: '#fef2f2',
+    color: '#dc2626',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'all 0.2s ease',
+  },
+  emptyState: {
+    textAlign: 'center',
+    padding: '3rem',
+    color: '#64748b',
+  },
+  
+  // Cards View Styles
+  cardsContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: '16px',
+    padding: '1.5rem',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+    border: '1px solid #e2e8f0',
+  },
+  cardsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
+    gap: '1.5rem',
+  },
+  emptyCards: {
+    gridColumn: '1 / -1',
+    textAlign: 'center',
+    padding: '3rem',
+    color: '#64748b',
+  },
+  bookingCard: {
+    backgroundColor: '#ffffff',
+    border: '1px solid #e2e8f0',
+    borderRadius: '12px',
+    padding: '1.5rem',
+    transition: 'all 0.2s ease',
+  },
+  cardHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: '1rem',
+  },
+  cardGuestInfo: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+  },
+  cardAvatar: {
+    width: '48px',
+    height: '48px',
+    borderRadius: '50%',
+    backgroundColor: '#3b82f6',
+    color: '#ffffff',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '1.25rem',
+    fontWeight: '600',
+  },
+  cardGuestName: {
+    fontSize: '1rem',
+    fontWeight: '600',
+    color: '#1e293b',
+    margin: 0,
+  },
+  cardBookingId: {
+    fontSize: '0.875rem',
+    color: '#64748b',
+    margin: 0,
+  },
+  cardStatusBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+    padding: '0.25rem 0.75rem',
+    borderRadius: '12px',
+    fontSize: '0.75rem',
+    fontWeight: '600',
+  },
+  cardContent: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+    marginBottom: '1.5rem',
+  },
+  cardRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    fontSize: '0.875rem',
+  },
+  cardIcon: {
+    color: '#64748b',
+    flexShrink: 0,
+  },
+  cardActions: {
+    display: 'flex',
+    gap: '0.75rem',
+  },
+  cardActionButton: {
+    flex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.5rem',
+    padding: '0.75rem',
+    backgroundColor: '#3b82f6',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '0.875rem',
+    fontWeight: '500',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+  },
+  cardActionButtonDanger: {
+    flex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.5rem',
+    padding: '0.75rem',
+    backgroundColor: '#dc2626',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '0.875rem',
+    fontWeight: '500',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+  },
+  
+  // Pagination Styles
+  paginationContainer: {
+    maxWidth: '1400px',
+    margin: '2rem auto 0',
+    padding: '0 2rem',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  paginationInfo: {
+    fontSize: '0.875rem',
+    color: '#64748b',
+  },
+  paginationControls: {
+    display: 'flex',
+    gap: '0.5rem',
+  },
+  paginationButton: {
+    padding: '0.5rem 1rem',
+    border: '1px solid #e2e8f0',
+    borderRadius: '8px',
+    backgroundColor: '#ffffff',
+    color: '#374151',
+    cursor: 'pointer',
+    fontSize: '0.875rem',
+    transition: 'all 0.2s ease',
+  },
+  paginationButtonActive: {
+    backgroundColor: '#3b82f6',
+    color: '#ffffff',
+    borderColor: '#3b82f6',
+  },
+  
+  // Bulk Actions Styles
+  bulkActionsContainer: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    marginRight: '1rem',
+    padding: '0.5rem',
+    backgroundColor: '#f1f5f9',
+    borderRadius: '8px',
+    border: '1px solid #e2e8f0',
+  },
+  selectedCount: {
+    fontSize: '0.875rem',
+    color: '#475569',
+    fontWeight: '500',
+    marginRight: '0.5rem',
+  },
+  bulkActionButtonSecondary: {
+    padding: '0.5rem 0.75rem',
+    background: '#ffffff',
+    color: '#475569',
+    border: '1px solid #d1d5db',
+    borderRadius: '6px',
+    fontSize: '0.875rem',
+    fontWeight: '500',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+  },
+  exportButton: {
+    padding: '0.75rem 1rem',
+    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '0.875rem',
+    fontWeight: '500',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    marginRight: '0.5rem',
+  },
+  headerCheckbox: {
+    marginRight: '0.5rem',
+    cursor: 'pointer',
+    transform: 'scale(1.1)',
+  },
+  rowCheckbox: {
+    marginRight: '0.75rem',
+    cursor: 'pointer',
+    transform: 'scale(1.1)',
+  },
+};
+
+// Helper functions for status styling and icons
+function getStatusStyle(status) {
+  switch (status?.toLowerCase()) {
+    case 'confirmed':
+      return { backgroundColor: '#dcfce7', color: '#166534' };
+    case 'pending':
+      return { backgroundColor: '#fef3c7', color: '#92400e' };
+    case 'cancelled':
+      return { backgroundColor: '#fee2e2', color: '#991b1b' };
+    case 'completed':
+      return { backgroundColor: '#dbeafe', color: '#1e40af' };
+    default:
+      return { backgroundColor: '#f3f4f6', color: '#374151' };
+  }
+}
+
+function getStatusIcon(status) {
+  switch (status?.toLowerCase()) {
+    case 'confirmed':
+      return <CheckCircle size={14} />;
+    case 'pending':
+      return <Clock size={14} />;
+    case 'cancelled':
+      return <XCircle size={14} />;
+    case 'completed':
+      return <Star size={14} />;
+    default:
+      return <Circle size={14} />;
+  }
 }

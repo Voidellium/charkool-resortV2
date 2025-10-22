@@ -138,7 +138,8 @@ export const useNavigationGuard = ({
     return () => {
       window.removeEventListener('mousedown', handleMouseDown);
     };
-  }, [navigationContext]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependencies - navigationContext methods are stable
 
   // Set up navigation trap when protection becomes active
   useEffect(() => {
@@ -222,7 +223,8 @@ export const useNavigationGuard = ({
       console.log('🔧 Removing popstate event listener');
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [shouldPreventNavigation, onNavigationAttempt, customAction, navigationContext]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shouldPreventNavigation, onNavigationAttempt, customAction]); // Removed navigationContext
 
   // Page refresh/close handler (F5, Ctrl+R, etc.)
   useEffect(() => {
@@ -253,7 +255,8 @@ export const useNavigationGuard = ({
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [navigationContext, customMessage]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customMessage]); // Only re-run if customMessage changes
 
   // Form state management
   useEffect(() => {
@@ -270,9 +273,11 @@ export const useNavigationGuard = ({
     } catch (error) {
       console.error('Error registering form:', error);
     }
-  }, [trackForms, formId, navigationContext]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trackForms, formId]); // Removed navigationContext from dependencies
 
-  // Cleanup on unmount
+  // Remove duplicate cleanup effect - already handled above
+  /* REMOVED DUPLICATE useEffect that was causing infinite re-renders
   useEffect(() => {
     return () => {
       try {
@@ -284,6 +289,7 @@ export const useNavigationGuard = ({
       }
     };
   }, [formId, navigationContext]);
+  */
 
   // Public methods for manual navigation (simplified)
   const navigate = useCallback((path) => {
@@ -298,7 +304,8 @@ export const useNavigationGuard = ({
       console.error('Error in navigate:', error);
       router.push(path); // Fallback to normal navigation
     }
-  }, [router, shouldBypass, navigationContext]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router, shouldBypass]); // navigationContext methods are stable
 
   const replace = useCallback((path) => {
     try {
@@ -312,7 +319,8 @@ export const useNavigationGuard = ({
       console.error('Error in replace:', error);
       router.replace(path); // Fallback to normal navigation
     }
-  }, [router, shouldBypass, navigationContext]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router, shouldBypass]); // navigationContext methods are stable
 
   const back = useCallback(() => {
     try {
@@ -326,7 +334,8 @@ export const useNavigationGuard = ({
       console.error('Error in back:', error);
       router.back(); // Fallback to normal navigation
     }
-  }, [router, shouldBypass, navigationContext]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router, shouldBypass]); // navigationContext methods are stable
 
   // Form state helpers
   const markFormDirty = useCallback((dirty = true) => {
@@ -337,7 +346,8 @@ export const useNavigationGuard = ({
     } catch (error) {
       console.error('Error marking form dirty:', error);
     }
-  }, [formId, navigationContext]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formId]); // navigationContext methods are stable
 
   const markFormClean = useCallback(() => {
     try {
@@ -347,7 +357,8 @@ export const useNavigationGuard = ({
     } catch (error) {
       console.error('Error marking form clean:', error);
     }
-  }, [formId, navigationContext]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formId]); // navigationContext methods are stable
 
   return {
     // Modal state

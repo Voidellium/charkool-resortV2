@@ -89,14 +89,20 @@ export async function GET(req) {
     })).sort((a, b) => new Date(b.month) - new Date(a.month));
 
     return NextResponse.json({
-      totalRevenue: totalRevenue._sum.amount || 0,
+      totalRevenue: Number(totalRevenue._sum.amount || 0),
       totalTransactions,
       paidTransactions,
       pendingTransactions,
       failedTransactions,
       refundedTransactions,
-      revenueByProvider,
-      monthlyRevenue: finalMonthlyRevenue,
+      revenueByProvider: revenueByProvider.map(item => ({
+        ...item,
+        _sum: { amount: Number(item._sum.amount || 0) }
+      })),
+      monthlyRevenue: finalMonthlyRevenue.map(item => ({
+        ...item,
+        revenue: Number(item.revenue || 0)
+      })),
     });
   } catch (error) {
     console.error('Reports Error:', error);

@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
+import Loading, { TableLoading, ButtonLoading } from '@/components/Loading';
 import { 
   Search,
   Edit,
@@ -381,14 +382,8 @@ export default function UsersPage() {
               <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={4} style={{ 
-                    padding: '20px', 
-                    textAlign: 'center',
-                    background: 'rgba(255,255,255,0.7)',
-                    borderRadius: '12px',
-                    color: '#666'
-                  }}>
-                    Loading users...
+                  <td colSpan={4} style={{ position: 'relative', height: '200px' }}>
+                    <TableLoading />
                   </td>
                 </tr>
               ) : paginatedUsers.length === 0 ? (
@@ -835,6 +830,9 @@ export default function UsersPage() {
                       transition: 'background-color 0.2s',
                     }}
                   >
+                    {loading ? (
+                      <ButtonLoading size="small" color="#ffffff" />
+                    ) : null}
                     {editingUser ? 'Update' : 'Add'}
                   </button>
                   <button

@@ -24,8 +24,16 @@
   width: 48px;
   height: 48px;
   box-sizing: border-box;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Optimized: Only transition necessary properties */
+  transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              background-color 0.2s ease,
+              transform 0.2s ease,
+              box-shadow 0.2s ease;
   backdrop-filter: blur(10px);
+  /* GPU acceleration */
+  will-change: left, transform;
+  /* Prevent pointer events interference */
+  pointer-events: auto;
 }
 
 .toggleButton:hover {
@@ -55,8 +63,12 @@
   display: flex;
   flex-direction: column;
   justify-content: start;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  backdrop-filter: blur(10px);
+  /* Optimized: Only transition specific properties needed for animation */
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              padding 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Enable GPU acceleration for smoother animation */
+  will-change: width, padding;
+  /* Removed backdrop-filter as it's expensive during animations */
 }
 
 .sidebar::-webkit-scrollbar {
@@ -80,6 +92,8 @@
   width: 250px;
   padding: 1.5rem;
   align-items: flex-start;
+  /* Optimize rendering performance */
+  contain: layout style;
 }
 
 .sidebarCollapsed {
@@ -87,6 +101,8 @@
   padding: 1rem 0.5rem;
   align-items: center;
   overflow: visible;
+  /* Optimize rendering performance */
+  contain: layout style;
 }
 
 .sidebarHeader {
@@ -140,7 +156,11 @@
   border-radius: 12px;
   background: transparent;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Optimized: Specific properties only */
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              background-color 0.2s ease,
+              box-shadow 0.2s ease,
+              border-color 0.2s ease;
   color: #333;
   position: relative;
   border: 2px solid transparent;
@@ -165,17 +185,30 @@
 
 .collapsedDropdown {
   position: absolute;
-  left: 70px;
+  left: 75px; /* Move slightly more to the right to avoid overlap */
   top: 0;
   background: rgba(254, 190, 82, 0.98);
   backdrop-filter: blur(10px);
   border-radius: 12px;
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
   border: 1px solid rgba(255, 255, 255, 0.2);
-  min-width: 180px;
+  min-width: 200px; /* Increased width for better text display */
   z-index: 10001;
-  overflow: visible;
+  overflow: hidden; /* Changed from visible to prevent content overflow */
   animation: slideInFromLeft 0.3s ease-out;
+}
+
+/* Add arrow pointing to the menu item */
+.collapsedDropdown::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 20px;
+  width: 0;
+  height: 0;
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-right: 8px solid rgba(254, 190, 82, 0.98);
 }
 
 @keyframes slideInFromLeft {
@@ -190,23 +223,28 @@
 }
 
 .collapsedDropdownHeader {
-  padding: 12px 16px;
-  background: rgba(0, 0, 0, 0.1);
+  padding: 14px 16px; /* Increased padding for better spacing */
+  background: rgba(0, 0, 0, 0.15); /* Slightly darker for better contrast */
   color: #fff;
   font-weight: 600;
   font-size: 0.875rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px 12px 0 0; /* Match parent border radius */
+  line-height: 1.3; /* Better line height for multi-line text */
+  white-space: normal; /* Allow text wrapping */
+  word-wrap: break-word; /* Break long words if needed */
 }
 
 .collapsedDropdownItem {
-  padding: 10px 16px;
+  padding: 12px 16px; /* Increased padding */
   color: #333;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease;
   display: flex;
   align-items: center;
   font-size: 0.875rem;
   font-weight: 500;
+  gap: 8px; /* Consistent spacing between icon and text */
 }
 
 .collapsedDropdownItem:hover {
@@ -224,7 +262,11 @@
   font-weight: 500;
   font-family: 'Poppins', sans-serif;
   font-size: 1rem;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Optimized: Specific properties only */
+  transition: background-color 0.2s ease,
+              color 0.2s ease,
+              border-color 0.2s ease,
+              box-shadow 0.2s ease;
   border: 2px solid transparent;
   position: relative;
   overflow: hidden;
@@ -310,9 +352,13 @@
 
 .mainContent {
   min-height: 100vh;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Optimized: Only transition specific properties */
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-sizing: border-box;
   position: relative;
+  /* Enable GPU acceleration */
+  will-change: margin-left, width;
 }
 
 .mainContentExpanded {

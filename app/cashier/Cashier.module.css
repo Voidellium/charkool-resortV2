@@ -1,5 +1,6 @@
 /* Cashier Dashboard - Modern Professional Hotel Operations Design */
 
+/* Base Responsive Foundation */
 .page {
   display: flex;
   flex-direction: column;
@@ -9,6 +10,9 @@
   color: #1e293b;
   position: relative;
   line-height: 1.6;
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
 }
 
 .page::before {
@@ -29,8 +33,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 72px;
-  padding: 0 32px;
+  height: 56px;
+  padding: 0 20px;
   background: linear-gradient(135deg, #FEBE52 0%, #FFD700 100%);
   border-bottom: 1px solid #E6A800;
   box-shadow: 
@@ -269,11 +273,11 @@
 .main {
   display: flex;
   flex: 1;
-  gap: 24px;
-  padding: 24px 32px;
+  gap: 16px;
+  padding: 16px 20px;
   position: relative;
   z-index: 1;
-  max-width: 1400px;
+  max-width: 100%;
   margin: 0 auto;
   width: 100%;
 }
@@ -282,19 +286,19 @@
   flex: 1 1 100%;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
 }
 
 .kpiGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
   margin-bottom: 8px;
 }
 
 .kpiCard {
-  border-radius: 16px;
-  padding: 24px;
+  border-radius: 12px;
+  padding: 16px;
   box-shadow: 
     0 1px 3px 0 rgba(0, 0, 0, 0.1),
     0 4px 20px 0 rgba(0, 0, 0, 0.04);
@@ -303,7 +307,7 @@
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   background: #ffffff;
   border: 1px solid var(--neutral-100);
-  min-height: 100px;
+  min-height: 80px;
 }
 
 .kpiCard:hover {
@@ -356,14 +360,14 @@
 /* Today's header style */
 .cardHeaderToday {
   background: linear-gradient(135deg, var(--primary-50) 0%, var(--primary-100) 100%);
-  border-radius: 16px 16px 0 0;
-  padding: 16px 24px;
+  border-radius: 12px 12px 0 0;
+  padding: 12px 16px;
 }
 
 /* New: Section header used for major blocks like Today's Activity */
 .sectionHeader {
   background: transparent;
-  border-radius: 16px 16px 0 0;
+  border-radius: 12px 12px 0 0;
   padding: 0;
 }
 
@@ -371,17 +375,17 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 10px;
   width: 100%;
 }
 
 .sectionTitle {
-  font-size: 1.125rem;
+  font-size: 0.95rem;
   font-weight: 700;
   letter-spacing: -0.025em;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   color: var(--neutral-800);
 }
 
@@ -408,24 +412,24 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
+  gap: 10px;
   background: #ffffff;
-  border-radius: 16px;
-  padding: 20px;
+  border-radius: 12px;
+  padding: 12px;
   box-shadow: 
     0 1px 3px 0 rgba(0, 0, 0, 0.1),
     0 4px 20px 0 rgba(0, 0, 0, 0.04);
   border: 1px solid var(--neutral-100);
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 
 .toolbarInput {
   flex: 1;
-  min-width: 240px;
-  padding: 14px 18px;
-  border-radius: 12px;
+  min-width: 180px;
+  padding: 10px 14px;
+  border-radius: 10px;
   border: 1px solid var(--neutral-200);
-  font-size: 0.95rem;
+  font-size: 0.875rem;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   background: #fff;
   color: var(--neutral-700);
@@ -442,11 +446,11 @@
 }
 
 .toolbarSelect {
-  padding: 14px 18px;
-  border-radius: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
   border: 1px solid var(--neutral-200);
-  font-size: 0.95rem;
-  min-width: 160px;
+  font-size: 0.875rem;
+  min-width: 120px;
   background: #fff;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -460,14 +464,14 @@
 }
 
 .toolbarButton {
-  padding: 14px 24px;
+  padding: 10px 16px;
   border: none;
-  border-radius: 12px;
+  border-radius: 10px;
   background: linear-gradient(135deg, var(--primary-500) 0%, var(--primary-600) 100%);
   color: #fff;
   cursor: pointer;
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
 }
@@ -540,7 +544,7 @@
 
 .card {
   background: #ffffff;
-  border-radius: 16px;
+  border-radius: 12px;
   box-shadow: 
     0 1px 3px 0 rgba(0, 0, 0, 0.1),
     0 4px 20px 0 rgba(0, 0, 0, 0.04);
@@ -553,17 +557,17 @@
   box-shadow: 
     0 4px 12px 0 rgba(0, 0, 0, 0.1),
     0 12px 40px 0 rgba(0, 0, 0, 0.08);
-  transform: translateY(-2px);
+  transform: translateY(-1px);
 }
 
 .cardHeader {
-  padding: 20px 24px;
+  padding: 12px 16px;
   background: linear-gradient(135deg, var(--neutral-50) 0%, #ffffff 100%);
   border-bottom: 1px solid var(--neutral-100);
 }
 
 .cardTitle {
-  font-size: 1.125rem;
+  font-size: 0.95rem;
   font-weight: 700;
   color: var(--neutral-800);
   margin: 0;
@@ -571,7 +575,7 @@
 }
 
 .cardSubtitle {
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   color: var(--neutral-500);
   margin: 4px 0 0;
   font-weight: 500;
@@ -596,9 +600,9 @@
   z-index: 10;
   background: linear-gradient(135deg, var(--neutral-50) 0%, #ffffff 100%);
   text-align: left;
-  padding: 16px 20px;
+  padding: 10px 12px;
   font-weight: 600;
-  font-size: 0.8rem;
+  font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--neutral-600);
@@ -615,7 +619,7 @@
   padding: 0;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   transition: color 0.2s ease;
 }
 
@@ -624,9 +628,9 @@
 }
 
 .td {
-  padding: 16px 20px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--neutral-100);
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   color: var(--neutral-700);
   vertical-align: middle;
 }
@@ -660,16 +664,16 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 16px 24px;
+  gap: 10px;
+  padding: 10px 16px;
   background: linear-gradient(135deg, var(--neutral-50) 0%, #ffffff 100%);
   border-top: 1px solid var(--neutral-100);
-  border-radius: 0 0 16px 16px;
+  border-radius: 0 0 12px 12px;
 }
 
 .paginationInfo {
   color: var(--neutral-600);
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   font-weight: 500;
 }
 
@@ -1227,6 +1231,30 @@
 }
 
 /* Responsive Design Improvements */
+@media (max-width: 1400px) {
+  .main {
+    max-width: 100%;
+    padding: 16px 20px;
+  }
+  
+  .kpiGrid {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
+
+@media (max-width: 1200px) {
+  .kpiGrid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  
+  .th,
+  .td {
+    padding: 10px 12px;
+    font-size: 0.8rem;
+  }
+}
+
 @media (max-width: 1024px) {
   .main {
     padding: 20px 24px;
@@ -1234,12 +1262,39 @@
   }
   
   .kpiGrid {
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: repeat(2, 1fr);
     gap: 16px;
   }
   
   .headerBar {
     padding: 0 24px;
+    height: 68px;
+  }
+  
+  .toolbar {
+    gap: 12px;
+    padding: 16px;
+  }
+  
+  .toolbarInput,
+  .toolbarSelect {
+    min-width: 150px;
+    font-size: 0.9rem;
+    padding: 12px 16px;
+  }
+  
+  .toolbarButton {
+    padding: 12px 20px;
+    font-size: 0.875rem;
+  }
+  
+  .sectionTitle {
+    font-size: 1rem;
+  }
+  
+  .button {
+    padding: 10px 20px;
+    font-size: 0.875rem;
   }
 }
 
@@ -1250,12 +1305,28 @@
   }
   
   .headerBar {
-    padding: 0 20px;
+    padding: 0 16px;
     height: 64px;
+    flex-wrap: wrap;
   }
   
   .headerTitle {
-    font-size: 1.125rem;
+    font-size: 1rem;
+  }
+  
+  .headerRight {
+    gap: 12px;
+  }
+  
+  .notificationBtn,
+  .avatarBtn {
+    width: 40px;
+    height: 40px;
+    padding: 8px;
+  }
+  
+  .avatarInfo {
+    display: none;
   }
   
   .kpiGrid {
@@ -1264,8 +1335,8 @@
   }
   
   .kpiCard {
-    padding: 20px;
-    min-height: 80px;
+    padding: 18px;
+    min-height: 75px;
   }
   
   .toolbar {
@@ -1275,18 +1346,33 @@
     padding: 16px;
   }
   
-  .toolbarInput {
-    min-width: auto;
-  }
-  
+  .toolbarInput,
   .toolbarSelect {
     min-width: auto;
+    width: 100%;
+  }
+  
+  .toolbarButton,
+  .toolbarButtonSecondary {
+    width: 100%;
+    justify-content: center;
   }
   
   .sectionTitleBar {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
+  }
+  
+  .tabs {
+    width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .tabButton {
+    flex-shrink: 0;
   }
   
   .modalSummaryGrid,
@@ -1296,77 +1382,252 @@
   }
   
   .modal {
-    width: 98%;
+    width: 95%;
+    max-width: 95vw;
     margin: 16px;
-    padding: 24px;
-    border-radius: 20px;
+    padding: 20px;
+    border-radius: 16px;
+    max-height: 85vh;
   }
   
   .modalHeader {
-    font-size: 1.5rem;
-    margin-bottom: 24px;
+    font-size: 1.375rem;
+    margin-bottom: 20px;
   }
   
   .modalFooter {
-    margin-top: 24px;
-    padding-top: 20px;
-    gap: 12px;
+    margin-top: 20px;
+    padding-top: 16px;
+    gap: 10px;
+    flex-direction: column;
+  }
+  
+  .modalFooter .button {
+    width: 100%;
   }
   
   .tableWrap {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    border-radius: 8px;
+  }
+  
+  .table {
+    min-width: 800px;
   }
   
   .th,
   .td {
-    padding: 12px 16px;
-    font-size: 0.875rem;
+    padding: 10px 12px;
+    font-size: 0.8rem;
+    white-space: nowrap;
   }
   
   .th {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
+  }
+  
+  .paginationBar {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  
+  .paginationButtons {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .paginationBtn {
+    flex: 1;
+  }
+  
+  .card {
+    border-radius: 12px;
+  }
+  
+  .cardHeader {
+    padding: 16px 18px;
+  }
+  
+  .cardTitle {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .headerBar {
+    height: auto;
+    min-height: 56px;
+    padding: 12px 16px;
+  }
+  
+  .headerLeft,
+  .headerRight {
+    gap: 8px;
+  }
+  
+  .headerTitle {
+    font-size: 0.95rem;
+  }
+  
+  .main {
+    padding: 12px 16px;
+    gap: 12px;
+  }
+  
+  .kpiCard {
+    padding: 16px;
+    min-height: 70px;
+  }
+  
+  .toolbar {
+    padding: 12px;
+    gap: 10px;
+  }
+  
+  .toolbarInput,
+  .toolbarSelect {
+    padding: 10px 14px;
+    font-size: 0.875rem;
+  }
+  
+  .button {
+    padding: 10px 16px;
+    font-size: 0.85rem;
+  }
+  
+  .input,
+  .select,
+  .textarea {
+    padding: 12px 14px;
+    font-size: 0.9rem;
+  }
+  
+  .label {
+    font-size: 0.85rem;
   }
 }
 
 @media (max-width: 480px) {
   .headerBar {
-    padding: 0 16px;
+    padding: 10px 12px;
   }
   
-  .main {
-    padding: 12px 16px;
+  .headerTitle {
+    font-size: 0.875rem;
   }
   
-  .kpiCard {
-    padding: 16px;
-  }
-  
-  .toolbar {
-    padding: 12px;
-  }
-  
-  .modal {
-    padding: 20px;
-  }
-  
+  .notificationBtn,
   .avatarBtn {
-    gap: 8px;
-    padding: 8px 12px;
+    width: 36px;
+    height: 36px;
+  }
+  
+  .notificationBtn svg {
+    width: 18px;
+    height: 18px;
   }
   
   .avatar {
-    width: 32px;
-    height: 32px;
-    font-size: 0.875rem;
+    width: 28px;
+    height: 28px;
+    font-size: 0.8rem;
   }
   
-  .avatarName {
-    font-size: 0.875rem;
+  .main {
+    padding: 10px 12px;
+    gap: 10px;
   }
   
-  .avatarRole {
+  .kpiGrid {
+    gap: 10px;
+  }
+  
+  .kpiCard {
+    padding: 14px;
+    min-height: 65px;
+  }
+  
+  .toolbar {
+    padding: 10px;
+    gap: 8px;
+  }
+  
+  .toolbarInput,
+  .toolbarSelect,
+  .toolbarButton {
+    padding: 10px 12px;
+    font-size: 0.85rem;
+  }
+  
+  .modal {
+    width: 100%;
+    margin: 8px;
+    padding: 16px;
+    border-radius: 12px;
+  }
+  
+  .modalHeader {
+    font-size: 1.125rem;
+    margin-bottom: 16px;
+  }
+  
+  .button {
+    padding: 10px 14px;
+    font-size: 0.8rem;
+  }
+  
+  .table {
+    min-width: 600px;
+    font-size: 0.75rem;
+  }
+  
+  .th,
+  .td {
+    padding: 8px 10px;
+    font-size: 0.75rem;
+  }
+  
+  .th {
+    font-size: 0.65rem;
+  }
+  
+  .sectionTitle {
+    font-size: 0.9rem;
+  }
+  
+  .sectionBadge {
+    min-width: 24px;
+    height: 24px;
     font-size: 0.7rem;
+  }
+  
+  .cardHeader {
+    padding: 12px 14px;
+  }
+  
+  .cardTitle {
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .headerBar {
+    padding: 8px 10px;
+  }
+  
+  .main {
+    padding: 8px 10px;
+  }
+  
+  .modal {
+    margin: 4px;
+    padding: 12px;
+  }
+  
+  .table {
+    min-width: 500px;
   }
 }
 
@@ -1411,9 +1672,60 @@
   }
 }
 
+/* Additional responsive fixes for buttons in tables */
+@media (max-width: 768px) {
+  /* Make action buttons smaller and more compact */
+  .td button,
+  .td .button {
+    padding: 8px 12px !important;
+    font-size: 0.75rem !important;
+    white-space: nowrap;
+  }
+  
+  .td button svg,
+  .td .button svg {
+    width: 14px !important;
+    height: 14px !important;
+  }
+  
+  /* Ensure button containers flex properly */
+  .td > div {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Stack buttons vertically on very small screens */
+  .td > div {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .td button,
+  .td .button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 @media (max-width: 560px) {
   .modalSummaryGrid,
-  .modalGrid { grid-template-columns: 1fr; }
+  .modalGrid { 
+    grid-template-columns: 1fr; 
+  }
+  
+  /* Ensure scrollable table containers are touch-friendly */
+  .tableWrap {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+  
+  /* Add padding to last column to prevent cutoff */
+  .td:last-child {
+    padding-right: 20px;
+  }
 }
 
 /* Enhanced notification divider styles */
@@ -1467,3 +1779,113 @@
     transform: scaleX(1);
   }
 }
+
+/* Utility Classes for Better Responsiveness */
+.actionButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  justify-content: center;
+}
+
+.actionButtonSmall {
+  padding: 8px 12px;
+  font-size: 0.75rem;
+}
+
+/* Responsive Container Utilities */
+.responsiveContainer {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.responsiveFlex {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* Touch-Friendly Improvements */
+@media (hover: none) and (pointer: coarse) {
+  /* Make buttons larger on touch devices */
+  .button,
+  .toolbarButton,
+  .paginationBtn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  .notificationBtn,
+  .avatarBtn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  
+  /* Larger tap targets */
+  .td button,
+  .td .button {
+    min-height: 40px;
+    padding: 10px 14px !important;
+  }
+}
+
+/* Landscape orientation fixes for tablets and small screens */
+@media (max-width: 1024px) and (orientation: landscape) {
+  .headerBar {
+    height: 56px;
+    padding: 0 20px;
+  }
+  
+  .main {
+    padding: 16px 20px;
+  }
+  
+  .modal {
+    max-height: 80vh;
+  }
+}
+
+/* High DPI screens optimization */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .page {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Accessibility: Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .page *,
+  .page *::before,
+  .page *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Dark mode support (if needed) */
+@media (prefers-color-scheme: dark) {
+  /* Uncomment to enable dark mode */
+  /*
+  .page {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+    color: #f8fafc;
+  }
+  
+  .card,
+  .toolbar,
+  .modal {
+    background: #1e293b;
+    border-color: #334155;
+  }
+  */
+}
+

@@ -46,6 +46,7 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
   const [isLoading, setIsLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [collapsedDropdownOpen, setCollapsedDropdownOpen] = useState(null);
+  const [mounted, setMounted] = useState(false); // Track client-side mounting for hydration
 
 
   const toggleSidebar = () => {
@@ -66,6 +67,9 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
 
   // Initialize collapsed state and mobile detection
   useEffect(() => {
+    // Mark as mounted to prevent hydration mismatch
+    setMounted(true);
+    
     const checkMobile = () => {
       setIsMobile(window.innerWidth <= 768);
     };
@@ -248,10 +252,11 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
           onMouseUp={() => setTogglePressed(false)}
           onMouseLeave={() => setTogglePressed(false)}
           style={{
-            left: isMobile ? 'auto' : (sidebarCollapsed ? '94px' : '274px'),
-            right: isMobile ? '20px' : 'auto',
-            top: isMobile ? 'auto' : '50%',
-            bottom: isMobile ? '20px' : 'auto',
+            // Use default position until mounted to prevent hydration mismatch
+            left: !mounted ? '265px' : (isMobile ? 'auto' : (sidebarCollapsed ? '85px' : '265px')),
+            right: !mounted ? 'auto' : (isMobile ? '20px' : 'auto'),
+            top: !mounted ? '50%' : (isMobile ? 'auto' : '50%'),
+            bottom: !mounted ? 'auto' : (isMobile ? '20px' : 'auto'),
           }}
         >
           {isMobile ? (
@@ -470,7 +475,7 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
               data-collapsed-menu="dropdown"
               style={{
                 position: 'absolute',
-                left: '70px',
+                left: '75px',
                 top: `${20 + (menu.findIndex(item => item.key === collapsedDropdownOpen) * 68)}px`,
                 zIndex: 10001
               }}
@@ -492,16 +497,14 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                         }}
                         className={styles.collapsedDropdownItem}
                       >
-                        <span style={{ marginRight: '8px' }}>
-                          {sub.label === 'Rooms' ? <DoorOpen size={16} /> :
-                           sub.label === 'Amenities' ? <Layers size={16} /> :
-                           sub.label === 'Bookings' ? <Book size={16} /> :
-                           sub.label === 'Payments' ? <CreditCard size={16} /> :
-                           sub.label === 'User Management' ? <Users size={16} /> :
-                           sub.label === 'Chatbot Management' ? <MessageCircle size={16} /> :
-                           <div style={{ width: '16px', height: '16px' }} />}
-                        </span>
-                        {sub.label}
+                        {sub.label === 'Rooms' ? <DoorOpen size={16} /> :
+                         sub.label === 'Amenities' ? <Layers size={16} /> :
+                         sub.label === 'Bookings' ? <Book size={16} /> :
+                         sub.label === 'Payments' ? <CreditCard size={16} /> :
+                         sub.label === 'User Management' ? <Users size={16} /> :
+                         sub.label === 'Chatbot Management' ? <MessageCircle size={16} /> :
+                         <div style={{ width: '16px', height: '16px' }} />}
+                        <span>{sub.label}</span>
                       </div>
                     ))}
                   </>

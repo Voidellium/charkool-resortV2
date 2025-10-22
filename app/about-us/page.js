@@ -242,9 +242,10 @@ export default function AboutUs() {
             <div className="highlight-card">
               <div className="icon-wrap beach-icon">
                 <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="16" cy="16" r="14" fill="#FDD35C" />
-                  <path d="M10 22c2-4 8-4 10 0" stroke="#3B5157" strokeWidth="2" strokeLinecap="round" />
-                  <rect x="14" y="14" width="4" height="8" rx="2" fill="#8ED6C1" />
+                  <path d="M16 6l-10 8v12h20V14z" fill="#FDD35C" stroke="#3B5157" strokeWidth="1.5" strokeLinejoin="round" />
+                  <rect x="13" y="18" width="6" height="8" fill="#8ED6C1" />
+                  <path d="M10 12h12M10 16h12" stroke="#3B5157" strokeWidth="1" opacity="0.3" />
+                  <circle cx="16" cy="4" r="1.5" fill="#E57373" />
                 </svg>
               </div>
               <div className="highlight-body">
@@ -255,20 +256,25 @@ export default function AboutUs() {
             <div className="highlight-card">
               <div className="icon-wrap pool-icon">
                 <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <ellipse cx="16" cy="20" rx="10" ry="5" fill="#8ED6C1" />
-                  <rect x="12" y="8" width="8" height="10" rx="4" fill="#FDD35C" />
-                  <path d="M16 8v10" stroke="#3B5157" strokeWidth="2" strokeLinecap="round" />
+                  <ellipse cx="16" cy="22" rx="12" ry="4" fill="#8ED6C1" opacity="0.6" />
+                  <path d="M4 24c1-1 2-1 3 0s2 1 3 0 2-1 3 0 2 1 3 0 2-1 3 0 2 1 3 0 2-1 3 0 2 1 3 0" stroke="#4A9B8E" strokeWidth="1.5" strokeLinecap="round" />
+                  <circle cx="20" cy="10" r="3" fill="#FDD35C" />
+                  <path d="M12 14c1 0 2 1 3 2l5 4" stroke="#3B5157" strokeWidth="2" strokeLinecap="round" />
+                  <path d="M10 18l4-2" stroke="#3B5157" strokeWidth="2" strokeLinecap="round" />
                 </svg>
               </div>
               <div className="highlight-body">
                 <h3>Signature Pool</h3>
-                <p>Enjoy our long, elegant pool crafted for both leisure and family fun.</p>
+                <p>Our iconic pool invites you to unwind, play, and soak under the sun.</p>
               </div>
             </div>
             <div className="highlight-card">
               <div className="icon-wrap heart-icon">
                 <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M16 28s-8-6-8-12a8 8 0 0 1 16 0c0 6-8 12-8 12z" fill="#FDD35C" stroke="#E57373" strokeWidth="2" />
+                  <ellipse cx="15" cy="12" rx="8" ry="10" fill="#FDD35C" />
+                  <path d="M15 22Q16 24 17 26" stroke="#E57373" strokeWidth="1.5" strokeLinecap="round" />
+                  <path d="M14 10l2-2 2 2" stroke="#3B5157" strokeWidth="1.2" fill="none" />
+                  <ellipse cx="12" cy="11" rx="1" ry="1.5" fill="#fff" opacity="0.7" />
                 </svg>
               </div>
               <div className="highlight-body">
@@ -293,12 +299,12 @@ export default function AboutUs() {
               <div className="location-left">
                 {/* Intro copy moved to the left column for proper alignment */}
                 <p className="body visit-intro">
-                  Located along the serene coastline of San Felipe, Liwa-liwa, Zambales, Charkool Beach Resort is a few hours from Metro Manila and the perfect escape for those seeking sun, sea, and a calm shoreline. Plan your trip, enjoy our virtual tour, and arrive knowing you'll be welcomed like family.
+                  Located along the serene coastline of Sitio Liwliwa, Brgy. Sto Niño,San Felipe, Zambales, Charkool Beach Resort is a few hours from Metro Manila and the perfect escape for those seeking sun, sea, and a calm shoreline. Plan your trip, enjoy our virtual tour, and arrive knowing you'll be welcomed like family.
                 </p>
 
                 <div className="location-card">
                   <h4>📍 Our Location</h4>
-                  <p className="muted">Liwliwa, San Felipe, Zambales</p>
+                  <p className="muted">Sitio Liwliwa, Brgy. Sto Niño, San Felipe, Zambales, Philippines 2204</p>
                   <div className="map-links">
                     <a
                       href="https://www.waze.com/live-map/directions/ph/central-luzon/san-felipe/charkool-beach-resort?navigate=yes&to=place.ChIJeVtmpO3TlTMReawZJCvkIsg"

@@ -7,8 +7,6 @@ import { getToken } from 'next-auth/jwt';
 
 const JWT_SECRET = process.env.NEXTAUTH_SECRET;
 
-export const config = { api: { bodyParser: false } };
-
 // ✅ PUT: Update room
 export async function PUT(req, { params }) {
   try {
@@ -23,7 +21,8 @@ export async function PUT(req, { params }) {
 
     const data = { name, type, price, quantity };
 
-    if (imageFile && imageFile instanceof File) {
+    // Only update image if a new file was uploaded
+    if (imageFile && imageFile instanceof File && imageFile.size > 0) {
       const uploadDir = path.join(process.cwd(), 'public/uploads');
       if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
