@@ -66,6 +66,10 @@ model User {
   
   // Relations for developer 3D model uploads
   uploadedModels   ThreeDModel[]
+  
+  // Relations for system logs
+  systemLogs       SystemLog[]       @relation("SystemLogUser")
+  resolvedLogs     SystemLog[]       @relation("ResolvedLogs")
 }
 
 model OTP {
@@ -484,4 +488,38 @@ model ThreeDModel {
   description String?
   
   developer   User?    @relation(fields: [uploadedBy], references: [id])
+}
+
+// System error logs for developer monitoring
+model SystemLog {
+  id          Int       @id @default(autoincrement())
+  level       LogLevel  // ERROR, WARNING, INFO, DEBUG
+  category    String    // API, AUTH, PAYMENT, DATABASE, UPLOAD, etc.
+  message     String    @db.Text
+  stackTrace  String?   @db.Text
+  endpoint    String?   // API route that caused error
+  userId      Int?      // User who triggered the error (if applicable)
+  userRole    Role?     // Role of the user
+  ipAddress   String?
+  userAgent   String?
+  metadata    Json?     // Additional context data
+  timestamp   DateTime  @default(now())
+  resolved    Boolean   @default(false)
+  resolvedBy  Int?      // Developer who marked as resolved
+  resolvedAt  DateTime?
+  
+  user        User?     @relation("SystemLogUser", fields: [userId], references: [id])
+  resolver    User?     @relation("ResolvedLogs", fields: [resolvedBy], references: [id])
+  
+  @@index([level])
+  @@index([category])
+  @@index([timestamp])
+  @@index([resolved])
+}
+
+enum LogLevel {
+  ERROR
+  WARNING
+  INFO
+  DEBUG
 }

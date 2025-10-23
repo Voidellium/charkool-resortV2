@@ -25,6 +25,25 @@ export default function Profile() {
   const [success, setSuccess] = useState('');
   const router = useRouter();
 
+    // OTP state for email change
+    const [pendingEmail, setPendingEmail] = useState('');
+    const [showOTPInput, setShowOTPInput] = useState(false);
+    const [otp, setOtp] = useState('');
+    const [otpError, setOtpError] = useState('');
+
+    // Allowed email domains
+    const allowedDomains = [
+      'gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com',
+      'icloud.com', 'protonmail.com', 'zoho.com', 'mail.com', 'aol.com'
+    ];
+
+    function isAllowedEmail(email) {
+      const match = email.match(/^.+@(.+)$/);
+      if (!match) return false;
+      const domain = match[1].toLowerCase();
+      return allowedDomains.includes(domain);
+    }
+
   const capitalizeFirst = (str) =>
     str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 
@@ -146,6 +165,30 @@ export default function Profile() {
     e.preventDefault();
     setError('');
     setSuccess('');
+      // Email domain validation
+      if (!isAllowedEmail(email)) {
+        setError('Only common email domains are allowed: gmail, yahoo, outlook, hotmail, icloud, protonmail, zoho, mail.com, aol');
+        return;
+      }
+
+      // If email is being changed, require OTP verification
+      if (pendingEmail && pendingEmail !== email) {
+        // Simulate sending OTP to new email (replace with actual API call)
+        // await fetch('/api/send-otp', { method: 'POST', body: JSON.stringify({ email: pendingEmail }) });
+        if (!otp || otp.length !== 6) {
+          setOtpError('Please enter the 6-digit OTP sent to your new email.');
+          return;
+        }
+        // Simulate OTP verification (replace with actual API call)
+        // const res = await fetch('/api/verify-otp', { method: 'POST', body: JSON.stringify({ email: pendingEmail, otp }) });
+        // if (!res.ok) { setOtpError('Invalid OTP'); return; }
+        // If OTP is valid, update email
+        setEmail(pendingEmail);
+        setPendingEmail('');
+        setShowOTPInput(false);
+        setOtp('');
+        setOtpError('');
+      }
     try {
       const res = await fetch('/api/user', {
         method: 'PUT',
@@ -246,9 +289,22 @@ export default function Profile() {
             </div>
             <div className="form-group">
               <label htmlFor="email">Email</label>
-              <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <input id="email" type="email" value={pendingEmail || email} onChange={(e) => {
+                setPendingEmail(e.target.value);
+                setShowOTPInput(true);
+                setOtp('');
+                setOtpError('');
+              }} required />
             </div>
             <button type="submit" className="submit-button">Update Profile</button>
+          {showOTPInput && pendingEmail && pendingEmail !== email && (
+            <div className="form-group">
+              <label htmlFor="otp">Enter OTP sent to your new email</label>
+              <input id="otp" type="text" value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="000000" maxLength={6} required />
+              <p style={{color: 'red', fontSize: '0.9rem', marginTop: '0.5rem'}}>Your new email will be used for your next login after verification.</p>
+              {otpError && <p style={{color: 'red'}}>{otpError}</p>}
+            </div>
+          )}
           </form>
           {error && <p className="message error">{error}</p>}
           {success && <p className="message success">{success}</p>}

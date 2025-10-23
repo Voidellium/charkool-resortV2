@@ -30,6 +30,21 @@ export default function SignUpPage() {
   const [showRules, setShowRules] = useState(false);
   const [rulesTarget, setRulesTarget] = useState('password'); // 'password' | 'confirm'
   const [countdown, setCountdown] = useState(0);
+    // Birthdate error state
+    const [birthdateError, setBirthdateError] = useState('');
+
+    // Allowed email domains
+    const allowedDomains = [
+      'gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com',
+      'icloud.com', 'protonmail.com', 'zoho.com', 'mail.com', 'aol.com'
+    ];
+
+    function isAllowedEmail(email) {
+      const match = email.match(/^.+@(.+)$/);
+      if (!match) return false;
+      const domain = match[1].toLowerCase();
+      return allowedDomains.includes(domain);
+    }
 
   // Account linking hooks
   const [linkingModal, setLinkingModal] = useAccountLinkingModal();
@@ -78,6 +93,20 @@ export default function SignUpPage() {
       setForm({ ...form, contact: cleaned });
       return;
     }
+      if (name === 'birthdate') {
+        // Validate age
+        const birthDate = new Date(value);
+        const today = new Date();
+        const minBirthDate = new Date(today.getFullYear() - 16, today.getMonth(), today.getDate());
+        const maxBirthDate = new Date(today.getFullYear() - 100, today.getMonth(), today.getDate());
+        if (birthDate > minBirthDate) {
+          setBirthdateError('You must be at least 16 years old to register.');
+        } else if (birthDate < maxBirthDate) {
+          setBirthdateError('Maximum age is 100 years.');
+        } else {
+          setBirthdateError('');
+        }
+      }
     setForm({ ...form, [name]: value });
   };
 
@@ -103,6 +132,10 @@ export default function SignUpPage() {
     setIsLoading(true);
     try {
       if (!showOTPInput) {
+          // Email domain validation
+          if (!isAllowedEmail(form.email)) {
+            throw new Error('Only common email domains are allowed: gmail, yahoo, outlook, hotmail, icloud, protonmail, zoho, mail.com, aol');
+          }
         if (!form.contact || form.contact.length !== 10 || !form.contact.startsWith('9')) {
           throw new Error('Please enter a valid 10-digit number starting with 9');
         }
@@ -202,10 +235,12 @@ export default function SignUpPage() {
         otpSent: true
       });
     } catch (error) {
-      setError(error.message);
-    }
-  };
-
+                {
+                  const maxBirthDate = new Date(today.getFullYear() - 100, today.getMonth(), today.getDate());
+                  if (birthDate < maxBirthDate) {
+                    throw new Error('Maximum age is 100 years.');
+                  }
+                }
   const handleCancelLinking = () => {
     setLinkingModal({ show: false });
     setLinkingError('');
@@ -363,8 +398,14 @@ export default function SignUpPage() {
                       value={form.birthdate}
                       onChange={handleChange}
                       required
-                      max={maxDateStr}
+                        max={maxDateStr}
+                        min={(() => {
+                          const today = new Date();
+                          const maxBirthDate = new Date(today.getFullYear() - 100, today.getMonth(), today.getDate());
+                          return maxBirthDate.toISOString().split('T')[0];
+                        })()}
                     />
+                      {birthdateError && <span style={{color:'red',fontSize:'0.9rem'}}>{birthdateError}</span>}
                   </div>
                 </div>
                 <div className="field-group">

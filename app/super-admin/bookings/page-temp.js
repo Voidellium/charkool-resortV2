@@ -1,1 +1,0 @@
-/* This is a temporary file to rebuild the complete bookings page with modern UI */

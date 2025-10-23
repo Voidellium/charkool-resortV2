@@ -42,17 +42,8 @@ export default function BookingsPage() {
             transform: translateY(0) scale(1);
           }
         }
-        
         .modal-responsive {
           animation: modalSlideIn 0.3s ease-out;
-        }
-        
-        @media (max-width: 768px) {
-          .modal-responsive {
-            padding: 1rem !important;
-            margin: 0.5rem !important;
-            max-width: calc(100vw - 1rem) !important;
-          }
         }
       `;
       document.head.appendChild(style);
@@ -2399,7 +2390,7 @@ export default function BookingsPage() {
                     fontSize: '1.75rem',
                     fontWeight: '700',
                     margin: 0,
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    background: 'linear-gradient(135deg, #FEBE52 0%, #E89C1A 100%)',
                     WebkitBackgroundClip: 'text',
                     WebkitTextFillColor: 'transparent',
                     backgroundClip: 'text',
@@ -3294,7 +3285,7 @@ const styles = {
   
   // Header Section
   header: {
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+  background: 'linear-gradient(135deg, #FEBE52 0%, #E89C1A 100%)',
     color: '#ffffff',
     padding: '2rem 2rem 3rem',
     borderRadius: '0 0 24px 24px',
@@ -3447,21 +3438,12 @@ const styles = {
     justifyContent: 'space-between',
     gap: '1rem',
     flexWrap: 'wrap',
-    '@media (max-width: 768px)': {
-      flexDirection: 'column',
-      alignItems: 'stretch',
-      gap: '1rem',
-    },
   },
   searchContainer: {
     position: 'relative',
     flex: '1 1 300px',
     minWidth: '250px',
     maxWidth: '400px',
-    '@media (max-width: 768px)': {
-      maxWidth: '100%',
-      minWidth: '100%',
-    },
   },
   searchIcon: {
     position: 'absolute',
@@ -3492,10 +3474,6 @@ const styles = {
     gap: '0.75rem',
     flexShrink: 0,
     flexWrap: 'wrap',
-    '@media (max-width: 768px)': {
-      width: '100%',
-      justifyContent: 'stretch',
-    },
   },
   quickFilterSelect: {
     padding: '0.75rem 1rem',
@@ -3508,10 +3486,6 @@ const styles = {
     transition: 'all 0.2s ease',
     outline: 'none',
     minWidth: '140px',
-    '@media (max-width: 768px)': {
-      flex: '1',
-      minWidth: '120px',
-    },
     '&:hover': {
       borderColor: '#cbd5e1',
       backgroundColor: '#f8fafc',
@@ -3545,10 +3519,6 @@ const styles = {
     alignItems: 'center',
     gap: '1rem',
     flexWrap: 'wrap',
-    '@media (max-width: 768px)': {
-      width: '100%',
-      justifyContent: 'center',
-    },
   },
   filterButton: {
     display: 'flex',

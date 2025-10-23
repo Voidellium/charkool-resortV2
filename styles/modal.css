@@ -1,0 +1,11 @@
+.modal-responsive {
+  /* Default styles for modal */
+}
+
+@media (max-width: 768px) {
+  .modal-responsive {
+    padding: 1rem !important;
+    margin: 0.5rem !important;
+    max-width: calc(100vw - 1rem) !important;
+  }
+}
