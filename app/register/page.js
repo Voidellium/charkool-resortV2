@@ -16,6 +16,30 @@ import {
 } from '@/components/CustomModals';
 
 export default function SignUpPage() {
+
+  // Birthdate validation function
+  const validateBirthdate = (birthdate) => {
+    if (!birthdate) return true;
+    const today = new Date();
+    const birthDate = new Date(birthdate);
+    const maxBirthDate = new Date(today.getFullYear() - 100, today.getMonth(), today.getDate());
+    if (birthDate < maxBirthDate) {
+      setBirthdateError('Maximum age is 100 years.');
+      return false;
+    }
+    setBirthdateError('');
+    return true;
+  };
+  // Add this to your form submission handler (e.g., handleSubmit)
+  // if (!validateBirthdate(form.birthdate)) {
+  //   setError('Maximum age is 100 years.');
+  //   return;
+  // }
+      {birthdateError && (
+        <div className="error-message" style={{ color: '#dc2626', marginBottom: '1rem' }}>
+          {birthdateError}
+        </div>
+      )}
   const router = useRouter();
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -30,8 +54,8 @@ export default function SignUpPage() {
   const [showRules, setShowRules] = useState(false);
   const [rulesTarget, setRulesTarget] = useState('password'); // 'password' | 'confirm'
   const [countdown, setCountdown] = useState(0);
-    // Birthdate error state
-    const [birthdateError, setBirthdateError] = useState('');
+  // Birthdate error state
+  const [birthdateError, setBirthdateError] = useState('');
 
     // Allowed email domains
     const allowedDomains = [
@@ -225,7 +249,6 @@ export default function SignUpPage() {
   const handleProceedLinking = async () => {
     try {
       const result = await checkAccountLinking(linkingModal.email, linkingModal.googleData);
-      
       setLinkingModal({
         show: true,
         type: 'otp',
@@ -235,12 +258,10 @@ export default function SignUpPage() {
         otpSent: true
       });
     } catch (error) {
-                {
-                  const maxBirthDate = new Date(today.getFullYear() - 100, today.getMonth(), today.getDate());
-                  if (birthDate < maxBirthDate) {
-                    throw new Error('Maximum age is 100 years.');
-                  }
-                }
+      setError(error.message);
+    }
+  };
+
   const handleCancelLinking = () => {
     setLinkingModal({ show: false });
     setLinkingError('');

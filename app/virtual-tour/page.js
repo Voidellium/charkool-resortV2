@@ -11,13 +11,17 @@ const EnhancedThreeDModelViewer = dynamic(() => import('../../components/Enhance
 export default function VirtualTour() {
   const [selectedObject, setSelectedObject] = useState(null);
 
+  // Mesh names from GLTF for zoom buttons
   const objects = [
-    { name: 'Villa', displayName: 'Villa' },
     { name: 'Stage ', displayName: 'Stage' },
-    { name: 'Poolside Kubo', displayName: 'Poolside Kubo' },
     { name: 'Teepee', displayName: 'Teepee' },
-    { name: 'FamilyLodge', displayName: 'Family Lodge' },
+    { name: 'Reception', displayName: 'Reception' },
+    { name: 'Loft', displayName: 'Loft' },
+    { name: 'Cottages', displayName: 'Cottages' },
     { name: 'Store & Bilyaran', displayName: 'Store & Bilyaran' },
+    { name: 'Villa', displayName: 'Villa' },
+    { name: 'Walkway Kubo', displayName: 'Walkway Kubo' },
+    { name: 'ILoveCharkool', displayName: 'ILoveCharkool' }
   ];
 
   const handleObjectSelect = (objectName) => {

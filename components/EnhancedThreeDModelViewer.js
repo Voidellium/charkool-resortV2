@@ -5,6 +5,7 @@ import React, { Suspense, useRef, useState, useEffect, useMemo, useCallback } fr
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, useProgress, Html } from "@react-three/drei";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
+import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader";
 import { useLoader } from "@react-three/fiber";
 import { useSpring } from "@react-spring/three";
 import * as THREE from "three";
@@ -76,15 +77,62 @@ function useEnhancedGLTFLoader(url) {
 
   useEffect(() => {
     const loader = new GLTFLoader();
-    const loadingManager = new THREE.LoadingManager();
-    
+    // Setup DRACOLoader for compressed meshes
+    const dracoLoader = new DRACOLoader();
+
+    // Try both possible decoder paths
+    let dracoPathTried = false;
+    function setDracoPath(path) {
+      dracoLoader.setDecoderPath(path);
+      loader.setDRACOLoader(dracoLoader);
+    }
+    setDracoPath('/draco/');
+
+    // If DRACO fails, try alternate path
+    let triedAlternateDraco = false;
+
+  let loadingManager = new THREE.LoadingManager();
+
     loadingManager.onError = (failedUrl) => {
-      console.warn(`Failed to load resource: ${failedUrl} - Continuing with fallback`);
-      // Check if it's a CSP-related error for data URIs
-      if (failedUrl && failedUrl.startsWith('data:')) {
-        console.warn('CSP blocking data URI - this should be fixed now with updated CSP policy');
+      if (failedUrl.includes('draco') && !triedAlternateDraco) {
+        // Try alternate path
+        triedAlternateDraco = true;
+        setDracoPath('/draco/gltf/');
+        loader.load(
+          url,
+          (loadedGltf) => {
+            setGltf(loadedGltf);
+            setLoading(false);
+          },
+          undefined,
+          (error) => {
+            setError({ userMessage: 'DRACO decoder file missing or inaccessible at both /draco/ and /draco/gltf/. Please check your public folder.' });
+            setLoading(false);
+          }
+        );
+        return;
       }
-      // Don't treat texture loading errors as fatal
+      if (failedUrl.match(/\.(jpg|jpeg|png|webp|bmp|gif)$/)) {
+        setError({ userMessage: 'Texture file missing or inaccessible: ' + failedUrl });
+      } else {
+        setError({ userMessage: 'Resource failed to load: ' + failedUrl });
+      }
+      setLoading(false);
+    };
+
+    loader.manager = loadingManager;
+  // Do not redeclare loadingManager, reuse the existing one
+
+    loadingManager.onError = (failedUrl) => {
+      // Show a clear error if DRACO or texture file is missing
+      if (failedUrl.includes('draco')) {
+        setError({ userMessage: 'DRACO decoder file missing or inaccessible: ' + failedUrl });
+      } else if (failedUrl.match(/\.(jpg|jpeg|png|webp|bmp|gif)$/)) {
+        setError({ userMessage: 'Texture file missing or inaccessible: ' + failedUrl });
+      } else {
+        setError({ userMessage: 'Resource failed to load: ' + failedUrl });
+      }
+      setLoading(false);
     };
 
     loader.manager = loadingManager;
@@ -99,18 +147,18 @@ function useEnhancedGLTFLoader(url) {
         loadedGltf.scene.traverse((child) => {
           if (child.isMesh && child.material) {
             const materials = Array.isArray(child.material) ? child.material : [child.material];
-            
+
             materials.forEach((material, index) => {
               // Create a robust material that doesn't break on texture errors
               const safeMaterial = material.clone();
-              
+
               // Handle texture loading errors gracefully
               const textureProperties = ['map', 'normalMap', 'emissiveMap', 'roughnessMap', 'metalnessMap', 'aoMap'];
-              
+
               textureProperties.forEach(prop => {
                 if (safeMaterial[prop]) {
                   const texture = safeMaterial[prop];
-                  
+
                   // Add comprehensive error handling for textures
                   if (texture.image === undefined || texture.image === null) {
                     console.warn(`Missing texture image for ${prop} in material: ${material.name || 'unnamed'}`);
@@ -124,20 +172,21 @@ function useEnhancedGLTFLoader(url) {
                     const originalImage = texture.image;
                     if (originalImage.addEventListener) {
                       originalImage.addEventListener('error', () => {
-                        console.warn(`Runtime texture loading error for ${prop} in material: ${material.name || 'unnamed'}`);
+                        setError({ userMessage: `Runtime texture loading error for ${prop} in material: ${material.name || 'unnamed'}` });
                         safeMaterial[prop] = null;
                         if (prop === 'map') {
                           safeMaterial.color = new THREE.Color(0x888888);
                         }
                         safeMaterial.needsUpdate = true;
+                        setLoading(false);
                       });
                     }
                   }
                 }
               });
-              
+
               safeMaterial.needsUpdate = true;
-              
+
               if (Array.isArray(child.material)) {
                 child.material[index] = safeMaterial;
               } else {
@@ -156,7 +205,7 @@ function useEnhancedGLTFLoader(url) {
       },
       (error) => {
         console.error('Error loading GLTF:', error);
-        
+
         // Categorize the error for better user feedback
         let errorMessage = 'Failed to load 3D model';
         if (error.message && error.message.includes('404')) {
@@ -166,7 +215,7 @@ function useEnhancedGLTFLoader(url) {
         } else if (error.message && error.message.includes('texture')) {
           errorMessage = 'Texture loading error';
         }
-        
+
         setError({ ...error, userMessage: errorMessage });
         setLoading(false);
       }
@@ -385,7 +434,7 @@ function EnhancedThreeDModelViewerInner({ selectedObject, onSelectObject }) {
   const [isLocked, setIsLocked] = useState(false);
   const [modelError, setModelError] = useState(null);
   const canvasRef = useRef();
-  const modelPath = "/models/WholeMap_Separated_Textured.gltf";
+  const modelPath = "/models/WholeMap_Final8.gltf";
 
 
 
@@ -398,15 +447,19 @@ function EnhancedThreeDModelViewerInner({ selectedObject, onSelectObject }) {
     const name = objectName || 'overall';
     if (objectPositions[name]) {
       const { center, radius } = objectPositions[name];
-      const newPosition = {
+      // For 'overall' (free view), use a closer default zoom
+      if (name === 'overall') {
+        return {
+          target: center,
+          position: [center[0], center[1] + radius * 0.5, center[2] + radius * 1.2], // less zoomed out
+        };
+      }
+      return {
         target: center,
         position: [center[0], center[1] + radius * 0.5, center[2] + radius * 1.5],
       };
-      if (name === 'overall') {
-        newPosition.position = [center[0], center[1] + radius * 0.5, center[2] + radius * 1.5];
-      }
-      return newPosition;
     }
+    // Fallback if positions not ready
     return {
       target: [0, 0, 0],
       position: [0, 10, 20],
@@ -459,6 +512,20 @@ function EnhancedThreeDModelViewerInner({ selectedObject, onSelectObject }) {
     );
   }
 
+  // Camera much closer by default
+  const defaultCamera = { position: [0, 20, 40], fov: 75 };
+
+  // Sunlight direction (convert degrees to radians for rotation)
+  const sunRotation = new THREE.Euler(
+    THREE.MathUtils.degToRad(-202),
+    THREE.MathUtils.degToRad(-147),
+    THREE.MathUtils.degToRad(149)
+  );
+  // Sunlight color and exposure
+  const sunlightColor = '#ffe2b9';
+  const ambientColor = '#ffe2b9';
+  const exposure = 0.8; // Brighter exposure
+
   return (
     <div
       ref={canvasRef}
@@ -467,25 +534,34 @@ function EnhancedThreeDModelViewerInner({ selectedObject, onSelectObject }) {
         height: '100%',
         position: 'relative',
         overflow: 'hidden',
+        background: '#191919',
       }}
     >
       <Canvas
-        camera={{ position: [0, 60, 120], fov: 75 }}
+        camera={defaultCamera}
         style={{
-          background: '#E09D28',
+          background: '#191919',
           width: '100%',
           height: '100%',
         }}
         onError={(error) => {
           console.error('Canvas Error:', error);
-          // Set model error to show fallback UI
           setModelError({ userMessage: 'Canvas initialization failed', originalError: error });
         }}
+        gl={{ toneMappingExposure: exposure }}
       >
-        <ambientLight intensity={0.8} />
-        <hemisphereLight intensity={0.6} skyColor="#E09D28" groundColor="#000000" />
-        <directionalLight position={[10, 10, 5]} intensity={0.8} castShadow />
-        <directionalLight position={[-10, -10, -5]} intensity={0.3} />
+        {/* Ambient and sunlight setup - increased intensity */}
+        <ambientLight intensity={2.5} color={ambientColor} />
+        <directionalLight
+          color={sunlightColor}
+          intensity={2.5}
+          position={[0, 50, 50]}
+          castShadow
+        >
+          <primitive object={new THREE.Object3D()} rotation={sunRotation} />
+        </directionalLight>
+        {/* Optionally add hemisphere light for soft fill */}
+        <hemisphereLight intensity={1.2} skyColor={sunlightColor} groundColor="#191919" />
 
         <Suspense fallback={<Loader />}>
           <Model

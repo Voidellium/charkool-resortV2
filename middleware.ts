@@ -12,10 +12,12 @@ const securityHeaders = {
   'Content-Security-Policy': [
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://checkout.stripe.com",
+    "worker-src 'self' blob:",
+    "child-src 'self' blob:",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: https: blob:",
-    "connect-src 'self' data: blob: https://api.stripe.com https://api.sendgrid.com https://api.resend.com wss:",
+    "connect-src 'self' data: blob: https: https://api.stripe.com https://api.sendgrid.com https://api.resend.com wss:",
     "frame-src 'self' https://js.stripe.com https://hooks.stripe.com",
     "object-src 'none'",
     "base-uri 'self'",
@@ -272,7 +274,9 @@ export const config = {
      * - images (image folder)
      * - public (public assets)
      * - models (3D model files)
+     * - draco (DRACO decoder files)
+     * - draco/gltf (DRACO decoder files in subfolder)
      */
-    '/((?!api/|_next/static|_next/image|favicon.ico|images|public/|models/).*)'
+    '/((?!api/|_next/static|_next/image|favicon.ico|images|public/|models/|draco/|draco/gltf/).*)'
   ],
 };
