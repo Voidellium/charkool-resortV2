@@ -542,7 +542,7 @@ function EnhancedThreeDModelViewerInner({ selectedObject: externalSelected, onSe
         <color attach="background" args={['#d4a574']} />
         
         {/* Static lighting only: ambient + single directional (no shadow updates) */}
-        <ambientLight intensity={1.0} color={'#ffffff'} />
+        <ambientLight intensity={1.0} color={'#ffe2b9'} />
         <directionalLight
           color={'#ffe2b9'}
           intensity={1.2}
