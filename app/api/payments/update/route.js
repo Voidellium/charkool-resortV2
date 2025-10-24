@@ -58,6 +58,9 @@ export async function POST(req) {
       // Determine booking payment status based on total amount paid
       if (totalAfterUpdate >= booking.totalPrice) {
         finalBookingPaymentStatus = 'Paid';
+        
+        // Always keep booking status as 'Confirmed' when payment is complete
+        // (BookingStatus enum only has: Confirmed, Pending, Cancelled, Held)
         finalBookingStatus = 'Confirmed';
       } else if (totalAfterUpdate >= Math.floor(booking.totalPrice / 2)) {
         finalBookingPaymentStatus = 'Partial';

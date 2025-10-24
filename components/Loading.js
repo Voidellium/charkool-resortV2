@@ -38,10 +38,10 @@ export default function Loading({
 }
 
 // Specialized loading variants
-export function TableLoading({ text = 'Loading data...' }) {
+export function TableLoading({ text = 'Loading data...', colSpan = 100 }) {
   return (
     <tr>
-      <td colSpan="100%" className={styles.tableLoadingCell}>
+      <td colSpan={colSpan} className={styles.tableLoadingCell}>
         <Loading size="medium" text={text} />
       </td>
     </tr>

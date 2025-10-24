@@ -156,14 +156,26 @@ export const authOptions = {
             
             if (!hasGoogleAccount && existingUser.password) {
               // User has password-based account but no Google link
-              // Return false to prevent sign-in and let client handle linking
+              // Store the pending link data in database
               console.log('Account linking required for:', user.email);
-              return `/login?error=AccountLinking&email=${encodeURIComponent(user.email)}&googleData=${encodeURIComponent(JSON.stringify({
+              
+              const googleData = {
                 id: profile.sub,
                 name: user.name,
                 email: user.email,
-                image: user.image
-              }))}`;
+                image: user.image,
+                timestamp: new Date().toISOString()
+              };
+              
+              await prisma.user.update({
+                where: { email: user.email.toLowerCase() },
+                data: {
+                  pendingGoogleLink: JSON.stringify(googleData)
+                }
+              });
+              
+              // Return false to prevent sign-in, client will check for pending link
+              return false;
             }
           }
         } catch (error) {

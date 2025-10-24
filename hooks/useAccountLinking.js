@@ -115,36 +115,57 @@ export function useAccountLinking() {
       setLoading(true);
       setError('');
 
+      // Attempt to sign in with Google
       const result = await signIn('google', { 
         callbackUrl,
         redirect: false 
       });
 
-      if (result?.error && result.error === 'Callback') {
-        // Check URL parameters for account linking info
-        if (typeof window !== 'undefined') {
-          const urlParams = new URLSearchParams(window.location.search);
-          const error = urlParams.get('error');
-          const email = urlParams.get('email');
-          const googleDataStr = urlParams.get('googleData');
-          
-          if (error === 'AccountLinking' && email && googleDataStr) {
-            const googleData = JSON.parse(decodeURIComponent(googleDataStr));
-            
-            return {
-              requiresLinking: true,
-              email: decodeURIComponent(email),
-              googleData
-            };
-          }
+      // Check if sign-in failed or was blocked
+      if (result?.error || !result?.ok) {
+        // Wait a moment for database to update with pending link
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Check for recent pending link in database
+        const response = await fetch('/api/account-linking/check-recent');
+        const pendingData = await response.json();
+        
+        if (pendingData.hasPending) {
+          return {
+            requiresLinking: true,
+            email: pendingData.email,
+            googleData: pendingData.googleData
+          };
         }
         
-        throw new Error(result.error);
-      } else if (result?.error) {
-        throw new Error(result.error);
+        // If no pending link found, throw error
+        if (result?.error) {
+          throw new Error(result.error);
+        }
       }
 
       return { success: true, result };
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const checkPendingLink = async (email) => {
+    try {
+      setLoading(true);
+      setError('');
+
+      const response = await fetch(`/api/account-linking/pending?email=${encodeURIComponent(email)}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to check pending link');
+      }
+
+      return data;
     } catch (err) {
       setError(err.message);
       throw err;
@@ -161,6 +182,7 @@ export function useAccountLinking() {
     verifyLinkingOTP,
     resendLinkingOTP,
     completeLinking,
-    handleGoogleSignInWithLinking
+    handleGoogleSignInWithLinking,
+    checkPendingLink
   };
 }

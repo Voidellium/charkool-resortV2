@@ -1,5 +1,49 @@
 [
   {
+    "id": "f-1761316088014-4215",
+    "actorId": 4,
+    "actorName": "Alexer Alvaro",
+    "actorRole": "CASHIER",
+    "action": "PROCESS_PAYMENT_WITH_RECEIPT",
+    "entity": "PAYMENT",
+    "entityId": 38,
+    "details": "Processed payment 38 - Method: cash, Amount: ₱5,000, Receipt: RCP-1761316081205-crmzze",
+    "timestamp": "2025-10-24T14:28:07.611Z"
+  },
+  {
+    "id": "f-1761315715559-5148",
+    "actorId": 4,
+    "actorName": "Alexer Alvaro",
+    "actorRole": "CASHIER",
+    "action": "PROCESS_PAYMENT_WITH_RECEIPT",
+    "entity": "PAYMENT",
+    "entityId": 39,
+    "details": "Processed payment 39 - Method: cash, Amount: ₱6,000, Receipt: RCP-1761315709126-lg2x1c",
+    "timestamp": "2025-10-24T14:21:54.822Z"
+  },
+  {
+    "id": "f-1761315567402-6182",
+    "actorId": 4,
+    "actorName": "Alexer Alvaro",
+    "actorRole": "CASHIER",
+    "action": "PROCESS_PAYMENT_WITH_RECEIPT",
+    "entity": "PAYMENT",
+    "entityId": 38,
+    "details": "Processed payment 38 - Method: cash, Amount: ₱5,000, Receipt: RCP-1761315561812-al9po7",
+    "timestamp": "2025-10-24T14:19:27.066Z"
+  },
+  {
+    "id": "f-1761315077095-1394",
+    "actorId": 4,
+    "actorName": "Alexer Alvaro",
+    "actorRole": "CASHIER",
+    "action": "PROCESS_PAYMENT_WITH_RECEIPT",
+    "entity": "PAYMENT",
+    "entityId": 38,
+    "details": "Processed payment 38 - Method: cash, Amount: ₱5,000, Receipt: RCP-1761315068184-6ypcq7",
+    "timestamp": "2025-10-24T14:11:16.452Z"
+  },
+  {
     "id": "f-1760992361546-7450",
     "actorId": 6,
     "actorName": "Dear Joe",

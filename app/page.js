@@ -263,7 +263,12 @@ export default function Home() {
 
             <div className="hero-ctas">
               <button onClick={handleBookNow} className="btn primary">Book Now</button>
-              <Link href="/room"><button className="btn ghost">Explore Rooms</button></Link>
+              <button onClick={() => {
+                const roomsSection = document.getElementById('rooms');
+                if (roomsSection) {
+                  roomsSection.scrollIntoView({ behavior: 'smooth' });
+                }
+              }} className="btn ghost">Explore Rooms</button>
               <Link href="/virtual-tour"><button className="btn outline">Virtual Tour</button></Link>
             </div>
           </div>
@@ -510,7 +515,7 @@ export default function Home() {
             {isSendingInquiry ? 'Sending…' : 'Send Message'}
           </button>
         </form>
-        <p className="inquiry-note">Messages go straight to our super admin. We’ll get back to you via your account email.</p>
+        <p className="inquiry-note">Messages go straight to our management. We’ll get back to you via your account email.</p>
       </div>
     </div>
   </div>

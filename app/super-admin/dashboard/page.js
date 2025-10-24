@@ -6,7 +6,7 @@ import Loading, { ButtonLoading } from '@/components/Loading';
 import { 
   Calendar, Users, TrendingUp, BarChart3, Building2, Clock, CheckCircle, AlertCircle,
   FileText, Download, Filter, Search, ChevronLeft, ChevronRight, TableIcon as Table, XCircle,
-  TableIcon
+  TableIcon, User
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
@@ -398,6 +398,83 @@ export default function SuperAdminDashboard() {
         background: 'linear-gradient(135deg, #febe52 0%, #E8D391 100%)',
         minHeight: '100vh',
       }}>
+        {/* Welcome Section */}
+        <div style={{
+          background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 50%, #e2e8f0 100%)',
+          borderRadius: '24px',
+          padding: '32px',
+          border: '2px solid transparent',
+          backgroundClip: 'padding-box',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(254, 190, 82, 0.2)',
+          marginBottom: '24px',
+          position: 'relative',
+          overflow: 'hidden',
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '16px',
+            }}>
+              <User size={24} style={{
+                color: '#ffffff',
+                background: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 50%, #f59e0b 100%)',
+                padding: '16px',
+                borderRadius: '50%',
+                width: '56px',
+                height: '56px',
+                boxShadow: '0 8px 24px rgba(245, 158, 11, 0.4), 0 4px 12px rgba(245, 158, 11, 0.2)',
+                border: '3px solid rgba(255, 255, 255, 0.3)',
+              }} />
+              <div>
+                <h2 style={{
+                  margin: '0 0 8px 0',
+                  fontSize: '2.2rem',
+                  fontWeight: '800',
+                  color: '#1f2937',
+                  textShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  letterSpacing: '-0.5px',
+                }}>
+                  Welcome Super Admin, {session?.user?.name || session?.user?.email || 'Administrator'}!
+                </h2>
+                <p style={{
+                  margin: '0',
+                  fontSize: '1rem',
+                  color: '#6b7280',
+                  display: 'flex',
+                  alignItems: 'center',
+                  fontWeight: '500',
+                }}>
+                  <Clock size={16} style={{ marginRight: '8px' }} />
+                  {new Date().toLocaleDateString('en-US', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}
+                </p>
+              </div>
+            </div>
+            <div style={{
+              background: '#f59e0b',
+              color: 'white',
+              padding: '8px 20px',
+              borderRadius: '20px',
+              fontSize: '0.9rem',
+              fontWeight: '600',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)',
+            }}>
+              Super Admin
+            </div>
+          </div>
+        </div>
+
         {/* Header */}
         <div style={{ marginBottom: isMobile ? '1rem' : '2rem' }}>
           <h1 style={{

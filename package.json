@@ -29,6 +29,7 @@
     "express-rate-limit": "^8.1.0",
     "formidable": "^3.5.4",
     "framer-motion": "^12.23.12",
+    "gsap": "^3.13.0",
     "helmet": "^8.1.0",
     "js-cookie": "^3.0.5",
     "json2csv": "^6.0.0-alpha.2",

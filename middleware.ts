@@ -54,19 +54,6 @@ async function checkBrowserTrust(req: NextRequest, token: any) {
   }
 
   try {
-    // --- DEV ONLY: Bypass OTP for specific origins for easier debugging ---
-    const trustedOrigins = [
-      'http://localhost:3000',
-      'https://charkool-resort.vercel.app',
-       'https://charkoolresort.com'
-    ];
-    if (trustedOrigins.includes(req.nextUrl.origin)) {
-      // This log helps confirm the bypass is active during development.
-      console.log(`[MIDDLEWARE] DEV_MODE: Bypassing OTP check for trusted origin: ${req.nextUrl.origin}`);
-      return false; // `false` means OTP is NOT needed, effectively trusting the browser.
-    }
-    // --- END DEV ONLY ---
-
     // Get browser fingerprint from cookies (set by client-side code)
     const browserFingerprint = req.cookies.get('browserFingerprint')?.value;
     const isIncognito = req.cookies.get('isIncognito')?.value === 'true';
@@ -151,6 +138,31 @@ export async function middleware(req: NextRequest) {
   const isPublicPath = publicPaths.includes(pathname);
 
   const token = await getToken({ req, secret: JWT_SECRET });
+
+  // --- Additional token validation ---
+  if (token) {
+    // Validate token hasn't expired (24 hours)
+    const tokenAge = token.createdAt ? Date.now() - Number(token.createdAt) : 0;
+    if (tokenAge > 24 * 60 * 60 * 1000) {
+      console.log(`[MIDDLEWARE] Token expired for user ${token.email}, forcing logout`);
+      // Clear the session and redirect to login
+      const response = NextResponse.redirect(new URL("/login", req.url));
+      response.cookies.delete('next-auth.session-token');
+      response.cookies.delete('__Secure-next-auth.session-token');
+      response.cookies.delete('isBrowserTrusted');
+      return response;
+    }
+    
+    // Validate token has required fields
+    if (!token.id || !token.role || !token.email) {
+      console.log(`[MIDDLEWARE] Invalid token structure, forcing logout`);
+      const response = NextResponse.redirect(new URL("/login", req.url));
+      response.cookies.delete('next-auth.session-token');
+      response.cookies.delete('__Secure-next-auth.session-token');
+      response.cookies.delete('isBrowserTrusted');
+      return response;
+    }
+  }
 
   // --- 1. Handle authenticated users trying to access login/register pages ---
   if (token && isLoginOrRegister) {

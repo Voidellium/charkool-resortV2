@@ -38,6 +38,7 @@ export const GET = async (req) => {
     endOfDay.setHours(23, 59, 59, 999);
 
     // Fetch bookings with checkout scheduled for the target date
+    // Exclude bookings where payment has already been completed
     const checkoutBookings = await prisma.booking.findMany({
       where: {
         checkOut: {
@@ -46,6 +47,9 @@ export const GET = async (req) => {
         },
         status: {
           in: ['Confirmed', 'Pending']
+        },
+        paymentStatus: {
+          not: 'Paid'
         }
       },
       include: {

@@ -29,6 +29,7 @@ function GuestHeader({ sessionUser }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showAllNotificationsModal, setShowAllNotificationsModal] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [profileImage, setProfileImage] = useState(null);
 
   const profileDropdownRef = useRef(null);
   const notificationDropdownRef = useRef(null);
@@ -92,6 +93,69 @@ function GuestHeader({ sessionUser }) {
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Fetch and update profile image from user context or localStorage
+  useEffect(() => {
+    if (!isMounted || !user) return;
+    
+    // Priority: user context image > localStorage > null
+    if (user.image) {
+      setProfileImage(user.image);
+    } else {
+      const savedImage = localStorage.getItem('profileImage');
+      if (savedImage) {
+        setProfileImage(savedImage);
+      }
+    }
+  }, [isMounted, user, user?.image]);
+
+  // Listen for profile image updates from localStorage and custom events
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'profileImage') {
+        setProfileImage(e.newValue);
+      }
+    };
+
+    const handleProfileUpdate = (e) => {
+      if (e.detail?.image) {
+        setProfileImage(e.detail.image);
+      }
+    };
+
+    // Check localStorage periodically for updates
+    const checkLocalStorage = () => {
+      const savedImage = localStorage.getItem('profileImage');
+      if (savedImage && savedImage !== profileImage) {
+        setProfileImage(savedImage);
+      }
+      // Also check if user context has updated image
+      if (user?.image && user.image !== profileImage) {
+        setProfileImage(user.image);
+      }
+    };
+
+    // Handle page visibility change - refresh image when user returns to page
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkLocalStorage();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('profileImageUpdated', handleProfileUpdate);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Poll localStorage every 2 seconds when on dashboard
+    const interval = setInterval(checkLocalStorage, 2000);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('profileImageUpdated', handleProfileUpdate);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearInterval(interval);
+    };
+  }, [profileImage, user?.image]);
 
   // Sticky header effect
   useEffect(() => {
@@ -562,18 +626,47 @@ function GuestHeader({ sessionUser }) {
               onClick={handleProfileClick}
               aria-label="Profile"
             >
-              <div className="profile-avatar-fallback">
-                {user?.name ? (
-                  user.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
-                ) : (
-                  <User size={18} />
-                )}
-              </div>
+              {profileImage ? (
+                <Image
+                  src={profileImage}
+                  alt="Profile"
+                  width={40}
+                  height={40}
+                  className="profile-avatar"
+                  style={{ borderRadius: '50%', objectFit: 'cover' }}
+                />
+              ) : (
+                <div className="profile-avatar-fallback">
+                  {user?.name ? (
+                    user.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
+                  ) : (
+                    <User size={18} />
+                  )}
+                </div>
+              )}
               <ChevronDown size={16} className="profile-chevron" />
             </button>
             {isProfileDropdownOpen && (
               <div className="profile-dropdown">
                 <div className="dropdown-header">
+                  {profileImage ? (
+                    <Image
+                      src={profileImage}
+                      alt="Profile"
+                      width={50}
+                      height={50}
+                      className="profile-avatar-large"
+                      style={{ borderRadius: '50%', objectFit: 'cover', marginBottom: '0.5rem' }}
+                    />
+                  ) : (
+                    <div className="profile-avatar-fallback-large">
+                      {user?.name ? (
+                        user.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
+                      ) : (
+                        <User size={24} />
+                      )}
+                    </div>
+                  )}
                   {user?.name && <p className="font-bold">{user.name}</p>}
                   {user?.email && <p className="text-sm text-gray-500">{user.email}</p>}
                 </div>
@@ -1238,17 +1331,37 @@ function GuestHeader({ sessionUser }) {
 
         .profile-avatar,
         .profile-avatar-fallback {
-          width: 32px;
-          height: 32px;
+          width: 40px;
+          height: 40px;
           border-radius: 50%;
           display: flex;
           align-items: center;
           justify-content: center;
           font-size: 0.8rem;
           font-weight: 700;
+          object-fit: cover;
         }
 
         .profile-avatar-fallback {
+          background: linear-gradient(135deg, #667eea, #764ba2);
+          color: white;
+        }
+
+        .profile-avatar-large,
+        .profile-avatar-fallback-large {
+          width: 50px;
+          height: 50px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 1rem;
+          font-weight: 700;
+          margin: 0 auto 0.5rem;
+          object-fit: cover;
+        }
+
+        .profile-avatar-fallback-large {
           background: linear-gradient(135deg, #667eea, #764ba2);
           color: white;
         }
@@ -1280,6 +1393,10 @@ function GuestHeader({ sessionUser }) {
           padding: 1.25rem;
           border-bottom: 1px solid rgba(0, 0, 0, 0.05);
           background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          text-align: center;
         }
 
         .dropdown-header p {

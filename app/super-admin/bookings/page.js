@@ -400,6 +400,16 @@ export default function BookingsPage() {
     setLoading(true);
     try {
       const res = await fetch('/api/bookings?includeDeleted=true', { headers: { 'Content-Type': 'application/json' } });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        console.error('API Error:', errorData);
+        setMessage({ type: 'error', text: errorData.error || 'Failed to load bookings' });
+        setBookings([]);
+        setHistoryBookings([]);
+        return;
+      }
+      
       const data = await res.json();
       
       // Handle paginated response structure
@@ -410,11 +420,15 @@ export default function BookingsPage() {
         setHistoryBookings(bookingsData.filter(b => b && b.isDeleted));
       } else {
         console.error('Invalid bookings data format:', data);
-        setMessage({ type: 'error', text: 'Invalid bookings data format received' });
+        setMessage({ type: 'error', text: 'Invalid bookings data format received. Please check console for details.' });
+        setBookings([]);
+        setHistoryBookings([]);
       }
     } catch (err) {
       console.error('Failed to fetch bookings:', err);
-      setMessage({ type: 'error', text: 'Failed to load bookings' });
+      setMessage({ type: 'error', text: 'Failed to load bookings: ' + err.message });
+      setBookings([]);
+      setHistoryBookings([]);
     } finally {
       setLoading(false);
     }

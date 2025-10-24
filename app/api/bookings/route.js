@@ -55,75 +55,90 @@ async function getBookingsHandler(request) {
     });
 
     // Calculate total cost including rental amenities and cottages for each booking
-    bookings.forEach((booking, index) => {
+    const processedBookings = [];
+    for (let i = 0; i < bookings.length; i++) {
+      const booking = bookings[i];
       try {
-      let rentalTotal = 0;
-      if (booking.rentalAmenities && booking.rentalAmenities.length > 0) {
-        rentalTotal = booking.rentalAmenities.reduce((sum, ra) => {
-          const val = typeof ra.totalPrice === 'bigint' ? Number(ra.totalPrice) : ra.totalPrice || 0;
-          return sum + val;
-        }, 0);
-      }
-
-      let cottageTotal = 0;
-      if (booking.cottage && booking.cottage.length > 0) {
-        cottageTotal = booking.cottage.reduce((sum, c) => {
-          const val = typeof c.totalPrice === 'bigint' ? Number(c.totalPrice) : c.totalPrice || 0;
-          return sum + val;
-        }, 0);
-      }
-
-      const basePrice = typeof booking.totalPrice === 'bigint' ? Number(booking.totalPrice) : booking.totalPrice || 0;
-      booking.totalCostWithAddons = basePrice + rentalTotal + cottageTotal;
-
-      // Determine payment option based on total paid amount
-      const totalPaid = booking.payments?.reduce((sum, p) => {
-        let amt = typeof p.amount === 'bigint' ? Number(p.amount) : p.amount;
-        // Normalize payment amount to cents (₱1 = 100 units) if stored in ten-thousandths (₱1 = 10000 units)
-        if (amt > 1000000) { // heuristic threshold to detect large values
-          amt = Math.floor(amt / 100);
+        // Validate booking object
+        if (!booking || typeof booking !== 'object') {
+          console.error(`Invalid booking at index ${i}:`, booking);
+          continue; // Skip invalid bookings instead of throwing
         }
-        return (p.status.toLowerCase() === 'paid' || p.status.toLowerCase() === 'partial' || p.status.toLowerCase() === 'reservation') ? sum + amt : sum;
-      }, 0) || 0;
 
-      const totalPrice = typeof booking.totalCostWithAddons === 'bigint'
-        ? Number(booking.totalCostWithAddons)
-        : booking.totalCostWithAddons;
+        let rentalTotal = 0;
+        if (booking.rentalAmenities && Array.isArray(booking.rentalAmenities) && booking.rentalAmenities.length > 0) {
+          rentalTotal = booking.rentalAmenities.reduce((sum, ra) => {
+            const val = typeof ra.totalPrice === 'bigint' ? Number(ra.totalPrice) : ra.totalPrice || 0;
+            return sum + val;
+          }, 0);
+        }
 
-      // Reservation fee threshold: ₱2000 per room unit booked (in cents)
-      const roomsCount = Array.isArray(booking.rooms)
-        ? booking.rooms.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
-        : 0;
-      const reservationThresholdCents = roomsCount * 2000 * 100;
+        let cottageTotal = 0;
+        if (booking.cottage && Array.isArray(booking.cottage) && booking.cottage.length > 0) {
+          cottageTotal = booking.cottage.reduce((sum, c) => {
+            const val = typeof c.totalPrice === 'bigint' ? Number(c.totalPrice) : c.totalPrice || 0;
+            return sum + val;
+          }, 0);
+        }
 
-      if (totalPaid >= totalPrice) {
-        booking.paymentOption = 'Paid';
-      } else if (totalPaid >= reservationThresholdCents) {
-        booking.paymentOption = 'Reservation';
-      } else {
-        booking.paymentOption = 'Unpaid';
+        const basePrice = typeof booking.totalPrice === 'bigint' ? Number(booking.totalPrice) : booking.totalPrice || 0;
+        booking.totalCostWithAddons = basePrice + rentalTotal + cottageTotal;
+
+        // Determine payment option based on total paid amount
+        const totalPaid = (booking.payments && Array.isArray(booking.payments)) ? booking.payments.reduce((sum, p) => {
+          if (!p || typeof p !== 'object') return sum;
+          let amt = typeof p.amount === 'bigint' ? Number(p.amount) : (p.amount || 0);
+          // Normalize payment amount to cents (₱1 = 100 units) if stored in ten-thousandths (₱1 = 10000 units)
+          if (amt > 1000000) { // heuristic threshold to detect large values
+            amt = Math.floor(amt / 100);
+          }
+          const status = (p.status || '').toLowerCase();
+          return (status === 'paid' || status === 'partial' || status === 'reservation') ? sum + amt : sum;
+        }, 0) : 0;
+
+        const totalPrice = typeof booking.totalCostWithAddons === 'bigint'
+          ? Number(booking.totalCostWithAddons)
+          : booking.totalCostWithAddons;
+
+        // Reservation fee threshold: ₱2000 per room unit booked (in cents)
+        const roomsCount = (booking.rooms && Array.isArray(booking.rooms))
+          ? booking.rooms.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
+          : 0;
+        const reservationThresholdCents = roomsCount * 2000 * 100;
+
+        if (totalPaid >= totalPrice) {
+          booking.paymentOption = 'Paid';
+        } else if (totalPaid >= reservationThresholdCents) {
+          booking.paymentOption = 'Reservation';
+        } else {
+          booking.paymentOption = 'Unpaid';
+        }
+
+        // Update paymentStatus to include Reservation if applicable
+        const paymentStatus = (booking.paymentStatus || '').toLowerCase();
+        if (paymentStatus === 'pending' && totalPaid >= reservationThresholdCents) {
+          booking.paymentStatus = 'Reservation';
+        }
+
+        // Extract payment methods used
+        booking.paymentMethods = booking.payments && Array.isArray(booking.payments) 
+          ? [...new Set(booking.payments.map(p => p?.provider).filter(Boolean))] 
+          : [];
+
+        // Calculate balance paid and balance to pay
+        booking.balancePaid = totalPaid;
+        booking.balanceToPay = totalPrice - totalPaid;
+        booking.totalPaid = totalPaid;
+        
+        processedBookings.push(booking);
+      } catch (error) {
+        console.error(`Error processing booking ${booking?.id || 'unknown'} at index ${i}:`, error);
+        // Continue processing other bookings instead of failing completely
+        continue;
       }
-
-      // Update paymentStatus to include Reservation if applicable
-      if (booking.paymentStatus.toLowerCase() === 'pending' && totalPaid >= reservationThresholdCents) {
-        booking.paymentStatus = 'Reservation';
-      }
-
-      // Extract payment methods used
-      booking.paymentMethods = [...new Set(booking.payments?.map(p => p.provider) || [])];
-
-      // Calculate balance paid and balance to pay
-      booking.balancePaid = totalPaid;
-      booking.balanceToPay = totalPrice - totalPaid;
-      booking.totalPaid = totalPaid;
-      
-    } catch (error) {
-      console.error(`Error processing booking ${booking.id}:`, error);
-      throw new Error(`Failed to process booking ${booking.id}: ${error.message}`);
     }
-    });
 
-    const serializedBookings = serializeBigInt(bookings);
+    const serializedBookings = serializeBigInt(processedBookings);
     
     // Return paginated response
     return NextResponse.json({

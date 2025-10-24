@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { RefreshCw, Download, Eye } from 'lucide-react';
 
 export default function LogsPage() {
   const [rows, setRows] = useState([]);
@@ -72,7 +73,10 @@ export default function LogsPage() {
     <div style={styles.container}>
       <div style={styles.headerRow}>
         <h1 style={styles.title}>Usage Logs</h1>
-        <button onClick={handleRefresh} style={styles.refreshButton}>🔄 Refresh</button>
+        <button onClick={handleRefresh} style={styles.refreshButton}>
+          <RefreshCw size={16} style={{ marginRight: '8px' }} />
+          Refresh
+        </button>
       </div>
 
       {/* Filters */}
@@ -91,7 +95,10 @@ export default function LogsPage() {
             <button type="button" onClick={() => setShowRental(v => !v)} style={{ ...styles.chip, background: showRental ? '#10b981' : '#e5e7eb', color: showRental ? '#fff' : '#111827' }}>Rental</button>
           </div>
           <div style={{ flex: 1 }} />
-          <button onClick={onExportCSV} style={styles.exportBtn}>⬇️ Export CSV</button>
+          <button onClick={onExportCSV} style={styles.exportBtn}>
+            <Download size={16} style={{ marginRight: '8px' }} />
+            Export CSV
+          </button>
         </div>
       )}
 
@@ -118,7 +125,10 @@ export default function LogsPage() {
                     {showRental && <span style={styles.badge}>Rental: {r.counts.rental}</span>}
                   </td>
                   <td style={tdStyle}>
-                    <button style={styles.viewBtn} onClick={() => setDetail(r)}>View details</button>
+                    <button style={styles.viewBtn} onClick={() => setDetail(r)}>
+                      <Eye size={16} style={{ marginRight: '8px' }} />
+                      View details
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -192,15 +202,83 @@ export default function LogsPage() {
 }
 
 const styles = {
-  container: { minHeight: '100%', padding: '20px', display: 'flex', flexDirection: 'column', gap: 16, background: 'linear-gradient(135deg, #FEBE52 0%, #FFE6B3 100%)' },
-  headerRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontSize: 24, fontWeight: 800 },
-  refreshButton: { padding: '10px 14px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' },
-  message: { fontSize: '1.2rem', marginTop: 20 },
-  panel: { background: '#fff', borderRadius: 12, boxShadow: '0 2px 6px rgba(0,0,0,0.1)', padding: 12 },
+  container: { 
+    minHeight: '100%', 
+    padding: '24px', 
+    display: 'flex', 
+    flexDirection: 'column', 
+    gap: 24,
+    maxWidth: '1200px',
+    margin: '0 auto',
+  },
+  headerRow: { 
+    display: 'flex', 
+    justifyContent: 'space-between', 
+    alignItems: 'center',
+    marginBottom: '8px',
+  },
+  title: { 
+    fontSize: '2.5rem', 
+    fontWeight: 800,
+    margin: '0',
+    color: '#1f2937',
+    background: 'linear-gradient(135deg, #febe52 0%, #f59e0b 100%)',
+    WebkitBackgroundClip: 'text',
+    WebkitTextFillColor: 'transparent',
+    backgroundClip: 'text',
+  },
+  refreshButton: { 
+    padding: '12px 20px', 
+    background: '#febe52', 
+    color: '#fff', 
+    border: 'none', 
+    borderRadius: 12, 
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: '600',
+    boxShadow: '0 4px 12px rgba(254, 190, 82, 0.3)',
+    transition: 'all 0.3s ease',
+    display: 'flex',
+    alignItems: 'center',
+  },
+  message: { 
+    fontSize: '1.2rem', 
+    marginTop: 20,
+    textAlign: 'center',
+    color: '#6b7280',
+    fontWeight: '500',
+  },
+  panel: { 
+    background: '#ffffff', 
+    borderRadius: 16, 
+    boxShadow: '0 4px 20px rgba(0,0,0,0.08)', 
+    padding: 24,
+    border: '1px solid rgba(254, 190, 82, 0.1)',
+  },
   table: { width: '100%', borderCollapse: 'collapse' },
-  badge: { background: '#f3f4f6', borderRadius: 999, padding: '2px 8px', fontSize: 12, fontWeight: 700 },
-  viewBtn: { background: '#10b981', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer' },
+  badge: { 
+    background: 'linear-gradient(135deg, #febe52 0%, #f59e0b 100%)', 
+    borderRadius: 999, 
+    padding: '4px 12px', 
+    fontSize: 12, 
+    fontWeight: 700,
+    color: 'white',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+  },
+  viewBtn: { 
+    background: '#10b981', 
+    color: '#fff', 
+    border: 'none', 
+    borderRadius: 12, 
+    padding: '8px 16px', 
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: '600',
+    display: 'flex',
+    alignItems: 'center',
+    transition: 'all 0.3s ease',
+  },
   // Guest dashboard-like modal shell with Amenity Manager accent
   modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 },
   modalContent: { position: 'relative', background: 'linear-gradient(135deg, #FFF7E6 0%, #FFE5B3 55%, #FEBE52 120%)', border: '1px solid #FDE68A', borderRadius: 12, padding: 24, width: 'min(640px, 92vw)', maxHeight: '80vh', overflow: 'hidden', boxShadow: '0 20px 48px rgba(0,0,0,0.35)' },
@@ -222,8 +300,35 @@ const styles = {
   input: { padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', background: '#fff' },
   chips: { display: 'flex', gap: 8 },
   chip: { padding: '6px 10px', borderRadius: 999, border: 'none', cursor: 'pointer', fontWeight: 700 },
-  exportBtn: { padding: '10px 14px', background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' },
+  exportBtn: { 
+    padding: '12px 20px', 
+    background: '#0ea5e9', 
+    color: '#fff', 
+    border: 'none', 
+    borderRadius: 12, 
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: '600',
+    display: 'flex',
+    alignItems: 'center',
+    transition: 'all 0.3s ease',
+  },
 };
 
-const thStyle = { padding: 10, textAlign: 'left', borderBottom: '1px solid #ccc', fontWeight: 600 };
-const tdStyle = { padding: 10, borderBottom: '1px solid #eee' };
+const thStyle = { 
+  padding: '16px 20px', 
+  textAlign: 'left', 
+  borderBottom: '2px solid #f59e0b', 
+  fontWeight: 700,
+  background: 'linear-gradient(135deg, #febe52 0%, #f59e0b 100%)',
+  color: 'white',
+  fontSize: '14px',
+  textTransform: 'uppercase',
+  letterSpacing: '0.5px',
+};
+const tdStyle = { 
+  padding: '16px 20px', 
+  borderBottom: '1px solid #e5e7eb',
+  color: '#374151',
+  fontSize: '14px',
+};

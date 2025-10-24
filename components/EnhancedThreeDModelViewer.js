@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { Suspense, useRef, useState, useEffect, useMemo, useCallback } from "react";
@@ -6,29 +5,21 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, useProgress, Html } from "@react-three/drei";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader";
-import { useLoader } from "@react-three/fiber";
-import { useSpring } from "@react-spring/three";
 import * as THREE from "three";
+import gsap from "gsap";
 
-// Error Boundary for handling Three.js and React errors
+/* ---------- Error Boundary (unchanged) ---------- */
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
     this.state = { hasError: false, error: null };
   }
-
   static getDerivedStateFromError(error) {
     return { hasError: true, error };
   }
-
   componentDidCatch(error, errorInfo) {
     console.error('3D Model Viewer Error:', error, errorInfo);
-    // Check if this is the specific R3F error
-    if (error.message && error.message.includes('R3F: Div is not part of the THREE namespace')) {
-      console.warn('React Three Fiber namespace error detected - this is likely due to improper HTML element usage in Canvas context');
-    }
   }
-
   render() {
     if (this.state.hasError) {
       return (
@@ -48,7 +39,7 @@ class ErrorBoundary extends React.Component {
           <div style={{ fontSize: '14px', textAlign: 'center', maxWidth: '300px' }}>
             There was an issue loading the 3D model. This may be due to missing textures or corrupted model files.
           </div>
-          <button 
+          <button
             onClick={() => this.setState({ hasError: false, error: null })}
             style={{
               padding: '8px 16px',
@@ -64,67 +55,27 @@ class ErrorBoundary extends React.Component {
         </div>
       );
     }
-
     return this.props.children;
   }
 }
 
-// Custom hook for loading GLTF with enhanced error handling
+/* ---------- Enhanced loader hook (keeps your robust checks) ---------- */
 function useEnhancedGLTFLoader(url) {
   const [gltf, setGltf] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
     const loader = new GLTFLoader();
-    // Setup DRACOLoader for compressed meshes
     const dracoLoader = new DRACOLoader();
+    dracoLoader.setDecoderPath('/draco/');
+    loader.setDRACOLoader(dracoLoader);
 
-    // Try both possible decoder paths
-    let dracoPathTried = false;
-    function setDracoPath(path) {
-      dracoLoader.setDecoderPath(path);
-      loader.setDRACOLoader(dracoLoader);
-    }
-    setDracoPath('/draco/');
-
-    // If DRACO fails, try alternate path
-    let triedAlternateDraco = false;
-
-  let loadingManager = new THREE.LoadingManager();
+    const loadingManager = new THREE.LoadingManager();
 
     loadingManager.onError = (failedUrl) => {
-      if (failedUrl.includes('draco') && !triedAlternateDraco) {
-        // Try alternate path
-        triedAlternateDraco = true;
-        setDracoPath('/draco/gltf/');
-        loader.load(
-          url,
-          (loadedGltf) => {
-            setGltf(loadedGltf);
-            setLoading(false);
-          },
-          undefined,
-          (error) => {
-            setError({ userMessage: 'DRACO decoder file missing or inaccessible at both /draco/ and /draco/gltf/. Please check your public folder.' });
-            setLoading(false);
-          }
-        );
-        return;
-      }
-      if (failedUrl.match(/\.(jpg|jpeg|png|webp|bmp|gif)$/)) {
-        setError({ userMessage: 'Texture file missing or inaccessible: ' + failedUrl });
-      } else {
-        setError({ userMessage: 'Resource failed to load: ' + failedUrl });
-      }
-      setLoading(false);
-    };
-
-    loader.manager = loadingManager;
-  // Do not redeclare loadingManager, reuse the existing one
-
-    loadingManager.onError = (failedUrl) => {
-      // Show a clear error if DRACO or texture file is missing
+      if (!mounted) return;
       if (failedUrl.includes('draco')) {
         setError({ userMessage: 'DRACO decoder file missing or inaccessible: ' + failedUrl });
       } else if (failedUrl.match(/\.(jpg|jpeg|png|webp|bmp|gif)$/)) {
@@ -143,340 +94,373 @@ function useEnhancedGLTFLoader(url) {
     loader.load(
       url,
       (loadedGltf) => {
-        // Process the loaded GLTF to handle texture issues
+        if (!mounted) return;
+        // Safety: enable frustum culling and set simple material fallbacks
         loadedGltf.scene.traverse((child) => {
-          if (child.isMesh && child.material) {
-            const materials = Array.isArray(child.material) ? child.material : [child.material];
-
-            materials.forEach((material, index) => {
-              // Create a robust material that doesn't break on texture errors
-              const safeMaterial = material.clone();
-
-              // Handle texture loading errors gracefully
-              const textureProperties = ['map', 'normalMap', 'emissiveMap', 'roughnessMap', 'metalnessMap', 'aoMap'];
-
-              textureProperties.forEach(prop => {
-                if (safeMaterial[prop]) {
-                  const texture = safeMaterial[prop];
-
-                  // Add comprehensive error handling for textures
-                  if (texture.image === undefined || texture.image === null) {
-                    console.warn(`Missing texture image for ${prop} in material: ${material.name || 'unnamed'}`);
-                    safeMaterial[prop] = null;
-                    // Provide visual feedback with color
-                    if (prop === 'map') {
-                      safeMaterial.color = new THREE.Color(0x888888);
-                    }
-                  } else if (texture.image) {
-                    // Add error event listener for runtime texture loading failures
-                    const originalImage = texture.image;
-                    if (originalImage.addEventListener) {
-                      originalImage.addEventListener('error', () => {
-                        setError({ userMessage: `Runtime texture loading error for ${prop} in material: ${material.name || 'unnamed'}` });
-                        safeMaterial[prop] = null;
-                        if (prop === 'map') {
-                          safeMaterial.color = new THREE.Color(0x888888);
-                        }
-                        safeMaterial.needsUpdate = true;
-                        setLoading(false);
-                      });
-                    }
-                  }
-                }
-              });
-
-              safeMaterial.needsUpdate = true;
-
-              if (Array.isArray(child.material)) {
-                child.material[index] = safeMaterial;
-              } else {
-                child.material = safeMaterial;
+          if (child.isMesh) {
+            child.frustumCulled = true;
+            // clamp large texture maps handling if needed (kept simple)
+            if (child.material) {
+              // avoid heavy env reflections by default
+              if (child.material.envMap) {
+                child.material.envMapIntensity = 0;
               }
-            });
+              child.material.needsUpdate = true;
+            }
           }
         });
-
-        console.log('3D Model loaded successfully with texture fallbacks applied');
         setGltf(loadedGltf);
         setLoading(false);
       },
-      (progress) => {
-        // Progress callback - can be used for loading indicator
-      },
-      (error) => {
-        console.error('Error loading GLTF:', error);
-
-        // Categorize the error for better user feedback
-        let errorMessage = 'Failed to load 3D model';
-        if (error.message && error.message.includes('404')) {
-          errorMessage = 'Model file not found';
-        } else if (error.message && error.message.includes('CSP')) {
-          errorMessage = 'Content Security Policy blocking model resources';
-        } else if (error.message && error.message.includes('texture')) {
-          errorMessage = 'Texture loading error';
-        }
-
-        setError({ ...error, userMessage: errorMessage });
+      undefined,
+      (err) => {
+        if (!mounted) return;
+        console.error('GLTF load error', err);
+        setError({ userMessage: 'Failed to load 3D model', originalError: err });
         setLoading(false);
       }
     );
+
+    return () => { mounted = false; dracoLoader.dispose(); };
   }, [url]);
 
   return { gltf, error, loading };
 }
 
+/* ---------- Model primitive with double-click handler ---------- */
 function Model({ url, onObjectClick, onPositionsComputed, onError }) {
-  // Use custom hook with enhanced error handling
   const { gltf, error, loading } = useEnhancedGLTFLoader(url);
   const sceneRef = useRef();
 
-  // Report errors to parent component instead of rendering HTML in Canvas
-  useEffect(() => {
-    if (error && onError) {
-      onError(error);
-    }
-  }, [error, onError]);
-
-  // IMPORTANT: Do not return early before declaring hooks below.
-  // Returning early conditionally would change the hooks order between renders
-  // and cause "Rendered more hooks than during the previous render" errors.
+  useEffect(() => { if (error && onError) onError(error); }, [error, onError]);
 
   useEffect(() => {
     if (gltf) {
+      // mark clickable meshes & prepare bounding boxes
       gltf.scene.traverse((child) => {
         if (child.isMesh) {
           child.userData.clickable = true;
-          child.userData.name = child.name;
+          if (!child.name) child.name = `mesh_${child.id}`;
         }
       });
     }
   }, [gltf]);
 
-  const positions = useMemo(() => {
-    if (!gltf) return null;
-
+  useEffect(() => {
+    if (!gltf || !onPositionsComputed) return;
     const pos = {};
     gltf.scene.traverse((child) => {
-      if (child.name && (child.isMesh || child.isGroup)) {
+      if ((child.isMesh || child.isGroup) && child.name) {
         const box = new THREE.Box3().setFromObject(child);
         const center = box.getCenter(new THREE.Vector3());
         const size = box.getSize(new THREE.Vector3());
         const radius = Math.max(size.x, size.y, size.z) / 2;
         pos[child.name] = {
           center: [center.x, center.y, center.z],
-          radius: radius * 1.5,
+          radius: radius * 1.5
         };
       }
     });
-
     const overallBox = new THREE.Box3().setFromObject(gltf.scene);
     const overallCenter = overallBox.getCenter(new THREE.Vector3());
     const overallSize = overallBox.getSize(new THREE.Vector3());
     const overallRadius = Math.max(overallSize.x, overallSize.y, overallSize.z) * 1.5;
-    pos.overall = {
-      center: [overallCenter.x, overallCenter.y, overallCenter.z],
-      radius: overallRadius,
-    };
-    return pos;
-  }, [gltf]);
+    pos.overall = { center: [overallCenter.x, overallCenter.y, overallCenter.z], radius: overallRadius };
+    onPositionsComputed(pos);
+  }, [gltf, onPositionsComputed]);
 
-  useEffect(() => {
-    if (positions && onPositionsComputed) {
-      onPositionsComputed(positions);
-    }
-  }, [positions, onPositionsComputed]);
+  if (!gltf) return null;
 
-  // Render only when gltf is ready; otherwise render nothing.
-  return gltf ? (
+  return (
     <primitive
       ref={sceneRef}
       object={gltf.scene}
       onDoubleClick={(e) => {
         e.stopPropagation();
-        if (e.object.userData.clickable) {
-          onObjectClick(e.object.userData.name);
+        // walk to find a clickable parent if the clicked object is submesh
+        let src = e.object;
+        while (src && !src.userData.clickable && src.parent) src = src.parent;
+        if (src && src.userData.clickable && onObjectClick) {
+          onObjectClick(src.name || `mesh_${src.id}`);
         }
       }}
     />
-  ) : null;
-}
-
-function Loader() {
-  const { progress, errors, item, loaded, total } = useProgress();
-  
-  // Show error message if there are loading errors
-  if (errors.length > 0) {
-    console.warn('Loading errors detected:', errors);
-    return (
-      <Html center>
-        <div style={{ 
-          color: 'white', 
-          background: 'rgba(0,0,0,0.8)', 
-          padding: '10px', 
-          borderRadius: '5px',
-          textAlign: 'center' 
-        }}>
-          Loading model with texture fallbacks...
-          <br />
-          {progress.toFixed(0)}% loaded
-        </div>
-      </Html>
-    );
-  }
-  
-  return (
-    <Html center>
-      <div style={{ 
-        color: 'white', 
-        background: 'rgba(0,0,0,0.8)', 
-        padding: '10px', 
-        borderRadius: '5px',
-        textAlign: 'center' 
-      }}>
-        {progress.toFixed(0)}% loaded
-      </div>
-    </Html>
   );
 }
 
-function AnimatedControls({ target, position, isLocked }) {
+/* ---------- Loader UI ---------- */
+function Loader() {
+  const { progress, errors } = useProgress();
+  if (errors.length > 0) {
+    return <Html center>
+      <div style={{
+        color: 'white', background: 'rgba(0,0,0,0.8)',
+        padding: '10px', borderRadius: '5px', textAlign: 'center'
+      }}>
+        Loading model with fallbacks... {progress.toFixed(0)}%
+      </div>
+    </Html>;
+  }
+  return <Html center>
+    <div style={{
+      color: 'white', background: 'rgba(0,0,0,0.8)',
+      padding: '10px', borderRadius: '5px', textAlign: 'center'
+    }}>
+      {progress.toFixed(0)}% loaded
+    </div>
+  </Html>;
+}
+
+/* ---------- PERFORMANCE OPTIMIZED AnimatedControls with lerp-based smooth zoom and WASD navigation ---------- */
+function AnimatedControls({ target, position, isLocked, onAnimationStart, onAnimationEnd, selectedObject }) {
   const { camera, gl } = useThree();
   const controlsRef = useRef();
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [keys, setKeys] = useState({});
 
+  // Animation state for lerp-based smooth movement (only for object selection)
+  const targetPosition = useRef(new THREE.Vector3());
+  const targetTarget = useRef(new THREE.Vector3());
+  const isAnimating = useRef(false);
+  const hasCompletedAnimation = useRef(false); // Track if we've completed the animation
+  const lerpSpeed = 0.25; // Increased from 0.08 for much faster animation
+
+  // WASD navigation state
+  const keysPressed = useRef({});
+  const moveSpeed = useRef(0.8);
+  const isFreeView = selectedObject === null || selectedObject === undefined;
+
+  // Scroll zoom state - direct movement, no lerp
+  const zoomVelocity = useRef(0);
+
+  // GSAP-based smooth camera and target animation for object selection
+  const prevTarget = useRef(target);
+  const prevPosition = useRef(position);
   useEffect(() => {
-    setIsAnimating(true);
-    const timer = setTimeout(() => setIsAnimating(false), 1200);
-    return () => clearTimeout(timer);
-  }, [target, position]);
+    if (controlsRef.current && (target !== prevTarget.current || position !== prevPosition.current)) {
+      targetPosition.current.set(position[0], position[1], position[2]);
+      targetTarget.current.set(target[0], target[1], target[2]);
+      isAnimating.current = true;
+      hasCompletedAnimation.current = false; // Reset completion flag on new target
+      
+      // IMPORTANT: Clear all WASD key presses when switching views
+      keysPressed.current = {};
+      
+      if (onAnimationStart) onAnimationStart();
+      prevTarget.current = target;
+      prevPosition.current = position;
+    }
+  }, [target, position, onAnimationStart]);
 
+  // WASD keyboard navigation
   useEffect(() => {
     const handleKeyDown = (event) => {
-      if (isLocked) return;
-      setKeys(prev => ({ ...prev, [event.key.toLowerCase()]: true }));
+      keysPressed.current[event.code] = true;
     };
+
     const handleKeyUp = (event) => {
-      setKeys(prev => ({ ...prev, [event.key.toLowerCase()]: false }));
+      keysPressed.current[event.code] = false;
     };
+
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [isLocked]);
+  }, []);
 
-  const springs = useSpring({
-    target: target,
-    position: position,
-    config: { duration: 1000 },
-  });
+  // Scroll zoom - accumulate scroll for smooth continuous zoom like WASD
+  useEffect(() => {
+    const handleWheel = (event) => {
+      event.preventDefault();
+      
+      // Accumulate scroll delta (like holding a key)
+      // Positive deltaY (scroll down) = zoom out (negative)
+      // Negative deltaY (scroll up) = zoom in (positive)
+      zoomVelocity.current += -event.deltaY * 0.0005;
+    };
 
-  useFrame(() => {
-    if (isAnimating) {
-      const targetVec = new THREE.Vector3().fromArray(springs.target.get());
-      const positionVec = new THREE.Vector3().fromArray(springs.position.get());
+    // Add wheel event listener to canvas
+    const canvas = gl.domElement;
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
 
-      if (controlsRef.current) {
-        controlsRef.current.target.lerp(targetVec, 0.1);
-        camera.position.lerp(positionVec, 0.1);
-        controlsRef.current.update();
-      }
-    }
+    return () => {
+      canvas.removeEventListener('wheel', handleWheel);
+    };
+  }, [gl]);
 
-    if (!isLocked && controlsRef.current) {
-      const speed = 2;
+  // WASD movement, scroll zoom, and animation updates (optimized frame loop)
+  useFrame((state, delta) => {
+    if (!controlsRef.current) return;
+
+    // Handle scroll zoom - EXACTLY like WASD movement (smooth, no lag)
+    if (Math.abs(zoomVelocity.current) > 0.0001) {
+      // Calculate direction from camera to target
       const direction = new THREE.Vector3();
-      camera.getWorldDirection(direction);
-      direction.y = 0;
-      direction.normalize();
-      const right = new THREE.Vector3().crossVectors(direction, camera.up).normalize();
+      direction.subVectors(controlsRef.current.target, camera.position).normalize();
 
-      if (keys['w']) {
-        camera.position.add(direction.clone().multiplyScalar(speed));
-        controlsRef.current.target.add(direction.clone().multiplyScalar(speed));
+      // Apply zoom movement (exactly like WASD uses moveSpeed)
+      const zoomAmount = zoomVelocity.current * delta * 60; // Frame-rate independent, just like WASD
+      
+      // Move camera along direction
+      camera.position.add(direction.multiplyScalar(zoomAmount));
+      
+      // Apply damping (deceleration when not scrolling)
+      zoomVelocity.current *= 0.9;
+      
+      // Stop if velocity is very small
+      if (Math.abs(zoomVelocity.current) < 0.0001) {
+        zoomVelocity.current = 0;
       }
-      if (keys['s']) {
-        camera.position.add(direction.clone().multiplyScalar(-speed));
-        controlsRef.current.target.add(direction.clone().multiplyScalar(-speed));
-      }
-      if (keys['a']) {
-        camera.position.add(right.clone().multiplyScalar(-speed));
-        controlsRef.current.target.add(right.clone().multiplyScalar(-speed));
-      }
-      if (keys['d']) {
-        camera.position.add(right.clone().multiplyScalar(speed));
-        controlsRef.current.target.add(right.clone().multiplyScalar(speed));
-      }
-      controlsRef.current.update();
     }
+
+    // Handle WASD movement ONLY in free view
+    if (isFreeView) {
+      const direction = new THREE.Vector3();
+      const right = new THREE.Vector3();
+      const up = new THREE.Vector3(0, 1, 0);
+
+      // Get camera right vector
+      camera.getWorldDirection(direction);
+      right.crossVectors(direction, up).normalize();
+
+      let moveVector = new THREE.Vector3();
+
+      if (keysPressed.current['KeyW']) {
+        moveVector.add(direction);
+      }
+      if (keysPressed.current['KeyS']) {
+        moveVector.add(direction.clone().multiplyScalar(-1));
+      }
+      if (keysPressed.current['KeyA']) {
+        moveVector.add(right.clone().multiplyScalar(-1));
+      }
+      if (keysPressed.current['KeyD']) {
+        moveVector.add(right);
+      }
+
+      if (moveVector.length() > 0) {
+        moveVector.normalize().multiplyScalar(moveSpeed.current * delta * 60); // Frame-rate independent
+        camera.position.add(moveVector);
+        controlsRef.current.target.add(moveVector);
+      }
+    } else {
+      // When object is selected, W/S act as zoom in/out toward the object
+      const direction = new THREE.Vector3();
+      direction.subVectors(controlsRef.current.target, camera.position).normalize();
+
+      let zoomMove = 0;
+
+      if (keysPressed.current['KeyW']) {
+        zoomMove = 1; // Zoom in
+      }
+      if (keysPressed.current['KeyS']) {
+        zoomMove = -1; // Zoom out
+      }
+
+      if (zoomMove !== 0) {
+        const zoomSpeed = 0.8; // Same speed as WASD movement
+        const zoomAmount = zoomMove * zoomSpeed * delta * 60;
+        camera.position.add(direction.multiplyScalar(zoomAmount));
+      }
+    }
+
+    // Handle lerp-based smooth animation - but STOP once completed (only for object selection)
+    if (isAnimating.current && !hasCompletedAnimation.current) {
+      // Animate camera to target position
+      camera.position.lerp(targetPosition.current, lerpSpeed);
+      controlsRef.current.target.lerp(targetTarget.current, lerpSpeed);
+
+      // Check if animation is complete or close enough
+      if (camera.position.distanceTo(targetPosition.current) < 0.5 &&
+          controlsRef.current.target.distanceTo(targetTarget.current) < 0.5) {
+        isAnimating.current = false;
+        hasCompletedAnimation.current = true; // Mark as completed
+        if (onAnimationEnd) onAnimationEnd();
+      }
+    }
+
+    controlsRef.current.update();
   });
+
+  useEffect(() => {
+    if (controlsRef.current) {
+      controlsRef.current.enableDamping = true;
+      controlsRef.current.dampingFactor = 0.12;
+      controlsRef.current.enablePan = !isLocked;
+      controlsRef.current.enableRotate = true; // Always allow rotation
+      controlsRef.current.enableZoom = false; // Disable default zoom
+      controlsRef.current.zoomSpeed = 0; // Ensure no default zoom
+      controlsRef.current.rotateSpeed = 0.5;
+      controlsRef.current.minDistance = 5;
+      controlsRef.current.maxDistance = 200;
+      controlsRef.current.maxPolarAngle = Math.PI * 0.48; // Ground lock - prevent going under the model (slightly less than 90°)
+      controlsRef.current.minPolarAngle = 0.1; // Prevent flipping at top
+    }
+  }, [isLocked]);
 
   return (
     <OrbitControls
       ref={controlsRef}
       args={[camera, gl.domElement]}
-      enablePan={!isLocked}
-      enableZoom={true}
-      enableRotate={true}
-      zoomSpeed={0.6}
-      rotateSpeed={0.5}
-      minDistance={1}
-      maxDistance={500}
-      maxPolarAngle={Math.PI / 2}
+      makeDefault
     />
   );
 }
 
-function EnhancedThreeDModelViewerInner({ selectedObject, onSelectObject }) {
+/* ---------- Main viewer inner ---------- */
+function EnhancedThreeDModelViewerInner({ selectedObject: externalSelected, onSelectObject: externalOnSelect }) {
   const [objectPositions, setObjectPositions] = useState({});
   const [isLocked, setIsLocked] = useState(false);
   const [modelError, setModelError] = useState(null);
-  const canvasRef = useRef();
-  const modelPath = "/models/WholeMap_Final8.gltf";
+  const [selectedObject, setSelectedObject] = useState(null);
+  const [initialCameraReady, setInitialCameraReady] = useState(false);
+  const modelPath = "/models/WholeMap_11.glb";
 
+  // Sync external selected object with internal state
+  useEffect(() => {
+    setSelectedObject(externalSelected);
+  }, [externalSelected]);
 
-
-  const handleObjectSelection = (objectName) => {
-    onSelectObject(objectName);
-    setIsLocked(true);
-  };
-
+  // compute camera positions from positions map
   const getObjectPosition = useCallback((objectName) => {
     const name = objectName || 'overall';
     if (objectPositions[name]) {
       const { center, radius } = objectPositions[name];
-      // For 'overall' (free view), use a closer default zoom
       if (name === 'overall') {
+        // Closer initial view for free view
         return {
           target: center,
-          position: [center[0], center[1] + radius * 0.5, center[2] + radius * 1.2], // less zoomed out
+          position: [center[0], center[1] + radius * 0.3, center[2] + radius * 0.6],
         };
       }
       return {
         target: center,
-        position: [center[0], center[1] + radius * 0.5, center[2] + radius * 1.5],
+        position: [center[0], center[1] + radius * 0.4, center[2] + radius * 1.2],
       };
     }
-    // Fallback if positions not ready
-    return {
-      target: [0, 0, 0],
-      position: [0, 10, 20],
-    };
+    return { target: [0, 0, 0], position: [0, 10, 20] };
   }, [objectPositions]);
 
   const handlePositionsComputed = useCallback((positions) => {
     setObjectPositions(positions);
+    // set initial camera ready only when we have overall
+    if (positions.overall) setInitialCameraReady(true);
   }, []);
 
-  const handleModelError = useCallback((error) => {
-    setModelError(error);
-  }, []);
+  const handleModelError = useCallback((err) => setModelError(err), []);
 
-  const { target, position } = getObjectPosition(selectedObject);
+  // When user double-clicks a model piece
+  const handleObjectSelection = useCallback((objectName) => {
+    setSelectedObject(objectName);
+    // Don't lock - users should be able to rotate immediately
+    if (externalOnSelect) externalOnSelect(objectName);
+  }, [externalOnSelect]);
 
-  // Show error UI outside of Canvas if model fails to load
+  // derive the target & position for AnimatedControls
+  const { target, position } = useMemo(() => getObjectPosition(selectedObject || 'overall'), [getObjectPosition, selectedObject]);
+
+  // Render error if model load failed
   if (modelError) {
     return (
       <div style={{
@@ -493,75 +477,54 @@ function EnhancedThreeDModelViewerInner({ selectedObject, onSelectObject }) {
         <div style={{ fontSize: '48px' }}>⚠️</div>
         <div style={{ fontSize: '16px', fontWeight: 'bold' }}>3D Model Loading Error</div>
         <div style={{ fontSize: '14px', textAlign: 'center', maxWidth: '300px' }}>
-          {modelError.userMessage || 'There was an issue loading the 3D model. This may be due to missing textures or corrupted model files.'}
+          {modelError.userMessage || 'There was an issue loading the 3D model.'}
         </div>
-        <button 
-          onClick={() => setModelError(null)}
-          style={{
-            padding: '8px 16px',
-            background: '#007bff',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
-        >
-          Retry
-        </button>
+        <button onClick={() => setModelError(null)} style={{
+          padding: '8px 16px', background: '#007bff', color: 'white',
+          border: 'none', borderRadius: '4px', cursor: 'pointer'
+        }}>Retry</button>
       </div>
     );
   }
 
-  // Camera much closer by default
-  const defaultCamera = { position: [0, 20, 40], fov: 75 };
-
-  // Sunlight direction (convert degrees to radians for rotation)
-  const sunRotation = new THREE.Euler(
-    THREE.MathUtils.degToRad(-202),
-    THREE.MathUtils.degToRad(-147),
-    THREE.MathUtils.degToRad(149)
-  );
-  // Sunlight color and exposure
-  const sunlightColor = '#ffe2b9';
-  const ambientColor = '#ffe2b9';
-  const exposure = 0.8; // Brighter exposure
+  // sensible default camera - will be overridden when positions are computed
+  const defaultCamera = { position: [0, 40, 80], fov: 60 };
 
   return (
-    <div
-      ref={canvasRef}
-      style={{
-        width: '100%',
-        height: '100%',
-        position: 'relative',
-        overflow: 'hidden',
-        background: '#191919',
-      }}
-    >
+    <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden', background: '#505050' }}>
       <Canvas
         camera={defaultCamera}
-        style={{
-          background: '#191919',
-          width: '100%',
-          height: '100%',
+        style={{ width: '100%', height: '100%' }}
+        onCreated={({ gl, camera }) => {
+          // Optimize for performance - lower pixel ratio
+          gl.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1));
+          // Reduce tone mapping exposure for better performance
+          gl.toneMappingExposure = 0.9;
+          // Disable shadows completely for performance
+          gl.shadowMap.enabled = false;
+          // Disable antialiasing for better performance
+          gl.antialias = false;
+          // Preserve drawing buffer for screenshots if needed
+          gl.preserveDrawingBuffer = false;
+          // Set power preference for performance
+          gl.powerPreference = 'high-performance';
         }}
-        onError={(error) => {
-          console.error('Canvas Error:', error);
-          setModelError({ userMessage: 'Canvas initialization failed', originalError: error });
+        gl={{ 
+          antialias: false, // Disable antialiasing for performance
+          powerPreference: 'high-performance',
+          alpha: false // Disable alpha for performance
         }}
-        gl={{ toneMappingExposure: exposure }}
       >
-        {/* Ambient and sunlight setup - increased intensity */}
-        <ambientLight intensity={2.5} color={ambientColor} />
+        {/* Sand background color */}
+        <color attach="background" args={['#d4a574']} />
+        
+        {/* Static lighting only: ambient + single directional (no shadow updates) */}
+        <ambientLight intensity={1.0} color={'#ffffff'} />
         <directionalLight
-          color={sunlightColor}
-          intensity={2.5}
-          position={[0, 50, 50]}
-          castShadow
-        >
-          <primitive object={new THREE.Object3D()} rotation={sunRotation} />
-        </directionalLight>
-        {/* Optionally add hemisphere light for soft fill */}
-        <hemisphereLight intensity={1.2} skyColor={sunlightColor} groundColor="#191919" />
+          color={'#ffe2b9'}
+          intensity={1.2}
+          position={[50, 80, 40]}
+        />
 
         <Suspense fallback={<Loader />}>
           <Model
@@ -570,14 +533,62 @@ function EnhancedThreeDModelViewerInner({ selectedObject, onSelectObject }) {
             onPositionsComputed={handlePositionsComputed}
             onError={handleModelError}
           />
-          <AnimatedControls target={target} position={position} isLocked={isLocked} />
+
+          {/* Only render controls after we computed overall so initial camera framing works */}
+          <ControlsStarter
+            initialReady={initialCameraReady}
+            overall={objectPositions.overall}
+            animatedTarget={target}
+            animatedPosition={position}
+            isLocked={isLocked}
+            setIsLocked={setIsLocked}
+            selectedObject={selectedObject}
+          />
         </Suspense>
       </Canvas>
     </div>
   );
 }
 
-// Wrap with ErrorBoundary at the highest level
+/* ---------- Helper component to set initial camera based on overall bounding box ---------- */
+function ControlsStarter({ initialReady, overall, animatedTarget, animatedPosition, isLocked, setIsLocked, selectedObject }) {
+  const { camera } = useThree();
+  const [appliedInitial, setAppliedInitial] = useState(false);
+
+  // Apply initial camera framing when overall bounding box becomes available
+  useEffect(() => {
+    if (!initialReady || !overall || appliedInitial) return;
+    const [cx, cy, cz] = overall.center;
+    const radius = overall.radius;
+    // Closer initial framing - reduced distance multiplier
+    const distance = radius * 0.6; // Much closer to the model
+    const startPos = [cx, cy + radius * 0.3, cz + distance];
+    camera.position.set(...startPos);
+    camera.lookAt(cx, cy, cz);
+    setAppliedInitial(true);
+  }, [initialReady, overall, camera, appliedInitial]);
+
+  // handle animation start/end callbacks - DON'T lock controls, rotation should always work
+  const handleAnimStart = () => {
+    // Don't lock controls - users should be able to rotate immediately
+  };
+  const handleAnimEnd = () => {
+    setIsLocked(false);
+  };
+
+  return (
+    <AnimatedControls
+      target={animatedTarget}
+      position={animatedPosition}
+      isLocked={isLocked}
+      onAnimationStart={handleAnimStart}
+      onAnimationEnd={handleAnimEnd}
+      selectedObject={selectedObject}
+    />
+  );
+}
+
+/* ---------- Export wrapper ---------- */
 export default function EnhancedThreeDModelViewer(props) {
   return (
     <ErrorBoundary>

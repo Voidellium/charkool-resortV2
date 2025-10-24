@@ -456,107 +456,134 @@ export default function AmenityManagementPanel({ userRole }) {
       <style jsx>{`
         .amenity-management-panel {
           background: white;
-          border-radius: 8px;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          border-radius: 16px;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+          border: 1px solid rgba(254, 190, 82, 0.1);
+          overflow: hidden;
         }
 
         .panel-header {
-          padding: 20px;
-          border-bottom: 1px solid #e0e0e0;
+          padding: 24px;
+          border-bottom: 1px solid #e5e7eb;
           display: flex;
           justify-content: space-between;
           align-items: center;
+          background: linear-gradient(135deg, #f9fafb 0%, #fff 100%);
         }
 
         .panel-header h3 {
           margin: 0;
-          color: #333;
+          color: #1f2937;
+          font-size: 1.5rem;
+          font-weight: 700;
         }
 
         .tab-buttons {
           display: flex;
-          gap: 10px;
+          gap: 12px;
         }
 
         .tab-btn {
-          padding: 8px 16px;
-          border: 1px solid #ddd;
-          border-radius: 4px;
+          padding: 10px 20px;
+          border: 1px solid #e5e7eb;
+          border-radius: 12px;
           background: white;
           cursor: pointer;
-          transition: all 0.2s ease;
+          transition: all 0.3s ease;
+          font-weight: 600;
+          color: #6b7280;
         }
 
         .tab-btn.active {
-          background: #007bff;
+          background: linear-gradient(135deg, #febe52 0%, #f59e0b 100%);
           color: white;
-          border-color: #007bff;
+          border-color: #f59e0b;
+          box-shadow: 0 4px 12px rgba(254, 190, 82, 0.3);
         }
 
         .tab-btn:hover:not(.active) {
-          background: #f8f9fa;
+          background: #f9fafb;
+          border-color: #d1d5db;
+          transform: translateY(-1px);
         }
 
         .panel-content {
-          padding: 20px;
+          padding: 24px;
         }
 
         .content-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 20px;
+          margin-bottom: 24px;
         }
 
         .content-header h4 {
           margin: 0;
-          color: #333;
+          color: #1f2937;
+          font-size: 1.25rem;
+          font-weight: 700;
         }
 
         .add-btn {
-          padding: 8px 16px;
-          background: #28a745;
+          padding: 10px 20px;
+          background: linear-gradient(135deg, #10b981 0%, #059669 100%);
           color: white;
           border: none;
-          border-radius: 4px;
+          border-radius: 12px;
           cursor: pointer;
           font-weight: 600;
+          transition: all 0.3s ease;
+          box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
         }
 
         .add-btn:hover {
-          background: #218838;
+          background: linear-gradient(135deg, #059669 0%, #047857 100%);
+          transform: translateY(-1px);
+          box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
         }
 
         .amenities-list {
           display: flex;
           flex-direction: column;
-          gap: 12px;
+          gap: 16px;
         }
 
         .amenity-item {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 16px;
-          border: 1px solid #e0e0e0;
-          border-radius: 8px;
-          background: #f8f9fa;
+          padding: 20px;
+          border: 1px solid #e5e7eb;
+          border-radius: 12px;
+          background: #ffffff;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+          transition: all 0.3s ease;
+        }
+
+        .amenity-item:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+          border-color: rgba(254, 190, 82, 0.3);
         }
 
         .amenity-info h5 {
-          margin: 0 0 4px 0;
-          color: #333;
+          margin: 0 0 8px 0;
+          color: #1f2937;
+          font-size: 1.1rem;
+          font-weight: 700;
         }
 
         .amenity-info p {
           margin: 0 0 8px 0;
-          color: #666;
-          font-size: 14px;
+          color: #6b7280;
+          font-size: 0.9rem;
         }
 
-        .max-quantity, .pricing-info {
-          font-size: 12px;
-          color: #888;
+        .max-quantity, .price-info {
+          font-size: 0.85rem;
+          color: #374151;
+          font-weight: 600;
         }
 
         .pricing-info {
@@ -607,29 +634,34 @@ export default function AmenityManagementPanel({ userRole }) {
           display: flex;
           align-items: center;
           justify-content: center;
-          z-index: 1000;
+          z-index: 1200;
         }
 
         .modal {
           background: white;
-          border-radius: 8px;
+          border-radius: 16px;
           width: 90%;
           max-width: 500px;
           max-height: 90vh;
           overflow-y: auto;
+          box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+          border: 1px solid rgba(254, 190, 82, 0.1);
         }
 
         .modal-header {
-          padding: 20px;
-          border-bottom: 1px solid #e0e0e0;
+          padding: 24px;
+          border-bottom: 1px solid #e5e7eb;
           display: flex;
           justify-content: space-between;
           align-items: center;
+          background: linear-gradient(135deg, #f9fafb 0%, #fff 100%);
         }
 
         .modal-header h4 {
           margin: 0;
-          color: #333;
+          color: #1f2937;
+          font-size: 1.25rem;
+          font-weight: 700;
         }
 
         .close-btn {
@@ -637,22 +669,35 @@ export default function AmenityManagementPanel({ userRole }) {
           border: none;
           font-size: 24px;
           cursor: pointer;
-          color: #666;
+          color: #6b7280;
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.3s ease;
+        }
+
+        .close-btn:hover {
+          background: #f3f4f6;
+          color: #374151;
         }
 
         .modal-form {
-          padding: 20px;
+          padding: 24px;
         }
 
         .form-group {
-          margin-bottom: 16px;
+          margin-bottom: 20px;
         }
 
         .form-group label {
           display: block;
-          margin-bottom: 4px;
+          margin-bottom: 8px;
           font-weight: 600;
-          color: #333;
+          color: #374151;
+          font-size: 0.9rem;
         }
 
         .form-group input,

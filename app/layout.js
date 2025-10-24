@@ -20,14 +20,17 @@ export const metadata = {
 };
 
 export default async function RootLayout({ children }) {
-  const session = await getServerSession(authOptions);
+  // Don't pass server session to avoid caching issues
+  // Let client-side handle session fetching
+  const session = null;
 
   return (
     <html lang="en">
       <body className={poppins.className} style={{ margin: 0, padding: 0 }}>
         <SessionWrapper
           session={session}
-          refetchInterval={0} // Disable auto refetch
+          refetchInterval={5 * 60} // Refetch session every 5 minutes to check validity
+          refetchOnWindowFocus={true} // Refetch when window regains focus
           basePath="/api/auth" // Use internal API routes in merged app
         >
           <NavigationProvider>

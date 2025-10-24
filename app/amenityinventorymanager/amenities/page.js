@@ -1,5 +1,18 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { RefreshCw, Edit, Trash2, Plus, X } from 'lucide-react';
+
+// Add spinner animation styles
+if (typeof document !== 'undefined') {
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  `;
+  document.head.appendChild(style);
+}
 
 export default function AmenityInventoryPage() {
   const [amenities, setAmenities] = useState([]);
@@ -115,14 +128,22 @@ export default function AmenityInventoryPage() {
           onMouseEnter={e => e.currentTarget.style.background = '#FFD88A'}
           onMouseOut={e => e.currentTarget.style.background = '#FEBE52'}
         >
-          &#x21bb; Refresh
+          <RefreshCw size={16} style={{ marginRight: '8px' }} />
+          Refresh
         </button>
       </div>
 
       {error && <p style={styles.error}>{error}</p>}
 
-      {/* Form for add/update */}
-      <form onSubmit={handleSubmit} style={{ ...styles.form, flexWrap: 'nowrap', justifyContent: 'center', alignItems: 'flex-end', gap: '16px' }} aria-label="Add or update amenity">
+      {loading ? (
+        <div style={styles.loadingContainer}>
+          <div style={styles.loadingSpinner}></div>
+          <p style={styles.loadingText}>Loading amenities...</p>
+        </div>
+      ) : (
+        <>
+          {/* Form for add/update */}
+          <form onSubmit={handleSubmit} style={{ ...styles.form, flexWrap: 'nowrap', justifyContent: 'center', alignItems: 'flex-end', gap: '16px' }} aria-label="Add or update amenity">
         <div style={{ display: 'flex', flexDirection: 'column', flex: 2, minWidth: 180 }}>
           <label htmlFor="amenityName" style={styles.label}>Amenity Name</label>
           <input
@@ -227,41 +248,46 @@ export default function AmenityInventoryPage() {
                     onMouseEnter={e => e.currentTarget.style.background = '#FFD88A'}
                     onMouseOut={e => e.currentTarget.style.background = '#FCCE7E'}
                   >
+                    <Edit size={16} style={{ marginRight: '8px' }} />
                     Edit
                   </button>
                 </div>
               </div>
             ))}
       </div>
+        </>
+      )}
     </div>
   );
 }
 
 const styles = {
   container: {
-    maxWidth: '1100px',
+    maxWidth: '1200px',
     margin: '0 auto',
-    padding: '50px 30px',
+    padding: '24px',
     fontFamily: `'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif`,
-    backgroundColor: '#FFF8E1',
-    borderRadius: '8px',
-    boxShadow: '0 8px 16px rgba(0,0,0,0.05)',
     minHeight: '100%',
     overflow: 'visible',
   },
   header: {
     fontSize: '2.5rem',
-    fontWeight: '700',
-    color: '#42351F',
+    fontWeight: '800',
+    color: '#1f2937',
     textAlign: 'center',
     marginBottom: '10px',
+    background: 'linear-gradient(135deg, #febe52 0%, #f59e0b 100%)',
+    WebkitBackgroundClip: 'text',
+    WebkitTextFillColor: 'transparent',
+    backgroundClip: 'text',
   },
   description: {
     fontSize: '1.1rem',
-    color: '#7D7464',
+    color: '#6b7280',
     textAlign: 'center',
     maxWidth: '700px',
     margin: '0 auto 40px',
+    fontWeight: '500',
   },
   headerActions: {
     display: 'flex',
@@ -269,17 +295,19 @@ const styles = {
     marginBottom: '40px',
   },
   refreshButton: {
-    backgroundColor: '#FEBE52',
+    backgroundColor: '#febe52',
     color: '#fff',
-    padding: '10px 20px',
+    padding: '12px 20px',
     border: 'none',
-    borderRadius: '6px',
-    fontSize: '1rem',
+    borderRadius: '12px',
+    fontSize: '14px',
     fontWeight: '600',
     cursor: 'pointer',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-    transition: 'background 0.2s, transform 0.1s',
+    boxShadow: '0 4px 12px rgba(254, 190, 82, 0.3)',
+    transition: 'all 0.3s ease',
     outline: 'none',
+    display: 'flex',
+    alignItems: 'center',
   },
   error: {
     color: '#D9534F',
@@ -383,5 +411,27 @@ const styles = {
     fontWeight: '600',
     transition: 'background 0.2s, transform 0.1s',
     outline: 'none',
+  },
+  loadingContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '60px 20px',
+    gap: '16px',
+  },
+  loadingSpinner: {
+    width: '40px',
+    height: '40px',
+    border: '4px solid #f3f4f6',
+    borderTop: '4px solid #febe52',
+    borderRadius: '50%',
+    animation: 'spin 1s linear infinite',
+  },
+  loadingText: {
+    color: '#6b7280',
+    fontSize: '16px',
+    fontWeight: '500',
+    margin: '0',
   },
 };

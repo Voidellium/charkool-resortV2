@@ -48,6 +48,7 @@ model User {
   redirectUrl    String?   @default("/guest/dashboard")
   emailVerified  DateTime?
   googleId       String?   @unique  // <- for linking Google OAuth accounts
+  pendingGoogleLink String? // Temporary storage for pending Google account linking data
   resetToken     String?   // for password reset OTP
   resetTokenExpiry DateTime? // expiry time for reset OTP
   // Progressive payment failure cooldown
@@ -229,6 +230,7 @@ model Booking {
   actualCheckOut DateTime?
   status        BookingStatus    @default(Pending)
   createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @default(now()) @updatedAt
   heldUntil     DateTime?
   guestName     String           @default("Walk-in Guest")
   paymentStatus PaymentStatus    @default(Pending)
@@ -349,6 +351,7 @@ enum BookingStatus {
   Pending
   Cancelled
   Held
+  Completed
 }
 
 enum PaymentStatus {
@@ -356,6 +359,7 @@ enum PaymentStatus {
   Pending
   Partial
   Reservation
+  Cancelled
 }
 
 // Manual verification state controlled by Cashier/Superadmin

@@ -1,8 +1,9 @@
 'use client';
 import React, { useEffect, useState, useRef } from 'react';
 import { useEarlyCheckInModal, EarlyCheckInModal, NavigationConfirmationModal } from '@/components/CustomModals';
-import { signOut } from 'next-auth/react';
+import { signOut, useSession } from 'next-auth/react';
 import { useNavigationGuard } from '../../hooks/useNavigationGuard.simple';
+import { User } from 'lucide-react';
 import './receptionist-styles.css';
 import RoomAmenitiesSelector from '@/components/RoomAmenitiesSelector';
 import RentalAmenitiesSelector from '@/components/RentalAmenitiesSelector';
@@ -19,6 +20,9 @@ function formatDate(date) {
 }
 
 export default function ReceptionistDashboard() {
+  // Session hook
+  const { data: session } = useSession();
+  
   // Core state
   const [loading, setLoading] = useState(true);
   const [bookings, setBookings] = useState([]);
@@ -1278,6 +1282,68 @@ export default function ReceptionistDashboard() {
         paddingTop: '20px',
         position: 'relative'
       }}>
+        {/* Welcome Section */}
+        <div style={{
+          background: 'linear-gradient(135deg, #bb8f44ff 0%, #FEBE52 100%)',
+          borderRadius: '16px',
+          padding: '24px 32px',
+          marginBottom: '24px',
+          color: 'white',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          <div style={{
+            position: 'absolute',
+            top: '-50%',
+            right: '-50%',
+            width: '200px',
+            height: '200px',
+            background: 'rgba(255,255,255,0.1)',
+            borderRadius: '50%',
+            filter: 'blur(60px)'
+          }}></div>
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '16px',
+              marginBottom: '8px'
+            }}>
+              <div style={{
+                background: 'rgba(255,255,255,0.2)',
+                borderRadius: '12px',
+                padding: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <User size={24} />
+              </div>
+              <div>
+                <h2 style={{ 
+                  margin: '0', 
+                  fontSize: '28px',
+                  fontWeight: '600'
+                }}>
+                  Welcome Receptionist, {session?.user?.name || 'User'}!
+                </h2>
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  background: 'rgba(255,255,255,0.2)',
+                  padding: '4px 12px',
+                  borderRadius: '20px',
+                  fontSize: '14px',
+                  marginTop: '4px'
+                }}>
+                  Front Desk Operations
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="dashboard-header" style={{ 
           marginBottom: '30px',
           position: 'relative',
@@ -4197,9 +4263,31 @@ export default function ReceptionistDashboard() {
         /* Rooms grid layout */
         .rooms-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-          gap: 20px;
+          grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+          gap: 16px;
           transition: opacity 0.3s ease;
+        }
+        
+        /* Responsive rooms grid */
+        @media (min-width: 1400px) {
+          .rooms-grid {
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 14px;
+          }
+        }
+        
+        @media (max-width: 768px) {
+          .rooms-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+          }
+        }
+        
+        @media (max-width: 480px) {
+          .rooms-grid {
+            grid-template-columns: 1fr;
+            gap: 10px;
+          }
         }
         
         .rooms-grid.loading {
@@ -4255,8 +4343,23 @@ export default function ReceptionistDashboard() {
         
         .recent-bookings-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-          gap: 20px;
+          grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+          gap: 16px;
+        }
+        
+        /* Responsive booking cards */
+        @media (min-width: 1400px) {
+          .recent-bookings-grid {
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 14px;
+          }
+        }
+        
+        @media (max-width: 768px) {
+          .recent-bookings-grid {
+            grid-template-columns: 1fr;
+            gap: 12px;
+          }
         }
         
         .recent-booking-card {
@@ -4506,9 +4609,32 @@ export default function ReceptionistDashboard() {
         .kpi-card-container {
           margin: 30px 0;
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-          gap: 24px;
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+          gap: 20px;
           padding: 0 4px;
+        }
+        
+        /* Responsive KPI cards */
+        @media (min-width: 1400px) {
+          .kpi-card-container {
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+          }
+        }
+        
+        @media (max-width: 768px) {
+          .kpi-card-container {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            margin: 20px 0;
+          }
+        }
+        
+        @media (max-width: 480px) {
+          .kpi-card-container {
+            grid-template-columns: 1fr;
+            gap: 12px;
+          }
         }
         
         .kpi-card {

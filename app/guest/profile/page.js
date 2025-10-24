@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useUser } from '../../../context/UserContext';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import Image from "next/image";
 export default function Profile() {
   const [profileImage, setProfileImage] = useState(null);
@@ -15,6 +16,7 @@ export default function Profile() {
     "/images/avatar5.png"
   ];
   const { user, setUser } = useUser();
+  const { data: session, update: updateSession } = useSession();
   const [firstName, setFirstName] = useState('');
   const [middleName, setMiddleName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -103,6 +105,19 @@ export default function Profile() {
             ...prev,
             image: data.profilePicture,
           }));
+          
+          // Update NextAuth session to persist across login/logout
+          await updateSession({
+            user: {
+              ...session?.user,
+              image: data.profilePicture,
+            }
+          });
+          
+          // Dispatch custom event to notify other components
+          window.dispatchEvent(new CustomEvent('profileImageUpdated', { 
+            detail: { image: data.profilePicture } 
+          }));
         } else {
           setError(data.error || 'Image upload failed');
         }
@@ -142,6 +157,19 @@ export default function Profile() {
         setUser(prev => ({
           ...prev,
           image: icon,
+        }));
+        
+        // Update NextAuth session to persist across login/logout
+        await updateSession({
+          user: {
+            ...session?.user,
+            image: icon,
+          }
+        });
+        
+        // Dispatch custom event to notify other components
+        window.dispatchEvent(new CustomEvent('profileImageUpdated', { 
+          detail: { image: icon } 
         }));
       } else {
         const data = await res.json();

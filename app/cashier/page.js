@@ -47,7 +47,7 @@
                  *    - Supports multiple export formats
                  */// Helper function to format payment IDs consistently
 function formatPaymentId(id) {
-  if (!id) return 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â';
+  if (!id) return 'Payment Menthod';
   
   // If it's a cuid (from Prisma), format it nicely
   if (typeof id === 'string' && id.length > 10) {
@@ -145,11 +145,18 @@ export default function CashierDashboard() {
                 const checkoutPageSize = 6;
                 const [checkoutLoading, setCheckoutLoading] = useState(false);
 
+                // Cancelled transactions
+                const [cancelledTransactions, setCancelledTransactions] = useState([]);
+                const [cancelledPage, setCancelledPage] = useState(1);
+                const cancelledPageSize = 6;
+
                 // Modals
                 const [changeModal, setChangeModal] = useChangeModal();
                 const [receiptModal, setReceiptModal] = useReceiptModal();
                 const [decisionModal, setDecisionModal] = useState({ show: false, payment: null });
                 const [eReceiptModal, setEReceiptModal] = useState({ show: false, receiptData: null });
+                const [cancellationModal, setCancellationModal] = useState({ show: false, transaction: null });
+                const [cancellationReason, setCancellationReason] = useState("");
                 const modalRef = useRef(null);
                 const [backConfirm, setBackConfirm] = useState(false);
                 const amountTenderedRef = useRef(null);
@@ -339,6 +346,37 @@ export default function CashierDashboard() {
                   }
                 }
 
+                async function fetchCompletedTransactions() {
+                  try {
+                    const res = await fetch('/api/cashier/completed-transactions');
+                    if (res.ok) {
+                      const data = await res.json();
+                      setCompletedTransactions(Array.isArray(data) ? data : []);
+                    } else {
+                      setCompletedTransactions([]);
+                    }
+                  } catch (e) {
+                    console.error('Failed to fetch completed transactions:', e);
+                    setCompletedTransactions([]);
+                  }
+                }
+
+                async function fetchCancelledTransactions() {
+                  try {
+                    const today = new Date().toISOString().split('T')[0];
+                    const res = await fetch(`/api/cashier/cancelled-transactions?date=${today}`);
+                    if (res.ok) {
+                      const data = await res.json();
+                      setCancelledTransactions(Array.isArray(data) ? data : []);
+                    } else {
+                      setCancelledTransactions([]);
+                    }
+                  } catch (e) {
+                    console.error('Failed to fetch cancelled transactions:', e);
+                    setCancelledTransactions([]);
+                  }
+                }
+
                 async function fetchCheckoutTransactions() {
                   setCheckoutLoading(true);
                   try {
@@ -347,12 +385,17 @@ export default function CashierDashboard() {
                     const res = await fetch(`/api/bookings/checkout?date=${today}`);
                     if (res.ok) {
                       const data = await res.json();
-                      setCheckoutTransactions(Array.isArray(data) ? data : data.checkouts || []);
+                      // Filter out bookings with completed payment status
+                      const unpaidCheckouts = (Array.isArray(data) ? data : data.checkouts || [])
+                        .filter(booking => booking.paymentStatus !== 'Paid');
+                      setCheckoutTransactions(unpaidCheckouts);
                     } else {
-                      // Fallback: filter bookings with checkout today
+                      // Fallback: filter bookings with checkout today and unpaid status
                       const todayCheckouts = bookings.filter(booking => {
                         const checkoutDate = new Date(booking.checkOut).toISOString().split('T')[0];
-                        return checkoutDate === today && (booking.status || '').toLowerCase() === 'confirmed';
+                        return checkoutDate === today 
+                          && (booking.status || '').toLowerCase() === 'confirmed'
+                          && booking.paymentStatus !== 'Paid';
                       });
                       setCheckoutTransactions(todayCheckouts);
                     }
@@ -361,7 +404,9 @@ export default function CashierDashboard() {
                     const today = new Date().toISOString().split('T')[0];
                     const todayCheckouts = bookings.filter(booking => {
                       const checkoutDate = new Date(booking.checkOut).toISOString().split('T')[0];
-                      return checkoutDate === today && (booking.status || '').toLowerCase() === 'confirmed';
+                      return checkoutDate === today 
+                        && (booking.status || '').toLowerCase() === 'confirmed'
+                        && booking.paymentStatus !== 'Paid';
                     });
                     setCheckoutTransactions(todayCheckouts);
                   } finally {
@@ -372,7 +417,7 @@ export default function CashierDashboard() {
                 useEffect(() => {
                   let mounted = true;
                   (async () => {
-                    await Promise.all([fetchPaidPayments(), fetchBookings(), fetchNotifications(), fetchTotalTransactions(), fetchPendingTransactions(), fetchUpcomingReservations(), fetchCheckoutTransactions()]);
+                    await Promise.all([fetchPaidPayments(), fetchBookings(), fetchNotifications(), fetchTotalTransactions(), fetchPendingTransactions(), fetchUpcomingReservations(), fetchCheckoutTransactions(), fetchCompletedTransactions(), fetchCancelledTransactions()]);
                     if (mounted) setLoading(false);
                   })();
                   
@@ -380,7 +425,7 @@ export default function CashierDashboard() {
                   const intervalId = setInterval(async () => {
                     if (mounted) {
                       console.log('Auto-refreshing data...');
-                      await Promise.all([fetchPaidPayments(), fetchBookings(), fetchNotifications(), fetchTotalTransactions(), fetchPendingTransactions(), fetchUpcomingReservations(), fetchCheckoutTransactions()]);
+                      await Promise.all([fetchPaidPayments(), fetchBookings(), fetchNotifications(), fetchTotalTransactions(), fetchPendingTransactions(), fetchUpcomingReservations(), fetchCheckoutTransactions(), fetchCompletedTransactions(), fetchCancelledTransactions()]);
                     }
                   }, 30000); // 30 seconds
                   
@@ -692,7 +737,7 @@ export default function CashierDashboard() {
                   setIsLoading(true);
                   setRefreshLoading(true);
                   try {
-                    await Promise.all([fetchBookings(), fetchNotifications(), fetchUpcomingReservations(), fetchCheckoutTransactions()]);
+                    await Promise.all([fetchBookings(), fetchNotifications(), fetchUpcomingReservations(), fetchCheckoutTransactions(), fetchCompletedTransactions(), fetchCancelledTransactions()]);
                     toastSuccess('Dashboard refreshed successfully!');
                   } catch (error) {
                     toastError('Failed to refresh data');
@@ -879,7 +924,7 @@ export default function CashierDashboard() {
                         actorRole: "CASHIER",
                         action: "GENERATE_RECEIPT_PREVIEW",
                         entity: "PAYMENT",
-                        entityId: payment.id,
+                        entityId: String(payment.id),
                         details: `Generated receipt preview for payment ${payment.id}`,
                       }),
                     });
@@ -918,40 +963,70 @@ export default function CashierDashboard() {
                       transactionDate: datePaid || new Date().toISOString().split('T')[0]
                     };
 
-                    // Try to update payment status if endpoint exists
-                    await fetch("/api/payments/update", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        paymentId: payment.id,
-                        amount: customerPaidInCents,
-                        status: "Completed",
-                        paymentMethod,
-                        referenceNo,
-                        receiptData
-                      }),
-                    }).catch(() => {});
-
-                    // 1. Handle different transaction types
+                    // Handle different transaction types
                     if (payment?.isCheckout || payment?.type === 'checkout') {
-                      // For checkout transactions, remove from checkoutTransactions
+                      // For checkout transactions, update the booking directly
+                      try {
+                        const response = await fetch("/api/bookings/update-payment-status", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            bookingId: payment.id,
+                            paymentStatus: "Paid",
+                            paymentMethod,
+                            referenceNo,
+                            amountPaid: customerPaidInCents,
+                            receiptData
+                          }),
+                        });
+                        
+                        if (!response.ok) {
+                          throw new Error('Failed to update booking');
+                        }
+                      } catch (error) {
+                        console.error('Error updating checkout booking:', error);
+                        toastError("Failed to update checkout status");
+                        setActionLoading(false);
+                        return;
+                      }
+                      
+                      // Remove from checkoutTransactions
                       setCheckoutTransactions(prev => prev.filter(c => c.id !== payment.id));
                       
-                      // Update the booking to completed status
+                      // Update the booking to completed with paid status
                       setBookings(prev => prev.map(booking => 
                         booking.id === payment.id 
-                          ? { ...booking, status: 'completed', paymentStatus: 'completed' }
+                          ? { ...booking, status: 'Completed', paymentStatus: 'Paid' }
                           : booking
                       ));
                     } else {
-                      // For regular payments, remove from paidPayments
+                      // For regular payments with payment IDs
+                      try {
+                        await fetch("/api/payments/update", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            paymentId: payment.id,
+                            amount: customerPaidInCents,
+                            customerPaid: customerPaidInCents,
+                            status: "Paid",
+                            paymentMethod,
+                            referenceNo,
+                            receiptData
+                          }),
+                        });
+                      } catch (error) {
+                        console.error('Error updating payment:', error);
+                      }
+                      
+                      // Remove from paidPayments
                       setPaidPayments(prev => prev.filter(p => p.id !== payment.id));
 
                       // Update bookings to remove from pending if it was a booking
                       if (payment.booking || payment.type === 'booking') {
                         setBookings(prev => prev.map(booking => 
                           booking.id === payment.id || booking.id === payment.bookingId
-                            ? { ...booking, status: 'confirmed', paymentStatus: 'completed' }
+                            ? { ...booking, status: 'Completed', paymentStatus: 'Paid' }
                             : booking
                         ));
                       }
@@ -976,7 +1051,7 @@ export default function CashierDashboard() {
                     resetForm();
                     
                     // Refresh data to ensure consistency with backend
-                    await Promise.all([fetchPaidPayments(), fetchBookings(), fetchCheckoutTransactions()]);
+                    await Promise.all([fetchPaidPayments(), fetchBookings(), fetchCheckoutTransactions(), fetchCompletedTransactions()]);
 
                     // Audit trail with receipt information and KPI impact
                     try {
@@ -989,7 +1064,7 @@ export default function CashierDashboard() {
                           actorRole: "CASHIER",
                           action: "PROCESS_PAYMENT_WITH_RECEIPT",
                           entity: "PAYMENT",
-                          entityId: payment.id,
+                          entityId: String(payment.id),
                           details: `Processed payment ${payment.id} - Method: ${paymentMethod}, Amount: ₱${(customerPaidInCents/100).toLocaleString()}, Receipt: ${receiptData.id}`,
                           metadata: {
                             receiptId: receiptData.id,
@@ -1069,12 +1144,70 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                   toastSuccess("Receipt downloaded successfully!");
                 }
 
+                function openCancellationModal(transaction) {
+                  setCancellationModal({ show: true, transaction });
+                  setCancellationReason("");
+                }
+
+                async function confirmCancellation() {
+                  const transaction = cancellationModal.transaction;
+                  if (!transaction || !cancellationReason.trim()) {
+                    toastError("Please provide a cancellation reason");
+                    return;
+                  }
+                  
+                  setActionLoading(true);
+                  try {
+                    const response = await fetch("/api/cashier/cancel-transaction", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        bookingId: transaction.id,
+                        cancellationReason: cancellationReason.trim(),
+                        cancelledBy: session?.user?.name || "Cashier",
+                        cancelledById: session?.user?.id,
+                      }),
+                    });
+
+                    if (!response.ok) {
+                      throw new Error('Failed to cancel transaction');
+                    }
+
+                    toastSuccess("Transaction cancelled successfully!");
+                    
+                    // Close modals
+                    setCancellationModal({ show: false, transaction: null });
+                    setCancellationReason("");
+                    
+                    // Refresh data
+                    await Promise.all([
+                      fetchCheckoutTransactions(),
+                      fetchCancelledTransactions(),
+                      fetchBookings(),
+                      fetchNotifications()
+                    ]);
+                  } catch (e) {
+                    console.error('Cancellation error:', e);
+                    toastError("Failed to cancel transaction");
+                  } finally {
+                    setActionLoading(false);
+                  }
+                }
+
                 async function disapproveTransaction() {
                   const payment = decisionModal.payment;
                   if (!payment) return;
+                  
+                  // If it's a checkout transaction, show cancellation reason modal
+                  if (payment?.isCheckout || payment?.type === 'checkout') {
+                    setDecisionModal({ show: false, payment: null });
+                    openCancellationModal(payment);
+                    return;
+                  }
+                  
+                  // For regular payments, just close the modal
                   setActionLoading(true);
                   try {
-                    // Flag/cancel endpoint may vary; do audit + notify
                     toastSuccess("Transaction cancelled successfully!");
                     
                     setDecisionModal({ show: false, payment: null });
@@ -1090,7 +1223,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                           actorRole: "CASHIER",
                           action: "CANCEL_PAYMENT",
                           entity: "PAYMENT",
-                          entityId: payment.id,
+                          entityId: String(payment.id),
                           details: `Cashier cancelled payment ${payment.id}`,
                         }),
                       });
@@ -1182,62 +1315,60 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
 
                 return (
                   <div className={styles.page}>
-                    {/* Header */}
+                    {/* Navbar */}
                     <header className={styles.headerBar}>
                       <div className={styles.headerLeft}>
-                        <div className={styles.headerTitle}>
-                          Welcome back, {session?.user?.name || 'Cashier'}!
-                        </div>
+                        {/* Empty or can add logo here */}
                       </div>
-        <div className={styles.headerRight}>
-          {/* Notifications */}
-          <button
-            onClick={() => setShowNotifications(!showNotifications)}
-            className={styles.notificationBtn}
-            aria-label="Notifications"
-          >
-            <Bell className="h-5 w-5" />
-            {totalNotifications > 0 && (
-              <span className={styles.badge}>{totalNotifications}</span>
-            )}
-          </button>
+                      <div className={styles.headerRight}>
+                        {/* Notifications */}
+                        <button
+                          onClick={() => setShowNotifications(!showNotifications)}
+                          className={styles.notificationBtn}
+                          aria-label="Notifications"
+                        >
+                          <Bell className="h-5 w-5" />
+                          {totalNotifications > 0 && (
+                            <span className={styles.badge}>{totalNotifications}</span>
+                          )}
+                        </button>
 
-          {/* User Menu */}
-          <div style={{ position: 'relative' }}>
-            <button
-              onClick={() => setUserMenuOpen(!userMenuOpen)}
-              className={styles.avatarBtn}
-              aria-label="User menu"
-            >
-              <div className={styles.avatar}>
-                {(session?.user?.name || 'C')[0].toUpperCase()}
-              </div>
-              <div className={styles.avatarInfo}>
-                <div className={styles.avatarName}>
-                  {session?.user?.name || 'Cashier'}
-                </div>
-                <div className={styles.avatarRole}>Cashier</div>
-              </div>
-              <ChevronDown className="h-4 w-4 text-white opacity-80" />
-            </button>
-            {userMenuOpen && (
-              <>
-                <div
-                  onClick={() => setUserMenuOpen(false)}
-                  style={{ position: 'fixed', inset: 0, zIndex: 140 }}
-                  aria-hidden
-                />
-                <div className={styles.dropdownMenu}>
-                  <button
-                    onClick={() => setUserMenuOpen(false)}
-                    className={styles.menuItem}
-                    role="menuitem"
-                  >
-                    <User className="h-4 w-4" />
-                    <span>View Profile</span>
-                  </button>
-                  <button
-                    onClick={() => { setUserMenuOpen(false); signOut({ callbackUrl: '/login' }); }}
+                        {/* User Menu */}
+                        <div style={{ position: 'relative' }}>
+                          <button
+                            onClick={() => setUserMenuOpen(!userMenuOpen)}
+                            className={styles.avatarBtn}
+                            aria-label="User menu"
+                          >
+                            <div className={styles.avatar}>
+                              {(session?.user?.name || 'C')[0].toUpperCase()}
+                            </div>
+                            <div className={styles.avatarInfo}>
+                              <div className={styles.avatarName}>
+                                {session?.user?.name || 'Cashier'}
+                              </div>
+                              <div className={styles.avatarRole}>Cashier</div>
+                            </div>
+                            <ChevronDown className="h-4 w-4 text-white opacity-80" />
+                          </button>
+                          {userMenuOpen && (
+                            <>
+                              <div
+                                onClick={() => setUserMenuOpen(false)}
+                                style={{ position: 'fixed', inset: 0, zIndex: 140 }}
+                                aria-hidden
+                              />
+                              <div className={styles.dropdownMenu}>
+                                <button
+                                  onClick={() => setUserMenuOpen(false)}
+                                  className={styles.menuItem}
+                                  role="menuitem"
+                                >
+                                  <User className="h-4 w-4" />
+                                  <span>View Profile</span>
+                                </button>
+                                <button
+                                  onClick={() => { setUserMenuOpen(false); signOut({ callbackUrl: '/login' }); }}
                                   className={`${styles.menuItem} ${styles.menuItemLogout}`}
                                   role="menuitem"
                                 >
@@ -1250,6 +1381,83 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                         </div>
                       </div>
                     </header>
+
+                    {/* Welcome Section */}
+                    <div style={{
+                      background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 50%, #e2e8f0 100%)',
+                      borderRadius: '16px',
+                      padding: '24px',
+                      border: '2px solid transparent',
+                      backgroundClip: 'padding-box',
+                      boxShadow: '0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(254, 190, 82, 0.2)',
+                      margin: '16px 16px 20px 16px',
+                      position: 'relative',
+                      overflow: 'hidden',
+                    }}>
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '16px',
+                        }}>
+                          <User size={24} style={{
+                            color: '#ffffff',
+                            background: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 50%, #f59e0b 100%)',
+                            padding: '16px',
+                            borderRadius: '50%',
+                            width: '56px',
+                            height: '56px',
+                            boxShadow: '0 8px 24px rgba(245, 158, 11, 0.4), 0 4px 12px rgba(245, 158, 11, 0.2)',
+                            border: '3px solid rgba(255, 255, 255, 0.3)',
+                          }} />
+                          <div>
+                            <h2 style={{
+                              margin: '0 0 6px 0',
+                              fontSize: '1.8rem',
+                              fontWeight: '700',
+                              color: '#1f2937',
+                              textShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                              letterSpacing: '-0.3px',
+                            }}>
+                              Welcome Cashier, {session?.user?.name || session?.user?.email || 'Staff'}!
+                            </h2>
+                            <p style={{
+                              margin: '0',
+                              fontSize: '1rem',
+                              color: '#6b7280',
+                              display: 'flex',
+                              alignItems: 'center',
+                              fontWeight: '500',
+                            }}>
+                              <Clock size={16} style={{ marginRight: '8px' }} />
+                              {new Date().toLocaleDateString('en-US', { 
+                                weekday: 'long', 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric' 
+                              })}
+                            </p>
+                          </div>
+                        </div>
+                        <div style={{
+                          background: '#f59e0b',
+                          color: 'white',
+                          padding: '8px 20px',
+                          borderRadius: '20px',
+                          fontSize: '0.9rem',
+                          fontWeight: '600',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px',
+                          boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)',
+                        }}>
+                          Cashier
+                        </div>
+                      </div>
+                    </div>
 
                     <main className={styles.main}>
                       <div className={styles.leftColumn}>
@@ -1434,7 +1642,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                               </div>
                                             ) : (
                                               <div className="text-green-600 font-medium">
-                                                ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ Paid
+                                                 Paid
                                               </div>
                                             )}
                                           </td>
@@ -1453,12 +1661,9 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                                     };
                                                     openPaymentModal(checkoutPayment);
                                                   }}
-                                                  className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r text-white text-xs font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
-                                                  style={{
-                                                    background: 'linear-gradient(135deg, #FEBE52 0%, #f59e0b 100%)',
-                                                  }}
+                                                  className={`${styles.button} ${styles.btnReview}`}
                                                 >
-                                                  <CreditCard className="h-3 w-3" />
+                                                  <CreditCard className="h-4 w-4" />
                                                   Process Payment
                                                 </button>
                                               ) : (
@@ -1469,7 +1674,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                                   }}
                                                   className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r text-white text-xs font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
                                                   style={{
-                                                    background: 'linear-gradient(135deg, #FEBE52 0%, #f59e0b 100%)',
+                                                    background: 'linear-gradient(135deg, #febe52 0%, #f59e0b 100%)',
                                                   }}
                                                 >
                                                   <Eye className="h-3 w-3" />
@@ -1493,7 +1698,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                             return checkoutTotalPages > 1 && (
                               <div className={`${styles.paginationBar} ${styles.barRelative}`} style={{marginTop: '16px'}}>
                                 <div className={styles.paginationInfo}>
-                                  Page {checkoutPage} of {checkoutTotalPages} ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ {checkoutTransactions.length} checkouts
+                                  Page {checkoutPage} of {checkoutTotalPages} {checkoutTransactions.length} checkouts
                                 </div>
                                 <div className={styles.paginationButtons}>
                                   <button
@@ -1914,7 +2119,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                               </div>
                                             ) : (
                                               <div className="text-green-600 font-medium">
-                                                ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ Paid
+                                                 Paid
                                               </div>
                                             )}
                                           </td>
@@ -1933,12 +2138,9 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                                     };
                                                     openPaymentModal(checkoutPayment);
                                                   }}
-                                                  className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r text-white text-xs font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
-                                                  style={{
-                                                    background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-                                                  }}
+                                                  className={`${styles.button} ${styles.btnReview}`}
                                                 >
-                                                  <CreditCard className="h-3 w-3" />
+                                                  <CreditCard className="h-4 w-4" />
                                                   Process Payment
                                                 </button>
                                               ) : (
@@ -1973,7 +2175,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                             return checkoutTotalPages > 1 && (
                               <div className={`${styles.paginationBar} ${styles.barRelative}`} style={{marginTop: '16px'}}>
                                 <div className={styles.paginationInfo}>
-                                  Page {checkoutPage} of {checkoutTotalPages} ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ {checkoutTransactions.length} checkouts
+                                  Page {checkoutPage} of {checkoutTotalPages} {checkoutTransactions.length} checkouts
                                 </div>
                                 <div className={styles.paginationButtons}>
                                   <button
@@ -2125,12 +2327,9 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                                 // Show receipt modal instead of auto-download
                                                 setEReceiptModal({ show: true, receiptData: transaction });
                                               }}
-                                              className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r text-white text-xs font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
-                                              style={{
-                                                background: 'linear-gradient(135deg, #FEBE52 0%, #f59e0b 100%)',
-                                              }}
+                                              className={`${styles.button} ${styles.btnReview}`}
                                             >
-                                              <Eye className="h-3 w-3" />
+                                              <Eye className="h-4 w-4" />
                                               View Receipt
                                             </button>
                                           </div>
@@ -2148,7 +2347,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                               return completedTotalPages > 1 && (
                                 <div className={`${styles.paginationBar} ${styles.barRelative}`} style={{marginTop: '16px'}}>
                                   <div className={styles.paginationInfo}>
-                                    Page {completedPage} of {completedTotalPages} ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ {completedTransactions.length} transactions
+                                    Page {completedPage} of {completedTotalPages} {completedTransactions.length} transactions
                                   </div>
                                   <div className={styles.paginationButtons}>
                                     <button
@@ -2171,8 +2370,226 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                             })()}
                           </div>
                         </div>
+
+                        {/* Cancelled Transactions Section */}
+                        <div className={`${styles.section} ${styles.shadow}`}>
+                          <div className={`${styles.sectionHeader} ${styles.headerWarning}`}>
+                            <div className={styles.sectionLeft}>
+                              <h2 className={styles.sectionTitle}>
+                                <Flag className={`${styles.icon} ${styles.iconWarning}`} />
+                                Cancelled Transactions
+                              </h2>
+                              <div className={styles.sectionBadge}>{cancelledTransactions.length}</div>
+                            </div>
+                          </div>
+                          <div className={styles.sectionBody}>
+                            <table className={styles.table}>
+                              <thead className={styles.thead}>
+                                <tr>
+                                  <th className={styles.th}>BOOKING ID</th>
+                                  <th className={styles.th}>GUEST NAME</th>
+                                  <th className={styles.th}>CHECKOUT DATE</th>
+                                  <th className={styles.th}>TOTAL AMOUNT</th>
+                                  <th className={styles.th}>CANCELLATION REASON</th>
+                                  <th className={styles.th}>ACTIONS</th>
+                                </tr>
+                              </thead>
+                              <tbody className={styles.tbody}>
+                                {cancelledTransactions.length === 0 ? (
+                                  <tr>
+                                    <td colSpan="6" className="text-center py-8 text-gray-500">
+                                      <p>No cancelled transactions for today</p>
+                                    </td>
+                                  </tr>
+                                ) : (
+                                  (() => {
+                                    const cancelledTotalPages = Math.max(1, Math.ceil(cancelledTransactions.length / cancelledPageSize));
+                                    const pagedCancelled = cancelledTransactions.slice(
+                                      (cancelledPage - 1) * cancelledPageSize,
+                                      cancelledPage * cancelledPageSize
+                                    );
+                                    
+                                    return pagedCancelled.map((cancelled) => {
+                                      const totalAmount = cancelled.totalPrice || 0;
+
+                                      return (
+                                        <tr key={cancelled.id} className={styles.tr}>
+                                          <td className={styles.td}>
+                                            <div className="font-mono text-sm text-blue-600">
+                                              {formatPaymentId(cancelled.id)}
+                                            </div>
+                                          </td>
+                                          <td className={styles.td}>
+                                            <div className="flex items-center gap-3">
+                                              <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
+                                                <User className="h-4 w-4 text-red-600" />
+                                              </div>
+                                              <div>
+                                                <div className="font-medium text-gray-900">
+                                                  {cancelled.user?.name || cancelled.guestName || 'Guest'}
+                                                </div>
+                                                <div className="text-xs text-gray-500">
+                                                  {cancelled.user?.email || ''}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </td>
+                                          <td className={styles.td}>
+                                            <div className="flex items-center gap-2">
+                                              <Calendar className="h-4 w-4 text-gray-400" />
+                                              <span className="text-sm">
+                                                {new Date(cancelled.checkOut).toLocaleDateString('en-US', {
+                                                  month: 'short',
+                                                  day: 'numeric',
+                                                  year: 'numeric'
+                                                })}
+                                              </span>
+                                            </div>
+                                          </td>
+                                          <td className={styles.td}>
+                                            <div className="font-semibold text-gray-600">
+                                              ₱{(totalAmount / 100).toLocaleString()}
+                                            </div>
+                                          </td>
+                                          <td className={styles.td}>
+                                            <div className="text-sm text-gray-700 max-w-xs truncate" title={cancelled.cancellationRemarks || 'No reason provided'}>
+                                              {cancelled.cancellationRemarks || 'No reason provided'}
+                                            </div>
+                                          </td>
+                                          <td className={styles.td}>
+                                            <button
+                                              onClick={() => {
+                                                // Show cancellation details
+                                                alert(`Cancelled Transaction Details:\n\nBooking ID: ${cancelled.id}\nGuest: ${cancelled.user?.name || cancelled.guestName}\nReason: ${cancelled.cancellationRemarks || 'N/A'}`);
+                                              }}
+                                              className={`${styles.button} ${styles.btnReview}`}
+                                            >
+                                              <Eye className="h-4 w-4" />
+                                              View Details
+                                            </button>
+                                          </td>
+                                        </tr>
+                                      );
+                                    });
+                                  })()
+                                )}
+                              </tbody>
+                            </table>
+                            
+                            {/* Pagination for Cancelled Transactions */}
+                            {(() => {
+                              const cancelledTotalPages = Math.max(1, Math.ceil(cancelledTransactions.length / cancelledPageSize));
+                              return cancelledTotalPages > 1 && (
+                                <div className={`${styles.paginationBar} ${styles.barRelative}`} style={{marginTop: '16px'}}>
+                                  <div className={styles.paginationInfo}>
+                                    Page {cancelledPage} of {cancelledTotalPages} {cancelledTransactions.length} transactions
+                                  </div>
+                                  <div className={styles.paginationButtons}>
+                                    <button
+                                      onClick={() => setCancelledPage((p) => Math.max(1, p - 1))}
+                                      disabled={cancelledPage === 1}
+                                      className={styles.paginationBtn}
+                                    >
+                                      Prev
+                                    </button>
+                                    <button
+                                      onClick={() => setCancelledPage((p) => Math.min(cancelledTotalPages, p + 1))}
+                                      disabled={cancelledPage === cancelledTotalPages}
+                                      className={styles.paginationBtn}
+                                    >
+                                      Next
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </div>
                       </div>
                     </main>
+
+                    {/* Cancellation Reason Modal */}
+                    {cancellationModal.show && (
+                      <div className={styles.modalOverlay} onClick={() => setCancellationModal({ show: false, transaction: null })}>
+                        <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+                          <h2 className={styles.modalHeader}>Cancel Transaction</h2>
+                          
+                          <div style={{ marginBottom: '24px' }}>
+                            <p style={{ color: '#374151', marginBottom: '8px', fontSize: '0.95rem' }}>
+                              <strong>Booking ID:</strong> {cancellationModal.transaction?.id}
+                            </p>
+                            <p style={{ color: '#374151', fontSize: '0.95rem' }}>
+                              <strong>Guest:</strong> {cancellationModal.transaction?.user?.name || cancellationModal.transaction?.guestName || 'Guest'}
+                            </p>
+                          </div>
+
+                          <div style={{ marginBottom: '24px' }}>
+                            <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: '600', color: '#374151', marginBottom: '10px' }}>
+                              Cancellation Reason <span style={{ color: '#ef4444' }}>*</span>
+                            </label>
+                            <textarea
+                              value={cancellationReason}
+                              onChange={(e) => setCancellationReason(e.target.value)}
+                              placeholder="Please provide a reason for cancellation..."
+                              rows="4"
+                              style={{
+                                width: '100%',
+                                padding: '12px',
+                                border: '1px solid #d1d5db',
+                                borderRadius: '8px',
+                                fontSize: '0.9rem',
+                                fontFamily: 'inherit',
+                                resize: 'vertical',
+                                outline: 'none',
+                                transition: 'border-color 0.2s'
+                              }}
+                              onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
+                              onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
+                              required
+                            />
+                          </div>
+
+                          <div style={{
+                            background: '#fef3c7',
+                            borderLeft: '4px solid #f59e0b',
+                            padding: '16px',
+                            borderRadius: '8px',
+                            marginBottom: '24px'
+                          }}>
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                              <AlertTriangle style={{ width: '20px', height: '20px', color: '#f59e0b', flexShrink: 0, marginTop: '2px' }} />
+                              <div>
+                                <p style={{ fontSize: '0.875rem', color: '#92400e', fontWeight: '600', marginBottom: '6px' }}>
+                                  Warning: This action will:
+                                </p>
+                                <ul style={{ fontSize: '0.875rem', color: '#92400e', paddingLeft: '20px', margin: 0 }}>
+                                  <li>Cancel the booking and mark payment as cancelled</li>
+                                  <li>Free up the reserved rooms</li>
+                                  <li>Notify the guest and superadmin</li>
+                                </ul>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className={styles.modalFooter}>
+                            <button
+                              onClick={() => setCancellationModal({ show: false, transaction: null })}
+                              className={`${styles.button} ${styles.btnClose}`}
+                              disabled={actionLoading}
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={confirmCancellation}
+                              className={`${styles.button} ${styles.btnFlag}`}
+                              disabled={actionLoading || !cancellationReason.trim()}
+                            >
+                              {actionLoading ? 'Cancelling...' : 'Confirm Cancellation'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Payment Modal */}
                     {decisionModal.show && (
@@ -2208,7 +2625,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                         >
                           <div className="flex items-center justify-between mb-6 relative">
                             <h3 id="cashier-payment-modal-title" className={styles.modalHeader} style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-                              <CreditCard className="h-6 w-6" style={{color: '#FEBE52'}} />
+                              <CreditCard className="h-6 w-6" style={{color: '#febe52'}} />
                               Payment Processing
                             </h3>
                             <button 
@@ -2284,7 +2701,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                       decisionModal.payment?.method ||
                                       decisionModal.payment?.provider ||
                                       decisionModal.payment?.paymentMethod ||
-                                      "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"
+                                      "Method of payment"
                                     } 
                                     readOnly 
                                     style={{padding: '12px 16px', fontSize: '16px', width: '100%', backgroundColor: '#f8fafc', color: '#64748b'}}
@@ -2519,13 +2936,13 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                               onClick={() => setDecisionModal({ show: false, payment: null })}
                               className={`${styles.button} ${styles.btnNeutral}`}
                             >
-                              ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¢ Close
+                              Close
                             </button>
                             <button
                               onClick={generateReceipt}
                               className={`${styles.button} ${styles.btnNote}`}
                             >
-                              ÃƒÂ°Ã…Â¸Ã‚Â§Ã‚Â¾ Generate Receipt
+                              Generate Receipt
                             </button>
                             {(() => {
                               const payment = decisionModal.payment;
@@ -2539,7 +2956,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                     disabled={actionLoading}
                                     className={`${styles.button} ${styles.btnFlag}`}
                                   >
-                                    ÃƒÂ¢Ã‚ÂÃ…â€™ Cancel Transaction
+                                     Cancel Transaction
                                     {actionLoading && <span className={styles.inlineSpinner} />}
                                   </button>
                                   <button
@@ -2548,7 +2965,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                     className={`${styles.button} ${styles.btnVerify}`}
                                     title={!paymentMethod ? 'Select a payment method' : (paid < required ? 'Amount tendered is less than required' : undefined)}
                                   >
-                                    ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Confirm Payment
+                                   Confirm Payment
                                     {actionLoading && <span className={styles.inlineSpinner} />}
                                   </button>
                                 </>
@@ -2572,7 +2989,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                           <div className="flex items-center justify-between mb-6">
                             <h2 className={styles.modalHeader} style={{margin: 0, background: 'linear-gradient(135deg, var(--primary-500), var(--primary-600))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent'}}>
                               <div className="flex items-center gap-2">
-                                <Bell className="h-6 w-6" style={{color: '#FEBE52'}} />
+                                <Bell className="h-6 w-6" style={{color: '#febe52'}} />
                                 Notifications Center
                               </div>
                             </h2>
@@ -2648,7 +3065,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                       right: 0,
                                       height: '4px',
                                       background: notif.priority === 'urgent' ? 'linear-gradient(90deg, #dc2626, #ef4444)' :
-                                                 notif.priority === 'high' ? 'linear-gradient(90deg, #FEBE52, #f59e0b)' :
+                                                 notif.priority === 'high' ? 'linear-gradient(90deg, #febe52, #f59e0b)' :
                                                  notif.priority === 'normal' ? 'linear-gradient(90deg, #3b82f6, #1d4ed8)' :
                                                  'linear-gradient(90deg, #6b7280, #4b5563)'
                                     }}
@@ -2664,7 +3081,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                           height: '48px',
                                           borderRadius: '12px',
                                           background: notif.priority === 'urgent' ? 'linear-gradient(135deg, #dc2626, #b91c1c)' :
-                                                     notif.priority === 'high' ? 'linear-gradient(135deg, #FEBE52, #d97706)' :
+                                                     notif.priority === 'high' ? 'linear-gradient(135deg, #febe52, #d97706)' :
                                                      notif.priority === 'normal' ? 'linear-gradient(135deg, #3b82f6, #1e40af)' :
                                                      'linear-gradient(135deg, #6b7280, #374151)',
                                           display: 'flex',
@@ -2706,7 +3123,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                               fontSize: '0.75rem',
                                               fontWeight: '600',
                                               borderRadius: '6px',
-                                              background: notif.priority === 'urgent' ? '#dc2626' : '#FEBE52',
+                                              background: notif.priority === 'urgent' ? '#dc2626' : '#febe52',
                                               color: 'white',
                                               textTransform: 'uppercase',
                                               letterSpacing: '0.5px'
@@ -2759,7 +3176,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                     {notif.type === 'booking' && notif.bookingId && (
                                       <button
                                         style={{
-                                          background: 'linear-gradient(135deg, #FEBE52, #f59e0b)',
+                                          background: 'linear-gradient(135deg, #febe52, #f59e0b)',
                                           color: 'white',
                                           border: 'none',
                                           borderRadius: '8px',
@@ -3037,7 +3454,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                     onClick={() => downloadReceipt(eReceiptModal.receiptData)}
                                     className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r text-white font-medium rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
                                     style={{
-                                      background: 'linear-gradient(135deg, #FEBE52 0%, #f59e0b 100%)',
+                                      background: 'linear-gradient(135deg, #febe52 0%, #f59e0b 100%)',
                                     }}
                                   >
                                     <Download className="h-5 w-5" />

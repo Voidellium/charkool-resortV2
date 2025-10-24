@@ -962,10 +962,11 @@ const BookingHistoryCard = ({ booking, guest, onViewDetails, onReschedule, resch
     const now = new Date();
     const checkInDate = new Date(booking.checkIn);
     const checkOutDate = new Date(booking.checkOut);
-    // Only allow if booking is confirmed, no request or last was denied, and not cancelled, and 2 weeks (14 days) before check-in
+    // Only allow if booking is confirmed (not completed), no request or last was denied, and not cancelled, and 2 weeks (14 days) before check-in
     return (
       booking.status === 'Confirmed' &&
       booking.status !== 'Cancelled' &&
+      booking.status !== 'Completed' &&
       now <= checkOutDate &&
       (checkInDate - now) / (1000 * 60 * 60 * 24) >= 14 &&
       (!rescheduleStatus || rescheduleStatus === 'DENIED')
@@ -979,7 +980,7 @@ const BookingHistoryCard = ({ booking, guest, onViewDetails, onReschedule, resch
   };
 
   const shouldShowRescheduleButton = () => {
-    return booking.status === 'Confirmed' && booking.status !== 'Cancelled';
+    return (booking.status === 'Confirmed' || booking.status === 'Pending') && booking.status !== 'Cancelled' && booking.status !== 'Completed';
   };
 
   const isCancelled = String(booking.status).toLowerCase() === 'cancelled';
@@ -1214,10 +1215,11 @@ const HistoryCard = ({ booking, guest, onViewDetails, onReschedule, rescheduleRe
     const now = new Date();
     const checkInDate = new Date(booking.checkIn);
     const checkOutDate = new Date(booking.checkOut);
-    // Only allow if booking is confirmed, no request or last was denied, and not cancelled, and 2 weeks (14 days) before check-in
+    // Only allow if booking is confirmed (not completed), no request or last was denied, and not cancelled, and 2 weeks (14 days) before check-in
     return (
       booking.status === 'Confirmed' &&
       booking.status !== 'Cancelled' &&
+      booking.status !== 'Completed' &&
       now <= checkOutDate &&
       (checkInDate - now) / (1000 * 60 * 60 * 24) >= 14 &&
       (!rescheduleStatus || rescheduleStatus === 'DENIED')
@@ -1231,12 +1233,13 @@ const HistoryCard = ({ booking, guest, onViewDetails, onReschedule, rescheduleRe
   };
 
   const shouldShowRescheduleButton = () => {
-    return booking.status === 'Confirmed' && booking.status !== 'Cancelled';
+    return (booking.status === 'Confirmed' || booking.status === 'Pending') && booking.status !== 'Cancelled' && booking.status !== 'Completed';
   };
 
   const getStatusColor = (status) => {
     switch (status.toLowerCase()) {
       case 'confirmed': return '#28a745';
+      case 'completed': return '#0d6efd';
       case 'pending': return '#ffc107';
       case 'cancelled': return '#dc3545';
       default: return '#6c757d';

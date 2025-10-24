@@ -122,7 +122,11 @@ export default function UsersPage() {
 
   const filteredUsers = users
     .filter(u => filterRole ? u.role === filterRole : true)
-    .filter(u => u.name.toLowerCase().includes(searchQuery.toLowerCase()) || u.email.toLowerCase().includes(searchQuery.toLowerCase()));
+    .filter(u => {
+      const name = u.name || '';
+      const email = u.email || '';
+      return name.toLowerCase().includes(searchQuery.toLowerCase()) || email.toLowerCase().includes(searchQuery.toLowerCase());
+    });
 
   // Pagination calculation
   const totalPages = Math.ceil(filteredUsers.length / USERS_PER_PAGE);
@@ -381,11 +385,7 @@ export default function UsersPage() {
               </thead>
               <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan={4} style={{ position: 'relative', height: '200px' }}>
-                    <TableLoading />
-                  </td>
-                </tr>
+                <TableLoading colSpan={4} />
               ) : paginatedUsers.length === 0 ? (
                 <tr>
                   <td colSpan={4} style={{ 

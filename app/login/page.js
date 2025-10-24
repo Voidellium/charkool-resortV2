@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -20,9 +20,11 @@ function LoginForm() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
+  const formSectionRef = useRef(null);
   
   // Account linking hooks
   const [linkingModal, setLinkingModal] = useAccountLinkingModal();
@@ -45,25 +47,53 @@ function LoginForm() {
     }
   }, [status, session, router, searchParams]);
 
+  // Auto-scroll to form section on page load
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (formSectionRef.current) {
+        formSectionRef.current.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
+      }
+    }, 300); // Small delay to ensure page is fully rendered
+
+    return () => clearTimeout(timer);
+  }, []);
+
   useEffect(() => {
     const e = searchParams.get('error');
-    const email = searchParams.get('email');
-    const googleDataStr = searchParams.get('googleData');
     
-    if (e === 'AccountLinking' && email && googleDataStr) {
-      // Handle account linking from redirect
-      try {
-        const googleData = JSON.parse(decodeURIComponent(googleDataStr));
-        setLinkingModal({
-          show: true,
-          type: 'detect',
-          email: decodeURIComponent(email),
-          googleData
-        });
-      } catch (parseError) {
-        console.error('Error parsing account linking data:', parseError);
-        setError('Account linking failed. Please try again.');
-      }
+    // Handle AccessDenied error from account linking
+    if (e === 'AccessDenied') {
+      console.log('[LOGIN] AccessDenied detected, checking for pending link...');
+      // Check for pending account link
+      const checkPendingLinkOnMount = async () => {
+        try {
+          const response = await fetch('/api/account-linking/check-recent');
+          const data = await response.json();
+          
+          console.log('[LOGIN] Pending link check result:', data);
+          
+          if (data.hasPending) {
+            console.log('[LOGIN] Showing account linking modal for:', data.email);
+            setLinkingModal({
+              show: true,
+              type: 'detect',
+              email: data.email,
+              googleData: data.googleData
+            });
+          } else {
+            console.log('[LOGIN] No pending link found');
+            setError('Account linking required. Please try again.');
+          }
+        } catch (error) {
+          console.error('[LOGIN] Error checking pending link:', error);
+          setError('Failed to check account linking status.');
+        }
+      };
+      
+      checkPendingLinkOnMount();
     } else if (e) {
       const m = {
         CredentialsSignin: 'Invalid email or password',
@@ -90,6 +120,22 @@ function LoginForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setIsSubmitting(true);
+    
+    // Validation
+    if (!email || !password) {
+      setError('Please enter both email and password.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setError('Please enter a valid email address.');
+      setIsSubmitting(false);
+      return;
+    }
     
     console.log('Login attempt:', { email: email.toLowerCase() });
     
@@ -105,14 +151,50 @@ function LoginForm() {
       
       if (result?.error) {
         console.error('SignIn error:', result.error);
-        setError(result.error === 'CredentialsSignin' ? 'Invalid email or password' : 'Login failed. Please try again.');
+        
+        // Provide specific error messages based on error type
+        if (result.error === 'CredentialsSignin') {
+          setError('Invalid email or password. Please check your credentials and try again.');
+        } else if (result.error === 'OAuthSignin') {
+          setError('OAuth sign-in failed. Please try again or use a different method.');
+        } else if (result.error === 'OAuthCallback') {
+          setError('Authentication callback failed. Please try again.');
+        } else if (result.error === 'OAuthCreateAccount') {
+          setError('Could not create account. Please try a different sign-in method.');
+        } else if (result.error === 'EmailCreateAccount') {
+          setError('Could not create account with this email. Please contact support.');
+        } else if (result.error === 'Callback') {
+          setError('Authentication error. Please try again.');
+        } else if (result.error === 'OAuthAccountNotLinked') {
+          setError('This account is not linked. Please sign in with your original method.');
+        } else if (result.error === 'EmailSignin') {
+          setError('Failed to send sign-in email. Please try again.');
+        } else if (result.error === 'SessionRequired') {
+          setError('Session required. Please sign in to continue.');
+        } else {
+          setError('Login failed. Please try again or contact support if the problem persists.');
+        }
+        setIsSubmitting(false);
       } else if (result?.ok) {
         // Successful login, trigger redirect
         window.location.reload(); // Force reload to update session
+      } else {
+        // Unexpected result
+        setError('An unexpected error occurred. Please try again.');
+        setIsSubmitting(false);
       }
     } catch (error) {
       console.error('Login error:', error);
-      setError('An unexpected error occurred. Please try again.');
+      
+      // Handle network errors or other exceptions
+      if (error.message?.includes('fetch')) {
+        setError('Network error. Please check your internet connection and try again.');
+      } else if (error.message?.includes('timeout')) {
+        setError('Request timeout. Please try again.');
+      } else {
+        setError('An unexpected error occurred. Please try again or contact support.');
+      }
+      setIsSubmitting(false);
     }
   };
 
@@ -123,7 +205,7 @@ function LoginForm() {
         const result = await handleGoogleSignInWithLinking(callbackUrl);
         
         if (result.requiresLinking) {
-          // Show account linking modal
+          // Show account linking modal with the retrieved data
           setLinkingModal({
             show: true,
             type: 'detect',
@@ -279,7 +361,7 @@ function LoginForm() {
               <p className="auth-subtitle">Sign in to your Charkool Beach Resort account</p>
             </div>
             {/* Form Section */}
-            <div className="form-section">
+            <div className="form-section" ref={formSectionRef}>
               <div className="form-header">
                 <h2 className="form-title">Sign In</h2>
               </div>
@@ -323,10 +405,53 @@ function LoginForm() {
                   </Link>
                 </div>
 
-                {error && <div className="error-message">{error}</div>}
+                {error && (
+                  <div className="error-message">
+                    <svg 
+                      xmlns="http://www.w3.org/2000/svg" 
+                      width="20" 
+                      height="20" 
+                      viewBox="0 0 24 24" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      strokeWidth="2" 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round"
+                      style={{ flexShrink: 0 }}
+                    >
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" y1="8" x2="12" y2="12"></line>
+                      <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    <span>{error}</span>
+                  </div>
+                )}
 
-                <button type="submit" className="primary-btn">
-                  Sign In
+                <button type="submit" className="primary-btn" disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <>
+                      <svg 
+                        className="spinner" 
+                        width="20" 
+                        height="20" 
+                        viewBox="0 0 24 24" 
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <circle 
+                          className="spinner-circle" 
+                          cx="12" 
+                          cy="12" 
+                          r="10" 
+                          stroke="currentColor" 
+                          strokeWidth="3" 
+                          fill="none"
+                        />
+                      </svg>
+                      <span>Signing In...</span>
+                    </>
+                  ) : (
+                    'Sign In'
+                  )}
                 </button>
               </form>
 
@@ -706,23 +831,76 @@ function LoginForm() {
 
         .error-message {
           padding: 1rem 1.25rem;
-          background: rgba(254, 242, 242, 0.9);
+          background: linear-gradient(135deg, rgba(254, 242, 242, 0.95) 0%, rgba(254, 226, 226, 0.95) 100%);
           backdrop-filter: blur(10px);
-          border: 1px solid rgba(254, 202, 202, 0.8);
+          border: 2px solid rgba(239, 68, 68, 0.3);
+          border-left: 4px solid #dc2626;
           border-radius: 12px;
           color: #dc2626;
           font-size: 0.9rem;
-          font-weight: 500;
-          text-align: center;
+          font-weight: 600;
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
           margin-top: 1rem;
-          box-shadow: 0 4px 16px rgba(220, 38, 38, 0.1);
-          animation: errorShake 0.5s ease-in-out;
+          box-shadow: 
+            0 4px 16px rgba(220, 38, 38, 0.15),
+            0 2px 8px rgba(220, 38, 38, 0.1);
+          animation: errorSlideIn 0.4s ease-out;
+          position: relative;
+          overflow: hidden;
         }
 
-        @keyframes errorShake {
-          0%, 100% { transform: translateX(0); }
-          25% { transform: translateX(-4px); }
-          75% { transform: translateX(4px); }
+        .error-message::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 2px;
+          background: linear-gradient(90deg, transparent, #dc2626, transparent);
+          animation: errorGlow 2s ease-in-out infinite;
+        }
+
+        .error-message svg {
+          color: #dc2626;
+          animation: errorPulse 2s ease-in-out infinite;
+        }
+
+        .error-message span {
+          flex: 1;
+          line-height: 1.5;
+        }
+
+        @keyframes errorSlideIn {
+          0% { 
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          100% { 
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes errorPulse {
+          0%, 100% { 
+            opacity: 1;
+            transform: scale(1);
+          }
+          50% { 
+            opacity: 0.8;
+            transform: scale(1.05);
+          }
+        }
+
+        @keyframes errorGlow {
+          0%, 100% { 
+            opacity: 0.3;
+          }
+          50% { 
+            opacity: 0.8;
+          }
         }
 
         .primary-btn {
@@ -748,6 +926,50 @@ function LoginForm() {
           display: flex;
           align-items: center;
           justify-content: center;
+          gap: 0.5rem;
+        }
+
+        .primary-btn:disabled {
+          opacity: 0.7;
+          cursor: not-allowed;
+          transform: none !important;
+        }
+
+        .primary-btn:disabled:hover {
+          transform: none !important;
+          box-shadow: 
+            0 6px 24px rgba(245, 158, 11, 0.3),
+            0 3px 12px rgba(217, 119, 6, 0.2);
+        }
+
+        .spinner {
+          animation: spin 1s linear infinite;
+        }
+
+        .spinner-circle {
+          stroke-dasharray: 50;
+          stroke-dashoffset: 25;
+          animation: spinDash 1.5s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+
+        @keyframes spinDash {
+          0% { 
+            stroke-dasharray: 1, 150;
+            stroke-dashoffset: 0;
+          }
+          50% { 
+            stroke-dasharray: 90, 150;
+            stroke-dashoffset: -35;
+          }
+          100% { 
+            stroke-dasharray: 90, 150;
+            stroke-dashoffset: -124;
+          }
         }
 
         .primary-btn::before {

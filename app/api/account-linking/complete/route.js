@@ -37,37 +37,44 @@ export async function POST(req) {
       updateData = {
         name: googleData.name,
         image: googleData.image,
-        // Don't update email as it should remain the same
-        // Don't update sensitive data like password, contact, etc.
+        googleId: googleData.sub || googleData.id,
+        pendingGoogleLink: null // Clear pending data
+      };
+    } else {
+      // Just clear pending data and set googleId
+      updateData = {
+        googleId: googleData.sub || googleData.id,
+        pendingGoogleLink: null // Clear pending data
       };
     }
-    // If selectedData === 'existing', we don't update any user data
 
-    // Update user if Google data was selected
-    if (Object.keys(updateData).length > 0) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: updateData
-      });
-    }
-
-    // Create the Google account link
-    // Note: We don't create the Account record here because NextAuth will handle it
-    // We just need to store the googleId for reference
-    await prisma.user.update({
+    // Update user with selected data
+    const updatedUser = await prisma.user.update({
       where: { id: user.id },
+      data: updateData
+    });
+
+    // Create the Google Account record for NextAuth
+    await prisma.account.create({
       data: {
-        googleId: googleData.sub || googleData.id, // Google user ID
+        userId: user.id,
+        type: 'oauth',
+        provider: 'google',
+        providerAccountId: googleData.sub || googleData.id,
+        // You may need to store additional tokens if available
+        // access_token: googleData.access_token,
+        // refresh_token: googleData.refresh_token,
+        // expires_at: googleData.expires_at,
       }
     });
 
     return NextResponse.json({
       message: 'Accounts linked successfully',
       user: {
-        id: user.id,
-        email: user.email,
-        name: selectedData === 'google' ? googleData.name : user.name,
-        image: selectedData === 'google' ? googleData.image : user.image
+        id: updatedUser.id,
+        email: updatedUser.email,
+        name: updatedUser.name,
+        image: updatedUser.image
       }
     });
 
