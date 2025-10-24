@@ -1,11 +1,11 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { Suspense, useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { generateBrowserFingerprint } from '../../src/lib/browser-fingerprint';
 
-export default function VerifyOTPPage() {
+function VerifyOTPContent() {
   const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -406,5 +406,26 @@ export default function VerifyOTPPage() {
         }
       `}</style>
     </div>
+  );
+}
+
+// Main export with Suspense wrapper
+export default function VerifyOTPPage() {
+  return (
+    <Suspense fallback={
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        color: 'white',
+        fontSize: '18px'
+      }}>
+        Loading...
+      </div>
+    }>
+      <VerifyOTPContent />
+    </Suspense>
   );
 }

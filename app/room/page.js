@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Navbar from '../../components/Navbar'
 import { FaUsers, FaSnowflake, FaBed, FaWifi, FaSwimmingPool, FaFire, FaUtensils } from 'react-icons/fa'
@@ -60,7 +60,8 @@ const rooms = [
   }
 ]
 
-export default function RoomPage() {
+// Separate component for search params logic (wrapped in Suspense)
+function RoomPageContent() {
   const [selectedRoom, setSelectedRoom] = useState(null)
   const [selectedImage, setSelectedImage] = useState(null)
   const router = useRouter()
@@ -95,7 +96,6 @@ export default function RoomPage() {
 
   return (
     <>
-      <Navbar />
       <section className="hero" aria-label="Resort highlight">
         <div className="hero-overlay" aria-hidden="true"></div>
         <h1>
@@ -477,6 +477,29 @@ export default function RoomPage() {
           .room-image, .view-details-btn, .book-room-btn { transition: none; }
         }
       `}</style>
+    </>
+  )
+}
+
+// Main export with Suspense wrapper
+export default function RoomPage() {
+  return (
+    <>
+      <Navbar />
+      <Suspense fallback={
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          minHeight: '100vh',
+          fontSize: '18px',
+          color: '#666'
+        }}>
+          Loading...
+        </div>
+      }>
+        <RoomPageContent />
+      </Suspense>
     </>
   )
 }
