@@ -415,7 +415,7 @@ function EnhancedThreeDModelViewerInner({ selectedObject: externalSelected, onSe
   const [modelError, setModelError] = useState(null);
   const [selectedObject, setSelectedObject] = useState(null);
   const [initialCameraReady, setInitialCameraReady] = useState(false);
-  const modelPath = "/models/WholeMap_11.glb";
+  const modelPath = "/models/WholeMap_12.glb";
 
   // Sync external selected object with internal state
   useEffect(() => {

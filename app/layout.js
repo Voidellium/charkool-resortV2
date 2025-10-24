@@ -20,9 +20,8 @@ export const metadata = {
 };
 
 export default async function RootLayout({ children }) {
-  // Don't pass server session to avoid caching issues
-  // Let client-side handle session fetching
-  const session = null;
+  // Get server session for initial SSR
+  const session = await getServerSession(authOptions);
 
   return (
     <html lang="en">

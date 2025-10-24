@@ -1,5 +1,5 @@
 'use client';
-import { Suspense, useState, useEffect, useRef } from 'react';
+import { Suspense, useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
@@ -19,9 +19,66 @@ function VerifyOTPContent() {
 
   const redirectUrl = searchParams.get('redirect') || '/guest/dashboard';
 
+  // Debug logging
+  useEffect(() => {
+    console.log('[VERIFY-OTP] Status:', status);
+    console.log('[VERIFY-OTP] Session:', session);
+    console.log('[VERIFY-OTP] Redirect URL:', redirectUrl);
+  }, [status, session, redirectUrl]);
+
+  // Define handleSendOTP with useCallback before it's used in useEffect
+  const handleSendOTP = useCallback(async (showAlert = true) => {
+    setError('');
+    setResendLoading(true);
+
+    try {
+      // Get or generate browser fingerprint
+      let browserFingerprint = sessionStorage.getItem('browserFingerprint');
+      if (!browserFingerprint) {
+        browserFingerprint = generateBrowserFingerprint();
+        sessionStorage.setItem('browserFingerprint', browserFingerprint);
+      }
+      const userAgentInfo = {
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+      };
+
+      const response = await fetch('/api/send-session-otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          browserFingerprint,
+          userAgent: userAgentInfo.userAgent
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setOtpSent(true);
+        if (showAlert) {
+          alert('OTP sent successfully! Please check your email.');
+        }
+      } else {
+        setError(data.error || 'Failed to send OTP');
+      }
+    } catch (error) {
+      console.error('Send OTP error:', error);
+      setError('An error occurred. Please try again.');
+    } finally {
+      setResendLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (status === 'unauthenticated') {
-      router.push('/login');
+      console.log('[VERIFY-OTP] Unauthenticated, redirecting to login');
+      const timer = setTimeout(() => {
+        router.push('/login');
+      }, 1000); // Give session a moment to load
+      return () => clearTimeout(timer);
     }
   }, [status, router]);
 
@@ -33,6 +90,7 @@ function VerifyOTPContent() {
 
   useEffect(() => {
     if (status === 'authenticated' && !otpRequested) {
+      console.log('[VERIFY-OTP] Authenticated, sending OTP');
       // Generate browser fingerprint if not already present
       let browserFingerprint = sessionStorage.getItem('browserFingerprint');
       if (!browserFingerprint) {
@@ -43,7 +101,7 @@ function VerifyOTPContent() {
       handleSendOTP(false);
       setOtpRequested(true);
     }
-  }, [status, otpRequested]);
+  }, [status, otpRequested, handleSendOTP]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -119,69 +177,78 @@ function VerifyOTPContent() {
     }
   };
 
-  const handleSendOTP = async (showAlert = true) => {
-    setError('');
-    setResendLoading(true);
-
-    try {
-      // Get or generate browser fingerprint
-      let browserFingerprint = sessionStorage.getItem('browserFingerprint');
-      if (!browserFingerprint) {
-        browserFingerprint = generateBrowserFingerprint();
-        sessionStorage.setItem('browserFingerprint', browserFingerprint);
-      }
-      const userAgentInfo = {
-        userAgent: navigator.userAgent,
-        platform: navigator.platform,
-      };
-
-      const response = await fetch('/api/send-session-otp', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          browserFingerprint,
-          userAgent: userAgentInfo.userAgent
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setOtpSent(true);
-        if (showAlert) {
-          alert('OTP sent successfully! Please check your email.');
-        }
-      } else {
-        setError(data.error || 'Failed to send OTP');
-      }
-    } catch (error) {
-      console.error('Send OTP error:', error);
-      setError('An error occurred. Please try again.');
-    } finally {
-      setResendLoading(false);
-    }
-  };
-
   const handleResendOTP = async () => {
     handleSendOTP(true);
   };
 
   if (status === 'loading') {
+    console.log('[VERIFY-OTP] Rendering loading state');
     return (
       <div className="container">
         <div className="card">
-          <div className="loading">Loading...</div>
+          <div className="loading">Loading session...</div>
         </div>
+        <style jsx>{`
+          .container {
+            display: flex;
+            min-height: 100vh;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          }
+          .card {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            width: 100%;
+          }
+          .loading {
+            padding: 2rem;
+            text-align: center;
+            color: #6b7280;
+          }
+        `}</style>
       </div>
     );
   }
 
   if (status === 'unauthenticated') {
-    return null; // Will redirect to login
+    // Don't return null, show a message before redirect
+    console.log('[VERIFY-OTP] Rendering unauthenticated state');
+    return (
+      <div className="container">
+        <div className="card">
+          <div className="loading">Redirecting to login...</div>
+        </div>
+        <style jsx>{`
+          .container {
+            display: flex;
+            min-height: 100vh;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          }
+          .card {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            width: 100%;
+          }
+          .loading {
+            padding: 2rem;
+            text-align: center;
+            color: #6b7280;
+          }
+        `}</style>
+      </div>
+    );
   }
 
+  console.log('[VERIFY-OTP] Rendering main form, otpSent:', otpSent);
   return (
     <div className="container">
       <div className="card">

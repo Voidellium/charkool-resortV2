@@ -25,14 +25,11 @@ export default function TahreeDView() {
 
   // Mesh names from GLTF for zoom buttons - Updated to match virtual tour
   const objects = [
-    { name: 'Stage ', displayName: 'Stage' },
     { name: 'Teepee', displayName: 'Teepee' },
     { name: 'Reception', displayName: 'Reception' },
     { name: 'Loft', displayName: 'Loft' },
     { name: 'Cottages', displayName: 'Cottages' },
-    { name: 'Store & Bilyaran', displayName: 'Store & Bilyaran' },
     { name: 'Villa', displayName: 'Villa' },
-    { name: 'Walkway Kubo', displayName: 'Walkway Kubo' },
     { name: 'ILoveCharkool', displayName: 'ILoveCharkool' }
   ];
 
