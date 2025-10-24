@@ -87,6 +87,8 @@ model OTP {
   browserFingerprint String?
   userAgent      String?
   password       String
+  attemptCount   Int      @default(0)
+  isDisabled     Boolean  @default(false)
 }
 
 model Account {

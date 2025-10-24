@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
+import { useSession } from 'next-auth/react';
 import { 
   Plus, Search, Filter, Calendar, Users, DollarSign, 
   TrendingUp, Eye, Edit, Trash2, CheckCircle, XCircle, 
@@ -49,6 +50,9 @@ export default function BookingsPage() {
       document.head.appendChild(style);
     }
   }, []);
+
+  // Get session for audit trail
+  const { data: session } = useSession();
 
   const [bookings, setBookings] = useState([]);
   const [filterStatus, setFilterStatus] = useState('');
@@ -595,13 +599,46 @@ export default function BookingsPage() {
       if (res.ok) {
         const updatedBooking = await res.json();
         setBookings(bookings.map(b => b.id === id ? updatedBooking : b));
+        
+        // Record audit trail for cancellation
+        try {
+          await fetch('/api/audit-trails', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              actorId: session?.user?.id,
+              actorName: session?.user?.name || session?.user?.email,
+              actorRole: session?.user?.role || 'SUPERADMIN',
+              action: 'CANCEL',
+              entity: 'Booking',
+              entityId: String(id),
+              details: JSON.stringify({
+                summary: `Cancelled booking #${id}`,
+                cancellationRemarks: remarks || 'No remarks provided',
+                before: bookings.find(b => b.id === id),
+                after: updatedBooking
+              }),
+            }),
+          });
+        } catch (auditErr) {
+          console.error('Failed to record audit trail:', auditErr);
+          // Don't fail the cancellation if audit logging fails
+        }
+        
         setMessage({ type: 'success', text: 'Booking cancelled successfully.' });
+        success('Booking cancelled successfully');
+        
+        // Auto-close the cancel modal
+        setShowCancelModal(false);
+        setCancelRemarks('');
+        setCurrentBooking(null);
       } else {
         throw new Error('Cancellation failed');
       }
     } catch (err) {
       console.error(err);
       setMessage({ type: 'error', text: 'Failed to cancel booking' });
+      error('Failed to cancel booking');
     } finally {
       setLoading(false);
     }
@@ -684,22 +721,6 @@ export default function BookingsPage() {
               <div style={styles.kpiTrend}>
                 <TrendingUp size={16} style={{ color: '#10b981' }} />
                 <span style={{ color: '#10b981', fontSize: '0.875rem' }}>+15%</span>
-              </div>
-            </div>
-
-            <div style={styles.kpiCard}>
-              <div style={styles.kpiContent}>
-                <div style={{ ...styles.kpiIcon, backgroundColor: '#fecaca' }}>
-                  <Star size={24} style={{ color: '#ef4444' }} />
-                </div>
-                <div style={styles.kpiInfo}>
-                  <h3 style={styles.kpiValue}>4.8</h3>
-                  <p style={styles.kpiLabel}>Avg Rating</p>
-                </div>
-              </div>
-              <div style={styles.kpiTrend}>
-                <TrendingUp size={16} style={{ color: '#10b981' }} />
-                <span style={{ color: '#10b981', fontSize: '0.875rem' }}>+0.2</span>
               </div>
             </div>
           </div>
@@ -2047,13 +2068,14 @@ export default function BookingsPage() {
                                   >
                                     <Eye size={16} />
                                   </button>
-                                  <button
+                                  {/* Edit button hidden as per requirements */}
+                                  {/* <button
                                     onClick={() => handleEdit(booking)}
                                     style={styles.actionButton}
                                     title="Edit Booking"
                                   >
                                     <Edit size={16} />
-                                  </button>
+                                  </button> */}
                                   <button
                                     style={styles.actionButtonDanger}
                                     title="Cancel Booking"
@@ -2181,13 +2203,14 @@ export default function BookingsPage() {
                             <Eye size={16} />
                             View Details
                           </button>
-                          <button
+                          {/* Edit button hidden as per requirements */}
+                          {/* <button
                             onClick={() => handleEdit(booking)}
                             style={styles.cardActionButton}
                           >
                             <Edit size={16} />
                             Edit
-                          </button>
+                          </button> */}
                           <button
                             onClick={() => {
                               setCurrentBooking(booking);

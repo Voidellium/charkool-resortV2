@@ -17,7 +17,6 @@ export async function POST(req) {
     const otpRecord = await prisma.OTP.findFirst({
       where: {
         email,
-        otp,
         expiresAt: {
           gt: new Date(),
         },
@@ -28,12 +27,65 @@ export async function POST(req) {
     });
 
     if (!otpRecord) {
-      return new Response(JSON.stringify({ error: 'Invalid or expired OTP' }), {
+      return new Response(JSON.stringify({ error: 'No OTP found or OTP has expired. Please request a new one.' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
     }
 
+    // Check if OTP is disabled due to too many failed attempts
+    if (otpRecord.isDisabled) {
+      return new Response(JSON.stringify({ 
+        error: 'This OTP has been disabled due to too many incorrect attempts. Please request a new OTP.',
+        requiresNewOTP: true 
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Check if OTP matches
+    if (otpRecord.otp !== otp) {
+      // Increment attempt count
+      const updatedAttemptCount = otpRecord.attemptCount + 1;
+      const maxAttempts = 3;
+
+      if (updatedAttemptCount >= maxAttempts) {
+        // Disable this OTP
+        await prisma.OTP.update({
+          where: { id: otpRecord.id },
+          data: { 
+            attemptCount: updatedAttemptCount,
+            isDisabled: true 
+          }
+        });
+
+        return new Response(JSON.stringify({ 
+          error: 'Too many incorrect attempts. This OTP has been disabled. Please request a new OTP.',
+          requiresNewOTP: true 
+        }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } else {
+        // Just increment the count
+        await prisma.OTP.update({
+          where: { id: otpRecord.id },
+          data: { attemptCount: updatedAttemptCount }
+        });
+
+        const attemptsLeft = maxAttempts - updatedAttemptCount;
+        return new Response(JSON.stringify({ 
+          error: `Invalid OTP. ${attemptsLeft} attempt${attemptsLeft !== 1 ? 's' : ''} remaining.`,
+          attemptsLeft 
+        }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    }
+
+    // OTP is correct - proceed with user creation
     // Compute full name
     const fullName = [otpRecord.firstName, otpRecord.middleName, otpRecord.lastName].filter(Boolean).join(' ');
 

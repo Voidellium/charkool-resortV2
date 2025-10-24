@@ -344,6 +344,8 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
 
   const details = fullBookingDetails || booking;
   const totalAmount = details.payments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
+  const totalPrice = Number(details.totalPrice) || 0;
+  const remainingBalance = totalPrice - totalAmount;
   const room = details.rooms?.[0]?.room;
   const isCancelled = String(details.status).toLowerCase() === 'cancelled';
 
@@ -499,7 +501,15 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
               <>
                 <div className="summary-row">
                   <span className="label">Total Amount</span>
+                  <span className="value amount">₱{(totalPrice / 100).toFixed(2)}</span>
+                </div>
+                <div className="summary-row">
+                  <span className="label">Amount Paid</span>
                   <span className="value amount">₱{(totalAmount / 100).toFixed(2)}</span>
+                </div>
+                <div className="summary-row highlight">
+                  <span className="label">Remaining Balance</span>
+                  <span className="value amount balance">₱{(remainingBalance / 100).toFixed(2)}</span>
                 </div>
                 <div className="summary-row">
                   <span className="label">Payment Status</span>
@@ -790,10 +800,24 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
           margin-bottom: 0;
         }
         
+        .summary-row.highlight {
+          background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+          border: 2px solid #ffc107;
+          border-radius: 8px;
+          padding: 0.75rem;
+          margin: 0.75rem 0;
+        }
+        
         .summary-row .value.amount {
           font-size: 1.4rem;
           font-weight: 700;
           color: #654321;
+        }
+        
+        .summary-row .value.amount.balance {
+          color: #dc3545;
+          font-size: 1.5rem;
+          font-weight: 800;
         }
         
         .refund-row {

@@ -14,6 +14,7 @@ import {
   DataSelectionModal,
   AccountLinkingSuccessModal
 } from '@/components/CustomModals';
+import TermsModal from '@/components/TermsModal';
 
 export default function SignUpPage() {
 
@@ -56,6 +57,9 @@ export default function SignUpPage() {
   const [countdown, setCountdown] = useState(0);
   // Birthdate error state
   const [birthdateError, setBirthdateError] = useState('');
+  // Terms and Agreement modal state
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
     // Allowed email domains
     const allowedDomains = [
@@ -156,6 +160,13 @@ export default function SignUpPage() {
     setIsLoading(true);
     try {
       if (!showOTPInput) {
+          // Check if terms are accepted first
+          if (!termsAccepted) {
+            setIsLoading(false);
+            setShowTermsModal(true);
+            throw new Error('Please accept the Terms and Agreement to continue');
+          }
+          
           // Email domain validation
           if (!isAllowedEmail(form.email)) {
             throw new Error('Only common email domains are allowed: gmail, yahoo, outlook, hotmail, icloud, protonmail, zoho, mail.com, aol');
@@ -561,6 +572,29 @@ export default function SignUpPage() {
 
               {/* Error Display */}
               {error && <div className="error-message">{error}</div>}
+
+              {/* Terms and Agreement Checkbox */}
+              {!showOTPInput && (
+                <div className="terms-container">
+                  <input
+                    type="checkbox"
+                    id="termsCheckbox"
+                    checked={termsAccepted}
+                    onChange={(e) => setTermsAccepted(e.target.checked)}
+                    className="terms-checkbox"
+                  />
+                  <label htmlFor="termsCheckbox" className="terms-label">
+                    I agree to the{' '}
+                    <button
+                      type="button"
+                      onClick={() => setShowTermsModal(true)}
+                      className="terms-link"
+                    >
+                      Terms and Agreement
+                    </button>
+                  </label>
+                </div>
+              )}
 
               {/* Submit Button */}
               <button type="submit" className="primary-btn" disabled={isLoading}>
@@ -1282,6 +1316,49 @@ export default function SignUpPage() {
           75% { transform: translateX(4px); }
         }
 
+        /* Terms and Agreement Checkbox Styles */
+        .terms-container {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          margin-top: 1rem;
+          padding: 1rem;
+          background: rgba(254, 243, 199, 0.3);
+          border: 1px solid rgba(252, 211, 77, 0.4);
+          border-radius: 12px;
+        }
+
+        .terms-checkbox {
+          width: 18px;
+          height: 18px;
+          cursor: pointer;
+          flex-shrink: 0;
+          accent-color: #FEBE52;
+        }
+
+        .terms-label {
+          color: #374151;
+          font-size: 0.9rem;
+          cursor: pointer;
+          margin: 0;
+          user-select: none;
+        }
+
+        .terms-link {
+          background: none;
+          border: none;
+          color: #FEBE52;
+          font-weight: 600;
+          text-decoration: underline;
+          cursor: pointer;
+          padding: 0;
+          font-size: 0.9rem;
+        }
+
+        .terms-link:hover {
+          color: #F0790C;
+        }
+
         /* Footer Styles */
         .footer {
           background: rgba(232, 207, 163, 0.9);
@@ -1896,6 +1973,13 @@ export default function SignUpPage() {
         modal={linkingModal}
         setModal={setLinkingModal}
         onSignIn={handleFinalSignIn}
+      />
+
+      {/* Terms and Agreement Modal */}
+      <TermsModal
+        isOpen={showTermsModal}
+        onClose={() => setShowTermsModal(false)}
+        onAccept={() => setTermsAccepted(true)}
       />
     </>
   );

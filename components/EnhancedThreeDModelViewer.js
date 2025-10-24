@@ -212,7 +212,7 @@ function Loader() {
 }
 
 /* ---------- PERFORMANCE OPTIMIZED AnimatedControls with lerp-based smooth zoom and WASD navigation ---------- */
-function AnimatedControls({ target, position, isLocked, onAnimationStart, onAnimationEnd, selectedObject }) {
+function AnimatedControls({ target, position, isLocked, onAnimationStart, onAnimationEnd, selectedObject, viewMode }) {
   const { camera, gl } = useThree();
   const controlsRef = useRef();
 
@@ -314,8 +314,8 @@ function AnimatedControls({ target, position, isLocked, onAnimationStart, onAnim
       }
     }
 
-    // Handle WASD movement ONLY in free view
-    if (isFreeView) {
+    // Handle WASD movement ONLY in free view AND exterior mode
+    if (isFreeView && viewMode === 'exterior') {
       const direction = new THREE.Vector3();
       const right = new THREE.Vector3();
       const up = new THREE.Vector3(0, 1, 0);
@@ -344,8 +344,8 @@ function AnimatedControls({ target, position, isLocked, onAnimationStart, onAnim
         camera.position.add(moveVector);
         controlsRef.current.target.add(moveVector);
       }
-    } else {
-      // When object is selected, W/S act as zoom in/out toward the object
+    } else if (!isFreeView && viewMode === 'exterior') {
+      // When object is selected in EXTERIOR mode, W/S act as zoom in/out toward the object
       const direction = new THREE.Vector3();
       direction.subVectors(controlsRef.current.target, camera.position).normalize();
 
@@ -364,6 +364,7 @@ function AnimatedControls({ target, position, isLocked, onAnimationStart, onAnim
         camera.position.add(direction.multiplyScalar(zoomAmount));
       }
     }
+    // In interior mode (viewMode === 'interior'), no WASD controls at all - only scroll zoom works
 
     // Handle lerp-based smooth animation - but STOP once completed (only for object selection)
     if (isAnimating.current && !hasCompletedAnimation.current) {
@@ -387,7 +388,7 @@ function AnimatedControls({ target, position, isLocked, onAnimationStart, onAnim
     if (controlsRef.current) {
       controlsRef.current.enableDamping = true;
       controlsRef.current.dampingFactor = 0.12;
-      controlsRef.current.enablePan = !isLocked;
+      controlsRef.current.enablePan = true; // Always enable pan
       controlsRef.current.enableRotate = true; // Always allow rotation
       controlsRef.current.enableZoom = false; // Disable default zoom
       controlsRef.current.zoomSpeed = 0; // Ensure no default zoom
@@ -409,22 +410,44 @@ function AnimatedControls({ target, position, isLocked, onAnimationStart, onAnim
 }
 
 /* ---------- Main viewer inner ---------- */
-function EnhancedThreeDModelViewerInner({ selectedObject: externalSelected, onSelectObject: externalOnSelect }) {
+function EnhancedThreeDModelViewerInner({ selectedObject: externalSelected, onSelectObject: externalOnSelect, modelPath: externalModelPath, viewMode }) {
   const [objectPositions, setObjectPositions] = useState({});
   const [isLocked, setIsLocked] = useState(false);
   const [modelError, setModelError] = useState(null);
   const [selectedObject, setSelectedObject] = useState(null);
   const [initialCameraReady, setInitialCameraReady] = useState(false);
-  const modelPath = "/models/WholeMap_12.glb";
+  const modelPath = externalModelPath || "/models/WholeMap_12.glb";
 
   // Sync external selected object with internal state
   useEffect(() => {
     setSelectedObject(externalSelected);
   }, [externalSelected]);
 
+  // Reset camera state when model changes
+  useEffect(() => {
+    setObjectPositions({});
+    setInitialCameraReady(false);
+    setSelectedObject(null);
+    setModelError(null);
+  }, [modelPath]);
+
   // compute camera positions from positions map
   const getObjectPosition = useCallback((objectName) => {
     const name = objectName || 'overall';
+    
+    // For interior views, use overall position (full room view)
+    if (viewMode === 'interior') {
+      if (objectPositions['overall']) {
+        const { center, radius } = objectPositions['overall'];
+        return {
+          target: center,
+          position: [center[0], center[1] + radius * 0.3, center[2] + radius * 0.8],
+        };
+      }
+      return { target: [0, 0, 0], position: [0, 5, 15] };
+    }
+    
+    // For exterior views, use specific mesh positions
     if (objectPositions[name]) {
       const { center, radius } = objectPositions[name];
       if (name === 'overall') {
@@ -440,7 +463,7 @@ function EnhancedThreeDModelViewerInner({ selectedObject: externalSelected, onSe
       };
     }
     return { target: [0, 0, 0], position: [0, 10, 20] };
-  }, [objectPositions]);
+  }, [objectPositions, viewMode]);
 
   const handlePositionsComputed = useCallback((positions) => {
     setObjectPositions(positions);
@@ -543,6 +566,7 @@ function EnhancedThreeDModelViewerInner({ selectedObject: externalSelected, onSe
             isLocked={isLocked}
             setIsLocked={setIsLocked}
             selectedObject={selectedObject}
+            viewMode={viewMode}
           />
         </Suspense>
       </Canvas>
@@ -551,7 +575,7 @@ function EnhancedThreeDModelViewerInner({ selectedObject: externalSelected, onSe
 }
 
 /* ---------- Helper component to set initial camera based on overall bounding box ---------- */
-function ControlsStarter({ initialReady, overall, animatedTarget, animatedPosition, isLocked, setIsLocked, selectedObject }) {
+function ControlsStarter({ initialReady, overall, animatedTarget, animatedPosition, isLocked, setIsLocked, selectedObject, viewMode }) {
   const { camera } = useThree();
   const [appliedInitial, setAppliedInitial] = useState(false);
 
@@ -584,6 +608,7 @@ function ControlsStarter({ initialReady, overall, animatedTarget, animatedPositi
       onAnimationStart={handleAnimStart}
       onAnimationEnd={handleAnimEnd}
       selectedObject={selectedObject}
+      viewMode={viewMode}
     />
   );
 }

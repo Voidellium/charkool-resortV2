@@ -258,6 +258,12 @@ function VerifyOTPContent() {
             {otpSent ? 'OTP sent to your email. Please enter the code below.' : 'For security purposes, please enter the OTP sent to your email to access this section.'}
           </p>
 
+          {session?.user?.role === 'DEVELOPER' && (
+            <div className="developer-hint">
+              <strong>🔧 Developer Mode:</strong> Use bypass code <code>DEV-BYPASS-2025</code> to skip OTP verification
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="form">
             <div className="input-group">
               <label htmlFor="otp">Enter OTP</label>
@@ -344,6 +350,26 @@ function VerifyOTPContent() {
           color: #6b7280;
           margin-bottom: 2rem;
           line-height: 1.5;
+        }
+
+        .developer-hint {
+          background: linear-gradient(135deg, #fef3c7 0%, #fcd34d 100%);
+          border: 2px solid #f59e0b;
+          border-radius: 0.5rem;
+          padding: 1rem;
+          margin-bottom: 1.5rem;
+          color: #78350f;
+          font-size: 0.875rem;
+          text-align: left;
+        }
+
+        .developer-hint code {
+          background: #fef3c7;
+          padding: 0.25rem 0.5rem;
+          border-radius: 0.25rem;
+          font-weight: 700;
+          color: #b45309;
+          font-family: 'Courier New', monospace;
         }
 
         .form {

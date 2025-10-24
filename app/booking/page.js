@@ -10,6 +10,7 @@ import RoomAmenitiesSelector from '../../components/RoomAmenitiesSelector'; // I
 import { useNavigationGuard } from '../../hooks/useNavigationGuard.simple';
 import { useNavigationContext } from '../../context/NavigationContext';
 import { NavigationConfirmationModal } from '../../components/CustomModals';
+import DataPrivacyModal from '../../components/DataPrivacyModal';
 
 // Timezone-safe date formatting utility
 function formatDate(date) {
@@ -97,6 +98,9 @@ export default function BookingPage() {
   // Cooldown UI state
   const [cooldownUntil, setCooldownUntil] = useState(null);
   const [cooldownTimer, setCooldownTimer] = useState('');
+  // Data Privacy modal state
+  const [showDataPrivacyModal, setShowDataPrivacyModal] = useState(false);
+  const [dataPrivacyAccepted, setDataPrivacyAccepted] = useState(false);
 
   // Navigation Guard Setup
   const navigationContext = useNavigationContext();
@@ -575,6 +579,13 @@ export default function BookingPage() {
     e.preventDefault();
     if (submittingRef.current) return; // Prevent multiple submissions
 
+    // Check if data privacy policy is accepted first
+    if (!dataPrivacyAccepted) {
+      setShowDataPrivacyModal(true);
+      alert('❌ Please accept the Data Privacy Policy to continue with your booking.');
+      return;
+    }
+
     // Validation: date validity
     if (!isDateSelectionValid()) {
       if (!formData.checkIn || !formData.checkOut) {
@@ -989,6 +1000,29 @@ export default function BookingPage() {
               <div className="total-price-display" aria-live="polite">
                 Total Price: ₱{(totalPrice / 100).toLocaleString()}
               </div>
+
+              {/* Data Privacy Checkbox - only on final step */}
+              {step === 3 && (
+                <div className="privacy-container">
+                  <input
+                    type="checkbox"
+                    id="privacyCheckbox"
+                    checked={dataPrivacyAccepted}
+                    onChange={(e) => setDataPrivacyAccepted(e.target.checked)}
+                    className="privacy-checkbox"
+                  />
+                  <label htmlFor="privacyCheckbox" className="privacy-label">
+                    I agree to the{' '}
+                    <button
+                      type="button"
+                      onClick={() => setShowDataPrivacyModal(true)}
+                      className="privacy-link"
+                    >
+                      Data Privacy Policy
+                    </button>
+                  </label>
+                </div>
+              )}
 
               <div className="navigation-buttons">
                 {step > 1 && <button type="button" onClick={handleBack} className="btn-secondary">Back</button>}
@@ -1948,6 +1982,56 @@ export default function BookingPage() {
           line-height: 1.5;
         }
 
+        /* Data Privacy Checkbox Styles */
+        .privacy-container {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          margin-top: 1rem;
+          padding: 1rem 1.25rem;
+          background: linear-gradient(135deg, rgba(219, 234, 254, 0.4), rgba(191, 219, 254, 0.2));
+          border: 2px solid rgba(59, 130, 246, 0.3);
+          border-radius: 12px;
+          transition: all 0.2s;
+        }
+
+        .privacy-container:has(input:checked) {
+          background: linear-gradient(135deg, rgba(219, 234, 254, 0.6), rgba(191, 219, 254, 0.4));
+          border-color: rgba(59, 130, 246, 0.5);
+        }
+
+        .privacy-checkbox {
+          width: 20px;
+          height: 20px;
+          cursor: pointer;
+          flex-shrink: 0;
+          accent-color: #3b82f6;
+        }
+
+        .privacy-label {
+          color: #1f2937;
+          font-size: 0.95rem;
+          cursor: pointer;
+          margin: 0;
+          user-select: none;
+          font-weight: 500;
+        }
+
+        .privacy-link {
+          background: none;
+          border: none;
+          color: #3b82f6;
+          font-weight: 700;
+          text-decoration: underline;
+          cursor: pointer;
+          padding: 0;
+          font-size: 0.95rem;
+        }
+
+        .privacy-link:hover {
+          color: #2563eb;
+        }
+
         /* Mobile CTA bar */
         .mobile-cta { 
           position: fixed; 
@@ -2590,6 +2674,13 @@ export default function BookingPage() {
         onLeave={navigationGuard.handleLeave}
         context={navigationGuard.context}
         message={navigationGuard.message}
+      />
+
+      {/* Data Privacy Modal */}
+      <DataPrivacyModal
+        isOpen={showDataPrivacyModal}
+        onClose={() => setShowDataPrivacyModal(false)}
+        onAccept={() => setDataPrivacyAccepted(true)}
       />
     </div>
   );

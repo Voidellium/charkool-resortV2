@@ -12,9 +12,14 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Message is required.' }, { status: 400 });
     }
 
+    // Format the message to indicate it's from a guest
+    const formattedMessage = session?.user?.id 
+      ? `Inquiry from ${session.user.name || session.user.email}: ${message.trim()}`
+      : `Inquiries of a guest: ${message.trim()}`;
+
     await prisma.notification.create({
       data: {
-        message: message.trim(),
+        message: formattedMessage,
         type: 'inquiry',
         role: 'SUPERADMIN',
         userId: session?.user?.id || null,

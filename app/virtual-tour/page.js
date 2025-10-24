@@ -22,23 +22,57 @@ const EnhancedThreeDModelViewer = dynamic(() => import('../../components/Enhance
 
 export default function VirtualTour() {
   const [selectedObject, setSelectedObject] = useState(null);
+  const [openDropdown, setOpenDropdown] = useState(null);
+  const [viewMode, setViewMode] = useState('exterior'); // 'exterior' or 'interior'
+  const [modelPath, setModelPath] = useState('/models/WholeMap_12.glb');
 
   // Mesh names from GLTF for zoom buttons
   const objects = [
-    { name: 'Teepee', displayName: 'Teepee' },
-    { name: 'Reception', displayName: 'Reception' },
-    { name: 'Loft', displayName: 'Loft' },
-    { name: 'Cottages', displayName: 'Cottages' },
-    { name: 'Villa', displayName: 'Villa' },
-    { name: 'ILoveCharkool', displayName: 'ILoveCharkool' }
+    { name: 'Teepee', displayName: 'Teepee', hasInterior: true },
+    { name: 'Reception', displayName: 'Reception', hasInterior: false },
+    { name: 'Loft', displayName: 'Loft', hasInterior: true },
+    { name: 'Cottages', displayName: 'Cottages', hasInterior: false },
+    { name: 'Villa', displayName: 'Villa', hasInterior: true },
+    { name: 'ILoveCharkool', displayName: 'ILoveCharkool', hasInterior: false }
   ];
 
   const handleObjectSelect = (objectName) => {
     setSelectedObject(objectName);
+    setOpenDropdown(null); // Close any open dropdown
   };
 
   const handleObjectClickFromViewer = (objectName) => {
     setSelectedObject(objectName);
+  };
+
+  const handleDropdownToggle = (objectName) => {
+    setOpenDropdown(openDropdown === objectName ? null : objectName);
+  };
+
+  const handleViewSelect = (objectName, view) => {
+    if (view === 'interior') {
+      // Load interior model
+      const interiorModelMap = {
+        'Teepee': '/models/Interior_Teepee.glb',
+        'Villa': '/models/Interior_Villa.glb',
+        'Loft': '/models/Interior_Loft.glb'
+      };
+      setModelPath(interiorModelMap[objectName]);
+      setViewMode('interior');
+      setSelectedObject(objectName);
+    } else {
+      // Load exterior model (WholeMap)
+      setModelPath('/models/WholeMap_12.glb');
+      setViewMode('exterior');
+      setSelectedObject(objectName);
+    }
+    setOpenDropdown(null); // Close dropdown after selection
+  };
+
+  const handleBackToExterior = () => {
+    setModelPath('/models/WholeMap_12.glb');
+    setViewMode('exterior');
+    setSelectedObject(null); // Reset to free view
   };
 
   return (
@@ -108,21 +142,52 @@ export default function VirtualTour() {
                 <button
                   onClick={() => handleObjectSelect(null)}
                   className="location-btn"
-                  data-selected={selectedObject === null}
+                  data-selected={selectedObject === null && viewMode === 'exterior'}
                 >
                   <span className="btn-icon"></span>
                   <span className="btn-text">Free View</span>
                 </button>
                 {objects.map((obj) => (
-                  <button
-                    key={obj.name}
-                    onClick={() => handleObjectSelect(obj.name)}
-                    className="location-btn"
-                    data-selected={selectedObject === obj.name}
-                  >
-                    <span className="btn-icon"></span>
-                    <span className="btn-text">{obj.displayName}</span>
-                  </button>
+                  <div key={obj.name} style={{ position: 'relative' }}>
+                    {obj.hasInterior ? (
+                      <>
+                        <button
+                          onClick={() => handleDropdownToggle(obj.name)}
+                          className="location-btn"
+                          data-selected={selectedObject === obj.name}
+                        >
+                          <span className="btn-icon"></span>
+                          <span className="btn-text">{obj.displayName}</span>
+                          <span className="dropdown-arrow" data-open={openDropdown === obj.name}>▼</span>
+                        </button>
+                        {openDropdown === obj.name && (
+                          <div className="dropdown-menu">
+                            <button
+                              onClick={() => handleViewSelect(obj.name, 'exterior')}
+                              className="dropdown-item"
+                            >
+                              Exterior View
+                            </button>
+                            <button
+                              onClick={() => handleViewSelect(obj.name, 'interior')}
+                              className="dropdown-item"
+                            >
+                              Interior View
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => handleObjectSelect(obj.name)}
+                        className="location-btn"
+                        data-selected={selectedObject === obj.name && viewMode === 'exterior'}
+                      >
+                        <span className="btn-icon"></span>
+                        <span className="btn-text">{obj.displayName}</span>
+                      </button>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>
@@ -147,7 +212,50 @@ export default function VirtualTour() {
               border: '1px solid rgba(253, 211, 92, 0.2)',
               position: 'relative'
             }}>
-              <EnhancedThreeDModelViewer selectedObject={selectedObject} onSelectObject={handleObjectClickFromViewer} />
+              <EnhancedThreeDModelViewer 
+                selectedObject={selectedObject} 
+                onSelectObject={handleObjectClickFromViewer}
+                modelPath={modelPath}
+                viewMode={viewMode}
+              />
+              
+              {/* Back to Exterior Button - only show in interior view */}
+              {viewMode === 'interior' && (
+                <button
+                  onClick={handleBackToExterior}
+                  className="back-to-exterior-btn"
+                  style={{
+                    position: 'absolute',
+                    top: '24px',
+                    right: '24px',
+                    background: 'linear-gradient(135deg, #FEBE52 0%, #ffd580 100%)',
+                    color: '#111827',
+                    border: '2px solid rgba(253,230,138,0.5)',
+                    padding: '12px 20px',
+                    borderRadius: '12px',
+                    fontWeight: '700',
+                    fontSize: '0.95rem',
+                    cursor: 'pointer',
+                    boxShadow: '0 8px 24px rgba(254,190,82,0.42)',
+                    zIndex: 10,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    transition: 'all 0.3s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.transform = 'translateY(-2px)';
+                    e.target.style.boxShadow = '0 12px 32px rgba(254,190,82,0.5)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.transform = 'translateY(0)';
+                    e.target.style.boxShadow = '0 8px 24px rgba(254,190,82,0.42)';
+                  }}
+                >
+                  <span style={{ fontSize: '1.2rem' }}>←</span>
+                  Back to Exterior
+                </button>
+              )}
               
               {/* Instructions Overlay */}
               <div style={{
@@ -275,6 +383,72 @@ export default function VirtualTour() {
           text-overflow: clip;
           white-space: normal;
           word-break: break-word;
+        }
+
+        /* Dropdown arrow styling */
+        :global(.dropdown-arrow) {
+          margin-left: auto;
+          font-size: 0.75rem;
+          transition: transform 0.3s ease;
+          flex-shrink: 0;
+        }
+
+        :global(.dropdown-arrow[data-open="true"]) {
+          transform: rotate(180deg);
+        }
+
+        /* Dropdown menu styling */
+        :global(.dropdown-menu) {
+          position: absolute;
+          top: 100%;
+          left: 0;
+          right: 0;
+          margin-top: 4px;
+          background: white;
+          border: 2px solid rgba(253, 211, 92, 0.4);
+          border-radius: 12px;
+          overflow: hidden;
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+          z-index: 100;
+          animation: dropdownSlide 0.2s ease-out;
+        }
+
+        @keyframes dropdownSlide {
+          from {
+            opacity: 0;
+            transform: translateY(-8px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        :global(.dropdown-item) {
+          width: 100%;
+          padding: 12px 16px;
+          background: white;
+          border: none;
+          border-bottom: 1px solid rgba(253, 211, 92, 0.2);
+          color: #2e2e2e;
+          font-weight: 600;
+          font-size: 0.9rem;
+          cursor: pointer;
+          text-align: left;
+          transition: all 0.2s ease;
+        }
+
+        :global(.dropdown-item:last-child) {
+          border-bottom: none;
+        }
+
+        :global(.dropdown-item:hover) {
+          background: linear-gradient(135deg, rgba(254, 190, 82, 0.15) 0%, rgba(253, 211, 92, 0.1) 100%);
+          color: #d97706;
+        }
+
+        :global(.dropdown-item:active) {
+          background: linear-gradient(135deg, rgba(254, 190, 82, 0.25) 0%, rgba(253, 211, 92, 0.2) 100%);
         }
 
         /* Custom scrollbar styling */

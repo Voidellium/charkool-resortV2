@@ -332,15 +332,37 @@ export default function CashierDashboard() {
                 async function fetchUpcomingReservations() {
                   setUpcomingLoading(true);
                   try {
-                    const res = await fetch('/api/bookings/upcoming');
+                    // Fetch reservations within next 15 days (including online bookings)
+                    const today = new Date().toISOString().split('T')[0];
+                    const fifteenDaysLater = new Date();
+                    fifteenDaysLater.setDate(fifteenDaysLater.getDate() + 15);
+                    const endDate = fifteenDaysLater.toISOString().split('T')[0];
+                    
+                    const res = await fetch(`/api/bookings/upcoming?startDate=${today}&endDate=${endDate}`);
                     if (res.ok) {
                       const data = await res.json();
                       setUpcomingTransactionsList(Array.isArray(data) ? data : data.reservations || []);
                     } else {
-                      setUpcomingTransactionsList([]);
+                      // Fallback: filter bookings locally
+                      const upcoming = bookings.filter(booking => {
+                        const checkInDate = new Date(booking.checkIn);
+                        const todayDate = new Date(today);
+                        const endDateObj = new Date(endDate);
+                        return checkInDate >= todayDate && checkInDate <= endDateObj;
+                      });
+                      setUpcomingTransactionsList(upcoming);
                     }
                   } catch (e) {
-                    setUpcomingTransactionsList([]);
+                    // Fallback to local filtering
+                    const today = new Date();
+                    const fifteenDaysLater = new Date();
+                    fifteenDaysLater.setDate(fifteenDaysLater.getDate() + 15);
+                    
+                    const upcoming = bookings.filter(booking => {
+                      const checkInDate = new Date(booking.checkIn);
+                      return checkInDate >= today && checkInDate <= fifteenDaysLater;
+                    });
+                    setUpcomingTransactionsList(upcoming);
                   } finally {
                     setUpcomingLoading(false);
                   }
@@ -380,33 +402,47 @@ export default function CashierDashboard() {
                 async function fetchCheckoutTransactions() {
                   setCheckoutLoading(true);
                   try {
-                    // Fetch bookings with checkout scheduled for today
                     const today = new Date().toISOString().split('T')[0];
-                    const res = await fetch(`/api/bookings/checkout?date=${today}`);
-                    if (res.ok) {
-                      const data = await res.json();
-                      // Filter out bookings with completed payment status
-                      const unpaidCheckouts = (Array.isArray(data) ? data : data.checkouts || [])
-                        .filter(booking => booking.paymentStatus !== 'Paid');
-                      setCheckoutTransactions(unpaidCheckouts);
-                    } else {
-                      // Fallback: filter bookings with checkout today and unpaid status
-                      const todayCheckouts = bookings.filter(booking => {
-                        const checkoutDate = new Date(booking.checkOut).toISOString().split('T')[0];
-                        return checkoutDate === today 
-                          && (booking.status || '').toLowerCase() === 'confirmed'
-                          && booking.paymentStatus !== 'Paid';
-                      });
-                      setCheckoutTransactions(todayCheckouts);
+                    
+                    // Fetch bookings with checkout scheduled for today
+                    const checkoutRes = await fetch(`/api/bookings/checkout?date=${today}`);
+                    let checkouts = [];
+                    if (checkoutRes.ok) {
+                      const data = await checkoutRes.json();
+                      checkouts = Array.isArray(data) ? data : data.checkouts || [];
                     }
+                    
+                    // Also fetch bookings created today (both walk-in and online) with unpaid status
+                    const todayBookingsRes = await fetch(`/api/bookings?createdDate=${today}`);
+                    let todayBookings = [];
+                    if (todayBookingsRes.ok) {
+                      const data = await todayBookingsRes.json();
+                      const allBookings = Array.isArray(data) ? data : data.bookings || [];
+                      // Filter for unpaid bookings created today
+                      todayBookings = allBookings.filter(booking => {
+                        const createdDate = new Date(booking.createdAt).toISOString().split('T')[0];
+                        return createdDate === today && booking.paymentStatus !== 'Paid';
+                      });
+                    }
+                    
+                    // Combine both lists and remove duplicates
+                    const combinedTransactions = [...checkouts, ...todayBookings];
+                    const uniqueTransactions = combinedTransactions.filter((booking, index, self) =>
+                      index === self.findIndex(b => b.id === booking.id)
+                    );
+                    
+                    // Filter out bookings with completed payment status
+                    const unpaidCheckouts = uniqueTransactions.filter(booking => booking.paymentStatus !== 'Paid');
+                    setCheckoutTransactions(unpaidCheckouts);
                   } catch (e) {
                     // Fallback to local filtering
                     const today = new Date().toISOString().split('T')[0];
                     const todayCheckouts = bookings.filter(booking => {
                       const checkoutDate = new Date(booking.checkOut).toISOString().split('T')[0];
-                      return checkoutDate === today 
+                      const createdDate = new Date(booking.createdAt).toISOString().split('T')[0];
+                      return ((checkoutDate === today || createdDate === today) 
                         && (booking.status || '').toLowerCase() === 'confirmed'
-                        && booking.paymentStatus !== 'Paid';
+                        && booking.paymentStatus !== 'Paid');
                     });
                     setCheckoutTransactions(todayCheckouts);
                   } finally {

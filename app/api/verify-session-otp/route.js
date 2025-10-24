@@ -18,11 +18,33 @@ export async function POST(req) {
       });
     }
 
+    // Developer bypass: Check if user has DEVELOPER role and OTP is special bypass code
+    if (token.role === 'DEVELOPER' && otp === 'DEV-BYPASS-2025') {
+      const response = NextResponse.json({
+        message: 'Developer bypass activated - OTP verified successfully',
+        user: {
+          id: token.id,
+          name: token.name,
+          email: token.email,
+          role: token.role
+        },
+        developerBypass: true
+      }, { status: 200 });
+
+      // Set cookie to indicate browser is trusted for this session
+      response.cookies.set('isBrowserTrusted', 'true', {
+        path: '/',
+        maxAge: 3600, // 1 hour
+        httpOnly: false,
+      });
+
+      return response;
+    }
+
     // Find the latest session OTP for the user's email
     const otpRecord = await prisma.OTP.findFirst({
       where: {
         email: token.email,
-        otp,
         password: 'session-verification',
         expiresAt: {
           gt: new Date(),
@@ -34,7 +56,18 @@ export async function POST(req) {
     });
 
     if (!otpRecord) {
-      return new Response(JSON.stringify({ error: 'Invalid or expired OTP' }), {
+      return new Response(JSON.stringify({ error: 'No OTP found or OTP has expired. Please request a new one.' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Check if OTP is disabled due to too many failed attempts
+    if (otpRecord.isDisabled) {
+      return new Response(JSON.stringify({ 
+        error: 'This OTP has been disabled due to too many incorrect attempts. Please request a new OTP.',
+        requiresNewOTP: true 
+      }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -56,7 +89,48 @@ export async function POST(req) {
       });
     }
 
-    // Mark browser as trusted if fingerprint is provided and not in incognito mode (only if matched)
+    // Check if OTP matches
+    if (otpRecord.otp !== otp) {
+      // Increment attempt count
+      const updatedAttemptCount = otpRecord.attemptCount + 1;
+      const maxAttempts = 3;
+
+      if (updatedAttemptCount >= maxAttempts) {
+        // Disable this OTP
+        await prisma.OTP.update({
+          where: { id: otpRecord.id },
+          data: { 
+            attemptCount: updatedAttemptCount,
+            isDisabled: true 
+          }
+        });
+
+        return new Response(JSON.stringify({ 
+          error: 'Too many incorrect attempts. This OTP has been disabled. Please request a new OTP.',
+          requiresNewOTP: true 
+        }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } else {
+        // Just increment the count
+        await prisma.OTP.update({
+          where: { id: otpRecord.id },
+          data: { attemptCount: updatedAttemptCount }
+        });
+
+        const attemptsLeft = maxAttempts - updatedAttemptCount;
+        return new Response(JSON.stringify({ 
+          error: `Invalid OTP. ${attemptsLeft} attempt${attemptsLeft !== 1 ? 's' : ''} remaining.`,
+          attemptsLeft 
+        }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    }
+
+    // OTP is correct - Mark browser as trusted if fingerprint is provided and not in incognito mode (only if matched)
     if (browserFingerprint && !isIncognito) {
       const existingTrustedBrowser = await prisma.trustedBrowser.findUnique({
         where: { browserFingerprint },
