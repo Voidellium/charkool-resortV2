@@ -1356,7 +1356,7 @@ export default function ReceptionistDashboard() {
           {/* Quick Action Panel */}
           <div className="quick-actions">
             <button 
-              className="quick-action-btn check-in" 
+              className="quick-action-btn arrivals" 
               title="View Pending Check-Ins"
               onClick={() => {
                 handleFilterChange('pending');
@@ -1367,16 +1367,16 @@ export default function ReceptionistDashboard() {
               }}
             >
               <svg className="action-icon" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                <path d="M10 2L3 9l1.41 1.41L9 5.83V20h2V5.83l4.59 4.58L17 9l-7-7z" />
               </svg>
-              <span className="action-label">Arrivals</span>
+              <span className="action-label">Pending</span>
               {notifications.pendingCheckIns.length > 0 && (
                 <span className="notification-badge">{notifications.pendingCheckIns.length}</span>
               )}
             </button>
             
             <button 
-              className="quick-action-btn check-out" 
+              className="quick-action-btn departures" 
               title="View Pending Check-Outs"
               onClick={() => {
                 handleFilterChange('confirmed');
@@ -1387,16 +1387,16 @@ export default function ReceptionistDashboard() {
               }}
             >
               <svg className="action-icon" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+                <path d="M10 18l7-7-1.41-1.41L11 14.17V0H9v14.17l-4.59-4.58L3 11l7 7z" />
               </svg>
-              <span className="action-label">Departures</span>
+              <span className="action-label">Confirmed</span>
               {notifications.pendingCheckOuts.length > 0 && (
                 <span className="notification-badge">{notifications.pendingCheckOuts.length}</span>
               )}
             </button>
             
             <button 
-              className="quick-action-btn guest-lookup" 
+              className="quick-action-btn guest-search" 
               title="Search Bookings"
               onClick={() => {
                 // Focus on search input
@@ -1422,7 +1422,7 @@ export default function ReceptionistDashboard() {
               <svg className="action-icon" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
               </svg>
-              <span className="action-label">New Reservation</span>
+              <span className="action-label">New Booking</span>
             </button>
           </div>
         </div>

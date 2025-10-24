@@ -346,31 +346,52 @@ body {
   box-shadow: var(--shadow-md);
 }
 
-.quick-action-btn.check-in {
+.quick-action-btn.arrivals {
   border-left: 4px solid var(--color-success);
-}
-
-.quick-action-btn.check-in:hover {
   background: var(--color-success-light);
+}
+
+.quick-action-btn.arrivals:hover {
+  background: var(--color-success);
   border-color: var(--color-success);
+  color: white;
 }
 
-.quick-action-btn.check-out {
-  border-left: 4px solid var(--color-danger);
+.quick-action-btn.arrivals:hover .action-icon,
+.quick-action-btn.arrivals:hover .action-label {
+  color: white;
 }
 
-.quick-action-btn.check-out:hover {
-  background: var(--color-danger-light);
-  border-color: var(--color-danger);
+.quick-action-btn.departures {
+  border-left: 4px solid var(--color-warning);
+  background: var(--color-warning-light);
 }
 
-.quick-action-btn.guest-lookup {
+.quick-action-btn.departures:hover {
+  background: var(--color-warning);
+  border-color: var(--color-warning);
+  color: white;
+}
+
+.quick-action-btn.departures:hover .action-icon,
+.quick-action-btn.departures:hover .action-label {
+  color: white;
+}
+
+.quick-action-btn.guest-search {
   border-left: 4px solid var(--color-info);
+  background: var(--color-info-light);
 }
 
-.quick-action-btn.guest-lookup:hover {
-  background: var(--color-info-light);
+.quick-action-btn.guest-search:hover {
+  background: var(--color-info);
   border-color: var(--color-info);
+  color: white;
+}
+
+.quick-action-btn.guest-search:hover .action-icon,
+.quick-action-btn.guest-search:hover .action-label {
+  color: white;
 }
 
 .create-booking-btn {
