@@ -120,9 +120,9 @@ async function getBookingsHandler(request) {
           booking.paymentStatus = 'Reservation';
         }
 
-        // Extract payment methods used
+        // Extract payment methods used (use 'method' not 'provider' to show gcash/paymaya/TEST)
         booking.paymentMethods = booking.payments && Array.isArray(booking.payments) 
-          ? [...new Set(booking.payments.map(p => p?.provider).filter(Boolean))] 
+          ? [...new Set(booking.payments.map(p => p?.method || p?.provider).filter(Boolean))] 
           : [];
 
         // Calculate balance paid and balance to pay
@@ -177,9 +177,10 @@ async function postBookingHandler(request) {
       guestName: { type: 'string', required: true, options: { minLength: 2, maxLength: 100 } },
       checkIn: { type: 'date', required: true },
       checkOut: { type: 'date', required: true },
-      numberOfGuests: { type: 'number', required: true, options: { integer: true, min: 1 } },
+      numberOfGuests: { type: 'number', required: false, options: { integer: true, min: 1 } }, // Made optional for new format
       paymentMode: { type: 'string', required: false, options: { enum: ['cash', 'gcash', 'maya', 'card'] } },
-      selectedRooms: { type: 'object', required: true },
+      selectedRooms: { type: 'object', required: false }, // Made optional - either this or rooms array
+      rooms: { type: 'array', required: false }, // NEW: array of room objects with guest details
       optional: { type: 'object', required: false },
       rental: { type: 'object', required: false },
       cottage: { type: 'object', required: false },
@@ -203,6 +204,7 @@ async function postBookingHandler(request) {
       numberOfGuests,
       paymentMode,
       selectedRooms,
+      rooms: roomsArray, // NEW: rooms array format
       optional,
       rental,
       cottage,
@@ -211,10 +213,13 @@ async function postBookingHandler(request) {
       userId = null
     } = validation.data;
 
-    // Additional validation for selectedRooms
-    if (!selectedRooms || typeof selectedRooms !== 'object' || Object.keys(selectedRooms).length === 0) {
+    // Validate that either selectedRooms or roomsArray is provided
+    const hasOldFormat = selectedRooms && typeof selectedRooms === 'object' && Object.keys(selectedRooms).length > 0;
+    const hasNewFormat = roomsArray && Array.isArray(roomsArray) && roomsArray.length > 0;
+    
+    if (!hasOldFormat && !hasNewFormat) {
       return NextResponse.json(
-        { error: 'selectedRooms must be a non-empty object' },
+        { error: 'Either selectedRooms (object) or rooms (array) must be provided' },
         { status: 400 }
       );
     }
@@ -245,7 +250,11 @@ async function postBookingHandler(request) {
     const nights = Math.ceil((checkOutDate - checkInDate) / (1000 * 60 * 60 * 24)) || 1; // 24-hour blocks
 
     // Fetch room details for selected rooms
-    const roomIds = Object.keys(selectedRooms).map(id => parseInt(id));
+    // Support both old format (selectedRooms object) and new format (roomsArray)
+    const roomIds = hasNewFormat 
+      ? roomsArray.map(r => parseInt(r.roomId))
+      : Object.keys(selectedRooms).map(id => parseInt(id));
+    
     const rooms = await prisma.room.findMany({
       where: { id: { in: roomIds } }
     });
@@ -253,7 +262,10 @@ async function postBookingHandler(request) {
     // Validate room availability for the selected dates
     const now = new Date();
     for (const room of rooms) {
-      const requestedQty = selectedRooms[room.id] || 0;
+      // Get requested quantity based on format
+      const requestedQty = hasNewFormat
+        ? roomsArray.find(r => parseInt(r.roomId) === room.id)?.quantity || 0
+        : selectedRooms[room.id] || 0;
       
       // Check existing bookings that overlap with the requested dates
       const overlappingBookings = await prisma.booking.findMany({
@@ -298,19 +310,58 @@ async function postBookingHandler(request) {
     // Calculate total price
     let calculatedTotalPrice = 0;
     for (const room of rooms) {
-      const qty = selectedRooms[room.id] || 0;
+      const qty = hasNewFormat
+        ? roomsArray.find(r => parseInt(r.roomId) === room.id)?.quantity || 0
+        : selectedRooms[room.id] || 0;
       const price = typeof room.price === 'bigint' ? Number(room.price) : room.price;
       calculatedTotalPrice += price * qty * nights;
+      
+      // Add additional pax fee for new format (one-time fee, not per night)
+      if (hasNewFormat) {
+        const roomData = roomsArray.find(r => parseInt(r.roomId) === room.id);
+        if (roomData && roomData.additionalPax) {
+          calculatedTotalPrice += roomData.additionalPax * 40000; // ₱400 in cents per additional pax
+        }
+      }
+    }
+
+    // Collect amenities from the appropriate source based on format
+    let optionalAmenitiesToUse = optional || {};
+    let rentalAmenitiesToUse = rental || {};
+    
+    // For new format, aggregate amenities from all rooms
+    if (hasNewFormat) {
+      optionalAmenitiesToUse = {};
+      rentalAmenitiesToUse = {};
+      
+      for (const roomData of roomsArray) {
+        // Aggregate optional amenities
+        if (roomData.optionalAmenities) {
+          for (const [amenityId, quantity] of Object.entries(roomData.optionalAmenities)) {
+            optionalAmenitiesToUse[amenityId] = (optionalAmenitiesToUse[amenityId] || 0) + quantity;
+          }
+        }
+        
+        // Aggregate rental amenities
+        if (roomData.rentalAmenities) {
+          for (const [amenityId, selection] of Object.entries(roomData.rentalAmenities)) {
+            if (!rentalAmenitiesToUse[amenityId]) {
+              rentalAmenitiesToUse[amenityId] = { quantity: 0, hoursUsed: selection.hoursUsed || 0 };
+            }
+            rentalAmenitiesToUse[amenityId].quantity += selection.quantity || 0;
+          }
+        }
+      }
     }
 
     const optionalAmenitiesToCreate = [];
-    if (optional && Object.keys(optional).length > 0) {
-      const amenityIds = Object.keys(optional).map(id => parseInt(id));
+    if (optionalAmenitiesToUse && Object.keys(optionalAmenitiesToUse).length > 0) {
+      const amenityIds = Object.keys(optionalAmenitiesToUse).map(id => parseInt(id));
       const amenitiesDetails = await prisma.optionalAmenity.findMany({
         where: { id: { in: amenityIds } },
       });
       for (const amenity of amenitiesDetails) {
-        const qty = optional[amenity.id];
+        const qty = optionalAmenitiesToUse[amenity.id];
         optionalAmenitiesToCreate.push({
           optionalAmenityId: amenity.id,
           quantity: qty,
@@ -319,14 +370,14 @@ async function postBookingHandler(request) {
     }
 
     const rentalAmenitiesToCreate = [];
-    if (rental && Object.keys(rental).length > 0) {
-      const amenityIds = Object.keys(rental).map(id => parseInt(id));
+    if (rentalAmenitiesToUse && Object.keys(rentalAmenitiesToUse).length > 0) {
+      const amenityIds = Object.keys(rentalAmenitiesToUse).map(id => parseInt(id));
       const amenitiesDetails = await prisma.rentalAmenity.findMany({
         where: { id: { in: amenityIds } },
       });
 
       for (const amenity of amenitiesDetails) {
-        const selection = rental[amenity.id];
+        const selection = rentalAmenitiesToUse[amenity.id];
         let amenityPrice = 0;
         if (selection.hoursUsed > 0 && amenity.pricePerHour) {
           const perHour = typeof amenity.pricePerHour === 'bigint' ? Number(amenity.pricePerHour) : amenity.pricePerHour;
@@ -411,10 +462,30 @@ async function postBookingHandler(request) {
               rentalAmenities: { create: rentalAmenitiesToCreate },
               cottage: { create: cottageToCreate },
               rooms: {
-                create: rooms.map(room => ({
-                  roomId: room.id,
-                  quantity: selectedRooms[room.id] || 0,
-                })),
+                create: rooms.map(room => {
+                  if (hasNewFormat) {
+                    // New format: get data from roomsArray
+                    const roomData = roomsArray.find(r => parseInt(r.roomId) === room.id);
+                    return {
+                      roomId: room.id,
+                      quantity: roomData?.quantity || 0,
+                      adults: roomData?.adults || 1,
+                      additionalPax: roomData?.additionalPax || 0,
+                      children: roomData?.children || 0,
+                      additionalPaxFee: (roomData?.additionalPax || 0) * 40000, // ₱400 per pax in cents
+                    };
+                  } else {
+                    // Old format: minimal data, default guest values
+                    return {
+                      roomId: room.id,
+                      quantity: selectedRooms[room.id] || 0,
+                      adults: 1,
+                      additionalPax: 0,
+                      children: 0,
+                      additionalPaxFee: 0,
+                    };
+                  }
+                }),
               },
             },
             include: {

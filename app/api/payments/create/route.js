@@ -60,11 +60,33 @@ export async function POST(req) {
       return NextResponse.json({ error: `Invalid amount. Expected ₱${expectedAmount}` }, { status: 400 });
     }
 
+    // Cancel any pending payments for this booking before creating a new one
+    // This prevents duplicate payments when user switches payment methods
+    const pendingPayments = await prisma.payment.findMany({
+      where: {
+        bookingId: parseInt(bookingId),
+        status: 'Pending'
+      }
+    });
+
+    if (pendingPayments.length > 0) {
+      await prisma.payment.updateMany({
+        where: {
+          bookingId: parseInt(bookingId),
+          status: 'Pending'
+        },
+        data: {
+          status: 'Cancelled'
+        }
+      });
+      console.log(`Cancelled ${pendingPayments.length} pending payment(s) for booking ${bookingId}`);
+    }
+
     // Convert to centavos (PayMongo requires this)
     const amountInCents = Math.round(amount * 100);
 
     // Create a Source for GCash/PayMaya in PayMongo
-    const pmType = paymentMethod === 'gcash' ? 'gcash' : 'paymaya';
+    const pmType = paymentMethod === 'gcash' ? 'gcash' : 'grab_pay';
     const secretKey = process.env.PAYMONGO_SECRET_KEY;
     if (!secretKey) {
       return NextResponse.json({ error: 'PAYMONGO_SECRET_KEY is not configured' }, { status: 500 });

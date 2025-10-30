@@ -11,7 +11,7 @@ import OptionalAmenitiesSelector from '../../components/OptionalAmenitiesSelecto
 import RentalAmenitiesSelector from '../../components/RentalAmenitiesSelector';
 import { useNavigationGuard } from '../../hooks/useNavigationGuard.simple';
 import { useNavigationContext } from '../../context/NavigationContext';
-import { NavigationConfirmationModal, ThreeDRoomViewerModal } from '../../components/CustomModals';
+import { NavigationConfirmationModal } from '../../components/CustomModals';
 import DataPrivacyModal from '../../components/DataPrivacyModal';
 
 // Timezone-safe date formatting utility
@@ -97,10 +97,6 @@ export default function BookingPage() {
 
   // Room images modal state
   const [roomImagesModal, setRoomImagesModal] = useState({ open: false, selectedRoomId: null, selectedImage: null });
-  
-  // 3D Viewer modal state
-  const [threeDViewerModal, setThreeDViewerModal] = useState({ open: false, roomType: null });
-  
   // Cooldown UI state
   const [cooldownUntil, setCooldownUntil] = useState(null);
   const [cooldownTimer, setCooldownTimer] = useState('');
@@ -476,13 +472,13 @@ export default function BookingPage() {
   // --- Helpers for validation & locking ---
   // compute total capacity from selectedRooms or rooms array
   const computeTotalCapacity = () => {
-    // Use new format if available - each room instance is separate
+    // Use new format if available
     if (formData.rooms && formData.rooms.length > 0) {
       return formData.rooms.reduce((sum, roomData) => {
         const r = availableRooms.find(room => room.id == roomData.roomId);
         if (r) {
-          // Each room instance has its own capacity calculation
-          const roomCapacity = roomData.adults + roomData.additionalPax;
+          // Capacity = (adults + additionalPax) × quantity
+          const roomCapacity = (roomData.adults + roomData.additionalPax) * roomData.quantity;
           return sum + roomCapacity;
         }
         return sum;
@@ -614,13 +610,9 @@ export default function BookingPage() {
   const handleAddRoom = (room) => {
     const capacity = getRoomCapacity(room.type);
     setFormData(prev => {
-      // Count how many instances of this room type already exist
-      const existingInstances = prev.rooms.filter(r => r.roomId === room.id);
-      const instanceNumber = existingInstances.length + 1;
-      
       const newRoom = {
         roomId: room.id,
-        instanceNumber, // NEW: Track which instance this is (1, 2, 3, etc.)
+        quantity: 1,
         adults: 1,
         additionalPax: 0,
         children: 0,
@@ -632,26 +624,43 @@ export default function BookingPage() {
         rooms: [...prev.rooms, newRoom]
       };
     });
-    // Auto-expand the newly added room instance
-    setExpandedRooms(prev => ({ ...prev, [`${room.id}-${prev.rooms ? prev.rooms.filter(r => r.roomId === room.id).length + 1 : 1}`]: true }));
+    // Auto-expand the newly added room
+    setExpandedRooms(prev => ({ ...prev, [room.id]: true }));
   };
 
-  const handleRemoveRoom = (roomId, instanceNumber) => {
+  const handleRemoveRoom = (roomId) => {
     setFormData(prev => ({
       ...prev,
-      rooms: prev.rooms.filter(r => !(r.roomId === roomId && r.instanceNumber === instanceNumber))
+      rooms: prev.rooms.filter(r => r.roomId !== roomId)
     }));
     setExpandedRooms(prev => {
       const updated = { ...prev };
-      delete updated[`${roomId}-${instanceNumber}`];
+      delete updated[roomId];
       return updated;
     });
   };
 
-  const handleRoomGuestChange = (roomId, instanceNumber, field, value) => {
+  const handleRoomQuantityChangeNew = (roomId, delta) => {
     setFormData(prev => {
       const updatedRooms = prev.rooms.map(r => {
-        if (r.roomId === roomId && r.instanceNumber === instanceNumber) {
+        if (r.roomId === roomId) {
+          const newQty = Math.max(1, r.quantity + delta);
+          const room = availableRooms.find(ar => ar.id === roomId);
+          if (room && newQty > room.remaining) {
+            return r; // Don't update if exceeds remaining
+          }
+          return { ...r, quantity: newQty };
+        }
+        return r;
+      });
+      return { ...prev, rooms: updatedRooms };
+    });
+  };
+
+  const handleRoomGuestChange = (roomId, field, value) => {
+    setFormData(prev => {
+      const updatedRooms = prev.rooms.map(r => {
+        if (r.roomId === roomId) {
           const room = availableRooms.find(ar => ar.id === roomId);
           const capacity = room ? getRoomCapacity(room.type) : { base: 10, additionalPaxMax: 2 };
           
@@ -680,10 +689,10 @@ export default function BookingPage() {
     });
   };
 
-  const handleRoomAmenityChange = (roomId, instanceNumber, amenityType, amenityId, value) => {
+  const handleRoomAmenityChange = (roomId, amenityType, amenityId, value) => {
     setFormData(prev => {
       const updatedRooms = prev.rooms.map(r => {
-        if (r.roomId === roomId && r.instanceNumber === instanceNumber) {
+        if (r.roomId === roomId) {
           const updatedRoom = { ...r };
           
           // If amenityId is null, value is the entire amenities object
@@ -719,11 +728,10 @@ export default function BookingPage() {
     });
   };
 
-  const toggleRoomExpansion = (roomId, instanceNumber) => {
-    const key = `${roomId}-${instanceNumber}`;
+  const toggleRoomExpansion = (roomId) => {
     setExpandedRooms(prev => ({
       ...prev,
-      [key]: !prev[key]
+      [roomId]: !prev[roomId]
     }));
   };
 
@@ -873,54 +881,72 @@ export default function BookingPage() {
                       <p className="card-subtitle">Select dates, pick rooms, and customize guest details.</p>
                     </div>
                     <div className="card-body">
-                      {/* Booking Calendar */}
-                      <div style={{ marginBottom: '2rem' }}>
-                        <label className="label" style={{ marginBottom: '1rem', display: 'block' }}>Select Your Dates</label>
-                        <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-                          <div style={{ flex: '0 0 350px' }}>
-                            <BookingCalendar
-                              availabilityData={availabilityData}
-                              onDateChange={({ checkInDate, checkOutDate }) => {
-                                setFormData(prev => ({
-                                  ...prev,
-                                  checkIn: checkInDate ? formatDate(checkInDate) : '',
-                                  checkOut: checkOutDate ? formatDate(checkOutDate) : ''
-                                }));
-                              }}
-                              checkIn={formData.checkIn ? new Date(formData.checkIn) : null}
-                              checkOut={formData.checkOut ? new Date(formData.checkOut) : null}
-                            />
-                          </div>
-                          <div style={{ flex: '1', minWidth: '250px' }}>
-                            <div style={{ 
-                              background: '#f9fafb', 
-                              padding: '1.5rem', 
-                              borderRadius: '0.75rem',
-                              border: '1px solid #e5e7eb'
-                            }}>
-                              <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.125rem', fontWeight: '600', color: '#111827' }}>
-                                Selected Dates
-                              </h3>
-                              <div style={{ marginBottom: '1rem' }}>
-                                <p style={{ margin: '0 0 0.25rem 0', fontSize: '0.875rem', fontWeight: '500', color: '#6b7280' }}>
-                                  Check-in
-                                </p>
-                                <p style={{ margin: 0, fontSize: '1rem', fontWeight: '600', color: '#111827' }}>
-                                  {formData.checkIn ? new Date(formData.checkIn).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) : 'Select date'}
-                                </p>
-                                <small style={{ color: '#6b7280', fontSize: '0.75rem' }}>Check-in time: 2:00 PM</small>
-                              </div>
-                              <div>
-                                <p style={{ margin: '0 0 0.25rem 0', fontSize: '0.875rem', fontWeight: '500', color: '#6b7280' }}>
-                                  Check-out
-                                </p>
-                                <p style={{ margin: 0, fontSize: '1rem', fontWeight: '600', color: '#111827' }}>
-                                  {formData.checkOut ? new Date(formData.checkOut).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) : 'Select date'}
-                                </p>
-                                <small style={{ color: '#6b7280', fontSize: '0.75rem' }}>Check-out time: 12:00 PM</small>
-                              </div>
-                            </div>
-                          </div>
+                      <div className="form-grid" style={{ marginBottom: '2rem' }}>
+                        <div className="form-block">
+                          <label htmlFor="checkIn" className="label">Check-in Date</label>
+                          <input 
+                            type="date" 
+                            id="checkIn"
+                            name="checkIn"
+                            value={formData.checkIn}
+                            min={formatDate(new Date())}
+                            onChange={(e) => {
+                              setFormData(prev => ({ ...prev, checkIn: e.target.value }));
+                            }}
+                            required
+                            style={{ 
+                              padding: '0.75rem', 
+                              borderRadius: '0.5rem', 
+                              border: '1px solid #d1d5db',
+                              fontSize: '1rem',
+                              width: '100%'
+                            }}
+                          />
+                          <small style={{ color: '#6b7280', marginTop: '0.25rem', display: 'block' }}>
+                            Check-in time: 2:00 PM
+                          </small>
+                        </div>
+                        <div className="form-block">
+                          <label htmlFor="checkOut" className="label">Check-out Date</label>
+                          <input 
+                            type="date" 
+                            id="checkOut"
+                            name="checkOut"
+                            value={formData.checkOut}
+                            min={formData.checkIn || formatDate(new Date())}
+                            onChange={(e) => {
+                              setFormData(prev => ({ ...prev, checkOut: e.target.value }));
+                            }}
+                            required
+                            style={{ 
+                              padding: '0.75rem', 
+                              borderRadius: '0.5rem', 
+                              border: '1px solid #d1d5db',
+                              fontSize: '1rem',
+                              width: '100%'
+                            }}
+                          />
+                          <small style={{ color: '#6b7280', marginTop: '0.25rem', display: 'block' }}>
+                            Check-out time: 12:00 PM
+                          </small>
+                        </div>
+                        <div className="form-block">
+                          <label htmlFor="guests" className="label">Total Guests</label>
+                          <input 
+                            id="guests" 
+                            aria-label="Total guests" 
+                            type="number" 
+                            name="guests" 
+                            min="1" 
+                            max="80" 
+                            step="1" 
+                            value={formData.guests} 
+                            onChange={handleChange} 
+                            required 
+                          />
+                          <small style={{ color: '#6b7280', marginTop: '0.25rem', display: 'block' }}>
+                            Total number of people in your party
+                          </small>
                         </div>
                       </div>
 
@@ -956,7 +982,13 @@ export default function BookingPage() {
                               <div 
                                 key={room.id} 
                                 className={`room-option ${isInSelectedRooms ? 'in-cart' : ''} ${isFull ? 'disabled' : ''}`}
-                                style={{ cursor: 'default', position: 'relative' }}
+                                onClick={() => {
+                                  if (!isFull && !isInSelectedRooms) handleAddRoom(room);
+                                }}
+                                role="button"
+                                tabIndex={0}
+                                aria-disabled={isFull || isInSelectedRooms}
+                                style={{ cursor: (isFull || isInSelectedRooms) ? 'not-allowed' : 'pointer' }}
                               >
                                 {isInSelectedRooms && (
                                   <div className="selected-check" aria-hidden="true">
@@ -987,87 +1019,6 @@ export default function BookingPage() {
                                       <span className="tag price">₱{(room.price / 100).toLocaleString()} / night</span>
                                     ) : null}
                                   </div>
-                                  
-                                  {/* Action Buttons */}
-                                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setRoomImagesModal({ open: true, selectedRoomId: room.id, selectedImage: room.image });
-                                      }}
-                                      style={{
-                                        flex: '1',
-                                        minWidth: '90px',
-                                        padding: '0.5rem 0.75rem',
-                                        background: '#6b7280',
-                                        color: '#fff',
-                                        border: 'none',
-                                        borderRadius: '0.375rem',
-                                        fontSize: '0.75rem',
-                                        fontWeight: '500',
-                                        cursor: 'pointer',
-                                        transition: 'background 0.2s'
-                                      }}
-                                      onMouseEnter={(e) => e.target.style.background = '#4b5563'}
-                                      onMouseLeave={(e) => e.target.style.background = '#6b7280'}
-                                    >
-                                      View Images
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setThreeDViewerModal({ open: true, roomType: room.type });
-                                      }}
-                                      style={{
-                                        flex: '1',
-                                        minWidth: '90px',
-                                        padding: '0.5rem 0.75rem',
-                                        background: '#8b5cf6',
-                                        color: '#fff',
-                                        border: 'none',
-                                        borderRadius: '0.375rem',
-                                        fontSize: '0.75rem',
-                                        fontWeight: '500',
-                                        cursor: 'pointer',
-                                        transition: 'background 0.2s'
-                                      }}
-                                      onMouseEnter={(e) => e.target.style.background = '#7c3aed'}
-                                      onMouseLeave={(e) => e.target.style.background = '#8b5cf6'}
-                                    >
-                                      View in 3D
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (!isFull && !isInSelectedRooms) handleAddRoom(room);
-                                      }}
-                                      disabled={isFull || isInSelectedRooms}
-                                      style={{
-                                        flex: '1',
-                                        minWidth: '90px',
-                                        padding: '0.5rem 0.75rem',
-                                        background: (isFull || isInSelectedRooms) ? '#e5e7eb' : '#2563eb',
-                                        color: (isFull || isInSelectedRooms) ? '#9ca3af' : '#fff',
-                                        border: 'none',
-                                        borderRadius: '0.375rem',
-                                        fontSize: '0.75rem',
-                                        fontWeight: '500',
-                                        cursor: (isFull || isInSelectedRooms) ? 'not-allowed' : 'pointer',
-                                        transition: 'background 0.2s'
-                                      }}
-                                      onMouseEnter={(e) => {
-                                        if (!isFull && !isInSelectedRooms) e.target.style.background = '#1d4ed8';
-                                      }}
-                                      onMouseLeave={(e) => {
-                                        if (!isFull && !isInSelectedRooms) e.target.style.background = '#2563eb';
-                                      }}
-                                    >
-                                      {isInSelectedRooms ? 'Selected' : isFull ? 'Full' : 'Select Room'}
-                                    </button>
-                                  </div>
                                 </div>
                               </div>
                             );
@@ -1089,15 +1040,11 @@ export default function BookingPage() {
                               if (!room) return null;
                               
                               const capacity = getRoomCapacity(room.type);
-                              const key = `${room.id}-${roomData.instanceNumber}`;
-                              const isExpanded = expandedRooms[key];
-                              
-                              // Get room type name without number
-                              const roomTypeName = room.type === 'LOFT' ? 'Loft' : room.type === 'TEPEE' ? 'Tepee' : room.type === 'VILLA' ? 'Villa' : room.name;
+                              const isExpanded = expandedRooms[room.id];
                               
                               return (
                                 <div 
-                                  key={key} 
+                                  key={room.id} 
                                   style={{ 
                                     border: '2px solid #2563eb',
                                     borderRadius: '0.75rem',
@@ -1116,14 +1063,14 @@ export default function BookingPage() {
                                       alignItems: 'center',
                                       cursor: 'pointer'
                                     }}
-                                    onClick={() => toggleRoomExpansion(room.id, roomData.instanceNumber)}
+                                    onClick={() => toggleRoomExpansion(room.id)}
                                   >
                                     <div>
                                       <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: '600' }}>
-                                        {roomTypeName} {roomData.instanceNumber}
+                                        {room.name}
                                       </h3>
                                       <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.875rem', opacity: 0.9 }}>
-                                        {roomData.adults} Adult{roomData.adults !== 1 ? 's' : ''}{roomData.additionalPax > 0 ? ` + ${roomData.additionalPax} Extra` : ''}{roomData.children > 0 ? ` + ${roomData.children} ${roomData.children === 1 ? 'Child' : 'Children'}` : ''}
+                                        Quantity: {roomData.quantity} | Adults: {roomData.adults} | Additional Pax: {roomData.additionalPax} | Children: {roomData.children}
                                       </p>
                                     </div>
                                     <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
@@ -1131,21 +1078,18 @@ export default function BookingPage() {
                                         type="button"
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          handleRemoveRoom(room.id, roomData.instanceNumber);
+                                          handleRemoveRoom(room.id);
                                         }}
                                         style={{
-                                          background: 'rgba(239, 68, 68, 0.9)',
+                                          background: 'rgba(255,255,255,0.2)',
                                           border: 'none',
                                           borderRadius: '0.375rem',
                                           padding: '0.5rem 1rem',
                                           color: '#fff',
                                           cursor: 'pointer',
                                           fontSize: '0.875rem',
-                                          fontWeight: '500',
-                                          transition: 'background 0.2s'
+                                          fontWeight: '500'
                                         }}
-                                        onMouseEnter={(e) => e.target.style.background = 'rgba(220, 38, 38, 1)'}
-                                        onMouseLeave={(e) => e.target.style.background = 'rgba(239, 68, 68, 0.9)'}
                                       >
                                         Remove
                                       </button>
@@ -1167,23 +1111,72 @@ export default function BookingPage() {
                                   {/* Expanded Content */}
                                   {isExpanded && (
                                     <div style={{ padding: '1.5rem' }}>
+                                      {/* Quantity Controls */}
+                                      <div style={{ marginBottom: '1.5rem' }}>
+                                        <label style={{ display: 'block', fontWeight: '600', marginBottom: '0.5rem', color: '#374151' }}>
+                                          Number of {room.name} Rooms
+                                        </label>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleRoomQuantityChangeNew(room.id, -1)}
+                                            disabled={roomData.quantity <= 1}
+                                            style={{
+                                              padding: '0.5rem 1rem',
+                                              background: roomData.quantity <= 1 ? '#e5e7eb' : '#2563eb',
+                                              color: roomData.quantity <= 1 ? '#9ca3af' : '#fff',
+                                              border: 'none',
+                                              borderRadius: '0.375rem',
+                                              cursor: roomData.quantity <= 1 ? 'not-allowed' : 'pointer',
+                                              fontSize: '1.125rem',
+                                              fontWeight: '600'
+                                            }}
+                                          >
+                                            −
+                                          </button>
+                                          <span style={{ fontSize: '1.25rem', fontWeight: '600', minWidth: '2rem', textAlign: 'center' }}>
+                                            {roomData.quantity}
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleRoomQuantityChangeNew(room.id, 1)}
+                                            disabled={roomData.quantity >= room.remaining}
+                                            style={{
+                                              padding: '0.5rem 1rem',
+                                              background: roomData.quantity >= room.remaining ? '#e5e7eb' : '#2563eb',
+                                              color: roomData.quantity >= room.remaining ? '#9ca3af' : '#fff',
+                                              border: 'none',
+                                              borderRadius: '0.375rem',
+                                              cursor: roomData.quantity >= room.remaining ? 'not-allowed' : 'pointer',
+                                              fontSize: '1.125rem',
+                                              fontWeight: '600'
+                                            }}
+                                          >
+                                            +
+                                          </button>
+                                          <span style={{ marginLeft: '1rem', color: '#6b7280', fontSize: '0.875rem' }}>
+                                            ({room.remaining} available)
+                                          </span>
+                                        </div>
+                                      </div>
+
                                       {/* Guest Assignment */}
                                       <div style={{ marginBottom: '1.5rem' }}>
                                         <h4 style={{ margin: '0 0 1rem 0', fontSize: '1rem', fontWeight: '600', color: '#374151' }}>
-                                          Guest Details
+                                          Guest Details (Per Room)
                                         </h4>
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
                                           <div>
-                                            <label htmlFor={`adults-${key}`} style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.375rem', color: '#4b5563' }}>
+                                            <label htmlFor={`adults-${room.id}`} style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.375rem', color: '#4b5563' }}>
                                               Adults (1-{capacity.base})
                                             </label>
                                             <input
                                               type="number"
-                                              id={`adults-${key}`}
+                                              id={`adults-${room.id}`}
                                               min="1"
                                               max={capacity.base}
                                               value={roomData.adults}
-                                              onChange={(e) => handleRoomGuestChange(room.id, roomData.instanceNumber, 'adults', e.target.value)}
+                                              onChange={(e) => handleRoomGuestChange(room.id, 'adults', e.target.value)}
                                               style={{
                                                 width: '100%',
                                                 padding: '0.5rem',
@@ -1194,16 +1187,16 @@ export default function BookingPage() {
                                             />
                                           </div>
                                           <div>
-                                            <label htmlFor={`additionalPax-${key}`} style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.375rem', color: '#4b5563' }}>
+                                            <label htmlFor={`additionalPax-${room.id}`} style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.375rem', color: '#4b5563' }}>
                                               Additional Pax (0-{capacity.additionalPaxMax}) +₱400 each
                                             </label>
                                             <input
                                               type="number"
-                                              id={`additionalPax-${key}`}
+                                              id={`additionalPax-${room.id}`}
                                               min="0"
                                               max={capacity.additionalPaxMax}
                                               value={roomData.additionalPax}
-                                              onChange={(e) => handleRoomGuestChange(room.id, roomData.instanceNumber, 'additionalPax', e.target.value)}
+                                              onChange={(e) => handleRoomGuestChange(room.id, 'additionalPax', e.target.value)}
                                               style={{
                                                 width: '100%',
                                                 padding: '0.5rem',
@@ -1214,16 +1207,16 @@ export default function BookingPage() {
                                             />
                                           </div>
                                           <div>
-                                            <label htmlFor={`children-${key}`} style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.375rem', color: '#4b5563' }}>
+                                            <label htmlFor={`children-${room.id}`} style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.375rem', color: '#4b5563' }}>
                                               Children (0-{roomData.adults}) Free
                                             </label>
                                             <input
                                               type="number"
-                                              id={`children-${key}`}
+                                              id={`children-${room.id}`}
                                               min="0"
                                               max={roomData.adults}
                                               value={roomData.children}
-                                              onChange={(e) => handleRoomGuestChange(room.id, roomData.instanceNumber, 'children', e.target.value)}
+                                              onChange={(e) => handleRoomGuestChange(room.id, 'children', e.target.value)}
                                               style={{
                                                 width: '100%',
                                                 padding: '0.5rem',
@@ -1253,7 +1246,7 @@ export default function BookingPage() {
                                           <OptionalAmenitiesSelector
                                             selectedAmenities={roomData.optionalAmenities || {}}
                                             onAmenitiesChange={(newOptional) => {
-                                              handleRoomAmenityChange(room.id, roomData.instanceNumber, 'optional', null, newOptional);
+                                              handleRoomAmenityChange(room.id, 'optional', null, newOptional);
                                             }}
                                           />
                                         </div>
@@ -1266,7 +1259,7 @@ export default function BookingPage() {
                                           <RentalAmenitiesSelector
                                             selectedAmenities={roomData.rentalAmenities || {}}
                                             onAmenitiesChange={(newRental) => {
-                                              handleRoomAmenityChange(room.id, roomData.instanceNumber, 'rental', null, newRental);
+                                              handleRoomAmenityChange(room.id, 'rental', null, newRental);
                                             }}
                                           />
                                         </div>
@@ -1295,6 +1288,17 @@ export default function BookingPage() {
                         </div>
                       )}
 
+                      {(() => {
+                        const totalCapacity = computeTotalCapacity();
+                        const isSufficient = totalCapacity >= formData.guests;
+                        const hasRooms = formData.rooms.length > 0;
+                        return !isSufficient && hasRooms ? (
+                          <div className="capacity-warning" role="alert" style={{ marginTop: '1rem' }}>
+                            Selected rooms can accommodate {totalCapacity} guests, but you have {formData.guests} guests. Please add more rooms or adjust guest counts.
+                          </div>
+                        ) : null;
+                      })()}
+
                       {roomLockWarning && (
                         <div className="room-lock-warning" role="status">{roomLockWarning}</div>
                       )}
@@ -1318,20 +1322,15 @@ export default function BookingPage() {
                           <ul className="kv">
                             <li><span>Check-in</span><strong>{new Date(formData.checkIn).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</strong></li>
                             <li><span>Check-out</span><strong>{new Date(formData.checkOut).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</strong></li>
-                            <li><span>Total Guests</span><strong>{computeTotalCapacity()}</strong></li>
+                            <li><span>Guests</span><strong>{formData.guests}</strong></li>
                           </ul>
                         </div>
                         <div className="review-section">
                           <h3 className="section-title">Rooms</h3>
                           <ul className="bulleted">
-                            {formData.rooms.map((roomData) => {
-                              const room = availableRooms.find(r => r.id === roomData.roomId);
-                              const roomTypeName = room?.type === 'LOFT' ? 'Loft' : room?.type === 'TEPEE' ? 'Tepee' : room?.type === 'VILLA' ? 'Villa' : room?.name;
-                              return (
-                                <li key={`${roomData.roomId}-${roomData.instanceNumber}`}>
-                                  {roomTypeName} {roomData.instanceNumber}: {roomData.adults} adult{roomData.adults !== 1 ? 's' : ''}{roomData.additionalPax > 0 ? `, ${roomData.additionalPax} extra` : ''}{roomData.children > 0 ? `, ${roomData.children} ${roomData.children === 1 ? 'child' : 'children'}` : ''}
-                                </li>
-                              );
+                            {Object.entries(formData.selectedRooms).map(([roomId, qty]) => {
+                              const room = availableRooms.find(r => r.id == roomId);
+                              return <li key={roomId}>{qty} × {room?.name}</li>;
                             })}
                           </ul>
                         </div>
@@ -1359,20 +1358,13 @@ export default function BookingPage() {
                         <div className="review-section">
                           <h3 className="section-title">Price breakdown</h3>
                           <ul className="bulleted">
-                            {formData.rooms.map((roomData) => {
-                              const room = availableRooms.find(r => r.id === roomData.roomId);
+                            {Object.entries(formData.selectedRooms).map(([roomId, qty]) => {
+                              const room = availableRooms.find(r => r.id == roomId);
                               const nights = formData.checkIn && formData.checkOut ? Math.max(1, (new Date(formData.checkOut) - new Date(formData.checkIn)) / (1000 * 60 * 60 * 24)) : 1;
-                              const roomTotal = room ? (room.price / 100) * nights : 0;
-                              const roomTypeName = room?.type === 'LOFT' ? 'Loft' : room?.type === 'TEPEE' ? 'Tepee' : room?.type === 'VILLA' ? 'Villa' : room?.name;
-                              const additionalPaxFee = roomData.additionalPax * 400 * nights;
+                              const roomTotal = room ? (room.price / 100) * qty * nights : 0;
                               return (
-                                <li key={`${roomData.roomId}-${roomData.instanceNumber}`}>
-                                  {roomTypeName} {roomData.instanceNumber} for {nights} night(s): <strong>₱{roomTotal.toLocaleString()}</strong>
-                                  {roomData.additionalPax > 0 && (
-                                    <div style={{ fontSize: '0.9em', color: '#6b7280', marginLeft: '1rem' }}>
-                                      + {roomData.additionalPax} extra guest(s): ₱{additionalPaxFee.toLocaleString()}
-                                    </div>
-                                  )}
+                                <li key={roomId}>
+                                  {qty} × {room?.name} for {nights} night(s): <strong>₱{roomTotal.toLocaleString()}</strong>
                                 </li>
                               );
                             })}
@@ -1413,7 +1405,7 @@ export default function BookingPage() {
                             <p><strong>Note:</strong> Upon submission, your rooms will be held for 15 minutes. Complete the reservation fee payment within this time to avoid automatic cancellation.</p>
                           </div>
                           {(() => {
-                            const roomsCount = formData.rooms.length;
+                            const roomsCount = Object.values(formData.selectedRooms || {}).reduce((sum, qty) => sum + (Number(qty) || 0), 0);
                             const reservationFeeNow = roomsCount * 2000;
                             return (
                               <div className="info-banner info-green">
@@ -1433,7 +1425,7 @@ export default function BookingPage() {
               </div>
 
               {/* Data Privacy Checkbox - only on final step */}
-              {step === 2 && (
+              {step === 3 && (
                 <div className="privacy-container">
                   <input
                     type="checkbox"
@@ -1457,7 +1449,7 @@ export default function BookingPage() {
 
               <div className="navigation-buttons">
                 {step > 1 && <button type="button" onClick={handleBack} className="btn-secondary">Back</button>}
-                {step < 2 && (
+                {step < 3 && (
                   <button type="button" className="btn-next" onClick={handleNext} disabled={
                     !formData.checkIn ||
                     !formData.checkOut ||
@@ -1469,9 +1461,9 @@ export default function BookingPage() {
                     })())
                   }>Next</button>
                 )}
-                {step === 2 && (
+                {step === 3 && (
                   <div style={{ position: 'relative' }}>
-                    <SubmitButton disabled={!formData.checkIn || formData.guests < 1 || formData.rooms.length === 0 || !!cooldownUntil}>Submit Booking</SubmitButton>
+                    <SubmitButton disabled={!formData.checkIn || formData.guests < 1 || Object.keys(formData.selectedRooms).length === 0 || !!cooldownUntil}>Submit Booking</SubmitButton>
                     {!!cooldownUntil && (
                       <div className="cooldown" title={`You have failed to pay multiple times. Please wait until the cooldown ends.`}>
                         You have failed to pay for your booking multiple times. Please wait {cooldownTimer || '...'} before trying again.
@@ -1487,7 +1479,7 @@ export default function BookingPage() {
                   <span className="mobile-cta-label">Total</span>
                   <strong className="mobile-cta-amount">₱{(totalPrice / 100).toLocaleString()}</strong>
                 </div>
-                {step < 2 ? (
+                {step < 3 ? (
                   <button
                     type="button"
                     className="btn-next"
@@ -1504,49 +1496,33 @@ export default function BookingPage() {
                     }
                   >Continue</button>
                 ) : (
-                  <SubmitButton disabled={!formData.checkIn || formData.guests < 1 || formData.rooms.length === 0 || !!cooldownUntil}>Submit</SubmitButton>
+                  <SubmitButton disabled={!formData.checkIn || formData.guests < 1 || Object.keys(formData.selectedRooms).length === 0 || !!cooldownUntil}>Submit</SubmitButton>
                 )}
               </div>
             </form>
           )}
         </div>
 
-        {/* Summary aside - Hide in review step */}
-        {step !== 2 && (
+        {/* Summary aside */}
         <aside className="summary" aria-label="Booking summary">
           <div className="summary-card">
             <h3 className="summary-title">Your Summary</h3>
             <ul className="kv">
               <li><span>Check-in</span><strong>{formData.checkIn ? new Date(formData.checkIn).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</strong></li>
               <li><span>Check-out</span><strong>{formData.checkOut ? new Date(formData.checkOut).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</strong></li>
+              <li><span>Guests</span><strong>{formData.guests}</strong></li>
             </ul>
             <div className="summary-rooms">
               <span className="summary-sub">Rooms</span>
-              {formData.rooms.length === 0 ? (
+              {Object.keys(formData.selectedRooms).length === 0 ? (
                 <p className="muted">No rooms selected yet.</p>
               ) : (
                 <ul className="bulleted small">
-                  {formData.rooms.map((roomData) => {
-                    const room = availableRooms.find(r => r.id === roomData.roomId);
-                    const roomTypeName = room?.type === 'LOFT' ? 'Loft' : room?.type === 'TEPEE' ? 'Tepee' : room?.type === 'VILLA' ? 'Villa' : room?.name;
-                    return (
-                      <li key={`${roomData.roomId}-${roomData.instanceNumber}`}>
-                        {roomTypeName} {roomData.instanceNumber}: {roomData.adults}A{roomData.additionalPax > 0 ? `+${roomData.additionalPax}` : ''}{roomData.children > 0 ? `, ${roomData.children}C` : ''}
-                      </li>
-                    );
+                  {Object.entries(formData.selectedRooms).map(([roomId, qty]) => {
+                    const room = availableRooms.find(r => r.id == roomId);
+                    return <li key={roomId}>{qty} × {room?.name}</li>;
                   })}
                 </ul>
-              )}
-              {formData.rooms.length > 0 && (
-                <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid #e5e7eb' }}>
-                  <small style={{ color: '#6b7280', fontSize: '0.75rem' }}>
-                    Total: {formData.rooms.reduce((sum, r) => sum + r.adults, 0)} Adults
-                    {formData.rooms.reduce((sum, r) => sum + r.additionalPax, 0) > 0 && 
-                      ` + ${formData.rooms.reduce((sum, r) => sum + r.additionalPax, 0)} Extra`}
-                    {formData.rooms.reduce((sum, r) => sum + r.children, 0) > 0 && 
-                      `, ${formData.rooms.reduce((sum, r) => sum + r.children, 0)} Children`}
-                  </small>
-                </div>
               )}
             </div>
 
@@ -1557,7 +1533,6 @@ export default function BookingPage() {
             <div className="summary-note">No charges yet. You’ll pay a reservation fee at checkout.</div>
           </div>
         </aside>
-        )}
       </div>
 
       {showPendingPrompt && pendingBooking && (
@@ -3130,78 +3105,6 @@ export default function BookingPage() {
         onClose={() => setShowDataPrivacyModal(false)}
         onAccept={() => setDataPrivacyAccepted(true)}
       />
-
-      {/* 3D Room Viewer Modal */}
-      <ThreeDRoomViewerModal
-        show={threeDViewerModal.open}
-        onClose={() => setThreeDViewerModal({ open: false, roomType: null })}
-        roomType={threeDViewerModal.roomType}
-      />
-
-      {/* Room Images Modal */}
-      {roomImagesModal.open && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            backgroundColor: 'rgba(0,0,0,0.8)',
-            backdropFilter: 'blur(5px)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 1000,
-            padding: '20px'
-          }}
-          onClick={() => setRoomImagesModal({ open: false, selectedRoomId: null, selectedImage: null })}
-        >
-          <div
-            style={{
-              position: 'relative',
-              maxWidth: '90vw',
-              maxHeight: '90vh',
-              backgroundColor: '#fff',
-              borderRadius: '12px',
-              overflow: 'hidden'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setRoomImagesModal({ open: false, selectedRoomId: null, selectedImage: null })}
-              style={{
-                position: 'absolute',
-                top: '10px',
-                right: '10px',
-                background: 'rgba(0,0,0,0.5)',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '50%',
-                width: '40px',
-                height: '40px',
-                cursor: 'pointer',
-                fontSize: '24px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 10
-              }}
-            >
-              ×
-            </button>
-            <img
-              src={roomImagesModal.selectedImage || '/images/default.jpg'}
-              alt="Room"
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'contain'
-              }}
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

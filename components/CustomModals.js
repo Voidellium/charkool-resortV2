@@ -1,6 +1,13 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { Bell, X, Check, AlertCircle, Info, CalendarCheck2, CreditCard, Printer } from 'lucide-react';
+import dynamic from 'next/dynamic';
+
+// Dynamically import 3D viewer to avoid SSR issues
+const EnhancedThreeDModelViewer = dynamic(
+  () => import('./EnhancedThreeDModelViewer'),
+  { ssr: false }
+);
 
 // Global modal styles for blur and centering
 // Add this at the top level of the file so it applies to all modals
@@ -1661,6 +1668,151 @@ export function NavigationConfirmationModal({
             from {
               opacity: 0;
               transform: scale(0.9) translateY(-10px);
+            }
+            to {
+              opacity: 1;
+              transform: scale(1) translateY(0);
+            }
+          }
+        `}</style>
+      </div>
+    </div>
+  );
+}
+// 3D Room Viewer Modal for interior views
+export function ThreeDRoomViewerModal({ show, onClose, roomType }) {
+  if (!show) return null;
+
+  // Map room types to their interior model paths
+  const getModelPath = (type) => {
+    switch (type) {
+      case 'LOFT':
+        return '/models/Interior_Loft.glb';
+      case 'TEPEE':
+        return '/models/Interior_Tepee.glb';
+      case 'VILLA':
+        return '/models/Interior_Villa.glb';
+      default:
+        return null;
+    }
+  };
+
+  const modelPath = getModelPath(roomType);
+  const roomName = roomType ? roomType.charAt(0) + roomType.slice(1).toLowerCase() : 'Room';
+
+  return (
+    <div 
+      className="modal-overlay fade-in" 
+      style={{ zIndex: 1300 }}
+      onClick={onClose}
+    >
+      <ModalGlobalStyles />
+      <div 
+        className="modal-content" 
+        onClick={(e) => e.stopPropagation()}
+        style={{ 
+          background: 'linear-gradient(135deg, #febe52 0%, #ebd591 100%)', 
+          padding: 24, 
+          borderRadius: 16, 
+          width: '90%',
+          maxWidth: 1000,
+          height: '80vh',
+          maxHeight: 700,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.2)', 
+          position: 'relative',
+          display: 'flex',
+          flexDirection: 'column',
+          animation: 'slideIn 0.3s ease-out'
+        }}
+      >
+        <button 
+          style={{ 
+            position: 'absolute', 
+            top: 16, 
+            right: 16, 
+            fontSize: 28, 
+            background: 'rgba(255,255,255,0.9)', 
+            border: 'none', 
+            cursor: 'pointer', 
+            color: '#6b4700',
+            width: 36,
+            height: 36,
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontWeight: 'bold',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+            zIndex: 10,
+            transition: 'all 0.2s ease'
+          }} 
+          onClick={onClose}
+          onMouseEnter={(e) => {
+            e.target.style.transform = 'scale(1.1)';
+            e.target.style.background = 'rgba(255,255,255,1)';
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.transform = 'scale(1)';
+            e.target.style.background = 'rgba(255,255,255,0.9)';
+          }}
+        >
+          �
+        </button>
+
+        <h2 style={{ 
+          margin: '0 0 16px 0', 
+          color: '#6b4700', 
+          fontWeight: 700,
+          fontSize: 24,
+          textAlign: 'center'
+        }}>
+          {roomName} Interior - 3D View
+        </h2>
+
+        <div style={{
+          flex: 1,
+          background: '#fff',
+          borderRadius: 12,
+          overflow: 'hidden',
+          boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.1)',
+          position: 'relative'
+        }}>
+          {modelPath ? (
+            <EnhancedThreeDModelViewer 
+              modelUrl={modelPath}
+              autoRotate={true}
+              showControls={true}
+            />
+          ) : (
+            <div style={{
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#999',
+              fontSize: 16
+            }}>
+              3D model not available for this room type
+            </div>
+          )}
+        </div>
+
+        <div style={{
+          marginTop: 12,
+          textAlign: 'center',
+          color: '#6b4700',
+          fontSize: 13,
+          fontWeight: 500
+        }}>
+          Use mouse to rotate � Scroll to zoom � Drag to pan
+        </div>
+
+        <style jsx>{`
+          @keyframes slideIn {
+            from {
+              opacity: 0;
+              transform: scale(0.95) translateY(-20px);
             }
             to {
               opacity: 1;

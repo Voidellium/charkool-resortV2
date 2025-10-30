@@ -22,6 +22,13 @@ export default function CheckoutPage() {
   const [timeRemaining, setTimeRemaining] = useState('');
   const [isExpired, setIsExpired] = useState(false);
 
+  // Test card payment states
+  const [testCardNumber, setTestCardNumber] = useState('');
+  const [testExpiryMonth, setTestExpiryMonth] = useState('');
+  const [testExpiryYear, setTestExpiryYear] = useState('');
+  const [testCvc, setTestCvc] = useState('');
+  const [cardErrors, setCardErrors] = useState({});
+
   // Navigation Guard Setup
   const navigationContext = useNavigationContext();
   const navigationGuard = useNavigationGuard({
@@ -54,9 +61,7 @@ export default function CheckoutPage() {
           setHeldUntil(data.heldUntil ? new Date(data.heldUntil) : null);
           // Compute total rooms from booking details
           try {
-            const roomsCount = Array.isArray(data.rooms)
-              ? data.rooms.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
-              : 0;
+            const roomsCount = Array.isArray(data.rooms) ? data.rooms.length : 0;
             setTotalRooms(roomsCount);
             // Set the entered amount to the expected reservation fee
             const expected = (roomsCount || 0) * 2000;
@@ -133,6 +138,42 @@ export default function CheckoutPage() {
     // Reservation fee is ₱2000 per room unit booked
     const rooms = Number(totalRooms) || 0;
     return rooms * 2000;
+  };
+
+  // Validate test card details
+  const validateTestCard = () => {
+    const errors = {};
+    
+    // Validate card number (16 digits)
+    const cardNum = testCardNumber.replace(/\s/g, '');
+    if (!cardNum || cardNum.length !== 16 || !/^\d{16}$/.test(cardNum)) {
+      errors.cardNumber = 'Card number must be exactly 16 digits';
+    }
+
+    // Validate expiry month (01-12)
+    const month = parseInt(testExpiryMonth);
+    if (!testExpiryMonth || month < 1 || month > 12 || !/^\d{1,2}$/.test(testExpiryMonth)) {
+      errors.expiryMonth = 'Month must be 01-12';
+    }
+
+    // Validate expiry year (must be future date)
+    const year = parseInt(testExpiryYear);
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1;
+    
+    if (!testExpiryYear || year < currentYear || !/^\d{4}$/.test(testExpiryYear)) {
+      errors.expiryYear = `Year must be ${currentYear} or later`;
+    } else if (year === currentYear && month < currentMonth) {
+      errors.expiryMonth = 'Card has expired';
+    }
+
+    // Validate CVC (3 digits)
+    if (!testCvc || testCvc.length !== 3 || !/^\d{3}$/.test(testCvc)) {
+      errors.cvc = 'CVC must be exactly 3 digits';
+    }
+
+    setCardErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   // Function to handle payment window status
@@ -277,6 +318,17 @@ export default function CheckoutPage() {
 
     try {
         if (paymentMethod === 'TEST') {
+          // Validate test card details
+          if (!validateTestCard()) {
+            setMessageType('error');
+            setMessage('Please correct the card details');
+            setLoading(false);
+            return;
+          }
+
+          // Mask card number for display (show last 4 digits)
+          const maskedCard = `**** **** **** ${testCardNumber.slice(-4)}`;
+          
           // Development phase only: simulate payment success with TEST method
           let paymentStatus = 'reservation';
           let bookingStatus = 'pending';
@@ -291,6 +343,11 @@ export default function CheckoutPage() {
               bookingStatus: bookingStatus,
               paymentType: 'reservation',
               method: 'TEST',
+              cardDetails: {
+                maskedNumber: maskedCard,
+                expiryMonth: testExpiryMonth.padStart(2, '0'),
+                expiryYear: testExpiryYear,
+              }
             }),
           });
           const data = await res.json();
@@ -433,10 +490,108 @@ export default function CheckoutPage() {
                   <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}>
                     <option value="gcash">GCash</option>
                     <option value="paymaya">Maya</option>
-                    <option value="TEST">TEST (Development only)</option>
+                    <option value="TEST">TEST (Credit Card Simulation)</option>
                   </select>
                 </label>
               </div>
+
+              {/* TEST Card Details Form */}
+              {paymentMethod === 'TEST' && (
+                <div className="card-details-section">
+                  <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', color: '#374151' }}>
+                    💳 Enter Test Card Details
+                  </h3>
+                  
+                  <div className="section">
+                    <label>
+                      Card Number
+                      <input
+                        type="text"
+                        value={testCardNumber}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, '').slice(0, 16);
+                          setTestCardNumber(value);
+                          setCardErrors({...cardErrors, cardNumber: ''});
+                        }}
+                        placeholder="1234 5678 9012 3456"
+                        maxLength="16"
+                        className={cardErrors.cardNumber ? 'input-error' : ''}
+                      />
+                      {cardErrors.cardNumber && <span className="error-text">{cardErrors.cardNumber}</span>}
+                    </label>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                    <div className="section">
+                      <label>
+                        Expiry Month
+                        <input
+                          type="text"
+                          value={testExpiryMonth}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/\D/g, '').slice(0, 2);
+                            setTestExpiryMonth(value);
+                            setCardErrors({...cardErrors, expiryMonth: ''});
+                          }}
+                          placeholder="MM"
+                          maxLength="2"
+                          className={cardErrors.expiryMonth ? 'input-error' : ''}
+                        />
+                        {cardErrors.expiryMonth && <span className="error-text">{cardErrors.expiryMonth}</span>}
+                      </label>
+                    </div>
+
+                    <div className="section">
+                      <label>
+                        Expiry Year
+                        <input
+                          type="text"
+                          value={testExpiryYear}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/\D/g, '').slice(0, 4);
+                            setTestExpiryYear(value);
+                            setCardErrors({...cardErrors, expiryYear: ''});
+                          }}
+                          placeholder="YYYY"
+                          maxLength="4"
+                          className={cardErrors.expiryYear ? 'input-error' : ''}
+                        />
+                        {cardErrors.expiryYear && <span className="error-text">{cardErrors.expiryYear}</span>}
+                      </label>
+                    </div>
+
+                    <div className="section">
+                      <label>
+                        CVC
+                        <input
+                          type="text"
+                          value={testCvc}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/\D/g, '').slice(0, 3);
+                            setTestCvc(value);
+                            setCardErrors({...cardErrors, cvc: ''});
+                          }}
+                          placeholder="123"
+                          maxLength="3"
+                          className={cardErrors.cvc ? 'input-error' : ''}
+                        />
+                        {cardErrors.cvc && <span className="error-text">{cardErrors.cvc}</span>}
+                      </label>
+                    </div>
+                  </div>
+
+                  <div style={{ 
+                    marginTop: '1rem', 
+                    padding: '0.75rem', 
+                    backgroundColor: '#dbeafe', 
+                    borderRadius: '8px',
+                    fontSize: '0.875rem',
+                    color: '#1e40af'
+                  }}>
+                    ℹ️ This is a test payment. Enter any 16-digit card number, future expiry date, and 3-digit CVC.
+                  </div>
+                </div>
+              )}
 
               <button 
                 className="primary-btn" 
@@ -701,6 +856,27 @@ export default function CheckoutPage() {
           background: #f3f4f6;
           cursor: not-allowed;
           color: #6b7280;
+        }
+
+        .input-error {
+          border-color: #ef4444 !important;
+          background: #fef2f2 !important;
+        }
+
+        .error-text {
+          display: block;
+          color: #dc2626;
+          font-size: 0.875rem;
+          margin-top: 0.5rem;
+          font-weight: 500;
+        }
+
+        .card-details-section {
+          background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+          padding: 1.5rem;
+          border-radius: 16px;
+          margin-bottom: 1.5rem;
+          border: 2px solid #bae6fd;
         }
 
         .primary-btn {

@@ -343,9 +343,27 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
   }
 
   const details = fullBookingDetails || booking;
-  const totalAmount = details.payments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
-  const totalPrice = Number(details.totalPrice) || 0;
-  const remainingBalance = totalPrice - totalAmount;
+  const totalAmount = details.payments?.reduce((sum, p) => (p.status === 'Paid' || p.status === 'Reservation') ? sum + Number(p.amount) : sum, 0) || 0;
+  
+  // Calculate total from all components to ensure rental amenities are included
+  const reservationFee = (details.rooms?.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0) || 0) * 2000;
+  const roomCharges = (details.rooms || []).reduce((sum, roomBooking) => {
+    const nights = Math.ceil((new Date(details.checkOut) - new Date(details.checkIn)) / (1000 * 60 * 60 * 24));
+    const roomPricePerNight = (Number(roomBooking.room?.price) || 0) / 100;
+    const roomTotal = roomPricePerNight * (Number(roomBooking.quantity) || 0) * nights;
+    const roomReservationFee = (Number(roomBooking.quantity) || 0) * 2000;
+    return sum + (roomTotal - roomReservationFee);
+  }, 0);
+  const rentalTotal = (details.rentalAmenities || []).reduce((sum, rental) => sum + ((Number(rental.totalPrice) || 0) / 100), 0);
+  const optionalTotal = (details.optionalAmenities || []).reduce((sum, optional) => {
+    const amenityPrice = (Number(optional.optionalAmenity?.price) || 0) / 100;
+    return sum + (amenityPrice * (Number(optional.quantity) || 0));
+  }, 0);
+  const cottageTotal = (details.cottage || []).reduce((sum, cottageBooking) => sum + ((Number(cottageBooking.totalPrice) || 0) / 100), 0);
+  const calculatedTotal = reservationFee + roomCharges + rentalTotal + optionalTotal + cottageTotal;
+  const totalPrice = calculatedTotal;
+  const remainingBalance = calculatedTotal - (totalAmount / 100);
+  
   const room = details.rooms?.[0]?.room;
   const isCancelled = String(details.status).toLowerCase() === 'cancelled';
 
@@ -378,6 +396,39 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
       )}
 
       <div className="details-container">
+        {/* Reschedule Policy */}
+        {!isCancelled && (
+          <div className="details-section">
+            <h3>📋 Reschedule Policy</h3>
+            <div className="policy-note">
+              <p>
+                <strong>Reschedule Policy:</strong> Bookings can only be rescheduled up to 2 weeks before the check-in date.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Guest Information */}
+        {!isCancelled && (
+          <div className="details-section">
+            <h3>👤 Guest Information</h3>
+            <div className="details-grid">
+              <div className="detail-item">
+                <span className="label">Name</span>
+                <span className="value">{guest ? `${guest.firstName} ${guest.lastName}` : 'N/A'}</span>
+              </div>
+              <div className="detail-item">
+                <span className="label">Email</span>
+                <span className="value">{guest?.email || 'N/A'}</span>
+              </div>
+              <div className="detail-item">
+                <span className="label">Contact Number</span>
+                <span className="value">{guest?.contactNumber || 'N/A'}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Booking Information */}
         <div className="details-section">
           <h3>🏨 Accommodation Details</h3>
@@ -462,67 +513,186 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
           </div>
         )}
 
-        {/* Guest Information - Hide for cancelled */}
-        {!isCancelled && (
-          <div className="details-section">
-            <h3>👤 Guest Information</h3>
-            <div className="details-grid">
-              <div className="detail-item">
-                <span className="label">Name</span>
-                <span className="value">{guest ? `${guest.firstName} ${guest.lastName}` : 'N/A'}</span>
-              </div>
-              <div className="detail-item">
-                <span className="label">Email</span>
-                <span className="value">{guest?.email || 'N/A'}</span>
-              </div>
-              <div className="detail-item">
-                <span className="label">Contact Number</span>
-                <span className="value">{guest?.contactNumber || 'N/A'}</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Payment Information */}
+        {/* Payment Information with Breakdown */}
         <div className="details-section">
           <h3>💳 {isCancelled ? 'Payment Summary' : 'Payment Details'}</h3>
-          <div className="payment-summary">
-            {isCancelled ? (
-              <>
-                <div className="summary-row">
-                  <span className="label">Reservation Amount Paid</span>
-                  <span className="value amount">₱{(totalAmount / 100).toFixed(2)}</span>
+          
+          {isCancelled ? (
+            <div className="payment-summary">
+              <div className="summary-row">
+                <span className="label">Reservation Amount Paid</span>
+                <span className="value amount">₱{(totalAmount / 100).toFixed(2)}</span>
+              </div>
+              <div className="cancellation-notice">
+                <p><strong>Note:</strong> Reservation payments are non-refundable as per our cancellation policy.</p>
+              </div>
+            </div>
+          ) : (
+            <div className="breakdown-container">
+              {/* Payment Breakdown */}
+              <div className="breakdown-list">
+                {/* Reservation Fee */}
+                <div className="breakdown-item">
+                  <span className="breakdown-label">
+                    Reservation Fee ({details.rooms?.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0) || 0} room{details.rooms?.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0) > 1 ? 's' : ''} × ₱2,000)
+                  </span>
+                  <span className="breakdown-value">
+                    ₱{((details.rooms?.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0) || 0) * 2000).toLocaleString()}
+                  </span>
                 </div>
-                <div className="cancellation-notice">
-                  <p><strong>Note:</strong> Reservation payments are non-refundable as per our cancellation policy.</p>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="summary-row">
-                  <span className="label">Total Amount</span>
-                  <span className="value amount">₱{(totalPrice / 100).toFixed(2)}</span>
-                </div>
-                <div className="summary-row">
-                  <span className="label">Amount Paid</span>
-                  <span className="value amount">₱{(totalAmount / 100).toFixed(2)}</span>
-                </div>
-                <div className="summary-row highlight">
-                  <span className="label">Remaining Balance</span>
-                  <span className="value amount balance">₱{(remainingBalance / 100).toFixed(2)}</span>
-                </div>
-                <div className="summary-row">
-                  <span className="label">Payment Status</span>
-                  <span className={`value status-${details.paymentStatus.toLowerCase()}`}>{details.paymentStatus}</span>
-                </div>
-              </>
-            )}
-          </div>
 
-          {!isCancelled && details.payments && details.payments.length > 0 && (
+                {/* Room Charges */}
+                {details.rooms && details.rooms.length > 0 && (
+                  <>
+                    {details.rooms.map((roomBooking, idx) => {
+                      const nights = Math.ceil((new Date(details.checkOut) - new Date(details.checkIn)) / (1000 * 60 * 60 * 24));
+                      const roomPricePerNight = (Number(roomBooking.room?.price) || 0) / 100;
+                      const roomTotal = roomPricePerNight * (Number(roomBooking.quantity) || 0) * nights;
+                      const reservationFee = (Number(roomBooking.quantity) || 0) * 2000;
+                      const roomBalance = roomTotal - reservationFee;
+                      
+                      return roomBalance > 0 ? (
+                        <div key={idx} className="breakdown-item">
+                          <span className="breakdown-label">
+                            {roomBooking.room?.name} ({roomBooking.quantity} room{roomBooking.quantity > 1 ? 's' : ''} × {nights} night{nights > 1 ? 's' : ''} × ₱{roomPricePerNight.toLocaleString()})
+                          </span>
+                          <span className="breakdown-value">
+                            ₱{roomBalance.toLocaleString()}
+                          </span>
+                        </div>
+                      ) : null;
+                    })}
+                  </>
+                )}
+
+                {/* Rental Amenities */}
+                {details.rentalAmenities && details.rentalAmenities.length > 0 && (
+                  <>
+                    {details.rentalAmenities.map((rental, idx) => (
+                      <div key={idx} className="breakdown-item">
+                        <span className="breakdown-label">
+                          {rental.rentalAmenity?.name} ({rental.quantity} × ₱{((Number(rental.totalPrice) || 0) / 100 / rental.quantity).toLocaleString()})
+                        </span>
+                        <span className="breakdown-value">
+                          ₱{((Number(rental.totalPrice) || 0) / 100).toLocaleString()}
+                        </span>
+                      </div>
+                    ))}
+                  </>
+                )}
+
+                {/* Optional Amenities */}
+                {details.optionalAmenities && details.optionalAmenities.length > 0 && (
+                  <>
+                    {details.optionalAmenities.map((optional, idx) => {
+                      const amenityPrice = (Number(optional.optionalAmenity?.price) || 0) / 100;
+                      const amenityTotal = amenityPrice * (Number(optional.quantity) || 0);
+                      return amenityTotal > 0 ? (
+                        <div key={idx} className="breakdown-item">
+                          <span className="breakdown-label">
+                            {optional.optionalAmenity?.name} ({optional.quantity} × ₱{amenityPrice.toLocaleString()})
+                          </span>
+                          <span className="breakdown-value">
+                            ₱{amenityTotal.toLocaleString()}
+                          </span>
+                        </div>
+                      ) : null;
+                    })}
+                  </>
+                )}
+
+                {/* Cottage */}
+                {details.cottage && details.cottage.length > 0 && (
+                  <>
+                    {details.cottage.map((cottageBooking, idx) => (
+                      <div key={idx} className="breakdown-item">
+                        <span className="breakdown-label">
+                          {cottageBooking.cottage?.name}
+                        </span>
+                        <span className="breakdown-value">
+                          ₱{((Number(cottageBooking.totalPrice) || 0) / 100).toLocaleString()}
+                        </span>
+                      </div>
+                    ))}
+                  </>
+                )}
+
+                {/* Divider */}
+                <div className="breakdown-divider"></div>
+
+                {/* Total */}
+                <div className="breakdown-item breakdown-total">
+                  <span className="breakdown-label"><strong>Total Amount</strong></span>
+                  <span className="breakdown-value"><strong>₱{(() => {
+                    const reservationFee = (details.rooms?.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0) || 0) * 2000;
+                    const roomCharges = (details.rooms || []).reduce((sum, roomBooking) => {
+                      const nights = Math.ceil((new Date(details.checkOut) - new Date(details.checkIn)) / (1000 * 60 * 60 * 24));
+                      const roomPricePerNight = (Number(roomBooking.room?.price) || 0) / 100;
+                      const roomTotal = roomPricePerNight * (Number(roomBooking.quantity) || 0) * nights;
+                      const roomReservationFee = (Number(roomBooking.quantity) || 0) * 2000;
+                      return sum + (roomTotal - roomReservationFee);
+                    }, 0);
+                    const rentalTotal = (details.rentalAmenities || []).reduce((sum, rental) => sum + ((Number(rental.totalPrice) || 0) / 100), 0);
+                    const optionalTotal = (details.optionalAmenities || []).reduce((sum, optional) => {
+                      const amenityPrice = (Number(optional.optionalAmenity?.price) || 0) / 100;
+                      return sum + (amenityPrice * (Number(optional.quantity) || 0));
+                    }, 0);
+                    const cottageTotal = (details.cottage || []).reduce((sum, cottageBooking) => sum + ((Number(cottageBooking.totalPrice) || 0) / 100), 0);
+                    return (reservationFee + roomCharges + rentalTotal + optionalTotal + cottageTotal).toLocaleString();
+                  })()}</strong></span>
+                </div>
+
+                {/* Amount Paid */}
+                <div className="breakdown-item breakdown-paid">
+                  <span className="breakdown-label">Amount Paid</span>
+                  <span className="breakdown-value paid">
+                    ₱{(totalAmount / 100).toLocaleString()}
+                  </span>
+                </div>
+
+                {/* Remaining Balance */}
+                {details.paymentStatus !== 'Paid' && (
+                  <div className="breakdown-item breakdown-remaining">
+                    <span className="breakdown-label"><strong>Remaining Balance</strong></span>
+                    <span className="breakdown-value remaining">
+                      <strong>₱{(() => {
+                        const reservationFee = (details.rooms?.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0) || 0) * 2000;
+                        const roomCharges = (details.rooms || []).reduce((sum, roomBooking) => {
+                          const nights = Math.ceil((new Date(details.checkOut) - new Date(details.checkIn)) / (1000 * 60 * 60 * 24));
+                          const roomPricePerNight = (Number(roomBooking.room?.price) || 0) / 100;
+                          const roomTotal = roomPricePerNight * (Number(roomBooking.quantity) || 0) * nights;
+                          const roomReservationFee = (Number(roomBooking.quantity) || 0) * 2000;
+                          return sum + (roomTotal - roomReservationFee);
+                        }, 0);
+                        const rentalTotal = (details.rentalAmenities || []).reduce((sum, rental) => sum + ((Number(rental.totalPrice) || 0) / 100), 0);
+                        const optionalTotal = (details.optionalAmenities || []).reduce((sum, optional) => {
+                          const amenityPrice = (Number(optional.optionalAmenity?.price) || 0) / 100;
+                          return sum + (amenityPrice * (Number(optional.quantity) || 0));
+                        }, 0);
+                        const cottageTotal = (details.cottage || []).reduce((sum, cottageBooking) => sum + ((Number(cottageBooking.totalPrice) || 0) / 100), 0);
+                        const calculatedTotal = reservationFee + roomCharges + rentalTotal + optionalTotal + cottageTotal;
+                        const amountPaid = totalAmount / 100;
+                        return (calculatedTotal - amountPaid).toLocaleString();
+                      })()}</strong>
+                    </span>
+                  </div>
+                )}
+
+                <div className="breakdown-item breakdown-status">
+                  <span className="breakdown-label">Payment Status</span>
+                  <span className={`breakdown-value status-${details.paymentStatus.toLowerCase()}`}>{details.paymentStatus}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Payment Transactions */}
+        {!isCancelled && details.payments && details.payments.filter(p => p.status === 'Paid' || p.status === 'Reservation').length > 0 && (
+          <div className="details-section">
+            <h3>💰 Payment Transactions</h3>
             <div className="payments-list">
-              <h4>Payment Transactions</h4>
-              {details.payments.map((payment, index) => (
+              {details.payments.filter(p => p.status === 'Paid' || p.status === 'Reservation').map((payment, index) => (
                 <div key={payment.id || index} className="payment-item">
                   <div className="payment-info">
                     <div className="payment-row">
@@ -570,43 +740,8 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
                 </div>
               ))}
             </div>
-          )}
-        </div>
-
-        {/* Additional Services */}
-        {!isCancelled && (details.optionalAmenities?.length > 0 || details.rentalAmenities?.length > 0 || details.cottage?.length > 0) && (
-          <div className="details-section">
-            <h3>🛎️ Additional Services</h3>
-            {details.optionalAmenities?.map((amenity, index) => (
-              <div key={index} className="service-item">
-                <span>{amenity.optionalAmenity?.name || 'Optional Amenity'}</span>
-                <span>Qty: {amenity.quantity}</span>
-              </div>
-            ))}
-            {details.rentalAmenities?.map((amenity, index) => (
-              <div key={index} className="service-item">
-                <span>{amenity.rentalAmenity?.name || 'Rental Amenity'}</span>
-                <span>₱{(amenity.totalPrice / 100).toFixed(2)}</span>
-              </div>
-            ))}
-            {details.cottage?.map((cottage, index) => (
-              <div key={index} className="service-item">
-                <span>{cottage.cottage?.name || 'Cottage'}</span>
-                <span>₱{(cottage.totalPrice / 100).toFixed(2)}</span>
-              </div>
-            ))}
           </div>
         )}
-
-        {/* Reschedule Policy */}
-        <div className="details-section">
-          <h3>📋 Reschedule Policy</h3>
-          <div className="policy-note">
-            <p>
-              <strong>Reschedule Policy:</strong> Bookings can only be rescheduled up to 2 weeks before the check-in date.
-            </p>
-          </div>
-        </div>
       </div>
 
       <style jsx>{`
@@ -831,6 +966,109 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
           font-size: 1.5rem;
           font-weight: 800;
         }
+
+        .breakdown-container {
+          background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+          border: 2px solid #10b981;
+          border-radius: 12px;
+          padding: 1.5rem;
+          margin-bottom: 1rem;
+        }
+
+        .breakdown-list {
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+        }
+
+        .breakdown-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 1rem;
+          padding: 0.75rem 1rem;
+          background: white;
+          border-radius: 10px;
+          transition: all 0.2s ease;
+        }
+
+        .breakdown-item:hover {
+          background: #f9fafb;
+          transform: translateX(3px);
+        }
+
+        .breakdown-label {
+          flex: 1;
+          font-size: 0.95rem;
+          color: #374151;
+          font-weight: 500;
+        }
+
+        .breakdown-value {
+          font-size: 1rem;
+          color: #1f2937;
+          font-weight: 600;
+          white-space: nowrap;
+        }
+
+        .breakdown-divider {
+          height: 2px;
+          background: linear-gradient(90deg, transparent, #10b981, transparent);
+          margin: 0.5rem 0;
+        }
+
+        .breakdown-total {
+          background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+          border: 2px solid #f59e0b;
+          padding: 1rem 1.25rem;
+        }
+
+        .breakdown-total .breakdown-label,
+        .breakdown-total .breakdown-value {
+          font-size: 1.1rem;
+          color: #78350f;
+        }
+
+        .breakdown-paid {
+          background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+          border: 1px solid #10b981;
+        }
+
+        .breakdown-paid .breakdown-value.paid {
+          color: #065f46;
+        }
+
+        .breakdown-remaining {
+          background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+          border: 2px solid #ef4444;
+          padding: 1rem 1.25rem;
+        }
+
+        .breakdown-remaining .breakdown-label,
+        .breakdown-remaining .breakdown-value.remaining {
+          color: #991b1b;
+          font-size: 1.1rem;
+        }
+
+        .breakdown-status {
+          background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+          border: 1px solid #3b82f6;
+        }
+
+        .breakdown-status .breakdown-value {
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        .breakdown-value.status-paid,
+        .breakdown-value.status-reservation {
+          color: #059669;
+        }
+
+        .breakdown-value.status-pending {
+          color: #f59e0b;
+        }
         
         .payments-list h4 {
           color: #8B4513;
@@ -1011,8 +1249,26 @@ const BookingHistoryCard = ({ booking, guest, onViewDetails, onReschedule, resch
   const refundedPayments = isCancelled 
     ? booking.payments?.filter(p => p.status === 'Refunded' || p.status === 'refunded') || []
     : [];
-  const totalPaid = booking.payments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
+  const totalPaid = booking.payments?.reduce((sum, p) => (p.status === 'Paid' || p.status === 'Reservation') ? sum + Number(p.amount) : sum, 0) || 0;
   const totalRefunded = refundedPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+  
+  // Calculate total from all components
+  const reservationFee = (booking.rooms?.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0) || 0) * 2000;
+  const roomCharges = (booking.rooms || []).reduce((sum, roomBooking) => {
+    const nights = Math.ceil((new Date(booking.checkOut) - new Date(booking.checkIn)) / (1000 * 60 * 60 * 24));
+    const roomPricePerNight = (Number(roomBooking.room?.price) || 0) / 100;
+    const roomTotal = roomPricePerNight * (Number(roomBooking.quantity) || 0) * nights;
+    const roomReservationFee = (Number(roomBooking.quantity) || 0) * 2000;
+    return sum + (roomTotal - roomReservationFee);
+  }, 0);
+  const rentalTotal = (booking.rentalAmenities || []).reduce((sum, rental) => sum + ((Number(rental.totalPrice) || 0) / 100), 0);
+  const optionalTotal = (booking.optionalAmenities || []).reduce((sum, optional) => {
+    const amenityPrice = (Number(optional.optionalAmenity?.price) || 0) / 100;
+    return sum + (amenityPrice * (Number(optional.quantity) || 0));
+  }, 0);
+  const cottageTotal = (booking.cottage || []).reduce((sum, cottageBooking) => sum + ((Number(cottageBooking.totalPrice) || 0) / 100), 0);
+  const calculatedTotal = reservationFee + roomCharges + rentalTotal + optionalTotal + cottageTotal;
+  const remainingBalance = calculatedTotal - (totalPaid / 100);
 
   return (
     <div className="booking-history-card">
@@ -1056,7 +1312,7 @@ const BookingHistoryCard = ({ booking, guest, onViewDetails, onReschedule, resch
           </p>
         )}
         {!isCancelled && (
-          <p><strong>Guests:</strong> {booking.guests}</p>
+          <p><strong>Remaining Balance:</strong> ₱{(remainingBalance / 100).toLocaleString()}</p>
         )}
         {/* Show refund status for cancelled bookings */}
         {isCancelled ? (
@@ -1235,6 +1491,28 @@ const HistoryCard = ({ booking, guest, onViewDetails, onReschedule, rescheduleRe
   const rescheduleStatus = rescheduleData?.status || null;
   const adminContext = rescheduleData?.adminContext || '';
 
+  // Calculate remaining balance
+  const isCancelled = String(booking.status).toLowerCase() === 'cancelled';
+  const totalPaid = booking.payments?.reduce((sum, p) => (p.status === 'Paid' || p.status === 'Reservation') ? sum + Number(p.amount) : sum, 0) || 0;
+  
+  // Calculate total from all components
+  const reservationFee = (booking.rooms?.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0) || 0) * 2000;
+  const roomCharges = (booking.rooms || []).reduce((sum, roomBooking) => {
+    const nights = Math.ceil((new Date(booking.checkOut) - new Date(booking.checkIn)) / (1000 * 60 * 60 * 24));
+    const roomPricePerNight = (Number(roomBooking.room?.price) || 0) / 100;
+    const roomTotal = roomPricePerNight * (Number(roomBooking.quantity) || 0) * nights;
+    const roomReservationFee = (Number(roomBooking.quantity) || 0) * 2000;
+    return sum + (roomTotal - roomReservationFee);
+  }, 0);
+  const rentalTotal = (booking.rentalAmenities || []).reduce((sum, rental) => sum + ((Number(rental.totalPrice) || 0) / 100), 0);
+  const optionalTotal = (booking.optionalAmenities || []).reduce((sum, optional) => {
+    const amenityPrice = (Number(optional.optionalAmenity?.price) || 0) / 100;
+    return sum + (amenityPrice * (Number(optional.quantity) || 0));
+  }, 0);
+  const cottageTotal = (booking.cottage || []).reduce((sum, cottageBooking) => sum + ((Number(cottageBooking.totalPrice) || 0) / 100), 0);
+  const calculatedTotal = reservationFee + roomCharges + rentalTotal + optionalTotal + cottageTotal;
+  const remainingBalance = calculatedTotal - (totalPaid / 100);
+
   const isRescheduleAllowed = () => {
     const now = new Date();
     const checkInDate = new Date(booking.checkIn);
@@ -1322,15 +1600,15 @@ const HistoryCard = ({ booking, guest, onViewDetails, onReschedule, rescheduleRe
         
         <div className="booking-meta">
           <div className="meta-item">
-            <span className="meta-label">Guests</span>
-            <span className="meta-value">{booking.guests}</span>
+            <span className="meta-label">Balance</span>
+            <span className="meta-value">₱{remainingBalance.toLocaleString()}</span>
           </div>
           <div className="meta-item">
             <span className="meta-label">Total Paid</span>
-            <span className="meta-value">₱{(booking.payments?.reduce((sum, p) => sum + Number(p.amount), 0) / 100).toFixed(0)}</span>
+            <span className="meta-value">₱{(totalPaid / 100).toLocaleString()}</span>
           </div>
           <div className="meta-item">
-            <span className="meta-label">Booked</span>
+            <span className="meta-label">Booked At</span>
             <span className="meta-value">{new Date(booking.createdAt).toLocaleDateString('en-US', { 
               month: 'short', 
               day: 'numeric'

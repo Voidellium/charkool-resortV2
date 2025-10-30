@@ -121,7 +121,13 @@ export const GET = async (req) => {
       });
     }
 
-    return NextResponse.json(rooms);
+    return NextResponse.json(rooms, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      }
+    });
   } catch (error) {
     console.error('❌ GET rooms error:', error);
     return NextResponse.json({ error: 'Failed to fetch rooms' }, { status: 500 });

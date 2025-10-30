@@ -292,11 +292,15 @@ model BookingCottage {
 }
 
 model BookingRoom {
-  bookingId Int
-  roomId    Int
-  quantity  Int     @default(1)
-  room      Room    @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  bookingId        Int
+  roomId           Int
+  quantity         Int @default(1)
+  adults           Int @default(1)      // 1 to room max (Loft=2, Tepee=5, Villa=8)
+  additionalPax    Int @default(0)      // 0 to 2 (all rooms, ₱400 each)
+  children         Int @default(0)      // 0 to adult count (free, doesn't count toward capacity)
+  additionalPaxFee Int @default(0)      // additionalPax × 40000 (₱400 in cents)
+  room             Room    @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  booking          Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
   @@id([bookingId, roomId])
 }

@@ -38,15 +38,7 @@ const Chatbot = () => {
       {isOpen && (
         <div className="modal-backdrop" onClick={() => setIsOpen(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>How can we help?</h3>
-              <button className="close-button" onClick={() => setIsOpen(false)}>
-                &times;
-              </button>
-            </div>
-            <div className="modal-body">
-              <ChatInterface isModal={true} />
-            </div>
+            <ChatInterface isModal={true} onClose={() => setIsOpen(false)} />
           </div>
         </div>
       )}
@@ -80,24 +72,23 @@ const Chatbot = () => {
           left: 0;
           width: 100%;
           height: 100%;
-          background-color: rgba(0, 0, 0, 0.5);
-          backdrop-filter: blur(6px);
+          background-color: transparent;
+          backdrop-filter: none;
           display: flex;
           align-items: center;
           justify-content: center;
           z-index: 1000;
         }
         .modal-content {
-          background-color: white;
-          border-radius: 20px;
-          box-shadow: 0 12px 36px rgba(0, 0, 0, 0.25);
-          width: 90%;
-          max-width: 450px;
-          height: 80vh;
-          max-height: 700px;
-          display: flex;
-          flex-direction: column;
-          overflow: hidden;
+          background-color: transparent;
+          border-radius: 0;
+          box-shadow: none;
+          width: auto;
+          max-width: none;
+          height: auto;
+          max-height: none;
+          display: block;
+          overflow: visible;
         }
         .modal-header {
           background-color: #FEBE52;

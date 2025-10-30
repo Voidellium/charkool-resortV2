@@ -17,30 +17,6 @@ import {
 import TermsModal from '@/components/TermsModal';
 
 export default function SignUpPage() {
-
-  // Birthdate validation function
-  const validateBirthdate = (birthdate) => {
-    if (!birthdate) return true;
-    const today = new Date();
-    const birthDate = new Date(birthdate);
-    const maxBirthDate = new Date(today.getFullYear() - 100, today.getMonth(), today.getDate());
-    if (birthDate < maxBirthDate) {
-      setBirthdateError('Maximum age is 100 years.');
-      return false;
-    }
-    setBirthdateError('');
-    return true;
-  };
-  // Add this to your form submission handler (e.g., handleSubmit)
-  // if (!validateBirthdate(form.birthdate)) {
-  //   setError('Maximum age is 100 years.');
-  //   return;
-  // }
-      {birthdateError && (
-        <div className="error-message" style={{ color: '#dc2626', marginBottom: '1rem' }}>
-          {birthdateError}
-        </div>
-      )}
   const router = useRouter();
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -55,11 +31,25 @@ export default function SignUpPage() {
   const [showRules, setShowRules] = useState(false);
   const [rulesTarget, setRulesTarget] = useState('password'); // 'password' | 'confirm'
   const [countdown, setCountdown] = useState(0);
-  // Birthdate error state
-  const [birthdateError, setBirthdateError] = useState('');
+  // Birthdate error state (renamed to avoid any TDZ/name-collision issues)
+  const [birthdateErrorMsg, setBirthdateErrorMsg] = useState('');
   // Terms and Agreement modal state
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+
+  // Birthdate validation function
+  const validateBirthdate = (birthdate) => {
+    if (!birthdate) return true;
+    const today = new Date();
+    const birthDate = new Date(birthdate);
+    const maxBirthDate = new Date(today.getFullYear() - 100, today.getMonth(), today.getDate());
+    if (birthDate < maxBirthDate) {
+      setBirthdateErrorMsg('Maximum age is 100 years.');
+      return false;
+    }
+    setBirthdateErrorMsg('');
+    return true;
+  };
 
     // Allowed email domains
     const allowedDomains = [
@@ -114,11 +104,104 @@ export default function SignUpPage() {
     { label: 'Password must not be common', test: p => !['password','123456','qwerty'].includes(p.toLowerCase()) }
   ];
 
+  // Helper: evaluate password strength as percentage and level
+  const getPasswordStrength = (password) => {
+    const total = passwordRules.length;
+    if (!password) return { count: 0, percent: 0, level: 'red' };
+    const count = passwordRules.reduce((acc, r) => acc + (r.test(password) ? 1 : 0), 0);
+    const percent = Math.round((count / total) * 100);
+    let level = 'red';
+    if (percent === 100) level = 'green';
+    else if (percent >= 50) level = 'yellow'; // 50–99% is acceptable (yellow)
+    return { count, percent, level };
+  };
+
+  // Valid Philippine mobile prefixes (Globe, Smart, Sun, DITO, etc.)
+  const validPhPrefixes = [
+    '0813', '0817', '0905', '0906', '0915', '0916', '0917', '0926', '0927', '0935', '0936', '0937', '0945', '0953', '0954', '0955', '0956', '0963', '0964', '0965', '0966', '0967', '0975', '0976', '0977', '0978', '0979', '0981', '0989', '0992', '0993', '0994', '0995', '0996', '0997', // Globe
+    '0813', '0900', '0907', '0908', '0909', '0910', '0911', '0912', '0913', '0914', '0918', '0919', '0920', '0921', '0928', '0929', '0930', '0938', '0939', '0940', '0946', '0947', '0948', '0949', '0950', '0951', '0961', '0970', '0971', '0980', '0981', '0982', '0983', '0984', '0985', '0989', '0998', '0999', // Smart/TNT
+    '0922', '0923', '0924', '0925', '0931', '0932', '0933', '0934', '0940', '0941', '0942', '0943', '0944', '0973', '0974', // Sun
+    '0895', '0896', '0897', '0898', '0991' // DITO
+  ];
+
+  // Real-time validation helper
+  const validateFormInRealTime = (updatedForm) => {
+    // Check terms acceptance
+    if (!termsAccepted) {
+      return; // Don't validate until terms are ready to check
+    }
+
+    // Email validation
+    if (updatedForm.email && !isAllowedEmail(updatedForm.email)) {
+      return; // Keep error if email still invalid
+    }
+
+    // Phone validation
+    if (updatedForm.contact) {
+      if (updatedForm.contact.length === 10 && updatedForm.contact.startsWith('9')) {
+        const prefix = '0' + updatedForm.contact.substring(0, 3);
+        const hasRepeats = /^(.)\1{9}$/.test(updatedForm.contact);
+        const isSeq = (num) => {
+          const digits = num.split('').map(Number);
+          let asc = true, desc = true;
+          for (let i = 1; i < digits.length; i++) {
+            if (digits[i] !== digits[i-1] + 1) asc = false;
+            if (digits[i] !== digits[i-1] - 1) desc = false;
+          }
+          return asc || desc;
+        };
+        
+        if (validPhPrefixes.includes(prefix) && !hasRepeats && !isSeq(updatedForm.contact)) {
+          // Phone is now valid, check if we should clear error
+          if (error && (error.includes('mobile number') || error.includes('contact'))) {
+            setError('');
+          }
+        }
+      }
+    }
+
+    // Password strength validation
+    if (updatedForm.password) {
+      const strength = getPasswordStrength(updatedForm.password);
+      if (strength.percent >= 50) {
+        // Password is now acceptable
+        if (error && error.includes('Password is too weak')) {
+          setError('');
+        }
+      }
+    }
+
+    // Password match validation
+    if (updatedForm.password && updatedForm.confirm) {
+      if (updatedForm.password === updatedForm.confirm) {
+        if (error && error.includes('Passwords do not match')) {
+          setError('');
+        }
+      }
+    }
+
+    // Birthdate validation
+    if (updatedForm.birthdate) {
+      const birthDate = new Date(updatedForm.birthdate);
+      const today = new Date();
+      const minBirthDate = new Date(today.getFullYear() - 16, today.getMonth(), today.getDate());
+      const maxBirthDate = new Date(today.getFullYear() - 100, today.getMonth(), today.getDate());
+      
+      if (birthDate <= minBirthDate && birthDate >= maxBirthDate) {
+        if (error && (error.includes('age') || error.includes('birthdate'))) {
+          setError('');
+        }
+      }
+    }
+  };
+
   const handleChange = e => {
     const { name, value } = e.target;
     if (name === 'contact') {
       const cleaned = value.replace(/\D/g, '').slice(0, 10);
-      setForm({ ...form, contact: cleaned });
+      const updatedForm = { ...form, contact: cleaned };
+      setForm(updatedForm);
+      validateFormInRealTime(updatedForm);
       return;
     }
       if (name === 'birthdate') {
@@ -128,14 +211,16 @@ export default function SignUpPage() {
         const minBirthDate = new Date(today.getFullYear() - 16, today.getMonth(), today.getDate());
         const maxBirthDate = new Date(today.getFullYear() - 100, today.getMonth(), today.getDate());
         if (birthDate > minBirthDate) {
-          setBirthdateError('You must be at least 16 years old to register.');
+          setBirthdateErrorMsg('You must be at least 16 years old to register.');
         } else if (birthDate < maxBirthDate) {
-          setBirthdateError('Maximum age is 100 years.');
+          setBirthdateErrorMsg('Maximum age is 100 years.');
         } else {
-          setBirthdateError('');
+          setBirthdateErrorMsg('');
         }
       }
-    setForm({ ...form, [name]: value });
+    const updatedForm = { ...form, [name]: value };
+    setForm(updatedForm);
+    validateFormInRealTime(updatedForm);
   };
 
   const handleResendOTP = async () => {
@@ -171,22 +256,48 @@ export default function SignUpPage() {
           if (!isAllowedEmail(form.email)) {
             throw new Error('Only common email domains are allowed: gmail, yahoo, outlook, hotmail, icloud, protonmail, zoho, mail.com, aol');
           }
-        if (!form.contact || form.contact.length !== 10 || !form.contact.startsWith('9')) {
-          throw new Error('Please enter a valid 10-digit number starting with 9');
+        
+        // Validate Philippine mobile number
+        if (!form.contact || form.contact.length !== 10) {
+          throw new Error('Please enter a valid 10-digit mobile number');
+        }
+        if (!form.contact.startsWith('9')) {
+          throw new Error('Mobile number must start with 9');
+        }
+        
+        // Check if number is valid Philippine prefix
+        const prefix = '0' + form.contact.substring(0, 3); // Convert 9XX to 09XX
+        if (!validPhPrefixes.includes(prefix)) {
+          throw new Error('Invalid Philippine mobile number. Please enter a valid Globe, Smart, Sun, or DITO number');
+        }
+        
+        // Reject numbers with all same digits (e.g., 9999999999)
+        if (/^(.)\1{9}$/.test(form.contact)) {
+          throw new Error('Please enter a valid mobile number (all same digits are not allowed)');
+        }
+        
+        // Reject sequential patterns (e.g., 9123456789, 9876543210)
+        const isSequential = (num) => {
+          const digits = num.split('').map(Number);
+          let ascending = true;
+          let descending = true;
+          for (let i = 1; i < digits.length; i++) {
+            if (digits[i] !== digits[i-1] + 1) ascending = false;
+            if (digits[i] !== digits[i-1] - 1) descending = false;
+          }
+          return ascending || descending;
+        };
+        if (isSequential(form.contact)) {
+          throw new Error('Please enter a valid mobile number (sequential patterns are not allowed)');
+        }
+        
+        // Password strength validation (allow Yellow or Green)
+        const strength = getPasswordStrength(form.password);
+        if (strength.percent < 50) {
+          throw new Error('Password is too weak. Please meet at least 50% of the requirements.');
         }
         if (form.password !== form.confirm) {
           throw new Error('Passwords do not match');
-        }
-        for (const rule of passwordRules) {
-          if (!rule.test(form.password)) {
-            throw new Error(`Password validation failed: ${rule.label}`);
-          }
-        }
-        // Apply the same password rules to Confirm Password
-        for (const rule of passwordRules) {
-          if (!rule.test(form.confirm)) {
-            throw new Error(`Confirm password validation failed: ${rule.label}`);
-          }
         }
         const birthDate = new Date(form.birthdate);
         const today = new Date();
@@ -437,7 +548,7 @@ export default function SignUpPage() {
                           return maxBirthDate.toISOString().split('T')[0];
                         })()}
                     />
-                      {birthdateError && <span style={{color:'red',fontSize:'0.9rem'}}>{birthdateError}</span>}
+                      {birthdateErrorMsg && <span style={{color:'red',fontSize:'0.9rem'}}>{birthdateErrorMsg}</span>}
                   </div>
                 </div>
                 <div className="field-group">
@@ -456,6 +567,7 @@ export default function SignUpPage() {
                       />
                     </div>
                   </div>
+                  <p className="field-hint">⚠️ Please enter your real mobile number. Only valid Philippine numbers (Globe, Smart, Sun, DITO) are accepted.</p>
                 </div>
                 <div className="field-group">
                   <label className="field-label">Email Address *</label>
@@ -494,6 +606,19 @@ export default function SignUpPage() {
                       {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
+                  {/* Password Strength Indicator */}
+                  {form.password && (() => {
+                    const s = getPasswordStrength(form.password);
+                    const label = s.level === 'green' ? 'Strong' : s.level === 'yellow' ? 'Okay' : 'Weak';
+                    return (
+                      <div className="strength-meter" aria-live="polite">
+                        <div className="strength-bar-bg">
+                          <div className={`strength-bar ${s.level}`} style={{ width: `${s.percent}%` }} />
+                        </div>
+                        <span className={`strength-label ${s.level}`}>{label} ({s.percent}%)</span>
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div className="field-group">
                   <label className="field-label">Confirm Password *</label>
@@ -920,6 +1045,17 @@ export default function SignUpPage() {
           transition: color 0.3s ease;
         }
 
+        .field-hint {
+          font-size: 0.8rem;
+          color: #64748b;
+          margin-top: 0.4rem;
+          margin-bottom: 0;
+          line-height: 1.4;
+          display: flex;
+          align-items: flex-start;
+          gap: 0.25rem;
+        }
+
         .field-wrapper {
           position: relative;
           display: flex;
@@ -1043,6 +1179,35 @@ export default function SignUpPage() {
         .toggle-btn:hover {
           color: #f59e0b;
         }
+
+        /* Password strength meter */
+        .strength-meter {
+          margin-top: 0.5rem;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+        .strength-bar-bg {
+          flex: 1;
+          height: 8px;
+          background: #e5e7eb;
+          border-radius: 999px;
+          overflow: hidden;
+        }
+        .strength-bar {
+          height: 100%;
+          transition: width 0.25s ease;
+        }
+        .strength-bar.red { background: #ef4444; }
+        .strength-bar.yellow { background: #f59e0b; }
+        .strength-bar.green { background: #10b981; }
+        .strength-label {
+          font-size: 0.8rem;
+          font-weight: 600;
+        }
+        .strength-label.red { color: #b91c1c; }
+        .strength-label.yellow { color: #b45309; }
+        .strength-label.green { color: #065f46; }
 
         /* Success indicator for matching passwords */
         .success-indicator {

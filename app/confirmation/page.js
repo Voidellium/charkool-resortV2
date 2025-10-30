@@ -71,15 +71,24 @@ function ConfirmationPageInner() {
                   </div>
                   <div className="info-grid">
                     <div className="info-item full-width">
-                      <span className="info-label">Room Type</span>
+                      <span className="info-label">Rooms & Guests</span>
                       <span className="info-value">
                         {Array.isArray(booking.rooms) && booking.rooms.length > 0
-                          ? booking.rooms.map((r, idx) => (
-                              <span key={idx} className="room-detail">
-                                {r.room?.name || r.roomType?.name || 'Room'} × {r.quantity}
-                                {idx < booking.rooms.length - 1 ? ', ' : ''}
-                              </span>
-                            ))
+                          ? booking.rooms.map((r, idx) => {
+                              const roomTypeName = r.room?.type === 'LOFT' ? 'Loft' : r.room?.type === 'TEPEE' ? 'Tepee' : r.room?.type === 'VILLA' ? 'Villa' : r.room?.name || 'Room';
+                              return (
+                                <span key={idx} className="room-detail" style={{ display: 'block', marginBottom: '0.25rem' }}>
+                                  {roomTypeName} {r.instanceNumber || idx + 1}: {r.adults || 0}A
+                                  {r.additionalPax > 0 ? `+${r.additionalPax}` : ''}
+                                  {r.children > 0 ? `, ${r.children}C` : ''}
+                                  {r.additionalPax > 0 && (
+                                    <span style={{ fontSize: '0.85em', color: '#6b7280', marginLeft: '0.5rem' }}>
+                                      (+₱{(r.additionalPax * 400 * Math.ceil((new Date(booking.checkOut) - new Date(booking.checkIn)) / (1000 * 60 * 60 * 24))).toLocaleString()})
+                                    </span>
+                                  )}
+                                </span>
+                              );
+                            })
                           : booking.room?.name || booking.room || 'N/A'}
                       </span>
                     </div>
@@ -98,39 +107,7 @@ function ConfirmationPageInner() {
                   </div>
                 </div>
 
-                <div className="status-section">
-                  <div className={`status-badge payment-status ${booking.paymentStatus.toLowerCase()}`}>
-                    <div className="badge-header">
-                      <span className="badge-title">Payment Status</span>
-                    </div>
-                    <div className="badge-content">
-                      {booking.paymentStatus === 'Paid' ? (
-                        <>
-                          <span className="status-main">Fully Paid</span>
-                          <span className="amount-paid">₱{(booking.payments?.reduce((sum, p) => sum + p.amount, 0) / 100).toLocaleString()}</span>
-                        </>
-                      ) : booking.paymentStatus === 'Reservation' ? (
-                        <>
-                          <span className="status-main">Reservation Paid</span>
-                          <span className="amount-paid">Paid: ₱{(booking.payments?.reduce((sum, p) => sum + p.amount, 0) / 100).toLocaleString()}</span>
-                          <span className="amount-remaining">Balance: ₱{((booking.totalPrice - (booking.payments?.reduce((sum, p) => sum + p.amount, 0) || 0)) / 100).toLocaleString()}</span>
-                        </>
-                      ) : (
-                        <span className="status-main">Pending</span>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className={`status-badge booking-status ${booking.status.toLowerCase()}`}>
-                    <div className="badge-header">
-                      <span className="badge-title">Booking Status</span>
-                    </div>
-                    <div className="badge-content">
-                      <span className="status-main">{booking.status}</span>
-                    </div>
-                  </div>
-                </div>
-
+                {/* Amenities Section */}
                 <div className="detail-section amenities-info">
                   <div className="section-header">
                     <h3>Amenities</h3>
@@ -160,6 +137,224 @@ function ConfirmationPageInner() {
                     )}
                   </div>
                 </div>
+
+                {/* Payment Breakdown */}
+                <div className="detail-section payment-breakdown">
+                  <div className="section-header">
+                    <h3>Payment Breakdown</h3>
+                  </div>
+                  <div className="breakdown-list">
+                    {/* Reservation Fee */}
+                    <div className="breakdown-item">
+                      <span className="breakdown-label">
+                        Reservation Fee ({booking.rooms?.length || 0} room{booking.rooms?.length > 1 ? 's' : ''} × ₱2,000)
+                      </span>
+                      <span className="breakdown-value">
+                        ₱{((booking.rooms?.length || 0) * 2000).toLocaleString()}
+                      </span>
+                    </div>
+
+                    {/* Room Charges */}
+                    {booking.rooms && booking.rooms.length > 0 && (
+                      <>
+                        {booking.rooms.map((roomBooking, idx) => {
+                          const nights = Math.ceil((new Date(booking.checkOut) - new Date(booking.checkIn)) / (1000 * 60 * 60 * 24));
+                          const roomPricePerNight = (Number(roomBooking.room?.price) || 0) / 100;
+                          const roomTotal = roomPricePerNight * nights;
+                          const reservationFee = 2000;
+                          const roomBalance = roomTotal - reservationFee;
+                          const additionalPaxFee = (roomBooking.additionalPax || 0) * 400 * nights;
+                          const roomTypeName = roomBooking.room?.type === 'LOFT' ? 'Loft' : roomBooking.room?.type === 'TEPEE' ? 'Tepee' : roomBooking.room?.type === 'VILLA' ? 'Villa' : roomBooking.room?.name || 'Room';
+                          
+                          return (
+                            <div key={idx} className="breakdown-item">
+                              <span className="breakdown-label">
+                                {roomTypeName} {roomBooking.instanceNumber || idx + 1} ({nights} night{nights > 1 ? 's' : ''} × ₱{roomPricePerNight.toLocaleString()})
+                                {additionalPaxFee > 0 && (
+                                  <div style={{ fontSize: '0.9em', color: '#6b7280', marginLeft: '1rem' }}>
+                                    + {roomBooking.additionalPax} extra guest(s): ₱{additionalPaxFee.toLocaleString()}
+                                  </div>
+                                )}
+                              </span>
+                              <span className="breakdown-value">
+                                ₱{(roomBalance + additionalPaxFee).toLocaleString()}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </>
+                    )}
+
+                    {/* Rental Amenities */}
+                    {booking.rentalAmenities && booking.rentalAmenities.length > 0 && (
+                      <>
+                        {booking.rentalAmenities.map((rental, idx) => (
+                          <div key={idx} className="breakdown-item">
+                            <span className="breakdown-label">
+                              {rental.rentalAmenity?.name} ({rental.quantity} × ₱{((Number(rental.totalPrice) || 0) / 100 / rental.quantity).toLocaleString()})
+                            </span>
+                            <span className="breakdown-value">
+                              ₱{((Number(rental.totalPrice) || 0) / 100).toLocaleString()}
+                            </span>
+                          </div>
+                        ))}
+                      </>
+                    )}
+
+                    {/* Optional Amenities */}
+                    {booking.optionalAmenities && booking.optionalAmenities.length > 0 && (
+                      <>
+                        {booking.optionalAmenities.map((optional, idx) => {
+                          const amenityPrice = (Number(optional.optionalAmenity?.price) || 0) / 100; // Convert from centavos to pesos
+                          const amenityTotal = amenityPrice * (Number(optional.quantity) || 0);
+                          return amenityTotal > 0 ? (
+                            <div key={idx} className="breakdown-item">
+                              <span className="breakdown-label">
+                                {optional.optionalAmenity?.name} ({optional.quantity} × ₱{amenityPrice.toLocaleString()})
+                              </span>
+                              <span className="breakdown-value">
+                                ₱{amenityTotal.toLocaleString()}
+                              </span>
+                            </div>
+                          ) : null;
+                        })}
+                      </>
+                    )}
+
+                    {/* Cottage */}
+                    {booking.cottage && booking.cottage.length > 0 && (
+                      <>
+                        {booking.cottage.map((cottageBooking, idx) => (
+                          <div key={idx} className="breakdown-item">
+                            <span className="breakdown-label">
+                              {cottageBooking.cottage?.name}
+                            </span>
+                            <span className="breakdown-value">
+                              ₱{((Number(cottageBooking.totalPrice) || 0) / 100).toLocaleString()}
+                            </span>
+                          </div>
+                        ))}
+                      </>
+                    )}
+
+                    {/* Divider */}
+                    <div className="breakdown-divider"></div>
+
+                    {/* Total */}
+                    <div className="breakdown-item breakdown-total">
+                      <span className="breakdown-label"><strong>Total Amount</strong></span>
+                      <span className="breakdown-value"><strong>₱{(() => {
+                        // Calculate total from all components
+                        const reservationFee = (booking.rooms?.length || 0) * 2000;
+                        
+                        // Room charges with additional pax fees
+                        const roomCharges = (booking.rooms || []).reduce((sum, roomBooking) => {
+                          const nights = Math.ceil((new Date(booking.checkOut) - new Date(booking.checkIn)) / (1000 * 60 * 60 * 24));
+                          const roomPricePerNight = (Number(roomBooking.room?.price) || 0) / 100;
+                          const roomTotal = roomPricePerNight * nights;
+                          const roomReservationFee = 2000;
+                          const additionalPaxFee = (roomBooking.additionalPax || 0) * 400 * nights;
+                          return sum + (roomTotal - roomReservationFee + additionalPaxFee);
+                        }, 0);
+                        
+                        // Rental amenities
+                        const rentalTotal = (booking.rentalAmenities || []).reduce((sum, rental) => {
+                          return sum + ((Number(rental.totalPrice) || 0) / 100);
+                        }, 0);
+                        
+                        // Optional amenities
+                        const optionalTotal = (booking.optionalAmenities || []).reduce((sum, optional) => {
+                          const amenityPrice = (Number(optional.optionalAmenity?.price) || 0) / 100;
+                          return sum + (amenityPrice * (Number(optional.quantity) || 0));
+                        }, 0);
+                        
+                        // Cottage
+                        const cottageTotal = (booking.cottage || []).reduce((sum, cottageBooking) => {
+                          return sum + ((Number(cottageBooking.totalPrice) || 0) / 100);
+                        }, 0);
+                        
+                        const calculatedTotal = reservationFee + roomCharges + rentalTotal + optionalTotal + cottageTotal;
+                        return calculatedTotal.toLocaleString();
+                      })()}</strong></span>
+                    </div>
+
+                    {/* Amount Paid */}
+                    <div className="breakdown-item breakdown-paid">
+                      <span className="breakdown-label">Amount Paid</span>
+                      <span className="breakdown-value paid">
+                        ₱{(booking.payments?.reduce((sum, p) => sum + (p.status === 'Paid' || p.status === 'Reservation' ? Number(p.amount) : 0), 0) / 100).toLocaleString()}
+                      </span>
+                    </div>
+
+                    {/* Remaining Balance */}
+                    {booking.paymentStatus !== 'Paid' && (
+                      <div className="breakdown-item breakdown-remaining">
+                        <span className="breakdown-label"><strong>Remaining Balance</strong></span>
+                        <span className="breakdown-value remaining">
+                          <strong>₱{(() => {
+                            // Calculate total from all components
+                            const reservationFee = (booking.rooms?.length || 0) * 2000;
+                            
+                            // Room charges with additional pax fees
+                            const roomCharges = (booking.rooms || []).reduce((sum, roomBooking) => {
+                              const nights = Math.ceil((new Date(booking.checkOut) - new Date(booking.checkIn)) / (1000 * 60 * 60 * 24));
+                              const roomPricePerNight = (Number(roomBooking.room?.price) || 0) / 100;
+                              const roomTotal = roomPricePerNight * nights;
+                              const roomReservationFee = 2000;
+                              const additionalPaxFee = (roomBooking.additionalPax || 0) * 400 * nights;
+                              return sum + (roomTotal - roomReservationFee + additionalPaxFee);
+                            }, 0);
+                            
+                            // Rental amenities
+                            const rentalTotal = (booking.rentalAmenities || []).reduce((sum, rental) => {
+                              return sum + ((Number(rental.totalPrice) || 0) / 100);
+                            }, 0);
+                            
+                            // Optional amenities
+                            const optionalTotal = (booking.optionalAmenities || []).reduce((sum, optional) => {
+                              const amenityPrice = (Number(optional.optionalAmenity?.price) || 0) / 100;
+                              return sum + (amenityPrice * (Number(optional.quantity) || 0));
+                            }, 0);
+                            
+                            // Cottage
+                            const cottageTotal = (booking.cottage || []).reduce((sum, cottageBooking) => {
+                              return sum + ((Number(cottageBooking.totalPrice) || 0) / 100);
+                            }, 0);
+                            
+                            const calculatedTotal = reservationFee + roomCharges + rentalTotal + optionalTotal + cottageTotal;
+                            const amountPaid = booking.payments?.reduce((sum, p) => sum + (p.status === 'Paid' || p.status === 'Reservation' ? Number(p.amount) : 0), 0) / 100;
+                            const remainingBalance = calculatedTotal - amountPaid;
+                            return remainingBalance.toLocaleString();
+                          })()}</strong>
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Payment Method Details */}
+                {booking.payments && booking.payments.filter(p => p.status === 'Paid' || p.status === 'Reservation').length > 0 && (
+                  <div className="detail-section payment-details">
+                    <div className="section-header">
+                      <h3>Payment Details</h3>
+                    </div>
+                    <div className="info-grid">
+                      {booking.payments.filter(p => p.status === 'Paid' || p.status === 'Reservation').map((payment, idx) => (
+                        <div key={idx} className="info-item full-width">
+                          <span className="info-label">Payment Method</span>
+                          <span className="info-value">
+                            {payment.method || payment.provider}
+                            {payment.referenceId && payment.referenceId.includes('test_card_') && (
+                              <span style={{ marginLeft: '0.5rem', color: '#6b7280', fontSize: '0.9em' }}>
+                                ({payment.referenceId.match(/\d{4}/)?.[0] ? `**** **** **** ${payment.referenceId.match(/\d{4}/)?.[0]}` : ''})
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {booking.paymentStatus === 'Pending' && (
                   <div className="notice-box">
@@ -568,6 +763,86 @@ function ConfirmationPageInner() {
           font-style: italic;
           text-align: center;
           padding: 1rem;
+        }
+
+        .payment-breakdown {
+          background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+          border: 2px solid #10b981;
+        }
+
+        .breakdown-list {
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+        }
+
+        .breakdown-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 1rem;
+          padding: 0.75rem 1rem;
+          background: white;
+          border-radius: 10px;
+          transition: all 0.2s ease;
+        }
+
+        .breakdown-item:hover {
+          background: #f9fafb;
+          transform: translateX(3px);
+        }
+
+        .breakdown-label {
+          flex: 1;
+          font-size: 0.95rem;
+          color: #374151;
+          font-weight: 500;
+        }
+
+        .breakdown-value {
+          font-size: 1rem;
+          color: #1f2937;
+          font-weight: 600;
+          white-space: nowrap;
+        }
+
+        .breakdown-divider {
+          height: 2px;
+          background: linear-gradient(90deg, transparent, #10b981, transparent);
+          margin: 0.5rem 0;
+        }
+
+        .breakdown-total {
+          background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+          border: 2px solid #f59e0b;
+          padding: 1rem 1.25rem;
+        }
+
+        .breakdown-total .breakdown-label,
+        .breakdown-total .breakdown-value {
+          font-size: 1.1rem;
+          color: #78350f;
+        }
+
+        .breakdown-paid {
+          background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+          border: 1px solid #10b981;
+        }
+
+        .breakdown-paid .breakdown-value.paid {
+          color: #065f46;
+        }
+
+        .breakdown-remaining {
+          background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+          border: 2px solid #ef4444;
+          padding: 1rem 1.25rem;
+        }
+
+        .breakdown-remaining .breakdown-label,
+        .breakdown-remaining .breakdown-value.remaining {
+          color: #991b1b;
+          font-size: 1.1rem;
         }
 
         .notice-box {

@@ -40,13 +40,13 @@ const keywordSuggestions = {
       {
         id: 'room_types',
         text: '🏡 What room types do you have?',
-        answer: 'We offer three unique room types:\n\n🏠 Villa Room (₱8,000/22hrs, max 8 pax)\n🏢 Loft Room (₱5,000/22hrs, 2-4 pax)\n⛺ Teepee Room (₱6,000/22hrs, max 5 pax)\n\nEach includes pool access, beach access, and WiFi!',
+        answer: 'We offer three unique room types:\n\n🏠 Villa Room (₱8,000/22hrs, max 8 pax)\n🏢 Loft Room (₱5,000/22hrs, 2-4 pax)\n⛺ Teepee Room (₱6,000/22hrs, max 5 pax)\n\n💡 Additional Pax: Up to 2 extra guests per room at ₱400 each\n\nEach includes pool access, beach access, and WiFi!',
         showBookNow: true,
       },
       {
         id: 'room_rates',
         text: '💰 What are your room rates?',
-        answer: 'Our current rates for 22-hour stays:\n\n💎 Villa Room — ₱8,000 (max 8 guests)\n🏢 Loft Room — ₱5,000 (2-4 guests)\n⛺ Teepee Room — ₱6,000 (max 5 guests)\n\nAll rates include complimentary amenities!',
+        answer: 'Our current rates for 22-hour stays:\n\n💎 Villa Room — ₱8,000 (max 8 guests)\n🏢 Loft Room — ₱5,000 (2-4 guests)\n⛺ Teepee Room — ₱6,000 (max 5 guests)\n\n💡 Additional Pax: Up to 2 extra guests per room at ₱400 each\n\nAll rates include complimentary amenities!',
         showBookNow: true,
       },
       {
@@ -283,7 +283,7 @@ const BookNowButton = ({ variant = 'primary' }) => (
   </motion.button>
 );
 
-export default function ChatInterface({ isModal }) {
+export default function ChatInterface({ isModal, onClose }) {
   const [messages, setMessages] = useState([]);
   const [currentCategory, setCurrentCategory] = useState(null);
   const [showCategories, setShowCategories] = useState(false);
@@ -298,6 +298,11 @@ export default function ChatInterface({ isModal }) {
   const [responseTime, setResponseTime] = useState('Usually replies instantly');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [currentSuggestions, setCurrentSuggestions] = useState([]);
+  const [awaitingGuestCount, setAwaitingGuestCount] = useState(false);
+  const [awaitingCustomization, setAwaitingCustomization] = useState(false);
+  const [awaitingBookingDate, setAwaitingBookingDate] = useState(false);
+  const [lastGuestCount, setLastGuestCount] = useState(0);
+  const [pendingBookingDate, setPendingBookingDate] = useState(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
@@ -389,6 +394,83 @@ export default function ChatInterface({ isModal }) {
     const readingTime = messageLength * 50; // 50ms per character
     const thinkingTime = Math.random() * 1500; // Random thinking time
     return Math.min(baseDelay + readingTime + thinkingTime, 4000); // Max 4 seconds
+  };
+
+  // Fetch real-time room availability for a specific date
+  const fetchRoomAvailability = async (checkInDate) => {
+    try {
+      console.log('[ChatInterface] Fetching availability for date:', checkInDate);
+      const url = `/api/rooms/availability?date=${checkInDate}`;
+      console.log('[ChatInterface] Full URL:', url);
+      
+      const response = await fetch(url);
+      console.log('[ChatInterface] Response status:', response.status);
+      console.log('[ChatInterface] Response ok:', response.ok);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[ChatInterface] Error response:', errorText);
+        throw new Error(`Failed to fetch availability: ${response.status} - ${errorText}`);
+      }
+      
+      const data = await response.json();
+      console.log('[ChatInterface] Availability data received:', data);
+      return data; // Expected format: { villa: 3, loft: 2, teepee: 4 }
+    } catch (error) {
+      console.error('[ChatInterface] Error fetching room availability:', error);
+      console.error('[ChatInterface] Error details:', error.message);
+      // Return default availability on error
+      return { villa: 4, loft: 4, teepee: 4 };
+    }
+  };
+
+  // Parse natural language date input and validate
+  const parseDate = (input) => {
+    const lowerInput = input.toLowerCase().trim();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    let parsedDate = null;
+    
+    // Handle "today"
+    if (lowerInput === 'today') {
+      parsedDate = new Date(today);
+    }
+    // Handle "tomorrow"
+    else if (lowerInput === 'tomorrow') {
+      parsedDate = new Date(today);
+      parsedDate.setDate(parsedDate.getDate() + 1);
+    }
+    // Handle "next week"
+    else if (lowerInput.includes('next week')) {
+      parsedDate = new Date(today);
+      parsedDate.setDate(parsedDate.getDate() + 7);
+    }
+    // Try parsing standard date formats
+    else {
+      parsedDate = new Date(input);
+      if (isNaN(parsedDate.getTime())) {
+        return { valid: false, error: 'format' }; // Invalid format
+      }
+    }
+    
+    // Set to start of day for comparison
+    parsedDate.setHours(0, 0, 0, 0);
+    
+    // Validate date is not in the past
+    if (parsedDate < today) {
+      return { valid: false, error: 'past' }; // Date is in the past
+    }
+    
+    // Validate date is within reasonable booking window (e.g., within 1 year)
+    const oneYearFromNow = new Date(today);
+    oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+    
+    if (parsedDate > oneYearFromNow) {
+      return { valid: false, error: 'too_far' }; // Date is too far in future
+    }
+    
+    return { valid: true, date: parsedDate.toISOString().split('T')[0] };
   };
 
   // Render message content with clickable links and emails
@@ -617,15 +699,22 @@ export default function ChatInterface({ isModal }) {
     
     // Define user message and response based on reply type
     switch(replyType) {
+      case 'room_suggestions':
+        userText = '🏨 Can you suggest a room?';
+        response = "I'd be happy to suggest the perfect room for you! 🏖️\n\nHow many guests will be staying?";
+        responseData = { showBookNow: false };
+        setAwaitingGuestCount(true);
+        break;
+
       case 'room_rates':
         userText = '💰 What are your room rates?';
-        response = 'Here are our current room rates for 22-hour stays:\n\n🏠 **Villa Room** — ₱8,000 (max 8 guests)\n🏢 **Loft Room** — ₱5,000 (2-4 guests) \n⛺ **Teepee Room** — ₱6,000 (max 5 guests)\n\n✨ All rooms include:\n• Swimming pool access\n• Private beach access  \n• High-speed WiFi\n• Complimentary parking\n\nReady to book your perfect getaway?';
+        response = 'Here are our current room rates for 22-hour stays:\n\n🏠 **Villa Room** — ₱8,000 (8 guests + up to 2 additional pax)\n🏢 **Loft Room** — ₱5,000 (2 guests + up to 2 additional pax) \n⛺ **Teepee Room** — ₱6,000 (5 guests + up to 2 additional pax)\n\n💡 **Additional Pax:** ₱400 per person (max 2 per room)\n\n✨ All rooms include:\n• Swimming pool access\n• Private beach access  \n• High-speed WiFi\n• Complimentary parking';
         responseData = { showBookNow: true };
         break;
         
       case 'amenities':
         userText = '🏊‍♂️ What amenities do you offer?';
-        response = 'Charkool Resort offers incredible amenities:\n\n🏊‍♂️ **Multiple Swimming Pools**\n🏖️ **Private Beach Access**\n📶 **High-Speed WiFi**\n🍽️ **Restaurant & Bar**\n🎾 **Sports Facilities**\n🎪 **Event Spaces**\n🚗 **Free Parking**\n🛡️ **24/7 Security**\n\nWould you like details about any specific amenity?';
+        response = 'Charkool Resort offers incredible amenities:\n\n🏊‍♂️ **Multiple Swimming Pools**\n🏖️ **Private Beach Access**\n📶 **High-Speed WiFi**\n🍽️ **Restaurant & Bar**\n🎾 **Sports Facilities**\n🎪 **Event Spaces**\n🚗 **Free Parking**\n🛡️ **24/7 Security**';
         responseData = { showBookNow: false };
         break;
         
@@ -679,6 +768,173 @@ export default function ChatInterface({ isModal }) {
     
     setMessages((prev) => [...prev, botMessage]);
     setMessageStatus(prev => ({ ...prev, [botMessage.id]: 'delivered' }));
+  };
+
+  // Function to suggest rooms based on guest count
+  const suggestRoomsByGuestCount = async (guestCount, bookingDate = null) => {
+    let roomSuggestion = '';
+    
+    // If no booking date provided, ask for it first
+    if (!bookingDate) {
+      roomSuggestion = `Great! For ${guestCount} guest${guestCount > 1 ? 's' : ''}, I can help you find the perfect room. 🏖️\n\nTo check real-time availability, please tell me:\n\n📅 **When would you like to check in?**\n\nYou can provide the date in formats like:\n• "December 25, 2024"\n• "12/25/2024"\n• "2024-12-25"\n• "tomorrow"\n• "next week"`;
+      
+      const responseId = Date.now();
+      const response = {
+        type: 'bot',
+        text: roomSuggestion,
+        timestamp: new Date(),
+        id: responseId,
+        showBookNow: false
+      };
+      
+      setMessages((prev) => [...prev, response]);
+      setMessageStatus(prev => ({ ...prev, [responseId]: 'delivered' }));
+      setAwaitingBookingDate(true);
+      setLastGuestCount(guestCount);
+      return;
+    }
+    
+    // Fetch real-time availability for the booking date
+    const availability = await fetchRoomAvailability(bookingDate);
+    
+    // Room availability from API
+    const AVAILABLE_ROOMS = {
+      villa: { count: availability.villa || 0, capacity: 8, basePrice: 8000, name: 'Villa Room' },
+      loft: { count: availability.loft || 0, capacity: 2, basePrice: 5000, name: 'Loft Room' },
+      teepee: { count: availability.teepee || 0, capacity: 5, basePrice: 6000, name: 'Teepee Room' }
+    };
+    
+    // Maximum capacity calculation (with 2 additional pax per room)
+    const maxCapacity = (AVAILABLE_ROOMS.villa.count * (AVAILABLE_ROOMS.villa.capacity + 2)) +
+                        (AVAILABLE_ROOMS.loft.count * (AVAILABLE_ROOMS.loft.capacity + 2)) +
+                        (AVAILABLE_ROOMS.teepee.count * (AVAILABLE_ROOMS.teepee.capacity + 2));
+    
+    // Maximum capacity without additional pax
+    const standardCapacity = (AVAILABLE_ROOMS.villa.count * AVAILABLE_ROOMS.villa.capacity) +
+                             (AVAILABLE_ROOMS.loft.count * AVAILABLE_ROOMS.loft.capacity) +
+                             (AVAILABLE_ROOMS.teepee.count * AVAILABLE_ROOMS.teepee.capacity);
+    
+    if (guestCount <= 0 || isNaN(guestCount)) {
+      roomSuggestion = "Please provide a valid number of guests so I can suggest the perfect room for you! 😊";
+    } else if (guestCount > maxCapacity) {
+      // Exceeds maximum capacity
+      roomSuggestion = `I apologize, but we currently don't have enough capacity for ${guestCount} guests. 😔\n\n**Our Resort Capacity:**\n🏠 4 Villa Rooms (8 guests + up to 2 additional each)\n🏢 4 Loft Rooms (2 guests + up to 2 additional each)\n⛺ 4 Teepee Rooms (5 guests + up to 2 additional each)\n\n**Maximum Total Capacity:** ${maxCapacity} guests\n**Standard Capacity:** ${standardCapacity} guests\n\n💡 **Suggestions:**\n• Split your group and book on different dates\n• Consider booking for a smaller group\n• Contact us for special arrangements\n\n📧 Email: dcharkoolhausresort@gmail.com\n📘 Facebook: Charkool Leisure Beach Resort\n\nWe'd love to accommodate your group in the best way possible!`;
+    } else if (guestCount >= 1 && guestCount <= 4) {
+      // Loft Room: Standard capacity 2 pax, can add up to 2 more
+      const baseCost = 5000;
+      const formattedDate = new Date(bookingDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      roomSuggestion = `For ${guestCount} guest${guestCount > 1 ? 's' : ''}, I recommend:\n\n🏢 **Loft Room** — ₱5,000/22hrs (2 pax + up to 2 additional)\n✨ Perfect for small groups or couples\n• Swimming pool access\n• Private beach access\n• High-speed WiFi\n• Cozy and comfortable\n\n💰 **Total Cost: ₱${baseCost.toLocaleString()}**\n� **Check-in Date:** ${formattedDate}\n�📊 **Available:** ${AVAILABLE_ROOMS.loft.count} Loft Room${AVAILABLE_ROOMS.loft.count !== 1 ? 's' : ''} ${AVAILABLE_ROOMS.loft.count === 0 ? '⚠️ SOLD OUT' : '✅'}`;
+    } else if (guestCount === 5) {
+      // Teepee Room: Standard capacity 5 pax OR Villa with extra space
+      const teepeeCost = 6000;
+      const villaCost = 8000;
+      const formattedDate = new Date(bookingDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      roomSuggestion = `For ${guestCount} guests, I have two great options:\n\n⛺ **Teepee Room** — ₱6,000/22hrs (5 pax + up to 2 additional)\n💰 **Total Cost: ₱${teepeeCost.toLocaleString()}**\n� **Check-in Date:** ${formattedDate}\n�📊 **Available:** ${AVAILABLE_ROOMS.teepee.count} Teepee Room${AVAILABLE_ROOMS.teepee.count !== 1 ? 's' : ''} ${AVAILABLE_ROOMS.teepee.count === 0 ? '⚠️ SOLD OUT' : '✅'}\n\n🏠 **Villa Room** — ₱8,000/22hrs (8 pax + up to 2 additional)\n💰 **Total Cost: ₱${villaCost.toLocaleString()}** (extra space!)\n📊 **Available:** ${AVAILABLE_ROOMS.villa.count} Villa Room${AVAILABLE_ROOMS.villa.count !== 1 ? 's' : ''} ${AVAILABLE_ROOMS.villa.count === 0 ? '⚠️ SOLD OUT' : '✅'}\n\n✨ Both include:\n• Swimming pool access\n• Private beach access\n• High-speed WiFi`;
+    } else if (guestCount === 6) {
+      // Villa Room: Standard capacity 8 pax, or Loft + additional pax
+      const villaCost = 8000;
+      const loftBase = 5000;
+      const additionalPax = 2;
+      const additionalCost = additionalPax * 400;
+      const loftTotal = loftBase + additionalCost;
+      const formattedDate = new Date(bookingDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      
+      roomSuggestion = `For ${guestCount} guests, here are your options:\n\n**OPTION 1 (Recommended):**\n🏠 **Villa Room** — ₱8,000/22hrs (8 pax + up to 2 additional)\n💰 **Total Cost: ₱${villaCost.toLocaleString()}**\n✨ Spacious with room for 2 more guests!\n\n**OPTION 2:**\n🏢 **Loft Room** (2 pax + 2 additional pax) + 2 additional pax\nBase Rate: ₱${loftBase.toLocaleString()}\nAdditional Pax (2 × ₱400): ₱${additionalCost.toLocaleString()}\n💰 **Total Cost: ₱${loftTotal.toLocaleString()}**\n\n� **Check-in Date:** ${formattedDate}\n�📊 **Room Availability:**\n• ${AVAILABLE_ROOMS.villa.count} Villa Room${AVAILABLE_ROOMS.villa.count !== 1 ? 's' : ''} ${AVAILABLE_ROOMS.villa.count === 0 ? '⚠️ SOLD OUT' : '✅'}\n• ${AVAILABLE_ROOMS.loft.count} Loft Room${AVAILABLE_ROOMS.loft.count !== 1 ? 's' : ''} ${AVAILABLE_ROOMS.loft.count === 0 ? '⚠️ SOLD OUT' : '✅'}\n\n✨ All rooms include pool access, beach access & WiFi!`;
+    } else if (guestCount === 7) {
+      // Villa Room OR Teepee + additional pax
+      const villaCost = 8000;
+      const teepeeBase = 6000;
+      const additionalPax = 2;
+      const additionalCost = additionalPax * 400;
+      const teepeeTotal = teepeeBase + additionalCost;
+      const formattedDate = new Date(bookingDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      
+      roomSuggestion = `For ${guestCount} guests, here are your options:\n\n**OPTION 1 (Recommended):**\n🏠 **Villa Room** — ₱8,000/22hrs (8 pax + up to 2 additional)\n💰 **Total Cost: ₱${villaCost.toLocaleString()}**\n✨ Spacious with room for 1 more guest!\n\n**OPTION 2:**\n⛺ **Teepee Room** (5 pax + 2 additional pax)\nBase Rate: ₱${teepeeBase.toLocaleString()}\nAdditional Pax (2 × ₱400): ₱${additionalCost.toLocaleString()}\n💰 **Total Cost: ₱${teepeeTotal.toLocaleString()}**\n\n� **Check-in Date:** ${formattedDate}\n�📊 **Room Availability:**\n• ${AVAILABLE_ROOMS.villa.count} Villa Room${AVAILABLE_ROOMS.villa.count !== 1 ? 's' : ''} ${AVAILABLE_ROOMS.villa.count === 0 ? '⚠️ SOLD OUT' : '✅'}\n• ${AVAILABLE_ROOMS.teepee.count} Teepee Room${AVAILABLE_ROOMS.teepee.count !== 1 ? 's' : ''} ${AVAILABLE_ROOMS.teepee.count === 0 ? '⚠️ SOLD OUT' : '✅'}\n\n✨ All rooms include pool access, beach access & WiFi!`;
+    } else if (guestCount === 8) {
+      // Villa Room: Perfect fit
+      const villaCost = 8000;
+      const formattedDate = new Date(bookingDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      roomSuggestion = `For ${guestCount} guests, I recommend:\n\n🏠 **Villa Room** — ₱8,000/22hrs (8 pax + up to 2 additional)\n✨ Perfect for larger groups and families\n• Spacious accommodation\n• Swimming pool access\n• Private beach access\n• High-speed WiFi\n• Room for everyone to relax\n\n💰 **Total Cost: ₱${villaCost.toLocaleString()}**\n📅 **Check-in Date:** ${formattedDate}\n📊 **Available:** ${AVAILABLE_ROOMS.villa.count} Villa Room${AVAILABLE_ROOMS.villa.count !== 1 ? 's' : ''} ${AVAILABLE_ROOMS.villa.count === 0 ? '⚠️ SOLD OUT' : '✅'}`;
+    } else if (guestCount === 9 || guestCount === 10) {
+      // Villa + additional pax OR multiple rooms
+      const villaBase = 8000;
+      const additionalPax = guestCount - 8;
+      const additionalCost = additionalPax * 400;
+      const villaTotal = villaBase + additionalCost;
+      
+      const twoLoftsCost = 5000 * 2;
+      const loftPlusVillaCost = 5000 + 8000;
+      const formattedDate = new Date(bookingDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      
+      roomSuggestion = `For ${guestCount} guests, here are your best options:\n\n**OPTION 1 (Most Affordable):**\n🏠 **Villa Room** (8 pax + ${additionalPax} additional)\nBase Rate: ₱${villaBase.toLocaleString()}\nAdditional Pax (${additionalPax} × ₱400): ₱${additionalCost.toLocaleString()}\n💰 **Total Cost: ₱${villaTotal.toLocaleString()}**\n\n**OPTION 2 (More Space):**\n🏠 **Villa Room** (8 pax) + 🏢 **Loft Room** (2 pax)\n💰 **Total Cost: ₱${loftPlusVillaCost.toLocaleString()}**\n\n${guestCount === 10 ? `**OPTION 3:**\n🏢 **2 Loft Rooms** (2 pax each + 2 additional per room)\nBase Rate: ₱${twoLoftsCost.toLocaleString()}\nAdditional Pax (2 × ₱400): ₱800\n💰 **Total Cost: ₱${(twoLoftsCost + 800).toLocaleString()}**\n\n` : ''}� **Check-in Date:** ${formattedDate}\n�📊 **Room Availability:**\n• ${AVAILABLE_ROOMS.villa.count} Villa Room${AVAILABLE_ROOMS.villa.count !== 1 ? 's' : ''} ${AVAILABLE_ROOMS.villa.count === 0 ? '⚠️ SOLD OUT' : '✅'}\n• ${AVAILABLE_ROOMS.loft.count} Loft Room${AVAILABLE_ROOMS.loft.count !== 1 ? 's' : ''} ${AVAILABLE_ROOMS.loft.count === 0 ? '⚠️ SOLD OUT' : '✅'}\n• ${AVAILABLE_ROOMS.teepee.count} Teepee Room${AVAILABLE_ROOMS.teepee.count !== 1 ? 's' : ''} ${AVAILABLE_ROOMS.teepee.count === 0 ? '⚠️ SOLD OUT' : '✅'}\n\n✨ All rooms include pool access, beach access & WiFi!`;
+    } else {
+      // Large groups: Check if exceeds villa availability
+      const villaCount = Math.floor(guestCount / 8);
+      
+      if (villaCount > AVAILABLE_ROOMS.villa.count) {
+        // Needs more villas than available - offer full resort booking
+        const totalCost = (AVAILABLE_ROOMS.villa.count * 8000) + (AVAILABLE_ROOMS.loft.count * 5000) + (AVAILABLE_ROOMS.teepee.count * 6000);
+        const totalCapacity = (AVAILABLE_ROOMS.villa.count * 8) + (AVAILABLE_ROOMS.loft.count * 2) + (AVAILABLE_ROOMS.teepee.count * 5);
+        const additionalNeeded = Math.max(0, guestCount - totalCapacity);
+        const additionalCost = additionalNeeded * 400;
+        const grandTotal = totalCost + additionalCost;
+        const formattedDate = new Date(bookingDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+        
+        roomSuggestion = `For ${guestCount} guests, you'll need most or all of our available rooms:\n\n**Full Resort Booking:**\n🏠 ${AVAILABLE_ROOMS.villa.count} Villa Room${AVAILABLE_ROOMS.villa.count !== 1 ? 's' : ''} (${AVAILABLE_ROOMS.villa.count * 8} pax) — ₱${(AVAILABLE_ROOMS.villa.count * 8000).toLocaleString()}\n🏢 ${AVAILABLE_ROOMS.loft.count} Loft Room${AVAILABLE_ROOMS.loft.count !== 1 ? 's' : ''} (${AVAILABLE_ROOMS.loft.count * 2} pax) — ₱${(AVAILABLE_ROOMS.loft.count * 5000).toLocaleString()}\n⛺ ${AVAILABLE_ROOMS.teepee.count} Teepee Room${AVAILABLE_ROOMS.teepee.count !== 1 ? 's' : ''} (${AVAILABLE_ROOMS.teepee.count * 5} pax) — ₱${(AVAILABLE_ROOMS.teepee.count * 6000).toLocaleString()}\n${additionalNeeded > 0 ? `\nAdditional Pax (${additionalNeeded} × ₱400): ₱${additionalCost.toLocaleString()}` : ''}\n\n💰 **Total Cost: ₱${grandTotal.toLocaleString()}**\n📅 **Check-in Date:** ${formattedDate}\n\n📊 **Total Capacity:** ${totalCapacity + (AVAILABLE_ROOMS.villa.count + AVAILABLE_ROOMS.loft.count + AVAILABLE_ROOMS.teepee.count) * 2} guests maximum\n\n✨ This includes exclusive use of the resort!\n\n📞 For large bookings, we recommend:\n📧 Email: dcharkoolhausresort@gmail.com\n📘 Facebook: Charkool Leisure Beach Resort`;
+        
+        setAwaitingCustomization(true);
+        setLastGuestCount(guestCount);
+      } else {
+        // Normal large group calculation
+        const remaining = guestCount % 8;
+        
+        let option1Cost = villaCount * 8000;
+        let option1Text = `${villaCount} Villa Room${villaCount > 1 ? 's' : ''} (${villaCount * 8} pax)`;
+        
+        if (remaining > 0) {
+          if (remaining <= 2) {
+            // Add as additional pax to last villa
+            const additionalCost = remaining * 400;
+            option1Cost += additionalCost;
+            option1Text += ` + ${remaining} additional pax (₱${additionalCost.toLocaleString()})`;
+          } else if (remaining <= 4) {
+            // Add a Loft room
+            option1Cost += 5000;
+            option1Text += ` + 1 Loft Room (${remaining} pax)`;
+          } else if (remaining === 5) {
+            // Add a Teepee room
+            option1Cost += 6000;
+            option1Text += ` + 1 Teepee Room (${remaining} pax)`;
+          } else {
+            // Add another Villa
+            option1Cost += 8000;
+            option1Text += ` + 1 Villa Room (${remaining} pax)`;
+          }
+        }
+        
+        const totalVillas = Math.ceil(guestCount / 8);
+        const option2Cost = totalVillas * 8000;
+        const formattedDate = new Date(bookingDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+        
+        roomSuggestion = `For ${guestCount} guests, you'll need multiple rooms:\n\n**OPTION 1 (Optimized):**\n🏠 ${option1Text}\n💰 **Total Cost: ₱${option1Cost.toLocaleString()}**\n\n**OPTION 2 (All Villas):**\n🏠 ${totalVillas} Villa Room${totalVillas > 1 ? 's' : ''}\n💰 **Total Cost: ₱${option2Cost.toLocaleString()}**\n\n� **Check-in Date:** ${formattedDate}\n�📊 **Room Availability:**\n• ${AVAILABLE_ROOMS.villa.count} Villa Room${AVAILABLE_ROOMS.villa.count !== 1 ? 's' : ''} available ${AVAILABLE_ROOMS.villa.count === 0 ? '⚠️ SOLD OUT' : '✅'}\n• ${AVAILABLE_ROOMS.loft.count} Loft Room${AVAILABLE_ROOMS.loft.count !== 1 ? 's' : ''} available ${AVAILABLE_ROOMS.loft.count === 0 ? '⚠️ SOLD OUT' : '✅'}\n• ${AVAILABLE_ROOMS.teepee.count} Teepee Room${AVAILABLE_ROOMS.teepee.count !== 1 ? 's' : ''} available ${AVAILABLE_ROOMS.teepee.count === 0 ? '⚠️ SOLD OUT' : '✅'}\n\n✨ All rooms include:\n• Swimming pool access\n• Private beach access\n• High-speed WiFi\n\n💡 **Note:** Each room can accommodate up to 2 additional guests at ₱400/person.`;
+        
+        setAwaitingCustomization(true);
+        setLastGuestCount(guestCount);
+      }
+    }
+
+    const responseId = Date.now();
+    const response = {
+      type: 'bot',
+      text: roomSuggestion,
+      timestamp: new Date(),
+      id: responseId,
+      showBookNow: guestCount <= maxCapacity
+    };
+
+    setMessages((prev) => [...prev, response]);
+    setMessageStatus(prev => ({ ...prev, [responseId]: 'delivered' }));
+    setAwaitingGuestCount(false);
   };
 
   // Enhanced message handling with better AI responses
@@ -742,6 +998,143 @@ export default function ChatInterface({ isModal }) {
 
     // Update last seen
     setLastSeen(new Date());
+
+    // Check for affirmative responses when awaiting customization
+    if (awaitingCustomization) {
+      const affirmativeKeywords = ['yes', 'yeah', 'yup', 'sure', 'ok', 'okay', 'oo', 'sige', 'please', 'help', 'yep', 'yah', 'salamat', 'thanks', 'go', 'proceed'];
+      const negativeKeywords = ['no', 'nope', 'nah', 'hindi', 'wag', 'not', 'never mind', 'cancel'];
+      
+      if (affirmativeKeywords.some((keyword) => lowerInput.includes(keyword))) {
+        const responseId = Date.now();
+        const response = {
+          type: 'bot',
+          text: `Great! I'd love to help you customize the perfect room combination for ${lastGuestCount} guests! 🏖️\n\nTo create the best arrangement for your group, please let me know:\n\n1️⃣ Do you prefer staying in the same building or separate rooms is fine?\n2️⃣ Any budget preference?\n3️⃣ Special requirements? (families with kids, privacy needs, etc.)\n\n💡 Or simply tell me your preference and I'll suggest the best combination!\n\nYou can also proceed directly to booking where you can customize your selection.`,
+          timestamp: new Date(),
+          id: responseId,
+          showBookNow: true
+        };
+        setMessages((prev) => [...prev, response]);
+        setMessageStatus(prev => ({ ...prev, [responseId]: 'delivered' }));
+        setAwaitingCustomization(false);
+        return;
+      } else if (negativeKeywords.some((keyword) => lowerInput.includes(keyword))) {
+        const responseId = Date.now();
+        const response = {
+          type: 'bot',
+          text: "No problem! Feel free to ask me anything else about our rooms, amenities, or proceed to booking when you're ready! 😊",
+          timestamp: new Date(),
+          id: responseId,
+          showBookNow: true
+        };
+        setMessages((prev) => [...prev, response]);
+        setMessageStatus(prev => ({ ...prev, [responseId]: 'delivered' }));
+        setAwaitingCustomization(false);
+        setShowQuickReplies(true);
+        return;
+      }
+    }
+
+    // If waiting for booking date, parse and check availability
+    if (awaitingBookingDate) {
+      const dateResult = parseDate(trimmedInput);
+      
+      if (dateResult.valid) {
+        // Valid date parsed
+        await simulateTyping(1500);
+        setPendingBookingDate(dateResult.date);
+        setAwaitingBookingDate(false);
+        
+        // Now fetch availability and suggest rooms
+        await suggestRoomsByGuestCount(lastGuestCount, dateResult.date);
+        return;
+      } else {
+        // Invalid date - provide specific error message
+        let errorMessage = '';
+        
+        if (dateResult.error === 'past') {
+          errorMessage = "⚠️ That date has already passed. Please choose a future date for your check-in.\n\nTry:\n• \"today\" or \"tomorrow\"\n• \"December 25, 2025\"\n• \"12/25/2025\"\n• \"next week\"";
+        } else if (dateResult.error === 'too_far') {
+          errorMessage = "⚠️ That date is too far in the future. We accept bookings up to 1 year in advance.\n\nPlease choose a date within the next 12 months.";
+        } else {
+          errorMessage = "I couldn't understand that date format. 😕\n\nPlease try again with:\n• \"December 25, 2025\"\n• \"12/25/2025\"\n• \"2025-12-25\"\n• \"today\" or \"tomorrow\"\n• \"next week\"";
+        }
+        
+        const responseId = Date.now();
+        const response = {
+          type: 'bot',
+          text: errorMessage,
+          timestamp: new Date(),
+          id: responseId
+        };
+        setMessages((prev) => [...prev, response]);
+        setMessageStatus(prev => ({ ...prev, [responseId]: 'delivered' }));
+        return;
+      }
+    }
+
+    // If waiting for guest count, parse the number
+    if (awaitingGuestCount) {
+      // Try to extract number from the message (handles "i said 21", "21 persons", etc.)
+      const numberMatch = trimmedInput.match(/\b(\d+)\b/);
+      const guestCount = numberMatch ? parseInt(numberMatch[1]) : parseInt(trimmedInput);
+      
+      if (!isNaN(guestCount) && guestCount > 0) {
+        await suggestRoomsByGuestCount(guestCount);
+        return;
+      } else {
+        const responseId = Date.now();
+        const response = {
+          type: 'bot',
+          text: "I need a number to suggest the best rooms for you. How many guests will be staying? (e.g., 2, 5, 8)",
+          timestamp: new Date(),
+          id: responseId
+        };
+        setMessages((prev) => [...prev, response]);
+        setMessageStatus(prev => ({ ...prev, [responseId]: 'delivered' }));
+        return;
+      }
+    }
+
+    // Check for room suggestion keywords - Enhanced with more trigger words
+    const roomSuggestionKeywords = [
+      'suggest room', 'recommend room', 'room suggestion', 'which room', 'what room', 
+      'room recommend', 'irecommend', 'isuggest', 'room for', 'best room', 'room ako',
+      'suggest', 'recommendation', 'ano room', 'anong room', 'good room', 'perfect room',
+      'fit room', 'kami room', 'room kami', 'room ba', 'suitable room', 'ideal room',
+      'room nyo', 'room ninyo', 'maganda room', 'room suggestion', 'rooms for',
+      'we are', 'kami ay', 'kaming', 'grupo', 'group of', 'party of',
+      'ilang tao', 'how many', 'pang ilang', 'people', 'persons', 'pax',
+      'need room', 'looking for room', 'find room', 'search room', 'gusto room',
+      'hanap room', 'kailangan room', 'pabooking', 'pabook', 'help choose',
+      'help me choose', 'help select', 'choose room', 'pick room', 'select room',
+      'suggest for', 'recommend for', 'for person', 'for people', 'for guest'
+    ];
+    
+    // Check if message contains room suggestion triggers
+    if (roomSuggestionKeywords.some((keyword) => lowerInput.includes(keyword))) {
+      // Try to extract number from the message
+      const numberMatch = trimmedInput.match(/\b(\d+)\b/);
+      
+      if (numberMatch) {
+        // If a number is found in the message, use it directly
+        const guestCount = parseInt(numberMatch[1]);
+        await suggestRoomsByGuestCount(guestCount);
+        return;
+      } else {
+        // No number found, ask for guest count
+        const responseId = Date.now();
+        const response = {
+          type: 'bot',
+          text: "I'd be happy to suggest the perfect room for you! 🏖️\n\nHow many guests will be staying?",
+          timestamp: new Date(),
+          id: responseId
+        };
+        setMessages((prev) => [...prev, response]);
+        setMessageStatus(prev => ({ ...prev, [responseId]: 'delivered' }));
+        setAwaitingGuestCount(true);
+        return;
+      }
+    }
 
     // Check for greetings first
     if (greetingKeywords.some((greet) => lowerInput.includes(greet))) {
@@ -896,27 +1289,38 @@ export default function ChatInterface({ isModal }) {
   );
 
   return (
-  <div className="modern-chat-container">
-      {/* Chat Header */}
-  <div className="chat-header">
-        <div className="agent-info">
-          <div className="agent-avatar">
-            <MessageCircle size={20} />
-          </div>
-          <div className="agent-details">
-            <h4>Kool - Resort Concierge</h4>
-            <div className="agent-status">
-              <div className={`status-dot ${agentOnline ? 'online' : 'offline'}`}></div>
-              <span>{agentOnline ? 'Active now' : 'Away'}</span>
-              {conversationStarted && (
-                <span className="response-time">• {responseTime}</span>
-              )}
+    <>
+      {isModal && <div className="chat-modal-backdrop" onClick={onClose}></div>}
+      <div className="modern-chat-container">
+        {/* Chat Header */}
+        <div className="chat-header">
+          <div className="agent-info">
+            <div className="agent-avatar">
+              <MessageCircle size={20} />
+            </div>
+            <div className="agent-details">
+              <h4>Kool - Resort Concierge</h4>
+              <div className="agent-status">
+                <div className={`status-dot ${agentOnline ? 'online' : 'offline'}`}></div>
+                <span>{agentOnline ? 'Active now' : 'Away'}</span>
+                {conversationStarted && (
+                  <span className="response-time">• {responseTime}</span>
+                )}
+              </div>
             </div>
           </div>
+          <div className="chat-actions">
+            {isModal && onClose && (
+              <button 
+                className="chat-action-btn close-chat-btn"
+                onClick={onClose}
+                title="Close chat"
+              >
+                <X size={18} />
+              </button>
+            )}
+          </div>
         </div>
-        <div className="chat-actions">
-        </div>
-      </div>
 
       {/* Messages Area */}
   <div className="messages-container">
@@ -1022,6 +1426,10 @@ export default function ChatInterface({ isModal }) {
           >
             <div className="quick-replies-title">Quick replies:</div>
             <div className="quick-replies-buttons">
+              <button onClick={() => handleQuickReply('room_suggestions')} className="quick-reply-btn">
+                <Home size={14} />
+                <span>Suggest a room</span>
+              </button>
               <button onClick={() => handleQuickReply('room_rates')} className="quick-reply-btn">
                 <span style={{fontSize: '14px', fontWeight: 'bold'}}>₱</span>
                 <span>Room rates</span>
@@ -1029,10 +1437,6 @@ export default function ChatInterface({ isModal }) {
               <button onClick={() => handleQuickReply('amenities')} className="quick-reply-btn">
                 <Wifi size={14} />
                 <span>Amenities</span>
-              </button>
-              <button onClick={() => handleQuickReply('pet_policy')} className="quick-reply-btn">
-                <Users size={14} />
-                <span>Pet policies</span>
               </button>
               <button onClick={() => handleQuickReply('booking_process')} className="quick-reply-btn">
                 <Calendar size={14} />
@@ -1134,13 +1538,33 @@ export default function ChatInterface({ isModal }) {
         .modern-chat-container {
           display: flex;
           flex-direction: column;
-          height: 100%;
-          max-height: 600px;
+          height: 85vh;
+          max-height: 750px;
+          width: 90vw;
+          max-width: 480px;
           background: var(--chat-bg);
           border-radius: 16px;
-          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.06);
           overflow: hidden;
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+          position: relative;
+          margin: auto;
+        }
+
+        /* Modal backdrop with blur */
+        .chat-modal-backdrop {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.4);
+          backdrop-filter: blur(8px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+          padding: 1rem;
         }
 
         .chat-header {
@@ -1150,8 +1574,9 @@ export default function ChatInterface({ isModal }) {
           align-items: center;
           justify-content: space-between;
           border-bottom: 1px solid rgba(255, 255, 255, 0.15);
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-          position: relative;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+          border-radius: 16px 16px 0 0;
+          flex-shrink: 0;
         }
 
         .chat-header::before {
@@ -1251,6 +1676,9 @@ export default function ChatInterface({ isModal }) {
           cursor: pointer;
           transition: all 0.2s ease;
           backdrop-filter: blur(10px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
         }
 
         .chat-action-btn:hover {
@@ -1259,17 +1687,23 @@ export default function ChatInterface({ isModal }) {
           transform: translateY(-1px);
         }
 
+        .close-chat-btn {
+          width: 32px;
+          height: 32px;
+        }
+
         /* theme toggle removed */
 
         .messages-container {
           flex: 1;
-          padding: 1rem 1rem 2rem 1rem;
+          padding: 1.5rem 1rem;
           overflow-y: auto;
           display: flex;
           flex-direction: column;
-          gap: 0.75rem;
-          background: linear-gradient(to bottom, #fafafa 0%, var(--surface) 100%);
+          gap: 0.5rem;
+          background: #f0f2f5;
           scroll-behavior: smooth;
+          min-height: 0;
         }
 
         /* dark theme removed */
@@ -1387,12 +1821,14 @@ export default function ChatInterface({ isModal }) {
 
         .message-time {
           font-size: 0.7rem;
-          opacity: 0.7;
+          opacity: 0.6;
           text-align: right;
           display: flex;
           align-items: center;
           gap: 0.25rem;
           justify-content: flex-end;
+          margin-top: 0.25rem;
+          color: #65676b;
         }
 
         .message-content.bot .message-time {
@@ -1407,12 +1843,12 @@ export default function ChatInterface({ isModal }) {
         }
 
         .message-status.sending {
-          color: #6c757d;
-          animation: pulse 1s infinite;
+          color: #65676b;
+          opacity: 0.6;
         }
 
         .message-status.delivered {
-          color: #28a745;
+          color: #0084ff;
         }
 
         .message-actions {
@@ -1562,9 +1998,10 @@ export default function ChatInterface({ isModal }) {
         }
 
         .quick-replies {
-          padding: 1rem;
-          background: rgba(254, 190, 82, 0.03);
-          border-top: 1px solid rgba(254, 190, 82, 0.06);
+          padding: 0.75rem 1rem;
+          background: white;
+          border-top: 1px solid #e4e6eb;
+          flex-shrink: 0;
         }
 
         .quick-replies-title {
@@ -1582,24 +2019,23 @@ export default function ChatInterface({ isModal }) {
 
         .quick-reply-btn {
           background: white;
-          border: 1px solid rgba(15,23,42,0.06);
+          border: 1px solid #ccc;
           border-radius: 20px;
-          padding: 0.5rem 0.75rem;
+          padding: 0.5rem 0.9rem;
           font-size: 0.85rem;
           cursor: pointer;
-          transition: all 0.18s ease;
+          transition: all 0.15s ease;
           display: flex;
           align-items: center;
           gap: 0.5rem;
-          box-shadow: 0 6px 18px rgba(2,6,23,0.04);
+          color: #0084ff;
+          font-weight: 500;
         }
 
         .quick-reply-btn:hover {
-          background: linear-gradient(135deg, #FEBE52, #f0c14b);
-          color: white;
-          border-color: #FEBE52;
-          transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(254, 190, 82, 0.3);
+          background: #f0f2f5;
+          border-color: #0084ff;
+          transform: scale(1.02);
         }
 
         /* Focus visible for keyboard users */
@@ -1620,23 +2056,24 @@ export default function ChatInterface({ isModal }) {
         .chat-input-container {
           padding: 1rem 1.5rem;
           background: white;
-          border-top: 1px solid #e9ecef;
+          border-top: 1px solid #e4e6eb;
+          border-radius: 0 0 16px 16px;
+          flex-shrink: 0;
         }
 
         .input-wrapper {
           display: flex;
           align-items: center;
           gap: 0.75rem;
-          background: #f8f9fa;
-          border-radius: 25px;
-          padding: 0.5rem;
-          border: 1px solid #dee2e6;
+          background: #f0f2f5;
+          border-radius: 20px;
+          padding: 0.5rem 1rem;
+          border: none;
           transition: all 0.2s ease;
         }
 
         .input-wrapper:focus-within {
-          border-color: #FEBE52;
-          box-shadow: 0 0 0 3px rgba(254, 190, 82, 0.1);
+          background: #e4e6eb;
         }
 
         .chat-input {
@@ -1679,21 +2116,21 @@ export default function ChatInterface({ isModal }) {
         }
 
         .send-btn {
-          background: #e9ecef;
-          color: #6c757d;
+          background: transparent;
+          color: #0084ff;
         }
 
         .send-btn.active {
-          background: #FEBE52;
+          background: #0084ff;
           color: white;
         }
 
         .send-btn:hover:not(:disabled) {
-          transform: scale(1.1);
+          transform: scale(1.05);
         }
 
         .send-btn:disabled {
-          opacity: 0.5;
+          opacity: 0.3;
           cursor: not-allowed;
         }
 
@@ -1766,8 +2203,22 @@ export default function ChatInterface({ isModal }) {
 
         @media (max-width: 768px) {
           .modern-chat-container {
-            height: 100vh;
-            border-radius: 0;
+            height: 95vh;
+            width: 95vw;
+            max-width: none;
+          }
+          
+          .chat-header {
+            padding: 0.75rem 1rem;
+          }
+          
+          .agent-avatar {
+            width: 36px;
+            height: 36px;
+          }
+          
+          .agent-details h4 {
+            font-size: 0.95rem;
           }
           
           .categories-grid, .questions-grid {
@@ -1823,13 +2274,12 @@ export default function ChatInterface({ isModal }) {
 
         /* Bubble styling */
         .message-bubble {
-          padding: 12px 16px;
+          padding: 0.75rem 1rem;
           border-radius: 18px;
           position: relative;
           word-wrap: break-word;
-          line-height: 1.4;
-          animation: fadeIn 0.3s ease;
-          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+          line-height: 1.5;
+          box-shadow: 0 1px 1px rgba(0, 0, 0, 0.08);
           max-width: 100%;
         }
 
@@ -1840,17 +2290,17 @@ export default function ChatInterface({ isModal }) {
         }
 
         /* User message bubble style */
-        .message-wrapper.user .message-bubble {
-          background-color: #FEBE52;
-          color: #333;
-          border-bottom-left-radius: 4px;
+        .message-content.user .message-bubble {
+          background: #0084ff;
+          color: white;
+          border-bottom-right-radius: 4px;
         }
 
         /* Bot message bubble style */
-        .message-wrapper.bot .message-bubble {
-          background-color: #e5e5e5;
-          color: #333;
-          border-bottom-right-radius: 4px;
+        .message-content.bot .message-bubble {
+          background: #e4e6eb;
+          color: #050505;
+          border-bottom-left-radius: 4px;
         }
 
         /* Interaction area styling */
@@ -1994,5 +2444,6 @@ export default function ChatInterface({ isModal }) {
         }
       `}</style>
     </div>
+    </>
   );
 }

@@ -85,10 +85,9 @@ export default function ReceptionistDashboard() {
     checkOut: '',
     numberOfGuests: 1,
     paymentMode: 'cash', // Default to cash
-    selectedRooms: {}, // DEPRECATED: Keep for backward compatibility
-    rooms: [], // NEW: Array of { roomId, quantity, adults, additionalPax, children, optionalAmenities, rentalAmenities }
+    selectedRooms: {},
     selectedRoomDetails: {},
-    selectedAmenities: { optional: {}, rental: {}, cottage: null }, // Keep for backward compatibility
+    selectedAmenities: { optional: {}, rental: {}, cottage: null },
   });
   const [availableRooms, setAvailableRooms] = useState([]);
   const [loadingRooms, setLoadingRooms] = useState(false);
@@ -1853,9 +1852,8 @@ export default function ReceptionistDashboard() {
                   return;
                 }
 
-                // Validation: selected rooms exist (check both formats)
-                const hasRooms = createBookingForm.rooms.length > 0 || Object.keys(createBookingForm.selectedRooms).length > 0;
-                if (!hasRooms) {
+                // Validation: selected rooms exist
+                if (Object.keys(createBookingForm.selectedRooms).length === 0) {
                   alert('❌ Please select at least one room.');
                   return;
                 }
@@ -1872,54 +1870,47 @@ export default function ReceptionistDashboard() {
                 try {
                   const nights = Math.max(1, (new Date(createBookingForm.checkOut) - new Date(createBookingForm.checkIn)) / (1000 * 60 * 60 * 24));
 
+                  // Prepare rental amenities in expected format
+                  const rental = {};
+                  for (const [id, selection] of Object.entries(createBookingForm.selectedAmenities.rental || {})) {
+                    rental[id] = {
+                      quantity: selection.quantity || 0,
+                      hoursUsed: selection.hoursUsed || 0
+                    };
+                  }
+
+                  const optional = createBookingForm.selectedAmenities.optional || {};
+                  const cottage = createBookingForm.selectedAmenities.cottage;
+
                   // Combine the name fields for submission
                   const guestName = `${createBookingForm.firstName}${createBookingForm.middleName ? ' ' + createBookingForm.middleName : ''} ${createBookingForm.lastName}`.trim();
-
-                  // Prepare request body - use new format if rooms array exists
-                  const requestBody = {
-                    guestName,
-                    checkIn: createBookingForm.checkIn,
-                    checkOut: createBookingForm.checkOut,
-                    numberOfGuests: createBookingForm.numberOfGuests,
-                    paymentMode: createBookingForm.paymentMode,
-                    nights,
-                    status: 'Pending', // Changed from 'Confirmed' - only cashier/super admin can confirm
-                    paymentStatus: 'Pending'
-                  };
-
-                  if (createBookingForm.rooms.length > 0) {
-                    // NEW FORMAT: Send rooms array with guest details
-                    requestBody.rooms = createBookingForm.rooms;
-                  } else {
-                    // OLD FORMAT: Fall back to selectedRooms (backward compatibility)
-                    const rental = {};
-                    for (const [id, selection] of Object.entries(createBookingForm.selectedAmenities.rental || {})) {
-                      rental[id] = {
-                        quantity: selection.quantity || 0,
-                        hoursUsed: selection.hoursUsed || 0
-                      };
-                    }
-
-                    requestBody.selectedRooms = createBookingForm.selectedRooms;
-                    requestBody.optional = createBookingForm.selectedAmenities.optional || {};
-                    requestBody.rental = rental;
-                    requestBody.cottage = createBookingForm.selectedAmenities.cottage;
-                  }
 
                   const response = await fetch('/api/bookings', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(requestBody)
+                    body: JSON.stringify({
+                      guestName,
+                      checkIn: createBookingForm.checkIn,
+                      checkOut: createBookingForm.checkOut,
+                      numberOfGuests: createBookingForm.numberOfGuests,
+                      paymentMode: createBookingForm.paymentMode,
+                      selectedRooms: createBookingForm.selectedRooms,
+                      optional,
+                      rental,
+                      cottage,
+                      nights,
+                      status: 'Pending', // Changed from 'Confirmed' - only cashier/super admin can confirm
+                      paymentStatus: 'Pending'
+                    })
                   });
 
                   if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.error || errorData.details || 'Failed to create booking');
+                    throw new Error('Failed to create booking');
                   }
 
                   const newBookingData = await response.json();
                   setBookings([...bookings, newBookingData]);
-                  alert('✅ Walk-in booking created successfully!');
+                  alert('Booking created successfully!');
 
                   // Reset form
                   closeModal();
@@ -1933,27 +1924,13 @@ export default function ReceptionistDashboard() {
                     numberOfGuests: 1,
                     paymentMode: 'cash',
                     selectedRooms: {},
-                    rooms: [],
                     selectedRoomDetails: {},
                     selectedAmenities: { optional: {}, rental: {}, cottage: null },
                   });
                   await fetchBookings();
                 } catch (error) {
                   console.error('❌ Booking Error:', error);
-                  // More descriptive error messages
-                  let errorMessage = 'An unexpected error occurred while creating the booking.';
-                  
-                  if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-                    errorMessage = 'Network error. Please check your internet connection and try again.';
-                  } else if (error.message.includes('Insufficient stock')) {
-                    errorMessage = `Inventory error: ${error.message}`;
-                  } else if (error.message.includes('only') && error.message.includes('available')) {
-                    errorMessage = `Room availability error: ${error.message}`;
-                  } else if (error.message) {
-                    errorMessage = error.message;
-                  }
-                  
-                  alert(`❌ Booking Failed: ${errorMessage}`);
+                  alert(`❌ Booking Failed: ${error.message}`);
                 } finally {
                   submittingRef.current = false;
                   setShowSubmitModal(false);

@@ -6,7 +6,7 @@ import prisma from '@/lib/prisma';
 
 export async function POST(req) {
   try {
-    const { bookingId, amount, status, bookingStatus, paymentType, method } = await req.json();
+    const { bookingId, amount, status, bookingStatus, paymentType, method, cardDetails } = await req.json();
 
     if (!bookingId || !amount || !status || !method) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -28,8 +28,36 @@ export async function POST(req) {
       return NextResponse.json({ error: `Invalid amount. Expected ₱${expectedAmount}` }, { status: 400 });
     }
 
+    // Cancel any pending payments for this booking before creating a new one
+    // This prevents duplicate payments when user switches payment methods
+    const pendingPayments = await prisma.payment.findMany({
+      where: {
+        bookingId: parseInt(bookingId),
+        status: 'Pending'
+      }
+    });
+
+    if (pendingPayments.length > 0) {
+      await prisma.payment.updateMany({
+        where: {
+          bookingId: parseInt(bookingId),
+          status: 'Pending'
+        },
+        data: {
+          status: 'Cancelled'
+        }
+      });
+      console.log(`Cancelled ${pendingPayments.length} pending payment(s) for booking ${bookingId}`);
+    }
+
     // Capitalize status to match enum
     const capitalizedStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+
+    // Create reference ID with card info if provided
+    let referenceId = `test_${Date.now()}`;
+    if (cardDetails && cardDetails.maskedNumber) {
+      referenceId = `test_card_${cardDetails.maskedNumber.replace(/\*/g, '').trim()}_${Date.now()}`;
+    }
 
     // Create a payment record with appropriate status and method 'TEST'
     const payment = await prisma.payment.create({
@@ -37,8 +65,9 @@ export async function POST(req) {
         bookingId: parseInt(bookingId),
         amount: Math.round(amount * 100), // store in cents to be consistent with other payment methods
         status: capitalizedStatus,
-        provider: method,
-        referenceId: `test_${Date.now()}`,
+        provider: cardDetails ? 'Credit Card (TEST)' : 'TEST',
+        method: cardDetails ? 'Credit Card (TEST)' : 'TEST',
+        referenceId: referenceId,
       },
     });
 
