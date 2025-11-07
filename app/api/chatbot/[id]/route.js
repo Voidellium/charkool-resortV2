@@ -34,7 +34,8 @@ export async function PATCH(request, { params }) {
   }
 
   try {
-    const { id } = params;
+    // Await params in Next.js 15
+    const { id } = await params;
     const body = await request.json();
     const { question, answer, category, hasBookNow } = body;
 
@@ -63,7 +64,8 @@ export async function DELETE(request, { params }) {
   }
 
   try {
-    const { id } = params;
+    // Await params in Next.js 15
+    const { id } = await params;
 
     await prisma.chatbotQA.delete({
       where: { id },

@@ -264,7 +264,7 @@ async function postBookingHandler(request) {
     for (const room of rooms) {
       // Get requested quantity based on format
       const requestedQty = hasNewFormat
-        ? roomsArray.find(r => parseInt(r.roomId) === room.id)?.quantity || 0
+        ? roomsArray.filter(r => parseInt(r.roomId) === room.id).length // NEW: Count instances
         : selectedRooms[room.id] || 0;
       
       // Check existing bookings that overlap with the requested dates
@@ -464,15 +464,19 @@ async function postBookingHandler(request) {
               rooms: {
                 create: rooms.map(room => {
                   if (hasNewFormat) {
-                    // New format: get data from roomsArray
-                    const roomData = roomsArray.find(r => parseInt(r.roomId) === room.id);
+                    // New format: count instances of this roomId and sum their guest details
+                    const roomInstances = roomsArray.filter(r => parseInt(r.roomId) === room.id);
+                    const totalAdults = roomInstances.reduce((sum, r) => sum + (r.adults || 1), 0);
+                    const totalAdditionalPax = roomInstances.reduce((sum, r) => sum + (r.additionalPax || 0), 0);
+                    const totalChildren = roomInstances.reduce((sum, r) => sum + (r.children || 0), 0);
+                    
                     return {
                       roomId: room.id,
-                      quantity: roomData?.quantity || 0,
-                      adults: roomData?.adults || 1,
-                      additionalPax: roomData?.additionalPax || 0,
-                      children: roomData?.children || 0,
-                      additionalPaxFee: (roomData?.additionalPax || 0) * 40000, // ₱400 per pax in cents
+                      quantity: roomInstances.length, // Each instance = 1 room
+                      adults: totalAdults,
+                      additionalPax: totalAdditionalPax,
+                      children: totalChildren,
+                      additionalPaxFee: totalAdditionalPax * 40000, // ₱400 per pax in cents
                     };
                   } else {
                     // Old format: minimal data, default guest values
@@ -525,6 +529,26 @@ async function postBookingHandler(request) {
         // For other errors, don't retry
         throw transactionError;
       }
+    }
+
+    // NEW: Auto-assign room units after booking creation
+    try {
+      const { autoAssignRoomUnits } = await import('@/lib/roomUnitAvailability');
+      
+      // Extract unique room IDs from the booking
+      const roomIdsForAssignment = booking.rooms.map(br => br.roomId);
+      
+      // Auto-assign units
+      const assignments = await autoAssignRoomUnits(booking.id, roomIdsForAssignment);
+      
+      console.log(`✅ Auto-assigned ${assignments.length} room unit(s) for booking ${booking.id}`);
+      
+      // Attach assignments to booking response
+      booking.unitAssignments = assignments;
+    } catch (assignmentError) {
+      console.error('⚠️ Failed to auto-assign room units:', assignmentError);
+      // Non-critical error - booking is still valid, units can be assigned later by receptionist
+      console.log('Booking created successfully but units not assigned. Receptionist can assign manually.');
     }
 
     // Create notification for superadmin

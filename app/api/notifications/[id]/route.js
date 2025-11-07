@@ -4,7 +4,8 @@ import prisma from "@/lib/prisma";
 
 export async function PATCH(req, { params }) {
   try {
-    const { id } = params;
+    // Await params in Next.js 15
+    const { id } = await params;
     const updated = await prisma.notification.update({
       where: { id: parseInt(id) },
       data: { isRead: true },

@@ -16,7 +16,8 @@ function serializeBigInt(obj) {
 
 export async function GET(request, { params }) {
   try {
-    const { id } = params;
+    // Await params in Next.js 15
+    const { id } = await params;
     const promotion = await prisma.promotion.findUnique({
       where: { id: parseInt(id) },
     });
@@ -32,7 +33,8 @@ export async function GET(request, { params }) {
 
 export async function PATCH(request, { params }) {
   try {
-    const { id } = params;
+    // Await params in Next.js 15
+    const { id } = await params;
     const formData = await request.formData();
     const title = formData.get('title');
     const description = formData.get('description');
@@ -130,7 +132,8 @@ export async function PATCH(request, { params }) {
 
 export async function DELETE(request, { params }) {
   try {
-    const { id } = params;
+    // Await params in Next.js 15
+    const { id } = await params;
     const promotion = await prisma.promotion.findUnique({ where: { id: parseInt(id) } });
     if (!promotion) {
       return NextResponse.json({ error: 'Promotion not found' }, { status: 404 });

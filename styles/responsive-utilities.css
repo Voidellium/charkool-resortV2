@@ -1,0 +1,417 @@
+/* ===========================
+   RESPONSIVE UTILITIES
+   Global responsive helper classes
+   =========================== */
+
+/* Mobile-first approach breakpoints:
+   - xs: 0px - 479px (extra small mobile)
+   - sm: 480px - 639px (small mobile)
+   - md: 640px - 767px (medium mobile/small tablet)
+   - lg: 768px - 1023px (tablet)
+   - xl: 1024px - 1279px (laptop)
+   - 2xl: 1280px - 1535px (desktop)
+   - 3xl: 1536px+ (large screens/TVs)
+*/
+
+/* ===== Display Utilities ===== */
+.hide-xs { display: none; }
+@media (min-width: 480px) { .hide-xs { display: revert; } }
+@media (max-width: 479px) { .show-xs { display: block; } }
+
+.hide-sm { display: none; }
+@media (min-width: 640px) { .hide-sm { display: revert; } }
+@media (min-width: 480px) and (max-width: 639px) { .show-sm { display: block; } }
+
+.hide-md { display: none; }
+@media (min-width: 768px) { .hide-md { display: revert; } }
+@media (min-width: 640px) and (max-width: 767px) { .show-md { display: block; } }
+
+.hide-lg { display: none; }
+@media (min-width: 1024px) { .hide-lg { display: revert; } }
+@media (min-width: 768px) and (max-width: 1023px) { .show-lg { display: block; } }
+
+.hide-xl { display: none; }
+@media (min-width: 1280px) { .hide-xl { display: revert; } }
+@media (min-width: 1024px) and (max-width: 1279px) { .show-xl { display: block; } }
+
+.hide-2xl { display: none; }
+@media (min-width: 1536px) { .hide-2xl { display: revert; } }
+@media (min-width: 1280px) and (max-width: 1535px) { .show-2xl { display: block; } }
+
+@media (min-width: 1536px) { .show-3xl { display: block; } }
+
+/* Mobile only (below tablet) */
+.hide-mobile { display: none; }
+@media (min-width: 768px) { .hide-mobile { display: revert; } }
+@media (max-width: 767px) { .show-mobile { display: block; } }
+
+/* Desktop and above */
+@media (max-width: 1023px) { .hide-below-desktop { display: none; } }
+@media (min-width: 1024px) { .show-desktop { display: block; } }
+
+/* ===== Flex Direction Utilities ===== */
+.flex-col { flex-direction: column; }
+.flex-row { flex-direction: row; }
+
+@media (min-width: 640px) {
+  .md\:flex-row { flex-direction: row; }
+  .md\:flex-col { flex-direction: column; }
+}
+
+@media (min-width: 768px) {
+  .lg\:flex-row { flex-direction: row; }
+  .lg\:flex-col { flex-direction: column; }
+}
+
+@media (min-width: 1024px) {
+  .xl\:flex-row { flex-direction: row; }
+  .xl\:flex-col { flex-direction: column; }
+}
+
+/* ===== Text Alignment Utilities ===== */
+.text-left { text-align: left; }
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+
+@media (max-width: 767px) {
+  .mobile\:text-center { text-align: center; }
+  .mobile\:text-left { text-align: left; }
+}
+
+@media (min-width: 768px) {
+  .lg\:text-left { text-align: left; }
+  .lg\:text-center { text-align: center; }
+  .lg\:text-right { text-align: right; }
+}
+
+/* ===== Width Utilities ===== */
+.w-full { width: 100%; }
+.w-auto { width: auto; }
+.w-fit { width: fit-content; }
+
+@media (max-width: 767px) {
+  .mobile\:w-full { width: 100%; }
+}
+
+@media (min-width: 768px) {
+  .lg\:w-auto { width: auto; }
+  .lg\:w-full { width: 100%; }
+}
+
+/* ===== Padding Utilities (Responsive) ===== */
+@media (max-width: 479px) {
+  .xs\:p-2 { padding: 0.5rem; }
+  .xs\:p-3 { padding: 0.75rem; }
+  .xs\:p-4 { padding: 1rem; }
+  .xs\:px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
+  .xs\:px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
+  .xs\:py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+  .xs\:py-3 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+}
+
+@media (min-width: 480px) and (max-width: 767px) {
+  .sm\:p-4 { padding: 1rem; }
+  .sm\:p-5 { padding: 1.25rem; }
+  .sm\:p-6 { padding: 1.5rem; }
+  .sm\:px-4 { padding-left: 1rem; padding-right: 1rem; }
+  .sm\:py-4 { padding-top: 1rem; padding-bottom: 1rem; }
+}
+
+@media (min-width: 768px) {
+  .lg\:p-6 { padding: 1.5rem; }
+  .lg\:p-8 { padding: 2rem; }
+  .lg\:px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
+  .lg\:py-6 { padding-top: 1.5rem; padding-bottom: 1.5rem; }
+}
+
+/* ===== Margin Utilities (Responsive) ===== */
+@media (max-width: 767px) {
+  .mobile\:m-auto { margin: auto; }
+  .mobile\:mx-auto { margin-left: auto; margin-right: auto; }
+  .mobile\:my-4 { margin-top: 1rem; margin-bottom: 1rem; }
+  .mobile\:mb-4 { margin-bottom: 1rem; }
+  .mobile\:mt-4 { margin-top: 1rem; }
+}
+
+/* ===== Font Size Utilities (Responsive) ===== */
+.text-xs { font-size: 0.75rem; }
+.text-sm { font-size: 0.875rem; }
+.text-base { font-size: 1rem; }
+.text-lg { font-size: 1.125rem; }
+.text-xl { font-size: 1.25rem; }
+.text-2xl { font-size: 1.5rem; }
+.text-3xl { font-size: 1.875rem; }
+.text-4xl { font-size: 2.25rem; }
+
+@media (max-width: 479px) {
+  .xs\:text-xs { font-size: 0.7rem; }
+  .xs\:text-sm { font-size: 0.8rem; }
+  .xs\:text-base { font-size: 0.9rem; }
+  .xs\:text-lg { font-size: 1rem; }
+  .xs\:text-xl { font-size: 1.1rem; }
+  .xs\:text-2xl { font-size: 1.3rem; }
+}
+
+@media (min-width: 1536px) {
+  .\33xl\:text-base { font-size: 1.125rem; }
+  .\33xl\:text-lg { font-size: 1.25rem; }
+  .\33xl\:text-xl { font-size: 1.5rem; }
+  .\33xl\:text-2xl { font-size: 1.875rem; }
+  .\33xl\:text-3xl { font-size: 2.25rem; }
+  .\33xl\:text-4xl { font-size: 3rem; }
+}
+
+/* ===== Grid Utilities (Responsive) ===== */
+.grid { display: grid; }
+.grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+
+@media (min-width: 640px) {
+  .md\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (min-width: 768px) {
+  .lg\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lg\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (min-width: 1024px) {
+  .xl\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .xl\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+@media (min-width: 1536px) {
+  .\33xl\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .\33xl\:grid-cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+
+/* ===== Gap Utilities (Responsive) ===== */
+.gap-2 { gap: 0.5rem; }
+.gap-3 { gap: 0.75rem; }
+.gap-4 { gap: 1rem; }
+.gap-6 { gap: 1.5rem; }
+.gap-8 { gap: 2rem; }
+
+@media (max-width: 767px) {
+  .mobile\:gap-2 { gap: 0.5rem; }
+  .mobile\:gap-3 { gap: 0.75rem; }
+  .mobile\:gap-4 { gap: 1rem; }
+}
+
+@media (min-width: 768px) {
+  .lg\:gap-6 { gap: 1.5rem; }
+  .lg\:gap-8 { gap: 2rem; }
+}
+
+@media (min-width: 1536px) {
+  .\33xl\:gap-8 { gap: 2rem; }
+  .\33xl\:gap-10 { gap: 2.5rem; }
+  .\33xl\:gap-12 { gap: 3rem; }
+}
+
+/* ===== Stack Utilities ===== */
+.stack { display: flex; flex-direction: column; }
+.stack-sm { gap: 0.5rem; }
+.stack-md { gap: 1rem; }
+.stack-lg { gap: 1.5rem; }
+
+@media (max-width: 767px) {
+  .mobile\:stack { display: flex; flex-direction: column; }
+  .mobile\:stack-sm { gap: 0.5rem; }
+}
+
+/* ===== Button Responsive Utilities ===== */
+@media (max-width: 767px) {
+  .mobile\:btn-full {
+    width: 100%;
+    display: block;
+  }
+}
+
+/* ===== Container Responsive Utilities ===== */
+.container-responsive {
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 640px) {
+  .container-responsive {
+    max-width: 640px;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .container-responsive {
+    max-width: 768px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .container-responsive {
+    max-width: 1024px;
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .container-responsive {
+    max-width: 1280px;
+  }
+}
+
+@media (min-width: 1536px) {
+  .container-responsive {
+    max-width: 1536px;
+    padding-left: 2.5rem;
+    padding-right: 2.5rem;
+  }
+}
+
+@media (min-width: 2560px) {
+  .container-responsive {
+    max-width: 2000px;
+    padding-left: 3rem;
+    padding-right: 3rem;
+  }
+}
+
+/* ===== Overflow Utilities ===== */
+.overflow-auto { overflow: auto; }
+.overflow-hidden { overflow: hidden; }
+.overflow-x-auto { overflow-x: auto; }
+.overflow-y-auto { overflow-y: auto; }
+
+@media (max-width: 767px) {
+  .mobile\:overflow-x-auto { overflow-x: auto; }
+  .mobile\:overflow-y-auto { overflow-y: auto; }
+}
+
+/* ===== Image Responsive Utilities ===== */
+.img-responsive {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+.img-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.img-contain {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* ===== Aspect Ratio Utilities ===== */
+.aspect-square { aspect-ratio: 1 / 1; }
+.aspect-video { aspect-ratio: 16 / 9; }
+.aspect-photo { aspect-ratio: 4 / 3; }
+
+/* ===== Card Responsive Utilities ===== */
+.card-responsive {
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+@media (min-width: 768px) {
+  .card-responsive {
+    border-radius: 12px;
+  }
+}
+
+@media (min-width: 1536px) {
+  .card-responsive {
+    border-radius: 16px;
+  }
+}
+
+.card-responsive:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+@media (hover: none) {
+  .card-responsive:hover {
+    transform: none;
+  }
+}
+
+/* ===== Touch Target Utilities ===== */
+@media (hover: none) and (pointer: coarse) {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  .touch-target-lg {
+    min-height: 48px;
+    min-width: 48px;
+  }
+}
+
+/* ===== Scrollbar Styling (Responsive) ===== */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 10px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+@media (min-width: 1024px) {
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+}
+
+/* ===== Safe Area Insets (for mobile devices with notches) ===== */
+@supports (padding: max(0px)) {
+  .safe-area-inset-top {
+    padding-top: max(1rem, env(safe-area-inset-top));
+  }
+  
+  .safe-area-inset-bottom {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+  
+  .safe-area-inset-left {
+    padding-left: max(1rem, env(safe-area-inset-left));
+  }
+  
+  .safe-area-inset-right {
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+}
+
+/* ===== Print Utilities ===== */
+@media print {
+  .print\:hidden {
+    display: none !important;
+  }
+  
+  .print\:visible {
+    display: block !important;
+  }
+}

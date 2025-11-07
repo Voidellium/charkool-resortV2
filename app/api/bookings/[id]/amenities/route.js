@@ -4,7 +4,8 @@ import prisma from '@/lib/prisma';
 // GET: Get all amenities for a specific booking
 export async function GET(request, { params }) {
   try {
-    const { id } = params;
+    // Await params in Next.js 15
+    const { id } = await params;
 
     // Get the booking with all its amenities
     const booking = await prisma.booking.findUnique({
@@ -70,7 +71,8 @@ export async function GET(request, { params }) {
 // PUT: Update amenities for a specific booking
 export async function PUT(request, { params }) {
   try {
-    const { id } = params;
+    // Await params in Next.js 15
+    const { id } = await params;
     const body = await request.json();
     const { optionalAmenities, rentalAmenities, cottage } = body;
 

@@ -14,7 +14,7 @@ import RentalAmenitiesSelector from '@/components/RentalAmenitiesSelector';
 import OptionalAmenitiesSelector from '@/components/OptionalAmenitiesSelector';
 import BookingCalendar from '@/components/BookingCalendar';
 import { useToast } from '@/components/Toast';
-import { useOverrideModal, OverrideModal } from '@/components/CustomModals';
+import { useOverrideModal, OverrideModal, useEditBookingDateModal, EditBookingDateModal } from '@/components/CustomModals';
 
 // Timezone-safe date formatting utility
 function formatDate(date) {
@@ -81,6 +81,10 @@ export default function BookingsPage() {
   // Override modal for early check-in/out (shared)
   const [overrideModal, setOverrideModal] = useOverrideModal();
   
+  // Edit booking date modal
+  const [editDateModal, setEditDateModal] = useEditBookingDateModal();
+  const [editingDates, setEditingDates] = useState(false);
+  
   // Toast notifications
   const { success, error, warning, info } = useToast();
 
@@ -108,6 +112,7 @@ export default function BookingsPage() {
   const [optionalAmenitiesData, setOptionalAmenitiesData] = useState([]);
   const [createTotalPrice, setCreateTotalPrice] = useState(0);
   const [availabilityData, setAvailabilityData] = useState({});
+  const [disabledDates, setDisabledDates] = useState([]); // Dates disabled by super admin
 
   // Modal state to prevent spam clicks
   const [showSubmitModal, setShowSubmitModal] = useState(false);
@@ -148,7 +153,28 @@ export default function BookingsPage() {
         }
       } catch (err) { console.error('Failed to load availability:', err); }
     }
+    
+    // Fetch disabled dates from super admin configuration
+    async function fetchDisabledDates() {
+      try {
+        const res = await fetch('/api/booking-config/disabled-dates');
+        if (res.ok) {
+          const data = await res.json();
+          // Extract date strings in yyyy-mm-dd format using UTC
+          const dateStrings = data.map(d => {
+            const utcDate = new Date(d.date);
+            const year = utcDate.getUTCFullYear();
+            const month = String(utcDate.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(utcDate.getUTCDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+          });
+          setDisabledDates(dateStrings);
+        }
+      } catch (err) { console.error('Failed to load disabled dates:', err); }
+    }
+    
     fetchAvailability();
+    fetchDisabledDates();
 
     // Fetch rental amenities data for price breakdown
     async function fetchRentalAmenities() {
@@ -649,6 +675,47 @@ export default function BookingsPage() {
     }
   };
 
+  // Handle booking date editing
+  const handleEditBookingDates = async ({ bookingId, newCheckIn, newCheckOut, reason }) => {
+    setEditingDates(true);
+    try {
+      const res = await fetch(`/api/bookings/${bookingId}/edit-dates`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          newCheckIn,
+          newCheckOut,
+          reason
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        
+        // Update the booking in the list
+        setBookings(bookings.map(b => b.id === bookingId ? data.booking : b));
+        
+        success('✅ Booking dates updated successfully');
+        
+        // Close modal and refresh
+        setEditDateModal({ show: false, booking: null });
+        setShowDetailsModal(false);
+        setCurrentBooking(null);
+        
+        // Refresh bookings list
+        await fetchBookings();
+      } else {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to update booking dates');
+      }
+    } catch (err) {
+      console.error('Error updating booking dates:', err);
+      error(`❌ ${err.message}`);
+    } finally {
+      setEditingDates(false);
+    }
+  };
+
   return (
     <SuperAdminLayout>
       <div style={styles.container}>
@@ -1142,6 +1209,7 @@ export default function BookingsPage() {
                           {/* Left side - Calendar */}
                           <BookingCalendar
                             availabilityData={availabilityData}
+                            disabledDates={disabledDates}
                             onDateChange={({ checkInDate, checkOutDate }) => {
                               setCreateBookingForm(prev => ({
                                 ...prev,
@@ -2606,6 +2674,29 @@ export default function BookingsPage() {
 
               {/* Action Buttons */}
               <div style={{ marginTop: '20px', display: 'flex', gap: '10px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                {/* Edit Dates Button - Available for all bookings that aren't cancelled or completed */}
+                {!['Cancelled', 'CANCELLED', 'Completed', 'COMPLETED'].includes(currentBooking.status) && (
+                  <button
+                    onClick={() => {
+                      setEditDateModal({ show: true, booking: currentBooking });
+                    }}
+                    style={{
+                      padding: '10px 20px',
+                      backgroundColor: '#3b82f6',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <Calendar size={16} />
+                    Edit Dates
+                  </button>
+                )}
+                
                 {/* Confirm and Cancel for new bookings (not confirmed or checked in/out) */}
                 {(['Pending', 'PENDING', 'HELD', 'Held', 'NEW', 'New'].includes(currentBooking.status) && !currentBooking.actualCheckIn) && (
                   <>
@@ -2741,6 +2832,14 @@ export default function BookingsPage() {
             setShowDetailsModal(false);
             setCurrentBooking(null);
           }}
+        />
+
+        {/* Edit Booking Date Modal */}
+        <EditBookingDateModal
+          modal={editDateModal}
+          setModal={setEditDateModal}
+          onConfirm={handleEditBookingDates}
+          loading={editingDates}
         />
 
         {/* Confirmation Modal */}

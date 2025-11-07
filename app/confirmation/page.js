@@ -9,6 +9,7 @@ function ConfirmationPageInner() {
   const bookingId = searchParams.get('bookingId');
 
   const [booking, setBooking] = useState(null);
+  const [unitAssignments, setUnitAssignments] = useState([]);
 
   useEffect(() => {
     async function fetchBooking() {
@@ -21,6 +22,17 @@ function ConfirmationPageInner() {
           if (data.status === 'Confirmed' || data.paymentStatus === 'Paid') {
             localStorage.removeItem('bookingId');
             localStorage.removeItem('bookingAmount');
+          }
+          
+          // NEW: Fetch unit assignments
+          try {
+            const unitsRes = await fetch(`/api/bookings/${bookingId}/units`);
+            if (unitsRes.ok) {
+              const unitsData = await unitsRes.json();
+              setUnitAssignments(unitsData.assignments || []);
+            }
+          } catch (err) {
+            console.log('No unit assignments found (legacy booking or error):', err);
           }
         }
       } catch (error) {
@@ -76,14 +88,31 @@ function ConfirmationPageInner() {
                         {Array.isArray(booking.rooms) && booking.rooms.length > 0
                           ? booking.rooms.map((r, idx) => {
                               const roomTypeName = r.room?.type === 'LOFT' ? 'Loft' : r.room?.type === 'TEPEE' ? 'Tepee' : r.room?.type === 'VILLA' ? 'Villa' : r.room?.name || 'Room';
+                              
+                              // Find unit assignment for this room
+                              const unitAssignment = unitAssignments.find(
+                                u => u.roomId === r.roomId && u.unitNumber
+                              );
+                              
                               return (
-                                <span key={idx} className="room-detail" style={{ display: 'block', marginBottom: '0.25rem' }}>
-                                  {roomTypeName} {r.instanceNumber || idx + 1}: {r.adults || 0}A
+                                <span key={idx} className="room-detail" style={{ display: 'block', marginBottom: '0.5rem' }}>
+                                  <strong>
+                                    {roomTypeName}
+                                    {unitAssignment ? ` #${unitAssignment.unitNumber}` : ` ${r.instanceNumber || idx + 1}`}
+                                  </strong>
+                                  {': '}
+                                  {r.adults || 0}A
                                   {r.additionalPax > 0 ? `+${r.additionalPax}` : ''}
                                   {r.children > 0 ? `, ${r.children}C` : ''}
                                   {r.additionalPax > 0 && (
                                     <span style={{ fontSize: '0.85em', color: '#6b7280', marginLeft: '0.5rem' }}>
                                       (+₱{(r.additionalPax * 400 * Math.ceil((new Date(booking.checkOut) - new Date(booking.checkIn)) / (1000 * 60 * 60 * 24))).toLocaleString()})
+                                    </span>
+                                  )}
+                                  {unitAssignment?.metadata && (
+                                    <span style={{ display: 'block', fontSize: '0.85em', color: '#6b7280', marginTop: '0.15rem' }}>
+                                      {unitAssignment.metadata.description && `${unitAssignment.metadata.description}`}
+                                      {unitAssignment.metadata.location && ` • ${unitAssignment.metadata.location}`}
                                     </span>
                                   )}
                                 </span>

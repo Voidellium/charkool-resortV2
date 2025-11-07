@@ -20,7 +20,8 @@ import {
   User,
   Menu,
   X,
-  Check
+  Check,
+  Calendar
 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import styles from './SuperAdminLayout.module.css';
@@ -164,7 +165,8 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
       icon: <Book size={18} />, 
       dropdown: [
         { label: 'Bookings', onClick: () => router.push('/super-admin/bookings') },
-        { label: 'Payments', onClick: () => router.push('/super-admin/payments') }
+        { label: 'Payments', onClick: () => router.push('/super-admin/payments') },
+        { label: 'Reschedule & Cancellation', onClick: () => router.push('/super-admin/reschedule-cancellation') }
       ] 
     },
     { 
@@ -907,6 +909,45 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                             fontWeight: '400'
                           }}>
                             Manage resort policies and rules
+                          </span>
+                        </div>
+                      </div>
+
+                      <div 
+                        className={styles.configDropdownItem}
+                        onClick={() => {
+                          router.push('/super-admin/configurations/datecustomization');
+                          setNavConfigOpen(false);
+                        }}
+                      >
+                        <div style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '10px',
+                          background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}>
+                          <Calendar size={16} style={{ color: 'white' }} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <p style={{
+                            margin: '0 0 0.25rem 0',
+                            fontSize: '0.875rem',
+                            fontWeight: '600',
+                            color: '#1f2937',
+                            lineHeight: '1.4'
+                          }}>
+                            Date Customization
+                          </p>
+                          <span style={{
+                            fontSize: '0.75rem',
+                            color: '#9ca3af',
+                            fontWeight: '400'
+                          }}>
+                            Manage booking calendar availability
                           </span>
                         </div>
                       </div>

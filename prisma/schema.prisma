@@ -22,12 +22,36 @@ model RescheduleRequest {
   adminContext String? // superadmin context for denial
   decidedAt    DateTime?
   decidedById  Int? // superadmin who decided
+  autoApproved Boolean  @default(false) // NEW: For one-time auto-approve after cancel denial
   booking      Booking @relation(fields: [bookingId], references: [id])
   user         User?    @relation("RescheduleRequestedBy", fields: [userId], references: [id])
   decidedBy    User?    @relation("RescheduleDecidedBy", fields: [decidedById], references: [id])
 }
 
 enum RescheduleStatus {
+  PENDING
+  APPROVED
+  DENIED
+}
+
+// Cancellation request for bookings
+model CancellationRequest {
+  id              Int      @id @default(autoincrement())
+  bookingId       Int
+  userId          Int? // who requested
+  requestedAt     DateTime @default(now())
+  reason          String // guest reason for cancellation
+  status          CancellationStatus @default(PENDING)
+  adminContext    String? // admin response/notes
+  decidedAt       DateTime?
+  decidedById     Int? // superadmin who decided
+  refundAmount    Int? // calculated refund (50% of reservation fee if >=7 days)
+  booking         Booking  @relation(fields: [bookingId], references: [id])
+  user            User?    @relation("CancellationRequestedBy", fields: [userId], references: [id])
+  decidedBy       User?    @relation("CancellationDecidedBy", fields: [decidedById], references: [id])
+}
+
+enum CancellationStatus {
   PENDING
   APPROVED
   DENIED
@@ -60,6 +84,8 @@ model User {
   trustedBrowsers TrustedBrowser[]
   rescheduleRequestsRequested RescheduleRequest[] @relation("RescheduleRequestedBy")
   rescheduleRequestsDecided   RescheduleRequest[] @relation("RescheduleDecidedBy")
+  cancellationRequestsRequested CancellationRequest[] @relation("CancellationRequestedBy")
+  cancellationRequestsDecided   CancellationRequest[] @relation("CancellationDecidedBy")
 
   // Relations for cashier verification and remarks
   verifiedPayments Payment[]        @relation("VerifiedPaymentsByUser")
@@ -71,6 +97,13 @@ model User {
   // Relations for system logs
   systemLogs       SystemLog[]       @relation("SystemLogUser")
   resolvedLogs     SystemLog[]       @relation("ResolvedLogs")
+  
+  // Relations for booking date configuration
+  bookingConfigUpdates    BookingDateConfiguration[] @relation("BookingConfigUpdater")
+  disabledDatesCreated    DisabledBookingDate[]      @relation("DisabledDateCreator")
+  
+  // NEW: Room unit assignments
+  roomUnitAssignments     RoomUnitAssignment[]       @relation("RoomUnitAssignedBy")
 }
 
 model OTP {
@@ -133,6 +166,8 @@ model Room {
   amenities Amenity[]
   bookings  BookingRoom[]
   defaultAmenities RoomTypeDefaultAmenity[]
+  unitAssignments RoomUnitAssignment[] // NEW: Track unit assignments
+  unitMetadata RoomUnitMetadata[] // NEW: Unit descriptions
 }
 
 // Default amenities that come with each room type
@@ -249,9 +284,13 @@ model Booking {
   cottage           BookingCottage[]
   payments      Payment[]
   rescheduleRequests RescheduleRequest[]
+  cancellationRequests CancellationRequest[]
 
   // Internal remarks for coordination
   remarks BookingRemark[] @relation("BookingRemarks")
+  
+  // NEW: Room unit assignments
+  unitAssignments RoomUnitAssignment[]
 }
 
 // Updated booking amenity models for the new system
@@ -358,6 +397,8 @@ enum BookingStatus {
   Cancelled
   Held
   Completed
+  CancellationPending
+  ReschedulePending
 }
 
 enum PaymentStatus {
@@ -366,6 +407,7 @@ enum PaymentStatus {
   Partial
   Reservation
   Cancelled
+  Refunded
 }
 
 // Manual verification state controlled by Cashier/Superadmin
@@ -532,4 +574,63 @@ enum LogLevel {
   WARNING
   INFO
   DEBUG
+}
+
+// Booking date configuration for super admin
+model BookingDateConfiguration {
+  id                    Int      @id @default(autoincrement())
+  maxBookingMonths      Int      @default(2)  // Max months ahead for booking
+  updatedAt             DateTime @updatedAt
+  updatedBy             Int?
+  updatedByUser         User?    @relation("BookingConfigUpdater", fields: [updatedBy], references: [id])
+}
+
+// Disabled booking dates set by super admin
+model DisabledBookingDate {
+  id           Int      @id @default(autoincrement())
+  date         DateTime @unique  // The disabled date
+  createdAt    DateTime @default(now())
+  createdBy    Int?
+  createdByUser User?   @relation("DisabledDateCreator", fields: [createdBy], references: [id])
+  
+  @@index([date])
+}
+
+// ==========================================
+// Room Unit Assignment System
+// ==========================================
+
+// Tracks which specific room unit is assigned to each booking
+model RoomUnitAssignment {
+  id          Int      @id @default(autoincrement())
+  bookingId   Int
+  roomId      Int
+  unitNumber  String   // "1", "2", "3", "4" - the specific unit number
+  assignedAt  DateTime @default(now())
+  assignedBy  Int?     // User ID who made the assignment (null = auto-assigned)
+  
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  room        Room     @relation(fields: [roomId], references: [id])
+  assignedByUser User? @relation("RoomUnitAssignedBy", fields: [assignedBy], references: [id])
+  
+  @@unique([bookingId, roomId]) // One unit assignment per room per booking
+  @@index([roomId, unitNumber]) // For availability queries
+}
+
+// Metadata for individual room units (descriptions, features, etc.)
+model RoomUnitMetadata {
+  id          Int      @id @default(autoincrement())
+  roomId      Int
+  unitNumber  String   // "1", "2", "3", "4"
+  description String?  // "Near pool", "Garden view", "Ocean view"
+  location    String?  // "Ground floor", "Second floor", "Building A"
+  features    Json?    // ["balcony", "renovated", "corner_unit", "accessible"]
+  isActive    Boolean  @default(true) // Can be disabled for maintenance
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  room        Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  
+  @@unique([roomId, unitNumber]) // One metadata per unit
+  @@index([roomId])
 }

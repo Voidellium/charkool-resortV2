@@ -1522,6 +1522,766 @@ export default function Home() {
           .welcome-inner h2 { font-size: 28px; }
           .welcome-inner p { font-size: 0.95rem; }
         }
+        
+        /* ===========================
+           ENHANCED RESPONSIVE STYLES FOR ALL DEVICES
+           =========================== */
+        
+        /* Extra Small Mobile (320px - 479px) */
+        @media (max-width: 479px) {
+          .hero {
+            height: auto;
+            min-height: 500px;
+            padding: 30px 0;
+          }
+          
+          .hero-inner {
+            padding: 1.5rem 1rem;
+          }
+          
+          .hero-text {
+            padding: 1.5rem;
+            max-width: 100%;
+          }
+          
+          .hero h1 {
+            font-size: clamp(24px, 7vw, 32px);
+            margin-bottom: 0.5rem;
+          }
+          
+          .hero .sub {
+            font-size: clamp(13px, 3.5vw, 15px);
+            margin-bottom: 1rem;
+          }
+          
+          .hero-ctas {
+            flex-direction: column;
+            gap: 10px;
+            width: 100%;
+          }
+          
+          .hero-ctas .btn {
+            width: 100%;
+            justify-content: center;
+            font-size: 0.9rem;
+            padding: 10px 16px;
+          }
+          
+          .welcome {
+            padding: 40px 15px;
+            min-height: 300px;
+          }
+          
+          .welcome-inner {
+            padding: 20px 15px;
+          }
+          
+          .welcome-inner h2 {
+            font-size: clamp(22px, 6vw, 28px);
+            margin-bottom: 15px;
+          }
+          
+          .welcome-inner p {
+            font-size: 0.9rem;
+            margin-bottom: 20px;
+          }
+          
+          .btn.ghost-white {
+            padding: 10px 20px;
+            font-size: 0.9rem;
+            width: 100%;
+            justify-content: center;
+          }
+          
+          .explore-3d {
+            padding: 40px 15px;
+          }
+          
+          .explore-inner {
+            padding: 30px 20px;
+          }
+          
+          .explore-inner h2 {
+            font-size: clamp(22px, 6vw, 28px);
+          }
+          
+          .explore-note {
+            font-size: 0.9rem;
+            margin-bottom: 20px;
+          }
+          
+          .explore-inner .btn.primary.big {
+            width: 100%;
+            padding: 12px 20px;
+            font-size: 0.95rem;
+          }
+          
+          .rooms {
+            padding: 60px 15px 80px;
+          }
+          
+          .rooms-title {
+            font-size: clamp(24px, 6vw, 32px);
+            margin-bottom: 30px;
+          }
+          
+          .room-carousel {
+            border-radius: 12px;
+          }
+          
+          .room-image {
+            height: 180px;
+          }
+          
+          .room-info {
+            padding: 16px;
+          }
+          
+          .room-info h4 {
+            font-size: 1.3rem;
+          }
+          
+          .room-info p {
+            font-size: 0.9rem;
+          }
+          
+          .see-room {
+            width: 100%;
+            padding: 10px 18px;
+          }
+          
+          .site-footer {
+            padding: 30px 15px 20px;
+          }
+          
+          .footer-top {
+            grid-template-columns: 1fr;
+            gap: 30px;
+          }
+          
+          .footer-about h3,
+          .footer-links h4,
+          .footer-contact h4 {
+            font-size: 1rem;
+          }
+          
+          .footer-about p,
+          .footer-contact p {
+            font-size: 0.85rem;
+          }
+          
+          .inquiry-textarea {
+            font-size: 0.9rem;
+            padding: 10px 12px;
+          }
+          
+          .inquiry-button {
+            width: 100%;
+            font-size: 0.9rem;
+          }
+        }
+        
+        /* Small Mobile (480px - 639px) */
+        @media (min-width: 480px) and (max-width: 639px) {
+          .hero {
+            min-height: 580px;
+          }
+          
+          .hero-text {
+            padding: 2rem;
+          }
+          
+          .hero h1 {
+            font-size: clamp(28px, 6vw, 36px);
+          }
+          
+          .hero .sub {
+            font-size: clamp(14px, 3vw, 16px);
+          }
+          
+          .hero-ctas {
+            flex-direction: row;
+            flex-wrap: wrap;
+            justify-content: center;
+          }
+          
+          .hero-ctas .btn {
+            flex: 1 1 auto;
+            min-width: 140px;
+          }
+          
+          .welcome {
+            padding: 60px 20px;
+            min-height: 400px;
+          }
+          
+          .welcome-inner {
+            padding: 25px 20px;
+          }
+          
+          .rooms {
+            padding: 80px 20px 100px;
+          }
+          
+          .room-image {
+            height: 220px;
+          }
+        }
+        
+        /* Tablets Portrait (640px - 767px) */
+        @media (min-width: 640px) and (max-width: 767px) {
+          .hero {
+            min-height: 650px;
+          }
+          
+          .hero-text {
+            max-width: 600px;
+            padding: 2.2rem;
+          }
+          
+          .hero h1 {
+            font-size: clamp(36px, 5.5vw, 48px);
+          }
+          
+          .hero .sub {
+            font-size: clamp(15px, 2.5vw, 18px);
+          }
+          
+          .welcome {
+            padding: 80px 30px;
+          }
+          
+          .welcome-inner {
+            padding: 30px 25px;
+          }
+          
+          .rooms {
+            padding: 100px 30px 120px;
+          }
+          
+          .room-image {
+            height: 280px;
+          }
+          
+          .footer-top {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 30px;
+          }
+        }
+        
+        /* Tablets Landscape (768px - 1023px) */
+        @media (min-width: 768px) and (max-width: 1023px) {
+          .hero {
+            min-height: 700px;
+          }
+          
+          .hero-text {
+            max-width: 750px;
+            padding: 2.5rem;
+          }
+          
+          .hero h1 {
+            font-size: clamp(42px, 5.2vw, 56px);
+          }
+          
+          .hero .sub {
+            font-size: clamp(16px, 2.2vw, 19px);
+          }
+          
+          .hero-ctas .btn {
+            font-size: 0.95rem;
+            padding: 11px 20px;
+          }
+          
+          .welcome {
+            padding: 90px 40px;
+            min-height: 450px;
+          }
+          
+          .welcome-inner {
+            padding: 35px 30px;
+          }
+          
+          .explore-3d {
+            padding: 90px 40px;
+          }
+          
+          .explore-inner {
+            padding: 45px 35px;
+          }
+          
+          .rooms {
+            padding: 120px 40px 130px;
+          }
+          
+          .room-image {
+            height: 340px;
+          }
+          
+          .footer-top {
+            grid-template-columns: repeat(3, 1fr);
+            gap: 35px;
+          }
+          
+          .modal-content {
+            max-width: 650px;
+            width: 85%;
+          }
+        }
+        
+        /* Laptops (1024px - 1279px) */
+        @media (min-width: 1024px) and (max-width: 1279px) {
+          .hero {
+            min-height: 750px;
+          }
+          
+          .hero-text {
+            max-width: 850px;
+          }
+          
+          .hero h1 {
+            font-size: clamp(52px, 5vw, 62px);
+          }
+          
+          .hero .sub {
+            font-size: clamp(17px, 2vw, 20px);
+          }
+          
+          .welcome {
+            padding: 100px 50px;
+            min-height: 480px;
+          }
+          
+          .rooms {
+            padding: 140px 50px 150px;
+          }
+          
+          .room-image {
+            height: 400px;
+          }
+        }
+        
+        /* Desktops (1280px - 1535px) */
+        @media (min-width: 1280px) and (max-width: 1535px) {
+          .hero {
+            min-height: 800px;
+          }
+          
+          .hero-text {
+            max-width: 920px;
+          }
+          
+          .hero h1 {
+            font-size: clamp(58px, 5vw, 68px);
+          }
+          
+          .welcome-inner h2 {
+            font-size: clamp(44px, 4vw, 54px);
+          }
+          
+          .rooms-title {
+            font-size: clamp(38px, 3.8vw, 44px);
+          }
+        }
+        
+        /* Large Screens / TVs (1536px and above) */
+        @media (min-width: 1536px) {
+          .hero {
+            min-height: 900px;
+          }
+          
+          .hero-text {
+            max-width: 1200px;
+            padding: 3.5rem;
+          }
+          
+          .hero h1 {
+            font-size: clamp(68px, 4.5vw, 88px);
+            letter-spacing: -0.02em;
+          }
+          
+          .hero .sub {
+            font-size: clamp(20px, 1.5vw, 24px);
+            margin-bottom: 1.5rem;
+          }
+          
+          .hero-ctas {
+            gap: 20px;
+            margin-top: 1.5rem;
+          }
+          
+          .hero-ctas .btn {
+            font-size: 1.1rem;
+            padding: 14px 28px;
+          }
+          
+          .hero-ctas .btn.big {
+            padding: 18px 36px;
+            font-size: 1.2rem;
+          }
+          
+          .welcome {
+            padding: 140px 60px;
+            min-height: 600px;
+          }
+          
+          .welcome-inner {
+            max-width: 1200px;
+            padding: 50px 60px;
+          }
+          
+          .welcome-inner h2 {
+            font-size: clamp(56px, 3.5vw, 72px);
+            margin-bottom: 30px;
+          }
+          
+          .welcome-inner p {
+            font-size: clamp(1.15rem, 1.2vw, 1.35rem);
+            max-width: 1000px;
+            margin-bottom: 40px;
+          }
+          
+          .btn.ghost-white {
+            padding: 16px 36px;
+            font-size: 1.15rem;
+          }
+          
+          .explore-3d {
+            padding: 140px 60px;
+          }
+          
+          .explore-inner {
+            max-width: 1200px;
+            padding: 70px 60px;
+          }
+          
+          .explore-inner h2 {
+            font-size: clamp(42px, 3.5vw, 56px);
+            margin-bottom: 15px;
+          }
+          
+          .explore-note {
+            font-size: 1.25rem;
+            margin-bottom: 35px;
+          }
+          
+          .explore-inner .btn.primary.big {
+            padding: 18px 40px;
+            font-size: 1.2rem;
+          }
+          
+          .rooms {
+            padding: 180px 60px 200px;
+          }
+          
+          .rooms-inner {
+            max-width: 1400px;
+          }
+          
+          .rooms-title {
+            font-size: clamp(44px, 3.5vw, 58px);
+            margin-bottom: 80px;
+          }
+          
+          .room-carousel {
+            max-width: 1200px;
+            border-radius: 24px;
+          }
+          
+          .room-image {
+            height: 540px;
+          }
+          
+          .room-info {
+            padding: 32px;
+          }
+          
+          .room-info h4 {
+            font-size: 2rem;
+            margin-bottom: 14px;
+          }
+          
+          .room-info p {
+            font-size: 1.15rem;
+            margin-bottom: 20px;
+          }
+          
+          .see-room {
+            padding: 14px 28px;
+            font-size: 1.05rem;
+          }
+          
+          .nav-btn {
+            width: 60px;
+            height: 60px;
+            font-size: 2.8rem;
+          }
+          
+          .nav-btn.left {
+            left: 24px;
+          }
+          
+          .nav-btn.right {
+            right: 24px;
+          }
+          
+          .dots {
+            gap: 14px;
+            margin: 28px 0 32px 0;
+          }
+          
+          .dot {
+            width: 14px;
+            height: 14px;
+          }
+          
+          .policies {
+            padding: 120px 60px;
+          }
+          
+          .policies-inner.card {
+            max-width: 1200px;
+            padding: 40px 50px;
+          }
+          
+          .policies h2 {
+            font-size: 1.75rem;
+            margin-bottom: 16px;
+          }
+          
+          .policies .muted {
+            font-size: 1.05rem;
+            margin-bottom: 35px;
+          }
+          
+          .policy-list {
+            gap: 28px 32px;
+          }
+          
+          .policy-list details {
+            padding: 18px 20px;
+          }
+          
+          .policy-list summary {
+            font-size: 1.05rem;
+          }
+          
+          .policy-list .detail-body {
+            font-size: 1.02rem;
+            margin-top: 14px;
+          }
+          
+          .site-footer {
+            padding: 80px 60px 40px;
+          }
+          
+          .footer-top {
+            max-width: 1400px;
+            gap: 60px;
+          }
+          
+          .footer-about h3,
+          .footer-links h4,
+          .footer-contact h4 {
+            font-size: 1.4rem;
+            margin-bottom: 16px;
+          }
+          
+          .footer-about p,
+          .footer-contact p {
+            font-size: 1.05rem;
+            line-height: 1.7;
+          }
+          
+          .inquiry-heading {
+            font-size: 1.15rem;
+          }
+          
+          .inquiry-textarea {
+            padding: 14px 18px;
+            font-size: 1.02rem;
+          }
+          
+          .inquiry-button {
+            padding: 12px 20px;
+            font-size: 1.02rem;
+          }
+          
+          .inquiry-note {
+            font-size: 0.95rem;
+          }
+          
+          .footer-bottom {
+            margin-top: 60px;
+            padding-top: 30px;
+            font-size: 1rem;
+          }
+          
+          .modal-content {
+            max-width: 900px;
+            padding: 2.5rem;
+          }
+          
+          .modal-content h2 {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+          }
+          
+          .image-gallery img {
+            width: 220px;
+            height: 140px;
+          }
+          
+          .capacity {
+            font-size: 1.25rem;
+          }
+          
+          .description {
+            font-size: 1.05rem;
+            line-height: 1.65;
+          }
+          
+          .amenity-item {
+            font-size: 1.02rem;
+          }
+          
+          .book-room-btn {
+            padding: 1rem 1.8rem;
+            font-size: 1.05rem;
+          }
+          
+          .close-btn {
+            padding: 0.9rem 1.5rem;
+            font-size: 1.02rem;
+          }
+        }
+        
+        /* Ultra-wide screens (2560px and above) */
+        @media (min-width: 2560px) {
+          .hero {
+            min-height: 1080px;
+          }
+          
+          .hero-text {
+            max-width: 1600px;
+            padding: 4rem;
+          }
+          
+          .hero h1 {
+            font-size: clamp(88px, 4vw, 110px);
+          }
+          
+          .hero .sub {
+            font-size: clamp(24px, 1.3vw, 28px);
+          }
+          
+          .welcome-inner {
+            max-width: 1600px;
+            padding: 70px 80px;
+          }
+          
+          .explore-inner {
+            max-width: 1600px;
+            padding: 90px 80px;
+          }
+          
+          .rooms-inner {
+            max-width: 1800px;
+          }
+          
+          .room-carousel {
+            max-width: 1600px;
+          }
+          
+          .room-image {
+            height: 720px;
+          }
+          
+          .policies-inner.card {
+            max-width: 1600px;
+          }
+          
+          .footer-top {
+            max-width: 1800px;
+          }
+        }
+        
+        /* Landscape orientation adjustments for mobile/tablet */
+        @media (max-width: 1023px) and (orientation: landscape) {
+          .hero {
+            min-height: 85vh;
+            padding: 30px 0;
+          }
+          
+          .hero-text {
+            padding: 1.5rem;
+          }
+          
+          .hero h1 {
+            font-size: clamp(28px, 5vw, 42px);
+            margin-bottom: 0.4rem;
+          }
+          
+          .hero .sub {
+            font-size: clamp(14px, 2vw, 17px);
+            margin-bottom: 0.8rem;
+          }
+          
+          .hero-ctas {
+            gap: 10px;
+            margin-top: 0.8rem;
+          }
+          
+          .welcome {
+            padding: 50px 30px;
+            min-height: 300px;
+          }
+          
+          .explore-3d {
+            padding: 50px 30px;
+          }
+          
+          .rooms {
+            padding: 70px 30px 80px;
+          }
+          
+          .room-image {
+            height: 300px;
+          }
+        }
+        
+        /* Print styles for better printouts */
+        @media print {
+          .hero-overlay,
+          .explore-overlay,
+          .background-images-container,
+          .hero-ctas,
+          .btn,
+          .modal-overlay,
+          .nav-btn,
+          .dots {
+            display: none !important;
+          }
+          
+          .hero,
+          .explore-3d {
+            background: white !important;
+            color: black !important;
+          }
+          
+          .hero-text,
+          .explore-inner {
+            background: white !important;
+            box-shadow: none !important;
+          }
+          
+          .welcome,
+          .rooms,
+          .policies,
+          .site-footer {
+            page-break-inside: avoid;
+          }
+        }
       `}</style>
       </div>
     </>

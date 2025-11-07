@@ -96,7 +96,13 @@ export default function RentalAmenitiesSelector({
       </p>
 
       <div className="amenities-grid">
-        {rentalAmenities.map((amenity) => {
+        {rentalAmenities
+          .filter(amenity => {
+            // Filter out Billiard Access and Karaoke
+            const name = amenity.name.toLowerCase();
+            return !name.includes('billiard') && !name.includes('karaoke');
+          })
+          .map((amenity) => {
           const currentSelection = selectedAmenities[amenity.id] || { quantity: 0, hoursUsed: 0 };
           const totalPrice = calculatePrice(amenity, currentSelection.quantity, currentSelection.hoursUsed);
 

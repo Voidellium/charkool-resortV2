@@ -109,6 +109,20 @@ export async function PUT(req) {
     if (typeof image !== 'undefined') data.image = image;
     if (typeof email !== 'undefined' && email) data.email = email.toLowerCase().trim();
 
+    // Auto-generate name field from first, middle, and last names
+    if (firstName || middleName || lastName) {
+      const existingUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { firstName: true, middleName: true, lastName: true }
+      });
+      
+      const updatedFirstName = firstName || existingUser.firstName || '';
+      const updatedMiddleName = middleName !== undefined ? middleName : existingUser.middleName || '';
+      const updatedLastName = lastName || existingUser.lastName || '';
+      
+      data.name = `${updatedFirstName} ${updatedMiddleName ? updatedMiddleName + ' ' : ''}${updatedLastName}`.trim();
+    }
+
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data,

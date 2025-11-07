@@ -9,9 +9,10 @@ import BookingCalendar from '../../components/BookingCalendar';
 import RoomAmenitiesSelector from '../../components/RoomAmenitiesSelector'; // Import the new component
 import OptionalAmenitiesSelector from '../../components/OptionalAmenitiesSelector';
 import RentalAmenitiesSelector from '../../components/RentalAmenitiesSelector';
+import RoomUnitSelector from '../../components/RoomUnitSelector'; // NEW: Import unit selector
 import { useNavigationGuard } from '../../hooks/useNavigationGuard.simple';
 import { useNavigationContext } from '../../context/NavigationContext';
-import { NavigationConfirmationModal, ThreeDRoomViewerModal } from '../../components/CustomModals';
+import { NavigationConfirmationModal, ThreeDRoomViewerModal, MaxCapacityModal, MidnightAlertModal } from '../../components/CustomModals';
 import DataPrivacyModal from '../../components/DataPrivacyModal';
 
 // Timezone-safe date formatting utility
@@ -84,6 +85,8 @@ export default function BookingPage() {
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [step, setStep] = useState(1);
   const [availabilityData, setAvailabilityData] = useState({});
+  const [disabledDates, setDisabledDates] = useState([]); // Dates disabled by super admin
+  const [maxBookingMonths, setMaxBookingMonths] = useState(2); // Max months ahead for booking
   const [totalPrice, setTotalPrice] = useState(0);
   const [showPendingPrompt, setShowPendingPrompt] = useState(false);
   const [pendingBooking, setPendingBooking] = useState(null);
@@ -107,6 +110,12 @@ export default function BookingPage() {
   // Data Privacy modal state
   const [showDataPrivacyModal, setShowDataPrivacyModal] = useState(false);
   const [dataPrivacyAccepted, setDataPrivacyAccepted] = useState(false);
+
+  // Max capacity modal state
+  const [maxCapacityModal, setMaxCapacityModal] = useState({ show: false, roomType: null, maxCapacity: 0 });
+
+  // Midnight alert modal state
+  const [showMidnightAlert, setShowMidnightAlert] = useState(false);
 
   // Navigation Guard Setup
   const navigationContext = useNavigationContext();
@@ -153,7 +162,7 @@ export default function BookingPage() {
     checkOut: '',
     guests: 1,
     selectedRooms: {}, // DEPRECATED: Keep for backward compatibility
-    rooms: [], // NEW: Array of { roomId, quantity, adults, additionalPax, children, optionalAmenities, rentalAmenities }
+    rooms: [], // NEW: Array of { roomId, quantity, adults, additionalPax, children, optionalAmenities, rentalAmenities, unitNumber }
     selectedAmenities: { optional: {}, rental: {}, cottage: null }, // Keep for backward compatibility
   });
 
@@ -286,7 +295,44 @@ export default function BookingPage() {
         }
       } catch (err) { console.error('❌ Failed to load availability:', err); }
     }
+    
+    // Fetch disabled dates from super admin configuration
+    async function fetchDisabledDates() {
+      try {
+        const res = await fetch('/api/booking-config/disabled-dates');
+        console.log('Disabled dates response status:', res.status);
+        if (res.ok) {
+          const data = await res.json();
+          console.log('Disabled dates from API:', data);
+          // Extract date strings in yyyy-mm-dd format using UTC
+          const dateStrings = data.map(d => {
+            const utcDate = new Date(d.date);
+            const year = utcDate.getUTCFullYear();
+            const month = String(utcDate.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(utcDate.getUTCDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+          });
+          console.log('Formatted disabled dates:', dateStrings);
+          setDisabledDates(dateStrings);
+        }
+      } catch (err) { console.error('❌ Failed to load disabled dates:', err); }
+    }
+    
+    // Fetch max booking months configuration
+    async function fetchBookingConfig() {
+      try {
+        const res = await fetch('/api/booking-config/max-months');
+        if (res.ok) {
+          const data = await res.json();
+          console.log('Max booking months from API:', data.maxBookingMonths);
+          setMaxBookingMonths(data.maxBookingMonths || 2);
+        }
+      } catch (err) { console.error('❌ Failed to load booking config:', err); }
+    }
+    
     fetchAvailability();
+    fetchDisabledDates();
+    fetchBookingConfig();
 
     // NEW: Fetch rental amenities data for price breakdown
     async function fetchRentalAmenities() {
@@ -316,6 +362,56 @@ export default function BookingPage() {
     }
     fetchOptionalAmenities();
   }, []);
+
+  // Midnight polling: Start at 11:55 PM, stop at 12:05 AM
+  useEffect(() => {
+    let pollingInterval = null;
+
+    const checkMidnight = () => {
+      const now = new Date();
+      const hours = now.getHours();
+      const minutes = now.getMinutes();
+
+      // Check if we're in polling window (11:55 PM to 12:05 AM)
+      const isInPollingWindow = 
+        (hours === 23 && minutes >= 55) || // 11:55 PM - 11:59 PM
+        (hours === 0 && minutes <= 5);      // 12:00 AM - 12:05 AM
+
+      if (isInPollingWindow) {
+        // Check if we've crossed midnight
+        if (hours === 0 && !showMidnightAlert) {
+          setShowMidnightAlert(true);
+        }
+
+        // Start polling if not already started
+        if (!pollingInterval) {
+          pollingInterval = setInterval(() => {
+            const currentTime = new Date();
+            if (currentTime.getHours() === 0 && !showMidnightAlert) {
+              setShowMidnightAlert(true);
+            }
+          }, 1000); // Check every second
+        }
+      } else {
+        // Stop polling if we're outside the window
+        if (pollingInterval) {
+          clearInterval(pollingInterval);
+          pollingInterval = null;
+        }
+      }
+    };
+
+    // Initial check
+    checkMidnight();
+
+    // Check every minute to see if we should start/stop polling
+    const mainInterval = setInterval(checkMidnight, 60000);
+
+    return () => {
+      clearInterval(mainInterval);
+      if (pollingInterval) clearInterval(pollingInterval);
+    };
+  }, [showMidnightAlert]);
 
   useEffect(() => {
     // Fetch available rooms when dates change
@@ -356,6 +452,8 @@ export default function BookingPage() {
         return { min: 1, base: 2, max: 4, additionalPaxMax: 2 }; // 2 base + 2 additional pax
       case 'VILLA':
         return { min: 1, base: 8, max: 10, additionalPaxMax: 2 }; // 8 base + 2 additional pax
+      case 'FAMILY_LODGE':
+        return { min: 1, base: 20, max: 22, additionalPaxMax: 2 }; // 20 base + 2 additional pax
       default:
         // Default capacity for other rooms
         return { min: 1, base: 100, max: 100, additionalPaxMax: 0 };
@@ -370,6 +468,8 @@ export default function BookingPage() {
         return ['/images/Tepee.jpg', '/images/TepeeInterior1.jpg', '/images/TepeeInterior2.jpg'];
       case 'VILLA':
         return ['/images/Villa.jpg', '/images/VillaInterior1.jpg', '/images/VillaInterior2.jpg'];
+      case 'FAMILY_LODGE':
+        return ['/images/default.jpg']; // Placeholder for coming soon
       default:
         return ['/images/default.jpg'];
     }
@@ -383,6 +483,8 @@ export default function BookingPage() {
         return 'Perfect for small groups or families, the Loft Room offers a cozy retreat with modern amenities. Enjoy comfort and convenience in a stylish setting.';
       case 'VILLA':
         return 'Spacious and luxurious, the Villa is perfect for large gatherings and special occasions. Experience ultimate comfort with premium amenities and stunning views.';
+      case 'FAMILY_LODGE':
+        return 'Perfect for very large groups and family gatherings. This spacious lodge is currently under preparation and will be available soon. Stay tuned for updates!';
       default:
         return 'Experience comfort and relaxation in our beautifully designed rooms.';
     }
@@ -621,6 +723,7 @@ export default function BookingPage() {
       const newRoom = {
         roomId: room.id,
         instanceNumber, // NEW: Track which instance this is (1, 2, 3, etc.)
+        unitNumber: null, // NEW: Selected unit number (will be assigned)
         adults: 1,
         additionalPax: 0,
         children: 0,
@@ -648,28 +751,65 @@ export default function BookingPage() {
     });
   };
 
-  const handleRoomGuestChange = (roomId, instanceNumber, field, value) => {
+  // NEW: Handler for unit selection
+  const handleUnitSelection = (roomId, instanceNumber, unitNumber) => {
+    setFormData(prev => {
+      const updatedRooms = prev.rooms.map(r => {
+        if (r.roomId === roomId && r.instanceNumber === instanceNumber) {
+          return { ...r, unitNumber };
+        }
+        return r;
+      });
+      return { ...prev, rooms: updatedRooms };
+    });
+  };
+
+  const handleRoomGuestChange = (roomId, instanceNumber, field, value, increment = 0) => {
     setFormData(prev => {
       const updatedRooms = prev.rooms.map(r => {
         if (r.roomId === roomId && r.instanceNumber === instanceNumber) {
           const room = availableRooms.find(ar => ar.id === roomId);
-          const capacity = room ? getRoomCapacity(room.type) : { base: 10, additionalPaxMax: 2 };
+          const capacity = room ? getRoomCapacity(room.type) : { base: 10, additionalPaxMax: 2, max: 10 };
           
-          let updatedRoom = { ...r, [field]: parseInt(value) || 0 };
+          let updatedRoom = { ...r };
+          let newValue = increment !== 0 ? (parseInt(r[field]) || 0) + increment : parseInt(value) || 0;
           
           // Validation logic
           if (field === 'adults') {
-            const adults = Math.max(1, Math.min(parseInt(value) || 1, capacity.base));
-            updatedRoom.adults = adults;
-            // Children can't exceed adults
-            if (updatedRoom.children > adults) {
-              updatedRoom.children = adults;
+            const targetAdults = Math.max(1, Math.min(newValue, capacity.base));
+            
+            // Check if trying to exceed capacity
+            if (newValue > capacity.base) {
+              setMaxCapacityModal({ show: true, roomType: room.type, maxCapacity: capacity.max });
+              return r; // Don't update
+            }
+            
+            updatedRoom.adults = targetAdults;
+            // Children can't exceed max capacity
+            if (updatedRoom.children > capacity.max) {
+              updatedRoom.children = capacity.max;
             }
           } else if (field === 'additionalPax') {
-            updatedRoom.additionalPax = Math.max(0, Math.min(parseInt(value) || 0, capacity.additionalPaxMax));
+            const targetPax = Math.max(0, Math.min(newValue, capacity.additionalPaxMax));
+            
+            // Check if trying to exceed capacity
+            if (newValue > capacity.additionalPaxMax) {
+              setMaxCapacityModal({ show: true, roomType: room.type, maxCapacity: capacity.max });
+              return r; // Don't update
+            }
+            
+            updatedRoom.additionalPax = targetPax;
           } else if (field === 'children') {
-            // Children can't exceed adult count
-            updatedRoom.children = Math.max(0, Math.min(parseInt(value) || 0, updatedRoom.adults));
+            // Children limited by max capacity (base + additional pax)
+            const targetChildren = Math.max(0, Math.min(newValue, capacity.max));
+            
+            // Check if trying to exceed capacity
+            if (newValue > capacity.max) {
+              setMaxCapacityModal({ show: true, roomType: room.type, maxCapacity: capacity.max });
+              return r; // Don't update
+            }
+            
+            updatedRoom.children = targetChildren;
           }
           
           return updatedRoom;
@@ -758,6 +898,20 @@ export default function BookingPage() {
     if (!hasRooms) {
       alert('❌ Please select at least one room.');
       return;
+    }
+
+    // NEW: Validation: all rooms must have a unit selected
+    if (formData.rooms.length > 0) {
+      const roomsWithoutUnit = formData.rooms.filter(r => !r.unitNumber);
+      if (roomsWithoutUnit.length > 0) {
+        const roomNames = roomsWithoutUnit.map(r => {
+          const room = availableRooms.find(ar => ar.id === r.roomId);
+          const roomTypeName = room?.type === 'LOFT' ? 'Loft' : room?.type === 'TEPEE' ? 'Tepee' : room?.type === 'VILLA' ? 'Villa' : room?.name || 'Room';
+          return `${roomTypeName} ${r.instanceNumber}`;
+        }).join(', ');
+        alert(`❌ Please select a unit number for: ${roomNames}`);
+        return;
+      }
     }
 
     // Validation: capacity meets guests
@@ -880,6 +1034,8 @@ export default function BookingPage() {
                           <div style={{ flex: '0 0 350px' }}>
                             <BookingCalendar
                               availabilityData={availabilityData}
+                              disabledDates={disabledDates}
+                              maxBookingMonths={maxBookingMonths}
                               onDateChange={({ checkInDate, checkOutDate }) => {
                                 setFormData(prev => ({
                                   ...prev,
@@ -947,27 +1103,36 @@ export default function BookingPage() {
                         <p>No rooms available for the selected dates.</p>
                       ) : (
                         <div className="room-selector" style={{ marginBottom: '2rem' }}>
-                          {availableRooms.filter(room => room.type !== 'FAMILY_LODGE').map((room) => {
+                          {availableRooms.map((room) => {
                             const capacity = getRoomCapacity(room.type);
-                            const isInSelectedRooms = formData.rooms.some(r => r.roomId === room.id);
+                            const instancesAdded = formData.rooms.filter(r => r.roomId === room.id).length;
                             const isFull = room.remaining <= 0;
+                            const allInstancesAdded = instancesAdded >= room.remaining;
+                            const isUnavailable = room.type === 'FAMILY_LODGE'; // Family Lodge is unavailable
 
                             return (
                               <div 
                                 key={room.id} 
-                                className={`room-option ${isInSelectedRooms ? 'in-cart' : ''} ${isFull ? 'disabled' : ''}`}
+                                className={`room-option ${instancesAdded > 0 ? 'in-cart' : ''} ${isFull || isUnavailable ? 'disabled' : ''} ${isUnavailable ? 'unavailable' : ''}`}
                                 style={{ cursor: 'default', position: 'relative' }}
                               >
-                                {isInSelectedRooms && (
+                                {instancesAdded > 0 && !isUnavailable && (
                                   <div className="selected-check" aria-hidden="true">
                                     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                       <path d="M20 6L9 17L4 12" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
                                     </svg>
                                   </div>
                                 )}
+                                {isUnavailable && (
+                                  <div className="unavailable-overlay">
+                                    <div className="unavailable-badge">UNAVAILABLE</div>
+                                  </div>
+                                )}
                                 <div className="room-media">
                                   <img src={room.image || '/images/default.jpg'} alt={room.name} />
-                                  {isFull ? (
+                                  {isUnavailable ? (
+                                    <span className="available-count unavailable-tag">Coming Soon</span>
+                                  ) : isFull ? (
                                     <span className="available-count full">Full</span>
                                   ) : (
                                     <span className="available-count">{room.remaining} left</span>
@@ -994,23 +1159,41 @@ export default function BookingPage() {
                                       type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        setRoomImagesModal({ open: true, selectedRoomId: room.id, selectedImage: room.image });
+                                        if (isUnavailable) {
+                                          alert('Coming Soon! Images for Family Lodge will be available soon.');
+                                        } else {
+                                          setRoomImagesModal({ open: true, selectedRoomId: room.id, selectedImage: null });
+                                        }
                                       }}
                                       style={{
                                         flex: '1',
                                         minWidth: '90px',
                                         padding: '0.5rem 0.75rem',
-                                        background: '#6b7280',
+                                        background: isUnavailable ? '#9ca3af' : 'linear-gradient(135deg, #f59e0b, #fbbf24)',
                                         color: '#fff',
                                         border: 'none',
-                                        borderRadius: '0.375rem',
+                                        borderRadius: '0.5rem',
                                         fontSize: '0.75rem',
-                                        fontWeight: '500',
-                                        cursor: 'pointer',
-                                        transition: 'background 0.2s'
+                                        fontWeight: '600',
+                                        cursor: isUnavailable ? 'not-allowed' : 'pointer',
+                                        transition: 'all 0.2s',
+                                        opacity: isUnavailable ? 0.7 : 1,
+                                        boxShadow: isUnavailable ? 'none' : '0 2px 8px rgba(245, 158, 11, 0.3)'
                                       }}
-                                      onMouseEnter={(e) => e.target.style.background = '#4b5563'}
-                                      onMouseLeave={(e) => e.target.style.background = '#6b7280'}
+                                      onMouseEnter={(e) => { 
+                                        if (!isUnavailable) {
+                                          e.target.style.background = 'linear-gradient(135deg, #d97706, #f59e0b)';
+                                          e.target.style.transform = 'translateY(-1px)';
+                                          e.target.style.boxShadow = '0 4px 12px rgba(245, 158, 11, 0.4)';
+                                        }
+                                      }}
+                                      onMouseLeave={(e) => { 
+                                        if (!isUnavailable) {
+                                          e.target.style.background = 'linear-gradient(135deg, #f59e0b, #fbbf24)';
+                                          e.target.style.transform = 'translateY(0)';
+                                          e.target.style.boxShadow = '0 2px 8px rgba(245, 158, 11, 0.3)';
+                                        }
+                                      }}
                                     >
                                       View Images
                                     </button>
@@ -1018,23 +1201,41 @@ export default function BookingPage() {
                                       type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        setThreeDViewerModal({ open: true, roomType: room.type });
+                                        if (isUnavailable) {
+                                          alert('Coming Soon! 3D view for Family Lodge will be available soon.');
+                                        } else {
+                                          setThreeDViewerModal({ open: true, roomType: room.type });
+                                        }
                                       }}
                                       style={{
                                         flex: '1',
                                         minWidth: '90px',
                                         padding: '0.5rem 0.75rem',
-                                        background: '#8b5cf6',
+                                        background: isUnavailable ? '#9ca3af' : 'linear-gradient(135deg, #fb923c, #fdba74)',
                                         color: '#fff',
                                         border: 'none',
-                                        borderRadius: '0.375rem',
+                                        borderRadius: '0.5rem',
                                         fontSize: '0.75rem',
-                                        fontWeight: '500',
-                                        cursor: 'pointer',
-                                        transition: 'background 0.2s'
+                                        fontWeight: '600',
+                                        cursor: isUnavailable ? 'not-allowed' : 'pointer',
+                                        transition: 'all 0.2s',
+                                        opacity: isUnavailable ? 0.7 : 1,
+                                        boxShadow: isUnavailable ? 'none' : '0 2px 8px rgba(251, 146, 60, 0.3)'
                                       }}
-                                      onMouseEnter={(e) => e.target.style.background = '#7c3aed'}
-                                      onMouseLeave={(e) => e.target.style.background = '#8b5cf6'}
+                                      onMouseEnter={(e) => { 
+                                        if (!isUnavailable) {
+                                          e.target.style.background = 'linear-gradient(135deg, #f97316, #fb923c)';
+                                          e.target.style.transform = 'translateY(-1px)';
+                                          e.target.style.boxShadow = '0 4px 12px rgba(251, 146, 60, 0.4)';
+                                        }
+                                      }}
+                                      onMouseLeave={(e) => { 
+                                        if (!isUnavailable) {
+                                          e.target.style.background = 'linear-gradient(135deg, #fb923c, #fdba74)';
+                                          e.target.style.transform = 'translateY(0)';
+                                          e.target.style.boxShadow = '0 2px 8px rgba(251, 146, 60, 0.3)';
+                                        }
+                                      }}
                                     >
                                       View in 3D
                                     </button>
@@ -1042,30 +1243,40 @@ export default function BookingPage() {
                                       type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        if (!isFull && !isInSelectedRooms) handleAddRoom(room);
+                                        if (!isFull && !allInstancesAdded && !isUnavailable) handleAddRoom(room);
                                       }}
-                                      disabled={isFull || isInSelectedRooms}
+                                      disabled={isFull || allInstancesAdded || isUnavailable}
                                       style={{
                                         flex: '1',
                                         minWidth: '90px',
                                         padding: '0.5rem 0.75rem',
-                                        background: (isFull || isInSelectedRooms) ? '#e5e7eb' : '#2563eb',
-                                        color: (isFull || isInSelectedRooms) ? '#9ca3af' : '#fff',
+                                        background: (isFull || allInstancesAdded || isUnavailable) ? '#e5e7eb' : 'linear-gradient(135deg, #fbbf24, #fcd34d)',
+                                        color: (isFull || allInstancesAdded || isUnavailable) ? '#9ca3af' : '#92400e',
                                         border: 'none',
-                                        borderRadius: '0.375rem',
+                                        borderRadius: '0.5rem',
                                         fontSize: '0.75rem',
-                                        fontWeight: '500',
-                                        cursor: (isFull || isInSelectedRooms) ? 'not-allowed' : 'pointer',
-                                        transition: 'background 0.2s'
+                                        fontWeight: '600',
+                                        cursor: (isFull || allInstancesAdded || isUnavailable) ? 'not-allowed' : 'pointer',
+                                        transition: 'all 0.2s',
+                                        position: 'relative',
+                                        boxShadow: (isFull || allInstancesAdded || isUnavailable) ? 'none' : '0 2px 8px rgba(251, 191, 36, 0.3)'
                                       }}
                                       onMouseEnter={(e) => {
-                                        if (!isFull && !isInSelectedRooms) e.target.style.background = '#1d4ed8';
+                                        if (!isFull && !allInstancesAdded && !isUnavailable) {
+                                          e.target.style.background = 'linear-gradient(135deg, #f59e0b, #fbbf24)';
+                                          e.target.style.transform = 'translateY(-1px)';
+                                          e.target.style.boxShadow = '0 4px 12px rgba(251, 191, 36, 0.4)';
+                                        }
                                       }}
                                       onMouseLeave={(e) => {
-                                        if (!isFull && !isInSelectedRooms) e.target.style.background = '#2563eb';
+                                        if (!isFull && !allInstancesAdded && !isUnavailable) {
+                                          e.target.style.background = 'linear-gradient(135deg, #fbbf24, #fcd34d)';
+                                          e.target.style.transform = 'translateY(0)';
+                                          e.target.style.boxShadow = '0 2px 8px rgba(251, 191, 36, 0.3)';
+                                        }
                                       }}
                                     >
-                                      {isInSelectedRooms ? 'Selected' : isFull ? 'Full' : 'Select Room'}
+                                      {isUnavailable ? 'Unavailable' : isFull ? 'Full' : allInstancesAdded ? 'All Added' : instancesAdded > 0 ? `Add Room (${instancesAdded}/${room.remaining})` : 'Add Room'}
                                     </button>
                                   </div>
                                 </div>
@@ -1172,77 +1383,270 @@ export default function BookingPage() {
                                         <h4 style={{ margin: '0 0 1rem 0', fontSize: '1rem', fontWeight: '600', color: '#374151' }}>
                                           Guest Details
                                         </h4>
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                          {/* Adults */}
                                           <div>
-                                            <label htmlFor={`adults-${key}`} style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.375rem', color: '#4b5563' }}>
+                                            <label htmlFor={`adults-${key}`} style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', color: '#4b5563' }}>
                                               Adults (1-{capacity.base})
                                             </label>
-                                            <input
-                                              type="number"
-                                              id={`adults-${key}`}
-                                              min="1"
-                                              max={capacity.base}
-                                              value={roomData.adults}
-                                              onChange={(e) => handleRoomGuestChange(room.id, roomData.instanceNumber, 'adults', e.target.value)}
-                                              style={{
-                                                width: '100%',
-                                                padding: '0.5rem',
-                                                border: '1px solid #d1d5db',
-                                                borderRadius: '0.375rem',
-                                                fontSize: '1rem'
-                                              }}
-                                            />
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleRoomGuestChange(room.id, roomData.instanceNumber, 'adults', null, -1)}
+                                                disabled={roomData.adults <= 1}
+                                                style={{
+                                                  width: '40px',
+                                                  height: '40px',
+                                                  background: roomData.adults <= 1 ? '#e5e7eb' : '#2563eb',
+                                                  color: roomData.adults <= 1 ? '#9ca3af' : '#fff',
+                                                  border: 'none',
+                                                  borderRadius: '0.375rem',
+                                                  fontSize: '1.25rem',
+                                                  fontWeight: '600',
+                                                  cursor: roomData.adults <= 1 ? 'not-allowed' : 'pointer',
+                                                  transition: 'all 0.2s',
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  justifyContent: 'center'
+                                                }}
+                                                onMouseEnter={(e) => { if (roomData.adults > 1) e.target.style.background = '#1d4ed8'; }}
+                                                onMouseLeave={(e) => { if (roomData.adults > 1) e.target.style.background = '#2563eb'; }}
+                                              >
+                                                −
+                                              </button>
+                                              <input
+                                                type="number"
+                                                id={`adults-${key}`}
+                                                min="1"
+                                                max={capacity.base}
+                                                value={roomData.adults}
+                                                onChange={(e) => handleRoomGuestChange(room.id, roomData.instanceNumber, 'adults', e.target.value)}
+                                                style={{
+                                                  flex: 1,
+                                                  padding: '0.5rem',
+                                                  border: '1px solid #d1d5db',
+                                                  borderRadius: '0.375rem',
+                                                  fontSize: '1rem',
+                                                  textAlign: 'center'
+                                                }}
+                                              />
+                                              <button
+                                                type="button"
+                                                onClick={() => handleRoomGuestChange(room.id, roomData.instanceNumber, 'adults', null, 1)}
+                                                style={{
+                                                  width: '40px',
+                                                  height: '40px',
+                                                  background: '#2563eb',
+                                                  color: '#fff',
+                                                  border: 'none',
+                                                  borderRadius: '0.375rem',
+                                                  fontSize: '1.25rem',
+                                                  fontWeight: '600',
+                                                  cursor: 'pointer',
+                                                  transition: 'all 0.2s',
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  justifyContent: 'center'
+                                                }}
+                                                onMouseEnter={(e) => e.target.style.background = '#1d4ed8'}
+                                                onMouseLeave={(e) => e.target.style.background = '#2563eb'}
+                                              >
+                                                +
+                                              </button>
+                                            </div>
                                           </div>
+
+                                          {/* Additional Pax */}
                                           <div>
-                                            <label htmlFor={`additionalPax-${key}`} style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.375rem', color: '#4b5563' }}>
-                                              Additional Pax (0-{capacity.additionalPaxMax}) +₱400 each
+                                            <label htmlFor={`additionalPax-${key}`} style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', color: '#4b5563' }}>
+                                              Additional Pax (0-{capacity.additionalPaxMax}) <span style={{ color: '#059669', fontWeight: '600' }}>+₱400 each</span>
                                             </label>
-                                            <input
-                                              type="number"
-                                              id={`additionalPax-${key}`}
-                                              min="0"
-                                              max={capacity.additionalPaxMax}
-                                              value={roomData.additionalPax}
-                                              onChange={(e) => handleRoomGuestChange(room.id, roomData.instanceNumber, 'additionalPax', e.target.value)}
-                                              style={{
-                                                width: '100%',
-                                                padding: '0.5rem',
-                                                border: '1px solid #d1d5db',
-                                                borderRadius: '0.375rem',
-                                                fontSize: '1rem'
-                                              }}
-                                            />
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleRoomGuestChange(room.id, roomData.instanceNumber, 'additionalPax', null, -1)}
+                                                disabled={roomData.additionalPax <= 0}
+                                                style={{
+                                                  width: '40px',
+                                                  height: '40px',
+                                                  background: roomData.additionalPax <= 0 ? '#e5e7eb' : '#2563eb',
+                                                  color: roomData.additionalPax <= 0 ? '#9ca3af' : '#fff',
+                                                  border: 'none',
+                                                  borderRadius: '0.375rem',
+                                                  fontSize: '1.25rem',
+                                                  fontWeight: '600',
+                                                  cursor: roomData.additionalPax <= 0 ? 'not-allowed' : 'pointer',
+                                                  transition: 'all 0.2s',
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  justifyContent: 'center'
+                                                }}
+                                                onMouseEnter={(e) => { if (roomData.additionalPax > 0) e.target.style.background = '#1d4ed8'; }}
+                                                onMouseLeave={(e) => { if (roomData.additionalPax > 0) e.target.style.background = '#2563eb'; }}
+                                              >
+                                                −
+                                              </button>
+                                              <input
+                                                type="number"
+                                                id={`additionalPax-${key}`}
+                                                min="0"
+                                                max={capacity.additionalPaxMax}
+                                                value={roomData.additionalPax}
+                                                onChange={(e) => handleRoomGuestChange(room.id, roomData.instanceNumber, 'additionalPax', e.target.value)}
+                                                style={{
+                                                  flex: 1,
+                                                  padding: '0.5rem',
+                                                  border: '1px solid #d1d5db',
+                                                  borderRadius: '0.375rem',
+                                                  fontSize: '1rem',
+                                                  textAlign: 'center'
+                                                }}
+                                              />
+                                              <button
+                                                type="button"
+                                                onClick={() => handleRoomGuestChange(room.id, roomData.instanceNumber, 'additionalPax', null, 1)}
+                                                style={{
+                                                  width: '40px',
+                                                  height: '40px',
+                                                  background: '#2563eb',
+                                                  color: '#fff',
+                                                  border: 'none',
+                                                  borderRadius: '0.375rem',
+                                                  fontSize: '1.25rem',
+                                                  fontWeight: '600',
+                                                  cursor: 'pointer',
+                                                  transition: 'all 0.2s',
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  justifyContent: 'center'
+                                                }}
+                                                onMouseEnter={(e) => e.target.style.background = '#1d4ed8'}
+                                                onMouseLeave={(e) => e.target.style.background = '#2563eb'}
+                                              >
+                                                +
+                                              </button>
+                                            </div>
                                           </div>
+
+                                          {/* Children */}
                                           <div>
-                                            <label htmlFor={`children-${key}`} style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.375rem', color: '#4b5563' }}>
-                                              Children (0-{roomData.adults}) Free
+                                            <label htmlFor={`children-${key}`} style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', color: '#4b5563' }}>
+                                              Children (0-{capacity.max}) <span style={{ color: '#059669', fontWeight: '600' }}>Free</span>
                                             </label>
-                                            <input
-                                              type="number"
-                                              id={`children-${key}`}
-                                              min="0"
-                                              max={roomData.adults}
-                                              value={roomData.children}
-                                              onChange={(e) => handleRoomGuestChange(room.id, roomData.instanceNumber, 'children', e.target.value)}
-                                              style={{
-                                                width: '100%',
-                                                padding: '0.5rem',
-                                                border: '1px solid #d1d5db',
-                                                borderRadius: '0.375rem',
-                                                fontSize: '1rem'
-                                              }}
-                                            />
-                                            <small style={{ display: 'block', marginTop: '0.25rem', color: '#6b7280', fontSize: '0.75rem' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleRoomGuestChange(room.id, roomData.instanceNumber, 'children', null, -1)}
+                                                disabled={roomData.children <= 0}
+                                                style={{
+                                                  width: '40px',
+                                                  height: '40px',
+                                                  background: roomData.children <= 0 ? '#e5e7eb' : '#2563eb',
+                                                  color: roomData.children <= 0 ? '#9ca3af' : '#fff',
+                                                  border: 'none',
+                                                  borderRadius: '0.375rem',
+                                                  fontSize: '1.25rem',
+                                                  fontWeight: '600',
+                                                  cursor: roomData.children <= 0 ? 'not-allowed' : 'pointer',
+                                                  transition: 'all 0.2s',
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  justifyContent: 'center'
+                                                }}
+                                                onMouseEnter={(e) => { if (roomData.children > 0) e.target.style.background = '#1d4ed8'; }}
+                                                onMouseLeave={(e) => { if (roomData.children > 0) e.target.style.background = '#2563eb'; }}
+                                              >
+                                                −
+                                              </button>
+                                              <input
+                                                type="number"
+                                                id={`children-${key}`}
+                                                min="0"
+                                                max={capacity.max}
+                                                value={roomData.children}
+                                                onChange={(e) => handleRoomGuestChange(room.id, roomData.instanceNumber, 'children', e.target.value)}
+                                                style={{
+                                                  flex: 1,
+                                                  padding: '0.5rem',
+                                                  border: '1px solid #d1d5db',
+                                                  borderRadius: '0.375rem',
+                                                  fontSize: '1rem',
+                                                  textAlign: 'center'
+                                                }}
+                                              />
+                                              <button
+                                                type="button"
+                                                onClick={() => handleRoomGuestChange(room.id, roomData.instanceNumber, 'children', null, 1)}
+                                                style={{
+                                                  width: '40px',
+                                                  height: '40px',
+                                                  background: '#2563eb',
+                                                  color: '#fff',
+                                                  border: 'none',
+                                                  borderRadius: '0.375rem',
+                                                  fontSize: '1.25rem',
+                                                  fontWeight: '600',
+                                                  cursor: 'pointer',
+                                                  transition: 'all 0.2s',
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  justifyContent: 'center'
+                                                }}
+                                                onMouseEnter={(e) => e.target.style.background = '#1d4ed8'}
+                                                onMouseLeave={(e) => e.target.style.background = '#2563eb'}
+                                              >
+                                                +
+                                              </button>
+                                            </div>
+                                            <small style={{ display: 'block', marginTop: '0.5rem', color: '#6b7280', fontSize: '0.75rem' }}>
                                               Children don't count toward capacity
                                             </small>
                                           </div>
                                         </div>
                                       </div>
 
+                                      {/* NEW: Room Unit Selector */}
+                                      <div style={{ marginBottom: '1.5rem' }}>
+                                        <RoomUnitSelector
+                                          roomId={room.id}
+                                          roomName={room.name}
+                                          roomType={room.type}
+                                          checkIn={formData.checkIn}
+                                          checkOut={formData.checkOut}
+                                          selectedUnit={roomData.unitNumber}
+                                          onUnitSelect={(unitNumber) => handleUnitSelection(room.id, roomData.instanceNumber, unitNumber)}
+                                          disabled={!formData.checkIn || !formData.checkOut}
+                                        />
+                                      </div>
+
+                                      {/* Included Room Amenities */}
+                                      <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f9fafb', borderRadius: '0.5rem', border: '1px solid #e5e7eb' }}>
+                                        <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.9375rem', fontWeight: '600', color: '#374151' }}>
+                                          ✨ Included Amenities
+                                        </h4>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '0.5rem' }}>
+                                          {getRoomAmenities(room.type).map((amenity, idx) => (
+                                            <div 
+                                              key={idx}
+                                              style={{ 
+                                                display: 'flex', 
+                                                alignItems: 'center', 
+                                                gap: '0.5rem',
+                                                fontSize: '0.875rem',
+                                                color: '#4b5563'
+                                              }}
+                                            >
+                                              <span style={{ fontSize: '1.25rem' }}>{amenity.icon}</span>
+                                              <span>{amenity.label}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+
                                       {/* Room Amenities Selectors */}
                                       <div style={{ marginTop: '1.5rem' }}>
                                         <h4 style={{ margin: '0 0 1rem 0', fontSize: '1rem', fontWeight: '600', color: '#374151' }}>
-                                          Amenities for this Room
+                                          Additional Amenities for this Room
                                         </h4>
                                         
                                         {/* Optional Amenities */}
@@ -1318,18 +1722,22 @@ export default function BookingPage() {
                           <ul className="kv">
                             <li><span>Check-in</span><strong>{new Date(formData.checkIn).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</strong></li>
                             <li><span>Check-out</span><strong>{new Date(formData.checkOut).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</strong></li>
-                            <li><span>Total Guests</span><strong>{computeTotalCapacity()}</strong></li>
                           </ul>
                         </div>
                         <div className="review-section">
                           <h3 className="section-title">Rooms</h3>
-                          <ul className="bulleted">
+                          <ul className="bulleted" style={{ listStyleType: 'none', padding: 0 }}>
                             {formData.rooms.map((roomData) => {
                               const room = availableRooms.find(r => r.id === roomData.roomId);
                               const roomTypeName = room?.type === 'LOFT' ? 'Loft' : room?.type === 'TEPEE' ? 'Tepee' : room?.type === 'VILLA' ? 'Villa' : room?.name;
                               return (
-                                <li key={`${roomData.roomId}-${roomData.instanceNumber}`}>
-                                  {roomTypeName} {roomData.instanceNumber}: {roomData.adults} adult{roomData.adults !== 1 ? 's' : ''}{roomData.additionalPax > 0 ? `, ${roomData.additionalPax} extra` : ''}{roomData.children > 0 ? `, ${roomData.children} ${roomData.children === 1 ? 'child' : 'children'}` : ''}
+                                <li key={`${roomData.roomId}-${roomData.instanceNumber}`} style={{ marginBottom: '0.75rem' }}>
+                                  <div style={{ fontWeight: '600', marginBottom: '0.25rem' }}>• {roomTypeName} {roomData.instanceNumber}</div>
+                                  <ul style={{ listStyleType: 'none', paddingLeft: '1.5rem', margin: '0.25rem 0' }}>
+                                    {roomData.adults > 0 && <li style={{ fontSize: '0.9rem', color: '#4b5563' }}>- {roomData.adults} adult{roomData.adults !== 1 ? 's' : ''}</li>}
+                                    {roomData.additionalPax > 0 && <li style={{ fontSize: '0.9rem', color: '#4b5563' }}>- {roomData.additionalPax} additional pax</li>}
+                                    {roomData.children > 0 && <li style={{ fontSize: '0.9rem', color: '#4b5563' }}>- {roomData.children} {roomData.children === 1 ? 'child' : 'children'}</li>}
+                                  </ul>
                                 </li>
                               );
                             })}
@@ -1337,24 +1745,75 @@ export default function BookingPage() {
                         </div>
                         <div className="review-section">
                           <h3 className="section-title">Amenities</h3>
-                          <ul className="bulleted">
-                            {Object.entries(formData.selectedAmenities.optional).map(([amenityId, qty]) => {
-                              const amenity = optionalAmenitiesData.find(a => a.id === parseInt(amenityId));
-                              return (
-                                <li key={amenityId}>{qty} × {amenity?.name || `Optional Amenity ${amenityId}`}</li>
-                              );
-                            })}
-                            {Object.entries(formData.selectedAmenities.rental).map(([amenityId, selection]) => {
-                              const rentalAmenity = rentalAmenitiesData.find(a => a.id === parseInt(amenityId));
-                              const quantity = selection.quantity || 0;
-                              return (
-                                <li key={amenityId}>{quantity} × {rentalAmenity?.name || `Rental Amenity ${amenityId}`}</li>
-                              );
-                            })}
-                            {formData.selectedAmenities.cottage && (
-                              <li>Cottage: {formData.selectedAmenities.cottage}</li>
-                            )}
-                          </ul>
+                          {(() => {
+                            // Aggregate amenities from all rooms
+                            const amenityMap = new Map();
+                            
+                            formData.rooms.forEach((roomData) => {
+                              const room = availableRooms.find(r => r.id === roomData.roomId);
+                              const roomTypeName = room?.type === 'LOFT' ? 'Loft' : room?.type === 'TEPEE' ? 'Tepee' : room?.type === 'VILLA' ? 'Villa' : room?.name;
+                              const roomLabel = `${roomTypeName} ${roomData.instanceNumber}`;
+                              
+                              // Process optional amenities
+                              if (roomData.optionalAmenities) {
+                                Object.entries(roomData.optionalAmenities).forEach(([amenityId, qty]) => {
+                                  if (qty > 0) {
+                                    const amenity = optionalAmenitiesData.find(a => a.id === parseInt(amenityId));
+                                    const amenityName = amenity?.name || `Optional Amenity ${amenityId}`;
+                                    const key = `optional-${amenityId}`;
+                                    
+                                    if (!amenityMap.has(key)) {
+                                      amenityMap.set(key, { name: amenityName, rooms: [], type: 'optional' });
+                                    }
+                                    amenityMap.get(key).rooms.push({ roomLabel, qty });
+                                  }
+                                });
+                              }
+                              
+                              // Process rental amenities
+                              if (roomData.rentalAmenities) {
+                                Object.entries(roomData.rentalAmenities).forEach(([amenityId, selection]) => {
+                                  const quantity = selection.quantity || 0;
+                                  const hoursUsed = selection.hoursUsed || 0;
+                                  
+                                  if (quantity > 0 || hoursUsed > 0) {
+                                    const amenity = rentalAmenitiesData.find(a => a.id === parseInt(amenityId));
+                                    const amenityName = amenity?.name || `Rental Amenity ${amenityId}`;
+                                    const key = `rental-${amenityId}`;
+                                    
+                                    if (!amenityMap.has(key)) {
+                                      amenityMap.set(key, { name: amenityName, rooms: [], type: 'rental' });
+                                    }
+                                    amenityMap.get(key).rooms.push({ roomLabel, qty: quantity, hours: hoursUsed });
+                                  }
+                                });
+                              }
+                            });
+                            
+                            if (amenityMap.size === 0) {
+                              return <p style={{ color: '#6b7280', fontStyle: 'italic' }}>No additional amenities requested</p>;
+                            }
+                            
+                            return (
+                              <ul className="bulleted">
+                                {Array.from(amenityMap.entries()).map(([key, data]) => {
+                                  const totalQty = data.rooms.reduce((sum, r) => sum + (r.qty || 0), 0);
+                                  const roomsText = data.rooms.map(r => {
+                                    if (r.hours && r.hours > 0) {
+                                      return `${r.roomLabel} (${r.hours} hrs)`;
+                                    }
+                                    return r.roomLabel;
+                                  }).join(' & ');
+                                  
+                                  return (
+                                    <li key={key}>
+                                      {totalQty}× {data.name} <span style={{ color: '#6b7280', fontSize: '0.9em' }}>(from {roomsText})</span>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            );
+                          })()}
                         </div>
                         <div className="review-section">
                           <h3 className="section-title">Price breakdown</h3>
@@ -1525,13 +1984,20 @@ export default function BookingPage() {
               {formData.rooms.length === 0 ? (
                 <p className="muted">No rooms selected yet.</p>
               ) : (
-                <ul className="bulleted small">
+                <ul className="bulleted small" style={{ listStyleType: 'none', padding: 0 }}>
                   {formData.rooms.map((roomData) => {
                     const room = availableRooms.find(r => r.id === roomData.roomId);
                     const roomTypeName = room?.type === 'LOFT' ? 'Loft' : room?.type === 'TEPEE' ? 'Tepee' : room?.type === 'VILLA' ? 'Villa' : room?.name;
                     return (
-                      <li key={`${roomData.roomId}-${roomData.instanceNumber}`}>
-                        {roomTypeName} {roomData.instanceNumber}: {roomData.adults}A{roomData.additionalPax > 0 ? `+${roomData.additionalPax}` : ''}{roomData.children > 0 ? `, ${roomData.children}C` : ''}
+                      <li key={`${roomData.roomId}-${roomData.instanceNumber}`} style={{ marginBottom: '0.5rem' }}>
+                        <div style={{ fontWeight: '600', fontSize: '0.9rem', marginBottom: '0.25rem' }}>
+                          {roomTypeName} {roomData.instanceNumber}
+                        </div>
+                        <ul style={{ listStyleType: 'none', paddingLeft: '0.75rem', margin: 0, fontSize: '0.8rem', color: '#6b7280' }}>
+                          {roomData.adults > 0 && <li>- {roomData.adults} adult{roomData.adults !== 1 ? 's' : ''}</li>}
+                          {roomData.additionalPax > 0 && <li>- {roomData.additionalPax} additional pax</li>}
+                          {roomData.children > 0 && <li>- {roomData.children} {roomData.children === 1 ? 'child' : 'children'}</li>}
+                        </ul>
                       </li>
                     );
                   })}
@@ -2157,6 +2623,53 @@ export default function BookingPage() {
           cursor: not-allowed; 
           opacity: 0.55; 
           filter: grayscale(0.3); 
+        }
+        .room-option.unavailable { 
+          position: relative;
+          opacity: 0.85;
+        }
+        .room-option.unavailable .room-media::after {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(100, 116, 139, 0.75);
+          backdrop-filter: blur(4px);
+          z-index: 1;
+        }
+        .room-option.unavailable img {
+          filter: grayscale(0.8) brightness(0.7);
+        }
+        .unavailable-overlay {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          z-index: 10;
+          text-align: center;
+          pointer-events: none;
+        }
+        .unavailable-badge {
+          background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+          color: white;
+          padding: 12px 24px;
+          border-radius: 8px;
+          font-size: 16px;
+          font-weight: 800;
+          letter-spacing: 0.05em;
+          box-shadow: 0 4px 16px rgba(239, 68, 68, 0.4);
+          border: 2px solid rgba(255, 255, 255, 0.9);
+          text-transform: uppercase;
+        }
+        .available-count.unavailable-tag {
+          background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+          animation: pulse-purple 2s ease-in-out infinite;
+        }
+        @keyframes pulse-purple {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.85; transform: scale(1.05); }
         }
         .room-media { 
           position: relative;
@@ -3102,6 +3615,744 @@ export default function BookingPage() {
           }
         }
 
+        /* ===========================
+           COMPREHENSIVE RESPONSIVE STYLES FOR BOOKING PAGE
+           =========================== */
+        
+        /* Extra Small Mobile (320px - 479px) */
+        @media (max-width: 479px) {
+          .container {
+            padding: 12px 8px 80px 8px;
+          }
+          
+          h1 {
+            font-size: clamp(1.5rem, 5vw, 1.8rem);
+            margin-bottom: 12px;
+          }
+          
+          h2 {
+            font-size: clamp(1.3rem, 4.5vw, 1.5rem);
+          }
+          
+          .step-indicator {
+            font-size: 0.8rem;
+            padding: 6px 12px;
+          }
+          
+          .calendar-container {
+            padding: 12px;
+          }
+          
+          .room-option {
+            padding: 12px;
+            margin-bottom: 12px;
+          }
+          
+          .room-title {
+            font-size: 1.2rem;
+          }
+          
+          .room-description {
+            font-size: 0.85rem;
+          }
+          
+          .room-details {
+            flex-direction: column;
+            gap: 8px;
+          }
+          
+          .room-price {
+            font-size: 1.3rem;
+          }
+          
+          .room-actions {
+            flex-direction: column;
+            gap: 8px;
+          }
+          
+          .room-actions button {
+            width: 100%;
+            font-size: 0.85rem;
+            padding: 10px 16px;
+          }
+          
+          .form-group {
+            margin-bottom: 14px;
+          }
+          
+          .form-group label {
+            font-size: 0.9rem;
+            margin-bottom: 6px;
+          }
+          
+          .form-group input,
+          .form-group select,
+          .form-group textarea {
+            font-size: 14px;
+            padding: 10px 12px;
+          }
+          
+          .modal-content {
+            width: 95%;
+            padding: 16px;
+            max-height: 92vh;
+          }
+          
+          .modal-content h2 {
+            font-size: 1.3rem;
+          }
+          
+          .image-gallery img {
+            width: 120px;
+            height: 80px;
+          }
+          
+          .modal-actions {
+            flex-direction: column;
+          }
+          
+          .modal-actions button {
+            width: 100%;
+          }
+          
+          .review-section {
+            padding: 12px;
+          }
+          
+          .review-item {
+            padding: 10px;
+            font-size: 0.9rem;
+          }
+          
+          .btn-next,
+          .btn-prev,
+          .btn-secondary,
+          button[type="submit"] {
+            font-size: 0.9rem;
+            padding: 12px 20px;
+          }
+          
+          .navigation-buttons {
+            flex-direction: column;
+            gap: 10px;
+          }
+          
+          .navigation-buttons button {
+            width: 100%;
+          }
+        }
+        
+        /* Small Mobile (480px - 639px) */
+        @media (min-width: 480px) and (max-width: 639px) {
+          .container {
+            padding: 16px 12px 80px 12px;
+          }
+          
+          h1 {
+            font-size: clamp(1.8rem, 5vw, 2.2rem);
+          }
+          
+          .room-option {
+            padding: 14px;
+          }
+          
+          .room-title {
+            font-size: 1.35rem;
+          }
+          
+          .room-actions {
+            flex-wrap: wrap;
+            gap: 8px;
+          }
+          
+          .room-actions button {
+            flex: 1 1 calc(50% - 4px);
+            min-width: 140px;
+          }
+          
+          .modal-content {
+            width: 92%;
+            padding: 20px;
+          }
+          
+          .image-gallery img {
+            width: 140px;
+            height: 90px;
+          }
+          
+          .form-group input,
+          .form-group select,
+          .form-group textarea {
+            font-size: 15px;
+            padding: 11px 14px;
+          }
+        }
+        
+        /* Tablets Portrait (640px - 767px) */
+        @media (min-width: 640px) and (max-width: 767px) {
+          .container {
+            padding: 20px 16px 80px 16px;
+            max-width: 640px;
+          }
+          
+          h1 {
+            font-size: clamp(2rem, 4.5vw, 2.5rem);
+          }
+          
+          .room-grid {
+            grid-template-columns: 1fr;
+            gap: 16px;
+          }
+          
+          .room-option {
+            padding: 18px;
+          }
+          
+          .room-actions button {
+            font-size: 0.95rem;
+          }
+          
+          .modal-content {
+            width: 88%;
+            max-width: 600px;
+            padding: 24px;
+          }
+          
+          .image-gallery img {
+            width: 160px;
+            height: 100px;
+          }
+          
+          .review-card {
+            padding: 18px;
+          }
+          
+          .form-group input,
+          .form-group select,
+          .form-group textarea {
+            font-size: 16px;
+            padding: 12px 16px;
+          }
+        }
+        
+        /* Tablets Landscape (768px - 1023px) */
+        @media (min-width: 768px) and (max-width: 1023px) {
+          .container {
+            padding: 24px 20px 80px 20px;
+            max-width: 768px;
+          }
+          
+          h1 {
+            font-size: clamp(2.2rem, 4vw, 2.8rem);
+          }
+          
+          .room-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 18px;
+          }
+          
+          .room-option {
+            padding: 20px;
+          }
+          
+          .room-title {
+            font-size: 1.5rem;
+          }
+          
+          .room-details {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 10px;
+          }
+          
+          .room-actions {
+            flex-direction: column;
+            gap: 10px;
+          }
+          
+          .room-actions button {
+            width: 100%;
+          }
+          
+          .modal-content {
+            width: 85%;
+            max-width: 680px;
+            padding: 28px;
+          }
+          
+          .image-gallery {
+            gap: 12px;
+          }
+          
+          .image-gallery img {
+            width: 180px;
+            height: 110px;
+          }
+          
+          .calendar-container {
+            padding: 18px;
+          }
+          
+          .form-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+          }
+          
+          .navigation-buttons {
+            gap: 14px;
+          }
+        }
+        
+        /* Laptops (1024px - 1279px) */
+        @media (min-width: 1024px) and (max-width: 1279px) {
+          .container {
+            padding: 32px 28px 80px 28px;
+            max-width: 1024px;
+          }
+          
+          h1 {
+            font-size: clamp(2.5rem, 3.5vw, 3rem);
+          }
+          
+          .room-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 22px;
+          }
+          
+          .room-option {
+            padding: 24px;
+          }
+          
+          .room-title {
+            font-size: 1.6rem;
+          }
+          
+          .room-description {
+            font-size: 1rem;
+          }
+          
+          .room-price {
+            font-size: 1.75rem;
+          }
+          
+          .modal-content {
+            max-width: 760px;
+            padding: 32px;
+          }
+          
+          .image-gallery img {
+            width: 200px;
+            height: 120px;
+          }
+          
+          .form-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 18px;
+          }
+          
+          .review-card {
+            padding: 24px;
+          }
+          
+          .btn-next,
+          .btn-prev,
+          .btn-secondary,
+          button[type="submit"] {
+            font-size: 1.05rem;
+            padding: 14px 28px;
+          }
+        }
+        
+        /* Desktops (1280px - 1535px) */
+        @media (min-width: 1280px) and (max-width: 1535px) {
+          .container {
+            padding: 40px 32px 80px 32px;
+            max-width: 1280px;
+          }
+          
+          h1 {
+            font-size: clamp(2.8rem, 3.2vw, 3.5rem);
+          }
+          
+          h2 {
+            font-size: clamp(2rem, 2.5vw, 2.5rem);
+          }
+          
+          .room-grid {
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+          }
+          
+          .room-option {
+            padding: 26px;
+          }
+          
+          .room-title {
+            font-size: 1.7rem;
+          }
+          
+          .modal-content {
+            max-width: 820px;
+            padding: 36px;
+          }
+          
+          .image-gallery img {
+            width: 220px;
+            height: 135px;
+          }
+          
+          .calendar-container {
+            padding: 24px;
+          }
+        }
+        
+        /* Large Screens / TVs (1536px and above) */
+        @media (min-width: 1536px) {
+          .container {
+            padding: 50px 40px 100px 40px;
+            max-width: 1536px;
+          }
+          
+          h1 {
+            font-size: clamp(3.5rem, 3vw, 4.5rem);
+            margin-bottom: 32px;
+          }
+          
+          h2 {
+            font-size: clamp(2.5rem, 2.3vw, 3rem);
+            margin-bottom: 28px;
+          }
+          
+          h3 {
+            font-size: clamp(1.8rem, 2vw, 2.2rem);
+          }
+          
+          .step-indicator {
+            font-size: 1.15rem;
+            padding: 14px 28px;
+          }
+          
+          .room-grid {
+            grid-template-columns: repeat(3, 1fr);
+            gap: 32px;
+          }
+          
+          .room-option {
+            padding: 32px;
+            border-radius: 20px;
+          }
+          
+          .room-image {
+            height: 280px;
+            border-radius: 16px;
+          }
+          
+          .room-title {
+            font-size: 2rem;
+            margin-bottom: 14px;
+          }
+          
+          .room-description {
+            font-size: 1.15rem;
+            line-height: 1.7;
+          }
+          
+          .room-details {
+            gap: 20px;
+            margin: 20px 0;
+          }
+          
+          .room-capacity,
+          .room-price {
+            font-size: 1.2rem;
+          }
+          
+          .room-price {
+            font-size: 2rem;
+          }
+          
+          .room-actions {
+            gap: 16px;
+            margin-top: 24px;
+          }
+          
+          .room-actions button {
+            font-size: 1.1rem;
+            padding: 14px 24px;
+            border-radius: 12px;
+          }
+          
+          .calendar-container {
+            padding: 32px;
+            border-radius: 20px;
+          }
+          
+          .calendar-title {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+          }
+          
+          .form-group {
+            margin-bottom: 26px;
+          }
+          
+          .form-group label {
+            font-size: 1.15rem;
+            margin-bottom: 10px;
+          }
+          
+          .form-group input,
+          .form-group select,
+          .form-group textarea {
+            font-size: 1.05rem;
+            padding: 16px 20px;
+            border-radius: 12px;
+          }
+          
+          .form-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+          }
+          
+          .modal-content {
+            max-width: 1000px;
+            padding: 48px;
+            border-radius: 24px;
+          }
+          
+          .modal-content h2 {
+            font-size: 2.2rem;
+            margin-bottom: 20px;
+          }
+          
+          .image-gallery {
+            gap: 16px;
+            margin-bottom: 28px;
+          }
+          
+          .image-gallery img {
+            width: 260px;
+            height: 160px;
+            border-radius: 12px;
+          }
+          
+          .room-modal-capacity {
+            font-size: 1.35rem;
+            margin-bottom: 16px;
+          }
+          
+          .room-modal-description {
+            font-size: 1.15rem;
+            line-height: 1.75;
+            margin-bottom: 24px;
+          }
+          
+          .room-modal-amenities {
+            gap: 18px;
+            margin-bottom: 28px;
+          }
+          
+          .room-modal-amenity-item {
+            font-size: 1.1rem;
+          }
+          
+          .modal-actions {
+            gap: 16px;
+          }
+          
+          .modal-actions button {
+            font-size: 1.1rem;
+            padding: 14px 28px;
+            border-radius: 12px;
+          }
+          
+          .review-card {
+            padding: 32px;
+            border-radius: 20px;
+          }
+          
+          .review-card .card-header {
+            padding: 32px 32px 16px 32px;
+          }
+          
+          .review-section {
+            padding: 28px;
+          }
+          
+          .review-item {
+            padding: 18px 20px;
+            font-size: 1.08rem;
+          }
+          
+          .review-label {
+            font-size: 1.05rem;
+          }
+          
+          .review-value {
+            font-size: 1.15rem;
+          }
+          
+          .total-section {
+            padding: 28px;
+            border-radius: 16px;
+          }
+          
+          .total-label {
+            font-size: 1.4rem;
+          }
+          
+          .total-amount {
+            font-size: 2.5rem;
+          }
+          
+          .navigation-buttons {
+            gap: 20px;
+            margin-top: 36px;
+          }
+          
+          .btn-next,
+          .btn-prev,
+          .btn-secondary,
+          button[type="submit"] {
+            font-size: 1.2rem;
+            padding: 18px 38px;
+            border-radius: 14px;
+            min-width: 180px;
+          }
+          
+          .submit-modal {
+            max-width: 560px;
+            padding: 56px;
+            border-radius: 28px;
+          }
+          
+          .submit-modal h3 {
+            font-size: 2rem;
+            margin-bottom: 24px;
+          }
+          
+          .submit-modal p {
+            font-size: 1.2rem;
+            margin-bottom: 36px;
+          }
+          
+          .spinner {
+            width: 72px;
+            height: 72px;
+            border-width: 6px;
+          }
+        }
+        
+        /* Ultra-wide screens (2560px and above) */
+        @media (min-width: 2560px) {
+          .container {
+            padding: 70px 60px 120px 60px;
+            max-width: 2000px;
+          }
+          
+          h1 {
+            font-size: clamp(4.5rem, 2.8vw, 5.5rem);
+            margin-bottom: 48px;
+          }
+          
+          h2 {
+            font-size: clamp(3rem, 2.2vw, 3.8rem);
+          }
+          
+          .room-grid {
+            grid-template-columns: repeat(4, 1fr);
+            gap: 44px;
+          }
+          
+          .room-option {
+            padding: 44px;
+          }
+          
+          .room-image {
+            height: 360px;
+          }
+          
+          .room-title {
+            font-size: 2.5rem;
+          }
+          
+          .room-description {
+            font-size: 1.3rem;
+          }
+          
+          .modal-content {
+            max-width: 1400px;
+            padding: 64px;
+          }
+          
+          .image-gallery img {
+            width: 320px;
+            height: 200px;
+          }
+        }
+        
+        /* Landscape orientation adjustments for tablets/mobile */
+        @media (max-width: 1023px) and (orientation: landscape) {
+          .container {
+            padding-top: 16px;
+            padding-bottom: 70px;
+          }
+          
+          h1 {
+            font-size: clamp(1.8rem, 4vw, 2.5rem);
+            margin-bottom: 16px;
+          }
+          
+          .room-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+          }
+          
+          .room-option {
+            padding: 14px;
+          }
+          
+          .room-image {
+            height: 140px;
+          }
+          
+          .modal-content {
+            max-height: 85vh;
+            padding: 20px;
+          }
+          
+          .form-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 14px;
+          }
+        }
+        
+        /* Touch-friendly adjustments */
+        @media (hover: none) and (pointer: coarse) {
+          .room-actions button,
+          .modal-actions button,
+          .navigation-buttons button {
+            min-height: 48px;
+            min-width: 48px;
+            padding: 14px 20px;
+          }
+          
+          .form-group input,
+          .form-group select,
+          .form-group textarea {
+            min-height: 48px;
+            font-size: 16px;
+          }
+          
+          .room-option {
+            cursor: default;
+          }
+          
+          .room-option:hover {
+            transform: none;
+          }
+        }
+
         /* Smooth scrolling */
         html {
           scroll-behavior: smooth;
@@ -3138,70 +4389,19 @@ export default function BookingPage() {
         roomType={threeDViewerModal.roomType}
       />
 
-      {/* Room Images Modal */}
-      {roomImagesModal.open && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            backgroundColor: 'rgba(0,0,0,0.8)',
-            backdropFilter: 'blur(5px)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 1000,
-            padding: '20px'
-          }}
-          onClick={() => setRoomImagesModal({ open: false, selectedRoomId: null, selectedImage: null })}
-        >
-          <div
-            style={{
-              position: 'relative',
-              maxWidth: '90vw',
-              maxHeight: '90vh',
-              backgroundColor: '#fff',
-              borderRadius: '12px',
-              overflow: 'hidden'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setRoomImagesModal({ open: false, selectedRoomId: null, selectedImage: null })}
-              style={{
-                position: 'absolute',
-                top: '10px',
-                right: '10px',
-                background: 'rgba(0,0,0,0.5)',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '50%',
-                width: '40px',
-                height: '40px',
-                cursor: 'pointer',
-                fontSize: '24px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 10
-              }}
-            >
-              ×
-            </button>
-            <img
-              src={roomImagesModal.selectedImage || '/images/default.jpg'}
-              alt="Room"
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'contain'
-              }}
-            />
-          </div>
-        </div>
-      )}
+      {/* Max Capacity Modal */}
+      <MaxCapacityModal
+        show={maxCapacityModal.show}
+        onClose={() => setMaxCapacityModal({ show: false, roomType: null, maxCapacity: 0 })}
+        roomType={maxCapacityModal.roomType}
+        maxCapacity={maxCapacityModal.maxCapacity}
+      />
+
+      {/* Midnight Alert Modal */}
+      <MidnightAlertModal
+        show={showMidnightAlert}
+        onReload={() => window.location.reload()}
+      />
     </div>
   );
 }

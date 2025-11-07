@@ -1679,6 +1679,123 @@ export function NavigationConfirmationModal({
     </div>
   );
 }
+// Max Capacity Reached Modal
+export function MaxCapacityModal({ show, onClose, roomType, maxCapacity }) {
+  if (!show) return null;
+
+  const roomName = roomType ? roomType.charAt(0) + roomType.slice(1).toLowerCase() : 'Room';
+
+  return (
+    <div className="modal-overlay fade-in" onClick={onClose}>
+      <ModalGlobalStyles />
+      <div 
+        className="modal-content" 
+        onClick={(e) => e.stopPropagation()}
+        style={{ 
+          background: 'linear-gradient(135deg, #febe52 0%, #ebd591 100%)', 
+          padding: 32, 
+          borderRadius: 16, 
+          width: 420, 
+          maxWidth: '95%', 
+          boxShadow: '0 8px 32px rgba(0,0,0,0.13)', 
+          position: 'relative' 
+        }}
+      >
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>⚠️</div>
+          <h2 style={{ margin: 0, color: '#6b4700', fontWeight: 700, fontSize: 20 }}>
+            Maximum Capacity Reached
+          </h2>
+        </div>
+        
+        <p style={{ margin: '16px 0', color: '#6b4700', fontSize: 15, lineHeight: 1.6, textAlign: 'center' }}>
+          The selected {roomName} room has reached its maximum capacity of <strong>{maxCapacity} guests</strong>. 
+          You cannot add more guests to this room.
+        </p>
+
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}>
+          <button
+            onClick={onClose}
+            style={{
+              padding: '12px 32px',
+              background: '#6b4700',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 8,
+              fontSize: 15,
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              boxShadow: '0 4px 12px rgba(107, 71, 0, 0.3)'
+            }}
+            onMouseEnter={(e) => e.target.style.background = '#8b5a00'}
+            onMouseLeave={(e) => e.target.style.background = '#6b4700'}
+          >
+            OK
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Midnight Alert Modal
+export function MidnightAlertModal({ show, onReload }) {
+  if (!show) return null;
+
+  return (
+    <div className="modal-overlay fade-in" style={{ zIndex: 9999 }}>
+      <ModalGlobalStyles />
+      <div 
+        className="modal-content"
+        style={{ 
+          background: 'linear-gradient(135deg, #febe52 0%, #ebd591 100%)', 
+          padding: 32, 
+          borderRadius: 16, 
+          width: 450, 
+          maxWidth: '95%', 
+          boxShadow: '0 8px 32px rgba(0,0,0,0.13)', 
+          position: 'relative' 
+        }}
+      >
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>🕐</div>
+          <h2 style={{ margin: 0, color: '#6b4700', fontWeight: 700, fontSize: 20 }}>
+            Date Change Detected
+          </h2>
+        </div>
+        
+        <p style={{ margin: '16px 0', color: '#6b4700', fontSize: 15, lineHeight: 1.6, textAlign: 'center' }}>
+          It's now past midnight and the booking dates have been updated. 
+          Please reload the page to view the latest available dates and ensure accurate booking information.
+        </p>
+
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}>
+          <button
+            onClick={onReload}
+            style={{
+              padding: '12px 32px',
+              background: '#6b4700',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 8,
+              fontSize: 15,
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              boxShadow: '0 4px 12px rgba(107, 71, 0, 0.3)'
+            }}
+            onMouseEnter={(e) => e.target.style.background = '#8b5a00'}
+            onMouseLeave={(e) => e.target.style.background = '#6b4700'}
+          >
+            Reload Page
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // 3D Room Viewer Modal for interior views
 export function ThreeDRoomViewerModal({ show, onClose, roomType }) {
   if (!show) return null;
@@ -1689,7 +1806,7 @@ export function ThreeDRoomViewerModal({ show, onClose, roomType }) {
       case 'LOFT':
         return '/models/Interior_Loft.glb';
       case 'TEPEE':
-        return '/models/Interior_Tepee.glb';
+        return '/models/Interior_Teepee.glb';
       case 'VILLA':
         return '/models/Interior_Villa.glb';
       default:
@@ -1730,7 +1847,7 @@ export function ThreeDRoomViewerModal({ show, onClose, roomType }) {
             position: 'absolute', 
             top: 16, 
             right: 16, 
-            fontSize: 28, 
+            fontSize: 24, 
             background: 'rgba(255,255,255,0.9)', 
             border: 'none', 
             cursor: 'pointer', 
@@ -1744,7 +1861,8 @@ export function ThreeDRoomViewerModal({ show, onClose, roomType }) {
             fontWeight: 'bold',
             boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
             zIndex: 10,
-            transition: 'all 0.2s ease'
+            transition: 'all 0.2s ease',
+            lineHeight: '1'
           }} 
           onClick={onClose}
           onMouseEnter={(e) => {
@@ -1756,7 +1874,7 @@ export function ThreeDRoomViewerModal({ show, onClose, roomType }) {
             e.target.style.background = 'rgba(255,255,255,0.9)';
           }}
         >
-          �
+          ×
         </button>
 
         <h2 style={{ 
@@ -1779,7 +1897,8 @@ export function ThreeDRoomViewerModal({ show, onClose, roomType }) {
         }}>
           {modelPath ? (
             <EnhancedThreeDModelViewer 
-              modelUrl={modelPath}
+              modelPath={modelPath}
+              viewMode="interior"
               autoRotate={true}
               showControls={true}
             />
@@ -1824,3 +1943,718 @@ export function ThreeDRoomViewerModal({ show, onClose, roomType }) {
     </div>
   );
 }
+
+// Hook for Edit Booking Date Modal (Super Admin)
+export function useEditBookingDateModal() {
+  const [modal, setModal] = useState({ show: false, booking: null });
+  return [modal, setModal];
+}
+
+// Edit Booking Date Modal (Super Admin)
+export function EditBookingDateModal({ modal, setModal, onConfirm, loading = false }) {
+  const [newCheckIn, setNewCheckIn] = useState('');
+  const [newCheckOut, setNewCheckOut] = useState('');
+  const [reason, setReason] = useState('');
+  const [error, setError] = useState('');
+
+  // Format date to yyyy-mm-dd
+  const formatDate = (date) => {
+    if (!date) return '';
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = (d.getMonth() + 1).toString().padStart(2, '0');
+    const day = d.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Initialize dates when modal opens
+  useEffect(() => {
+    if (modal?.show && modal?.booking) {
+      setNewCheckIn(formatDate(modal.booking.checkIn));
+      setNewCheckOut(formatDate(modal.booking.checkOut));
+      setReason('');
+      setError('');
+    }
+  }, [modal?.show, modal?.booking]);
+
+  if (!modal?.show || !modal.booking) return null;
+
+  const booking = modal.booking;
+
+  const handleSubmit = () => {
+    // Validation
+    if (!newCheckIn || !newCheckOut) {
+      setError('Both check-in and check-out dates are required');
+      return;
+    }
+
+    const checkInDate = new Date(newCheckIn);
+    const checkOutDate = new Date(newCheckOut);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (checkInDate >= checkOutDate) {
+      setError('Check-out date must be after check-in date');
+      return;
+    }
+
+    if (checkInDate < today) {
+      setError('Check-in date cannot be in the past');
+      return;
+    }
+
+    if (!reason.trim()) {
+      setError('Please provide a reason for changing the dates');
+      return;
+    }
+
+    setError('');
+    onConfirm({
+      bookingId: booking.id,
+      newCheckIn,
+      newCheckOut,
+      reason: reason.trim()
+    });
+  };
+
+  const handleClose = () => {
+    if (!loading) {
+      setModal({ show: false, booking: null });
+    }
+  };
+
+  // Calculate nights
+  const calculateNights = () => {
+    if (!newCheckIn || !newCheckOut) return 0;
+    const checkIn = new Date(newCheckIn);
+    const checkOut = new Date(newCheckOut);
+    const nights = Math.max(0, Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24)));
+    return nights;
+  };
+
+  const oldNights = booking.checkIn && booking.checkOut 
+    ? Math.ceil((new Date(booking.checkOut) - new Date(booking.checkIn)) / (1000 * 60 * 60 * 24))
+    : 0;
+  const newNights = calculateNights();
+
+  return (
+    <div className="modal-overlay fade-in">
+      <ModalGlobalStyles />
+      <div 
+        className="modal-content" 
+        style={{ 
+          background: 'white',
+          padding: '2rem',
+          borderRadius: '16px',
+          width: '600px',
+          maxWidth: '95%',
+          maxHeight: '90vh',
+          overflowY: 'auto',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+          position: 'relative'
+        }}
+      >
+        <button 
+          style={{ 
+            position: 'absolute',
+            top: '1rem',
+            right: '1rem',
+            fontSize: '1.5rem',
+            background: 'none',
+            border: 'none',
+            cursor: loading ? 'not-allowed' : 'pointer',
+            color: '#64748b',
+            opacity: loading ? 0.5 : 1
+          }} 
+          onClick={handleClose}
+          disabled={loading}
+        >
+          ×
+        </button>
+
+        <h2 style={{ 
+          margin: '0 0 0.5rem 0',
+          color: '#1e293b',
+          fontWeight: '700',
+          fontSize: '1.5rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem'
+        }}>
+          <CalendarCheck2 size={24} color="#FEBE52" />
+          Edit Booking Dates
+        </h2>
+
+        <p style={{ 
+          color: '#64748b',
+          fontSize: '0.9rem',
+          marginBottom: '1.5rem'
+        }}>
+          Booking ID: <strong>#{booking.id}</strong> - Guest: <strong>{booking.guestName}</strong>
+        </p>
+
+        <div style={{ 
+          background: '#FFF7ED',
+          border: '1px solid #FEBE52',
+          borderRadius: '8px',
+          padding: '1rem',
+          marginBottom: '1.5rem'
+        }}>
+          <h3 style={{ 
+            margin: '0 0 0.75rem 0',
+            fontSize: '0.95rem',
+            color: '#92400e',
+            fontWeight: '600'
+          }}>
+            Current Booking Dates
+          </h3>
+          <div style={{ 
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr 1fr',
+            gap: '1rem',
+            fontSize: '0.85rem',
+            color: '#6b4700'
+          }}>
+            <div>
+              <strong>Check-in:</strong><br />
+              {new Date(booking.checkIn).toLocaleDateString('en-US', { 
+                month: 'short', 
+                day: 'numeric', 
+                year: 'numeric' 
+              })}
+            </div>
+            <div>
+              <strong>Check-out:</strong><br />
+              {new Date(booking.checkOut).toLocaleDateString('en-US', { 
+                month: 'short', 
+                day: 'numeric', 
+                year: 'numeric' 
+              })}
+            </div>
+            <div>
+              <strong>Nights:</strong><br />
+              {oldNights} night{oldNights !== 1 ? 's' : ''}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ marginBottom: '1.5rem' }}>
+          <h3 style={{ 
+            margin: '0 0 1rem 0',
+            fontSize: '0.95rem',
+            color: '#1e293b',
+            fontWeight: '600'
+          }}>
+            New Booking Dates
+          </h3>
+
+          <div style={{ 
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '1rem',
+            marginBottom: '1rem'
+          }}>
+            <div>
+              <label style={{ 
+                display: 'block',
+                marginBottom: '0.5rem',
+                fontWeight: '500',
+                color: '#374151',
+                fontSize: '0.9rem'
+              }}>
+                New Check-in Date
+              </label>
+              <input
+                type="date"
+                value={newCheckIn}
+                onChange={(e) => setNewCheckIn(e.target.value)}
+                disabled={loading}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '8px',
+                  fontSize: '0.95rem',
+                  opacity: loading ? 0.5 : 1
+                }}
+              />
+            </div>
+
+            <div>
+              <label style={{ 
+                display: 'block',
+                marginBottom: '0.5rem',
+                fontWeight: '500',
+                color: '#374151',
+                fontSize: '0.9rem'
+              }}>
+                New Check-out Date
+              </label>
+              <input
+                type="date"
+                value={newCheckOut}
+                onChange={(e) => setNewCheckOut(e.target.value)}
+                disabled={loading}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '8px',
+                  fontSize: '0.95rem',
+                  opacity: loading ? 0.5 : 1
+                }}
+              />
+            </div>
+          </div>
+
+          {newNights > 0 && (
+            <div style={{
+              background: '#f0f9ff',
+              border: '1px solid #3b82f6',
+              borderRadius: '6px',
+              padding: '0.75rem',
+              fontSize: '0.85rem',
+              color: '#1e40af'
+            }}>
+              <Info size={16} style={{ display: 'inline', marginRight: '0.5rem' }} />
+              New stay duration: <strong>{newNights} night{newNights !== 1 ? 's' : ''}</strong>
+              {newNights !== oldNights && (
+                <span> ({newNights > oldNights ? '+' : ''}{newNights - oldNights} night{Math.abs(newNights - oldNights) !== 1 ? 's' : ''})</span>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div style={{ marginBottom: '1.5rem' }}>
+          <label style={{ 
+            display: 'block',
+            marginBottom: '0.5rem',
+            fontWeight: '500',
+            color: '#374151',
+            fontSize: '0.9rem'
+          }}>
+            Reason for Date Change <span style={{ color: '#dc2626' }}>*</span>
+          </label>
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            disabled={loading}
+            placeholder="e.g., Guest request via phone, Room availability conflict, etc."
+            rows={3}
+            style={{
+              width: '100%',
+              padding: '0.75rem',
+              border: '1px solid #d1d5db',
+              borderRadius: '8px',
+              fontSize: '0.9rem',
+              resize: 'vertical',
+              fontFamily: 'inherit',
+              opacity: loading ? 0.5 : 1
+            }}
+          />
+        </div>
+
+        {error && (
+          <div style={{
+            background: '#fee2e2',
+            border: '1px solid #dc2626',
+            borderRadius: '8px',
+            padding: '0.75rem',
+            marginBottom: '1rem',
+            color: '#991b1b',
+            fontSize: '0.85rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}>
+            <AlertCircle size={16} />
+            {error}
+          </div>
+        )}
+
+        <div style={{
+          background: '#fef3c7',
+          border: '1px solid #f59e0b',
+          borderRadius: '8px',
+          padding: '0.75rem',
+          marginBottom: '1.5rem',
+          fontSize: '0.8rem',
+          color: '#78350f'
+        }}>
+          <AlertCircle size={14} style={{ display: 'inline', marginRight: '0.5rem' }} />
+          <strong>Note:</strong> This action will directly modify the booking dates. The guest will need to be notified separately about this change.
+        </div>
+
+        <div style={{ 
+          display: 'flex',
+          gap: '0.75rem',
+          justifyContent: 'flex-end'
+        }}>
+          <button
+            onClick={handleClose}
+            disabled={loading}
+            style={{
+              padding: '0.75rem 1.5rem',
+              background: 'white',
+              color: '#64748b',
+              border: '1px solid #d1d5db',
+              borderRadius: '8px',
+              fontWeight: '500',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.5 : 1,
+              transition: 'all 0.2s'
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            style={{
+              padding: '0.75rem 1.5rem',
+              background: loading ? '#94a3b8' : 'linear-gradient(135deg, #FEBE52 0%, #f59e0b 100%)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontWeight: '600',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            {loading ? 'Updating...' : 'Update Booking Dates'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Hook for Cancel Confirm Modal (Direct cancellation >= 7 days)
+export function useCancelConfirmModal() {
+  const [modal, setModal] = useState({ show: false, booking: null });
+  return [modal, setModal];
+}
+
+// Cancel Confirmation Modal (for direct cancellation >= 7 days before check-in)
+export function CancelConfirmModal({ modal, setModal, onConfirm, loading }) {
+  if (!modal?.show || !modal.booking) return null;
+
+  const booking = modal.booking;
+  const totalRooms = booking.rooms?.reduce((sum, r) => sum + (r.quantity || 1), 0) || 0;
+  const reservationFee = totalRooms * 2000;
+  const refundAmount = Math.floor(reservationFee * 0.5); // 50% refund
+
+  return (
+    <div className="modal-overlay fade-in">
+      <ModalGlobalStyles />
+      <div className="modal-content" style={{ 
+        background: 'linear-gradient(135deg, #fff5f5 0%, #ffe4e6 100%)', 
+        padding: 32, 
+        borderRadius: 16, 
+        width: 480, 
+        maxWidth: '95%', 
+        boxShadow: '0 8px 32px rgba(0,0,0,0.13)', 
+        position: 'relative',
+        border: '2px solid #fecaca'
+      }}>
+        <button 
+          style={{ 
+            position: 'absolute', 
+            top: 16, 
+            right: 16, 
+            fontSize: 22, 
+            background: 'none', 
+            border: 'none', 
+            cursor: 'pointer', 
+            color: '#991b1b',
+            opacity: loading ? 0.5 : 1,
+            pointerEvents: loading ? 'none' : 'auto'
+          }} 
+          onClick={() => setModal({ show: false, booking: null })}
+          disabled={loading}
+        >
+          ×
+        </button>
+        
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <div style={{ fontSize: 48, marginBottom: 8 }}>⚠️</div>
+          <h2 style={{ margin: 0, color: '#991b1b', fontWeight: 700, fontSize: 24 }}>
+            Confirm Cancellation
+          </h2>
+        </div>
+
+        <div style={{ margin: '18px 0', color: '#7c2d12', fontWeight: 500, fontSize: 15 }}>
+          <div style={{ marginBottom: 16 }}>
+            <strong>Booking ID:</strong> #{booking.id}
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <strong>Check-in:</strong> {new Date(booking.checkIn).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <strong>Check-out:</strong> {new Date(booking.checkOut).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+          </div>
+        </div>
+
+        {/* Cancellation Policy Notice */}
+        <div style={{
+          background: '#fef3c7',
+          border: '2px solid #f59e0b',
+          borderRadius: 12,
+          padding: 16,
+          marginBottom: 24,
+          color: '#78350f'
+        }}>
+          <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Info size={20} />
+            Cancellation Policy
+          </div>
+          <div style={{ fontSize: 14, lineHeight: 1.6 }}>
+            • You are cancelling <strong>7 or more days</strong> before check-in<br/>
+            • You will receive a <strong>50% refund</strong> of your reservation fee<br/>
+            • Refund amount: <strong style={{ fontSize: 18, color: '#15803d' }}>₱{refundAmount.toLocaleString()}</strong> (50% of ₱{reservationFee.toLocaleString()})<br/>
+            • This action cannot be undone
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 12 }}>
+          <button 
+            style={{ 
+              flex: 1, 
+              background: '#e5e7eb', 
+              color: '#374151', 
+              fontWeight: 600, 
+              border: 'none', 
+              borderRadius: 8, 
+              padding: '12px 0', 
+              fontSize: 16, 
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.5 : 1
+            }} 
+            onClick={() => setModal({ show: false, booking: null })}
+            disabled={loading}
+          >
+            Keep Booking
+          </button>
+          <button 
+            style={{ 
+              flex: 1, 
+              background: loading ? '#9ca3af' : 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)', 
+              color: '#fff', 
+              fontWeight: 600, 
+              border: 'none', 
+              borderRadius: 8, 
+              padding: '12px 0', 
+              fontSize: 16, 
+              cursor: loading ? 'not-allowed' : 'pointer', 
+              boxShadow: loading ? 'none' : '0 2px 8px rgba(220, 38, 38, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8
+            }} 
+            onClick={() => onConfirm(booking)}
+            disabled={loading}
+          >
+            {loading ? (
+              <>
+                <div style={{
+                  width: 16,
+                  height: 16,
+                  border: '2px solid #fff',
+                  borderTopColor: 'transparent',
+                  borderRadius: '50%',
+                  animation: 'spin 0.6s linear infinite'
+                }} />
+                Cancelling...
+              </>
+            ) : (
+              'Cancel Booking'
+            )}
+          </button>
+        </div>
+        
+        <style jsx>{`
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    </div>
+  );
+}
+
+// Hook for Cancel Request Modal (< 7 days, requires admin approval)
+export function useCancelRequestModal() {
+  const [modal, setModal] = useState({ show: false, booking: null });
+  return [modal, setModal];
+}
+
+// Cancel Request Modal (for cancellation within 7 days - requires admin approval)
+export function CancelRequestModal({ modal, setModal, onSubmit }) {
+  const [reason, setReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  if (!modal?.show || !modal.booking) return null;
+
+  const booking = modal.booking;
+
+  const handleSubmit = async () => {
+    if (!reason.trim()) {
+      alert('Please provide a reason for cancellation');
+      return;
+    }
+
+    setSubmitting(true);
+    await onSubmit(booking, reason);
+    setSubmitting(false);
+    setReason('');
+    setModal({ show: false, booking: null });
+  };
+
+  const handleClose = () => {
+    setReason('');
+    setModal({ show: false, booking: null });
+  };
+
+  return (
+    <div className="modal-overlay fade-in">
+      <ModalGlobalStyles />
+      <div className="modal-content" style={{ 
+        background: 'linear-gradient(135deg, #fff7ed 0%, #fed7aa 100%)', 
+        padding: 32, 
+        borderRadius: 16, 
+        width: 480, 
+        maxWidth: '95%', 
+        boxShadow: '0 8px 32px rgba(0,0,0,0.13)', 
+        position: 'relative',
+        border: '2px solid #fdba74'
+      }}>
+        <button 
+          style={{ 
+            position: 'absolute', 
+            top: 16, 
+            right: 16, 
+            fontSize: 22, 
+            background: 'none', 
+            border: 'none', 
+            cursor: 'pointer', 
+            color: '#9a3412' 
+          }} 
+          onClick={handleClose}
+          disabled={submitting}
+        >
+          ×
+        </button>
+        
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <div style={{ fontSize: 48, marginBottom: 8 }}>📝</div>
+          <h2 style={{ margin: 0, color: '#9a3412', fontWeight: 700, fontSize: 24 }}>
+            Request Cancellation
+          </h2>
+        </div>
+
+        <div style={{ margin: '18px 0', color: '#7c2d12', fontWeight: 500, fontSize: 15 }}>
+          <div style={{ marginBottom: 16 }}>
+            <strong>Booking ID:</strong> #{booking.id}
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <strong>Check-in:</strong> {new Date(booking.checkIn).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <strong>Check-out:</strong> {new Date(booking.checkOut).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+          </div>
+        </div>
+
+        {/* Policy Notice */}
+        <div style={{
+          background: '#fef3c7',
+          border: '2px solid #f59e0b',
+          borderRadius: 12,
+          padding: 16,
+          marginBottom: 24,
+          color: '#78350f'
+        }}>
+          <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <AlertCircle size={20} />
+            Important Notice
+          </div>
+          <div style={{ fontSize: 14, lineHeight: 1.6 }}>
+            • You are cancelling <strong>within 7 days</strong> of check-in<br/>
+            • <strong>No refund</strong> will be provided<br/>
+            • Your request requires <strong>admin approval</strong><br/>
+            • If denied, you may <strong>reschedule</strong> your booking instead
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ 
+            display: 'block', 
+            marginBottom: 8, 
+            fontWeight: 600, 
+            color: '#7c2d12',
+            fontSize: 15
+          }}>
+            Reason for Cancellation <span style={{ color: '#dc2626' }}>*</span>
+          </label>
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            disabled={submitting}
+            placeholder="Please explain why you need to cancel your booking..."
+            rows={4}
+            style={{
+              width: '100%',
+              padding: 12,
+              border: '2px solid #fdba74',
+              borderRadius: 8,
+              fontSize: 14,
+              resize: 'vertical',
+              fontFamily: 'inherit',
+              opacity: submitting ? 0.5 : 1
+            }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', gap: 12 }}>
+          <button 
+            style={{ 
+              flex: 1, 
+              background: '#e5e7eb', 
+              color: '#374151', 
+              fontWeight: 600, 
+              border: 'none', 
+              borderRadius: 8, 
+              padding: '12px 0', 
+              fontSize: 16, 
+              cursor: submitting ? 'not-allowed' : 'pointer',
+              opacity: submitting ? 0.5 : 1
+            }} 
+            onClick={handleClose}
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+          <button 
+            style={{ 
+              flex: 1, 
+              background: submitting ? '#94a3b8' : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', 
+              color: '#fff', 
+              fontWeight: 600, 
+              border: 'none', 
+              borderRadius: 8, 
+              padding: '12px 0', 
+              fontSize: 16, 
+              cursor: submitting ? 'not-allowed' : 'pointer', 
+              boxShadow: '0 2px 8px rgba(245, 158, 11, 0.3)' 
+            }} 
+            onClick={handleSubmit}
+            disabled={submitting}
+          >
+            {submitting ? 'Submitting...' : 'Submit Request'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+

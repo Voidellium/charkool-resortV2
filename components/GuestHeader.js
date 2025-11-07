@@ -155,7 +155,7 @@ function GuestHeader({ sessionUser }) {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       clearInterval(interval);
     };
-  }, [profileImage, user?.image]);
+  }, [profileImage, user?.image, user]);
 
   // Sticky header effect
   useEffect(() => {

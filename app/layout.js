@@ -17,6 +17,7 @@ const poppins = Poppins({
 export const metadata = {
   title: 'Charkool Resort',
   description: 'A resort for all your needs',
+  viewport: 'width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes',
 };
 
 export default async function RootLayout({ children }) {

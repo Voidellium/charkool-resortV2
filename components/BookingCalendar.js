@@ -23,12 +23,24 @@ function formatDate(date) {
   return `${year}-${month}-${day}`;
 }
 
-export default function BookingCalendar({ availabilityData, onDateChange }) {
+export default function BookingCalendar({ availabilityData, onDateChange, disabledDates = [], maxBookingMonths = 2 }) {
   // availabilityData: { 'yyyy-mm-dd': boolean } true=available, false=not available
   // onDateChange: callback with { checkInDate, checkOutDate }
+  // disabledDates: array of date strings ['yyyy-mm-dd'] - dates disabled by super admin
+  // maxBookingMonths: number of months ahead that can be booked (default 2)
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+
+  // Minimum date is tomorrow
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(0, 0, 0, 0);
+
+  // Maximum allowed booking date
+  const maxAllowedDate = new Date(today);
+  maxAllowedDate.setMonth(maxAllowedDate.getMonth() + maxBookingMonths);
+  maxAllowedDate.setHours(0, 0, 0, 0);
 
   const [currentYear, setCurrentYear] = useState(() => today.getFullYear());
   const [currentMonth, setCurrentMonth] = useState(() => today.getMonth());
@@ -53,8 +65,14 @@ export default function BookingCalendar({ availabilityData, onDateChange }) {
     if (!date) return;
     const dateStr = formatDate(date);
 
-    // Disable past dates
-    if (date < today) return;
+    // Disable dates before tomorrow
+    if (date < tomorrow) return;
+
+    // Check if date exceeds max booking window
+    if (date > maxAllowedDate) return;
+
+    // Check if date is disabled by super admin
+    if (disabledDates.includes(dateStr)) return;
 
     if (availabilityData && availabilityData[dateStr] === false) return; // not available
 
@@ -131,13 +149,17 @@ export default function BookingCalendar({ availabilityData, onDateChange }) {
             return <div key={'empty-' + idx} className="day empty"></div>;
           }
           const dateStr = formatDate(date);
+          const isDisabledByAdmin = disabledDates.includes(dateStr);
+          const isBeyondMaxBooking = date > maxAllowedDate;
           const isAvailable = availabilityData ? (availabilityData.hasOwnProperty(dateStr) ? availabilityData[dateStr] : true) : true;
           const isCheckIn = checkInDate && formatDate(checkInDate) === dateStr;
           const isCheckOut = checkOutDate && formatDate(checkOutDate) === dateStr;
           const inStay = isInStayPeriod(date);
 
           let className = 'day';
-          if (date < today) className += ' not-available'; // disable past dates visually
+          if (date < tomorrow) className += ' not-available'; // disable dates before tomorrow
+          else if (isBeyondMaxBooking) className += ' not-available'; // dates beyond max booking window
+          else if (isDisabledByAdmin) className += ' invalid'; // dates disabled by super admin
           else if (!isAvailable) className += ' not-available';
           else if (isCheckIn) className += ' check-in';
           else if (isCheckOut) className += ' check-out';
@@ -268,6 +290,12 @@ export default function BookingCalendar({ availabilityData, onDateChange }) {
           background-color: ${legendColors.notAvailable};
           color: #eee;
           cursor: not-allowed;
+        }
+        .day.invalid {
+          background-color: ${legendColors.invalid};
+          color: #666;
+          cursor: not-allowed;
+          font-weight: bold;
         }
         .day.check-in {
           background-color: ${legendColors.checkIn};

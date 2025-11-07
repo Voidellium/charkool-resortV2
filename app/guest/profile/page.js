@@ -7,14 +7,6 @@ import Image from "next/image";
 export default function Profile() {
   const [profileImage, setProfileImage] = useState(null);
   const [showModal, setShowModal] = useState(false);
-  const [showIcons, setShowIcons] = useState(false);
-  const customIcons = [
-    "/images/avatar1.png",
-    "/images/avatar2.png",
-    "/images/avatar3.png",
-    "/images/avatar4.png",
-    "/images/avatar5.png"
-  ];
   const { user, setUser } = useUser();
   const { data: session, update: updateSession } = useSession();
   const [firstName, setFirstName] = useState('');
@@ -25,25 +17,37 @@ export default function Profile() {
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [contactError, setContactError] = useState('');
+  const [birthdateError, setBirthdateError] = useState('');
   const router = useRouter();
 
-    // OTP state for email change
-    const [pendingEmail, setPendingEmail] = useState('');
-    const [showOTPInput, setShowOTPInput] = useState(false);
-    const [otp, setOtp] = useState('');
-    const [otpError, setOtpError] = useState('');
-
-    // Allowed email domains
-    const allowedDomains = [
-      'gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com',
-      'icloud.com', 'protonmail.com', 'zoho.com', 'mail.com', 'aol.com'
+    // Philippine mobile network prefixes
+    const validPhilippinePrefixes = [
+      // Smart Communications
+      '0813', '0907', '0908', '0909', '0910', '0911', '0912', '0913', '0914', '0918', '0919', '0920', '0921', '0928', '0929', '0930', '0938', '0939', '0940', '0946', '0947', '0948', '0949', '0950', '0951', '0961', '0963', '0964', '0965', '0966', '0967', '0968', '0969', '0970', '0971', '0980', '0981', '0989', '0992', '0998', '0999',
+      // Globe Telecom
+      '0817', '0904', '0905', '0906', '0915', '0916', '0917', '0925', '0926', '0927', '0935', '0936', '0937', '0945', '0953', '0954', '0955', '0956', '0957', '0958', '0959', '0975', '0976', '0977', '0978', '0979', '0994', '0995', '0996', '0997',
+      // Sun Cellular (now Dito)
+      '0922', '0923', '0924', '0925', '0931', '0932', '0933', '0934', '0940', '0941', '0942', '0943',
+      // Dito Telecommunity
+      '0895', '0896', '0897', '0898',
+      // TM (Touch Mobile - Smart)
+      '0912', '0918', '0919', '0920', '0921', '0928', '0929', '0930', '0938', '0939', '0946', '0947', '0948', '0949', '0950',
+      // TNT (Talk 'N Text - Smart)
+      '0907', '0909', '0910', '0911', '0912', '0918', '0919', '0920', '0921', '0928', '0929', '0930', '0938', '0939', '0946', '0947', '0948', '0949', '0950',
+      // Cherry Mobile
+      '0997', '0998',
+      // GOMO (Globe)
+      '0915', '0916', '0917', '0926', '0927', '0935', '0936', '0937', '0945', '0955', '0956', '0965', '0966', '0967', '0975', '0976', '0977', '0994', '0995', '0996', '0997'
     ];
 
-    function isAllowedEmail(email) {
-      const match = email.match(/^.+@(.+)$/);
-      if (!match) return false;
-      const domain = match[1].toLowerCase();
-      return allowedDomains.includes(domain);
+    function isValidPhilippineNumber(number) {
+      // Number should be exactly 10 digits
+      if (number.length !== 10) return false;
+      
+      // Check if the number starts with a valid Philippine prefix
+      const prefix4 = '0' + number.substring(0, 3); // 4-digit prefix (e.g., 0917)
+      return validPhilippinePrefixes.includes(prefix4);
     }
 
   const capitalizeFirst = (str) =>
@@ -106,13 +110,8 @@ export default function Profile() {
             image: data.profilePicture,
           }));
           
-          // Update NextAuth session to persist across login/logout
-          await updateSession({
-            user: {
-              ...session?.user,
-              image: data.profilePicture,
-            }
-          });
+          // Update NextAuth session - this triggers JWT callback to refresh from database
+          await updateSession();
           
           // Dispatch custom event to notify other components
           window.dispatchEvent(new CustomEvent('profileImageUpdated', { 
@@ -128,95 +127,76 @@ export default function Profile() {
     }
   };
 
-  const handleIconSelect = async (icon) => {
-    try {
-      // For avatar icons, we still save them directly but also update the database
-      const res = await fetch('/api/user', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          firstName,
-          middleName,
-          lastName,
-          birthdate,
-          contactNumber: '+63' + contactNumber,
-          email,
-          image: icon,
-        }),
-      });
-      
-      if (res.ok) {
-        const updatedUser = await res.json();
-        setProfileImage(icon);
-        localStorage.setItem('profileImage', icon);
-        setSuccess('Avatar updated successfully!');
-        setShowIcons(false);
-        setShowModal(false);
-        
-        // Update UserContext immediately so navbar reflects the change
-        setUser(prev => ({
-          ...prev,
-          image: icon,
-        }));
-        
-        // Update NextAuth session to persist across login/logout
-        await updateSession({
-          user: {
-            ...session?.user,
-            image: icon,
-          }
-        });
-        
-        // Dispatch custom event to notify other components
-        window.dispatchEvent(new CustomEvent('profileImageUpdated', { 
-          detail: { image: icon } 
-        }));
-      } else {
-        const data = await res.json();
-        setError(data.error || 'Failed to update avatar');
-      }
-    } catch (error) {
-      console.error('Avatar update error:', error);
-      setError('Failed to update avatar');
-    }
-  };
-
   const handleFirstName = (e) => setFirstName(capitalizeFirst(e.target.value));
   const handleMiddleName = (e) => setMiddleName(capitalizeFirst(e.target.value));
   const handleLastName = (e) => setLastName(capitalizeFirst(e.target.value));
   const handleContactChange = (e) => {
     const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
     setContactNumber(digits);
+    
+    // Validate Philippine number as user types
+    if (digits.length === 10) {
+      if (!isValidPhilippineNumber(digits)) {
+        setContactError('Invalid Philippine mobile number. Please use Smart, Globe, Sun, Dito, TM, or TNT numbers.');
+      } else {
+        setContactError('');
+      }
+    } else if (digits.length > 0) {
+      setContactError('');
+    }
+  };
+
+  const handleBirthdateChange = (e) => {
+    const selectedDate = e.target.value;
+    setBirthdate(selectedDate);
+    
+    // Calculate age
+    const today = new Date();
+    const birthDate = new Date(selectedDate);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    
+    // Adjust age if birthday hasn't occurred this year
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    
+    // Validate age (must be at least 16 years old)
+    if (age < 16) {
+      setBirthdateError('You must be at least 16 years old to register.');
+    } else {
+      setBirthdateError('');
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
-      // Email domain validation
-      if (!isAllowedEmail(email)) {
-        setError('Only common email domains are allowed: gmail, yahoo, outlook, hotmail, icloud, protonmail, zoho, mail.com, aol');
+    
+      // Validate contact number before submission
+      if (contactNumber && !isValidPhilippineNumber(contactNumber)) {
+        setError('Please enter a valid Philippine mobile number (Smart, Globe, Sun, Dito, TM, or TNT).');
         return;
       }
 
-      // If email is being changed, require OTP verification
-      if (pendingEmail && pendingEmail !== email) {
-        // Simulate sending OTP to new email (replace with actual API call)
-        // await fetch('/api/send-otp', { method: 'POST', body: JSON.stringify({ email: pendingEmail }) });
-        if (!otp || otp.length !== 6) {
-          setOtpError('Please enter the 6-digit OTP sent to your new email.');
+      // Validate age before submission
+      if (birthdate) {
+        const today = new Date();
+        const birthDate = new Date(birthdate);
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+        
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+          age--;
+        }
+        
+        if (age < 16) {
+          setError('You must be at least 16 years old to update your profile.');
           return;
         }
-        // Simulate OTP verification (replace with actual API call)
-        // const res = await fetch('/api/verify-otp', { method: 'POST', body: JSON.stringify({ email: pendingEmail, otp }) });
-        // if (!res.ok) { setOtpError('Invalid OTP'); return; }
-        // If OTP is valid, update email
-        setEmail(pendingEmail);
-        setPendingEmail('');
-        setShowOTPInput(false);
-        setOtp('');
-        setOtpError('');
       }
+
     try {
       const res = await fetch('/api/user', {
         method: 'PUT',
@@ -227,23 +207,46 @@ export default function Profile() {
           lastName,
           birthdate,
           contactNumber: '+63' + contactNumber,
-          email,
+          email: email, // Email remains unchanged
           image: profileImage || '',
         }),
       });
       if (res.ok) {
+        const responseData = await res.json();
         setSuccess('Profile updated successfully');
+        
         // Update global user context for instant UI update
-        setUser(prev => ({
-          ...prev,
+        const updatedUserData = {
+          ...user,
           firstName,
           middleName,
           lastName,
           birthdate,
           contactNumber,
-          email,
+          email: email,
           image: profileImage,
+          name: responseData.name || `${firstName} ${middleName ? middleName + ' ' : ''}${lastName}`.trim(),
+        };
+        
+        setUser(updatedUserData);
+        
+        // Dispatch custom event to notify GuestHeader about the profile update
+        window.dispatchEvent(new CustomEvent('profileDataUpdated', { 
+          detail: { 
+            user: updatedUserData,
+            name: responseData.name || `${firstName} ${middleName ? middleName + ' ' : ''}${lastName}`.trim(),
+            email: email,
+            firstName,
+            middleName,
+            lastName,
+            contactNumber,
+            birthdate,
+            image: profileImage
+          } 
         }));
+        
+        // Update NextAuth session - this triggers JWT callback to refresh from database
+        await updateSession();
       } else {
         const data = await res.json();
         setError(data.error || 'Update failed');
@@ -305,8 +308,16 @@ export default function Profile() {
               <input id="lastName" type="text" value={lastName} onChange={handleLastName} required />
             </div>
             <div className="form-group">
-              <label htmlFor="birthdate">Birthdate</label>
-              <input id="birthdate" type="date" value={birthdate} onChange={(e) => setBirthdate(e.target.value)} required />
+              <label htmlFor="birthdate">Birthdate (Must be 16 years or older)</label>
+              <input 
+                id="birthdate" 
+                type="date" 
+                value={birthdate} 
+                onChange={handleBirthdateChange}
+                max={new Date(new Date().setFullYear(new Date().getFullYear() - 16)).toISOString().split('T')[0]}
+                required 
+              />
+              {birthdateError && <p className="validation-error">{birthdateError}</p>}
             </div>
             <div className="form-group">
               <label htmlFor="contactNumber">Contact Number</label>
@@ -314,25 +325,25 @@ export default function Profile() {
                 <span className="prefix">+63</span>
                 <input id="contactNumber" type="tel" value={contactNumber} onChange={handleContactChange} placeholder="10 digits" required />
               </div>
+              {contactError && <p className="validation-error">{contactError}</p>}
             </div>
             <div className="form-group">
-              <label htmlFor="email">Email</label>
-              <input id="email" type="email" value={pendingEmail || email} onChange={(e) => {
-                setPendingEmail(e.target.value);
-                setShowOTPInput(true);
-                setOtp('');
-                setOtpError('');
-              }} required />
+              <label htmlFor="email">Email (Cannot be changed)</label>
+              <input 
+                id="email" 
+                type="email" 
+                value={email} 
+                disabled
+                className="disabled-input"
+              />
             </div>
-            <button type="submit" className="submit-button">Update Profile</button>
-          {showOTPInput && pendingEmail && pendingEmail !== email && (
-            <div className="form-group">
-              <label htmlFor="otp">Enter OTP sent to your new email</label>
-              <input id="otp" type="text" value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="000000" maxLength={6} required />
-              <p style={{color: 'red', fontSize: '0.9rem', marginTop: '0.5rem'}}>Your new email will be used for your next login after verification.</p>
-              {otpError && <p style={{color: 'red'}}>{otpError}</p>}
-            </div>
-          )}
+            <button 
+              type="submit" 
+              className="submit-button"
+              disabled={!!contactError || !!birthdateError}
+            >
+              Update Profile
+            </button>
           </form>
           {error && <p className="message error">{error}</p>}
           {success && <p className="message success">{success}</p>}
@@ -342,35 +353,14 @@ export default function Profile() {
       {showModal && (
         <div className="modal-overlay">
           <div className="modal">
-            {!showIcons ? (
-              <>
-                <h2>Select Profile Image</h2>
-                <div className="choice-buttons">
-                  <button className="choice-btn" onClick={() => setShowIcons(true)}>Choose from Avatars</button>
-                  <label className="choice-btn upload-label">
-                    Upload Your Image
-                    <input type="file" accept="image/*" hidden onChange={handleImageChange} />
-                  </label>
-                </div>
-                <button className="close-btn" onClick={() => setShowModal(false)}>Cancel</button>
-              </>
-            ) : (
-              <>
-                <h2>Select an Avatar</h2>
-                <div className="icon-grid">
-                  {customIcons.map((icon, i) => (
-                    <img
-                      key={i}
-                      src={icon}
-                      alt={`icon-${i}`}
-                      className="icon-choice"
-                      onClick={() => handleIconSelect(icon)}
-                    />
-                  ))}
-                </div>
-                <button className="close-btn" onClick={() => setShowIcons(false)}>Back</button>
-              </>
-            )}
+            <h2>Select Profile Image</h2>
+            <div className="choice-buttons">
+              <label className="choice-btn upload-label">
+                Upload Your Image
+                <input type="file" accept="image/*" hidden onChange={handleImageChange} />
+              </label>
+            </div>
+            <button className="close-btn" onClick={() => setShowModal(false)}>Cancel</button>
           </div>
         </div>
       )}
@@ -542,24 +532,6 @@ export default function Profile() {
           text-align: center; 
           display: block;
         }
-        .icon-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 1rem;
-          margin: 1.5rem 0;
-        }
-        .icon-choice {
-          width: 80px;
-          height: 80px;
-          border-radius: 50%;
-          cursor: pointer;
-          transition: all 0.2s;
-          border: 3px solid transparent;
-        }
-        .icon-choice:hover {
-          transform: scale(1.05);
-          border-color: #fbbf24;
-        }
         .close-btn {
           background: rgba(107, 114, 128, 0.1);
           color: #6b7280;
@@ -576,9 +548,6 @@ export default function Profile() {
           background: rgba(107, 114, 128, 0.2);
           color: #374151;
           transform: translateY(-1px);
-        }
-        @media (max-width: 640px) {
-          .icon-choice { width: 60px; height: 60px; }
         }
   .image-options {
     position: absolute;
@@ -601,24 +570,6 @@ export default function Profile() {
   .upload-btn:hover, .icon-btn:hover {
     background: #d97706;
   }
-  .icon-selection {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    justify-content: center;
-    margin-bottom: 1rem;
-  }
-  .icon-option {
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    cursor: pointer;
-    border: 2px solid transparent;
-    transition: 0.2s;
-  }
-  .icon-option:hover {
-    border: 2px solid #f59e0b;
-  }
   .profile-title {
     font-size: 1.9rem;
     font-weight: 700;
@@ -635,6 +586,45 @@ export default function Profile() {
   .form-group {
     display: flex;
     flex-direction: column;
+  }
+  .otp-section {
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    padding: 1.25rem;
+    border-radius: 12px;
+    border: 2px solid #fbbf24;
+    animation: slideDown 0.3s ease-out;
+  }
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .otp-notice {
+    color: #92400e;
+    font-size: 0.875rem;
+    margin-top: 0.5rem;
+    font-weight: 500;
+    background: rgba(255, 255, 255, 0.6);
+    padding: 0.5rem;
+    border-radius: 6px;
+  }
+  .validation-error {
+    color: #ef4444;
+    font-size: 0.875rem;
+    margin-top: 0.375rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .validation-error::before {
+    content: '⚠';
+    font-size: 1rem;
   }
   label {
     font-size: 0.9rem;
@@ -655,6 +645,16 @@ export default function Profile() {
     border-color: #2563eb;
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
     outline: none;
+  }
+  .disabled-input {
+    background: #f3f4f6 !important;
+    color: #6b7280 !important;
+    cursor: not-allowed !important;
+    opacity: 0.7;
+  }
+  .disabled-input:focus {
+    border-color: #d1d5db !important;
+    box-shadow: none !important;
   }
   .contact-input {
     display: flex;
@@ -688,8 +688,13 @@ export default function Profile() {
     max-width: 320px;
     align-self: center;
   }
-  .submit-button:hover {
+  .submit-button:hover:not(:disabled) {
     background: #d97706;
+  }
+  .submit-button:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+    opacity: 0.6;
   }
   .message {
     margin-top: 1rem;

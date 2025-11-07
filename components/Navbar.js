@@ -4,22 +4,9 @@ import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import { 
-  Calendar, 
-  Home, 
-  Camera, 
-  BedDouble, 
-  User, 
-  LogIn, 
-  LogOut,
   ChevronDown, 
   Menu, 
-  X, 
-  Sparkles,
-  MapPin,
-  Phone,
-  Mail,
-  Bell,
-  Settings
+  X
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
@@ -95,7 +82,6 @@ export default function Navbar() {
       <div className="navbar-container">
         <div className="navbar-brand">
           <Link href="/" className="logo-link">
-
             <div className="brand-text-container">
               <span className="brand-title">
                 Charkool
@@ -106,32 +92,46 @@ export default function Navbar() {
           </Link>
         </div>
 
-        <ul>
-          <li><Link href="/">Home</Link></li>
-          <li><Link href="/virtual-tour">Virtual Tour</Link></li>
+        {/* Mobile Menu Toggle */}
+        <button 
+          className="mobile-menu-toggle"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsMobileMenuOpen(!isMobileMenuOpen);
+          }}
+          aria-label="Toggle menu"
+          aria-expanded={isMobileMenuOpen}
+        >
+          {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
+        </button>
+
+        {/* Navigation Menu */}
+        <ul className={`nav-menu ${isMobileMenuOpen ? 'nav-menu-open' : ''}`}>
+          <li><Link href="/" onClick={() => setIsMobileMenuOpen(false)}>Home</Link></li>
+          <li><Link href="/virtual-tour" onClick={() => setIsMobileMenuOpen(false)}>Virtual Tour</Link></li>
           <li>
             {!mounted ? (
-              <Link href="/room">Rooms</Link>
+              <Link href="/room" onClick={() => setIsMobileMenuOpen(false)}>Rooms</Link>
             ) : (
-              <button onClick={handleRoomsClick} className="rooms-nav-btn">
+              <button onClick={(e) => { handleRoomsClick(e); setIsMobileMenuOpen(false); }} className="rooms-nav-btn">
                 Rooms
               </button>
             )}
           </li>
-          <li><Link href="/about-us">About Us</Link></li>
+          <li><Link href="/about-us" onClick={() => setIsMobileMenuOpen(false)}>About Us</Link></li>
           <li>
             {status === 'loading' ? (
               <span style={{ color: '#fff', fontSize: '1.1rem', fontWeight: 600 }}>Login</span>
             ) : session?.user?.role === 'CUSTOMER' ? (
-              <Link href="/guest/dashboard">Dashboard</Link>
+              <Link href="/guest/dashboard" onClick={() => setIsMobileMenuOpen(false)}>Dashboard</Link>
             ) : (
-              <Link href="/login">Login</Link>
-              
+              <Link href="/login" onClick={() => setIsMobileMenuOpen(false)}>Login</Link>
             )}
           </li>
-          <li>
+          <li className="book-now-li">
             <button
               onClick={() => {
+                setIsMobileMenuOpen(false);
                 if (!session) {
                   const isConfirmed = window.confirm(
                     'You must be logged in to book. Click OK to go to the login page.'
@@ -233,6 +233,7 @@ export default function Navbar() {
           display: flex;
           align-items: center;
           position: relative;
+          z-index: 1001;
         }
 
         .logo-link {
@@ -302,23 +303,45 @@ export default function Navbar() {
           transform: scale(1.1);
         }
 
-        ul {
+        /* Mobile Menu Toggle Button */
+        .mobile-menu-toggle {
+          display: none;
+          background: rgba(255, 255, 255, 0.12);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          border-radius: 8px;
+          padding: 0.5rem;
+          cursor: pointer;
+          color: white;
+          transition: all 0.3s ease;
+          z-index: 1001;
+        }
+
+        .mobile-menu-toggle:hover {
+          background: rgba(255, 255, 255, 0.18);
+          transform: scale(1.05);
+        }
+
+        .mobile-menu-toggle:active {
+          transform: scale(0.95);
+        }
+
+        /* Navigation Menu */
+        .nav-menu {
           list-style: none;
           display: flex;
           gap: 1.4rem;
           margin: 0;
-
           padding: 0;
           align-items: center;
           flex-wrap: wrap;
         }
 
-        ul li {
+        .nav-menu li {
           display: flex;
           align-items: center;
         }
 
-        ul li :global(a) {
+        .nav-menu li :global(a) {
           color: rgba(255, 255, 255, 0.9);
           text-decoration: none !important;
           font-size: 1rem;
@@ -331,7 +354,7 @@ export default function Navbar() {
           border-bottom: none !important;
         }
 
-        ul li :global(a):hover {
+        .nav-menu li :global(a):hover {
           color: #ffffff;
           background: linear-gradient(135deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.08));
           transform: translateY(-3px);
@@ -449,7 +472,7 @@ export default function Navbar() {
             gap: 1rem;
           }
 
-          ul {
+          .nav-menu {
             gap: 1rem;
           }
 
@@ -463,21 +486,77 @@ export default function Navbar() {
           }
         }
 
-        @media (max-width: 820px) {
-          .navbar-container {
-            flex-direction: column;
-            align-items: center;
-            padding: 0.8rem 1rem;
+        /* Tablet and below - Show mobile menu */
+        @media (max-width: 900px) {
+          .mobile-menu-toggle {
+            display: block;
           }
 
-          ul {
-            justify-content: center;
+          .nav-menu {
+            position: fixed;
+            top: 0;
+            right: -100%;
+            height: 100vh;
+            width: 280px;
+            max-width: 80vw;
+            background: linear-gradient(180deg, rgba(240, 176, 53, 0.98), rgba(251, 146, 60, 0.98));
+            backdrop-filter: blur(20px);
+            flex-direction: column;
+            align-items: stretch;
+            gap: 0;
+            padding: 5rem 1.5rem 2rem;
+            box-shadow: -10px 0 40px rgba(0, 0, 0, 0.3);
+            transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-y: auto;
+            z-index: 1000;
+          }
+
+          .nav-menu-open {
+            right: 0;
+          }
+
+          .nav-menu li {
+            width: 100%;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+          }
+
+          .nav-menu li :global(a),
+          .rooms-nav-btn {
+            width: 100%;
+            justify-content: flex-start;
+            padding: 1rem 1.2rem;
+            border-radius: 8px;
+            background: transparent;
+            font-size: 1.05rem;
+            transform: none;
+          }
+
+          .nav-menu li :global(a):hover,
+          .rooms-nav-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateX(8px);
+            box-shadow: none;
+          }
+
+          .book-now-li {
+            margin-top: auto;
+            padding-top: 1rem;
+            border-top: 2px solid rgba(255, 255, 255, 0.2);
+            border-bottom: none;
           }
 
           .book-now-btn {
-            order: -1;
+            width: 100%;
+            justify-content: center;
             margin-right: 0;
-            margin-bottom: 0.4rem;
+            font-size: 1.05rem;
+            padding: 1rem 1.5rem;
+          }
+        }
+
+        @media (max-width: 820px) {
+          .navbar-container {
+            padding: 0.8rem 1rem;
           }
         }
 
@@ -505,25 +584,25 @@ export default function Navbar() {
             letter-spacing: 0.35rem;
           }
 
-          ul {
-            gap: 0.6rem;
+          .nav-menu {
+            width: 260px;
+            padding: 4.5rem 1.2rem 1.5rem;
           }
 
-          ul li :global(a) {
-            font-size: 0.95rem;
-            padding: 0.4rem 0.75rem;
-          }
-
+          .nav-menu li :global(a),
           .rooms-nav-btn {
             font-size: 0.95rem;
-            padding: 0.4rem 0.75rem;
+            padding: 0.9rem 1rem;
           }
 
           .book-now-btn {
             font-size: 1rem;
-            padding: 0.55em 1.6em;
+            padding: 0.9rem 1.3rem;
             letter-spacing: 0.1em;
-            min-width: 140px;
+          }
+
+          .mobile-menu-toggle {
+            padding: 0.4rem;
           }
         }
 
@@ -537,19 +616,112 @@ export default function Navbar() {
             letter-spacing: 0.28rem;
           }
 
-          ul li :global(a) {
-            font-size: 0.85rem;
-            padding: 0.35rem 0.65rem;
+          .nav-menu {
+            width: 240px;
+            padding: 4rem 1rem 1rem;
           }
 
+          .nav-menu li :global(a),
           .rooms-nav-btn {
-            font-size: 0.85rem;
-            padding: 0.35rem 0.65rem;
+            font-size: 0.9rem;
+            padding: 0.85rem 0.9rem;
           }
 
           .book-now-btn {
             font-size: 0.95rem;
-            min-width: 125px;
+            padding: 0.85rem 1.2rem;
+          }
+        }
+
+        /* Large screens and TVs */
+        @media (min-width: 1280px) {
+          .navbar-container {
+            max-width: 1400px;
+            padding: 0 2rem;
+          }
+
+          .brand-title {
+            font-size: 2.2rem;
+          }
+
+          .nav-menu {
+            gap: 1.8rem;
+          }
+
+          .nav-menu li :global(a),
+          .rooms-nav-btn {
+            font-size: 1.05rem;
+            padding: 0.5rem 1.1rem;
+          }
+
+          .book-now-btn {
+            font-size: 1.12rem;
+            padding: 0.7em 2em;
+            min-width: 160px;
+          }
+        }
+
+        @media (min-width: 1536px) {
+          .navbar-container {
+            max-width: 1600px;
+            padding: 0 3rem;
+          }
+
+          .brand-title {
+            font-size: 2.5rem;
+          }
+
+          .brand-subtitle {
+            font-size: 1rem;
+            letter-spacing: 0.75rem;
+          }
+
+          .nav-menu {
+            gap: 2rem;
+          }
+
+          .nav-menu li :global(a),
+          .rooms-nav-btn {
+            font-size: 1.1rem;
+            padding: 0.55rem 1.2rem;
+          }
+
+          .book-now-btn {
+            font-size: 1.2rem;
+            padding: 0.75em 2.2em;
+            min-width: 180px;
+          }
+        }
+
+        @media (min-width: 2560px) {
+          .navbar-container {
+            max-width: 2000px;
+            padding: 0 4rem;
+          }
+
+          .brand-title {
+            font-size: 3rem;
+          }
+
+          .brand-subtitle {
+            font-size: 1.2rem;
+            letter-spacing: 0.9rem;
+          }
+
+          .nav-menu {
+            gap: 2.5rem;
+          }
+
+          .nav-menu li :global(a),
+          .rooms-nav-btn {
+            font-size: 1.25rem;
+            padding: 0.6rem 1.4rem;
+          }
+
+          .book-now-btn {
+            font-size: 1.35rem;
+            padding: 0.8em 2.5em;
+            min-width: 220px;
           }
         }
       `}</style>

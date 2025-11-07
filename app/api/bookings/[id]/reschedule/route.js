@@ -19,12 +19,40 @@ export async function POST(req, { params }) {
       return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
     }
 
-    // Policy: Only allow reschedule 2 weeks before check-in
+    // Policy: Allow reschedule until 1 day before check-in (updated from 2 weeks)
     const now = new Date();
     const checkIn = new Date(booking.checkIn);
     const diffDays = (checkIn - now) / (1000 * 60 * 60 * 24);
-    if (diffDays < 14) {
-      return NextResponse.json({ error: 'Reschedule only allowed 2 weeks prior to check-in.' }, { status: 400 });
+    if (diffDays < 1) {
+      return NextResponse.json({ error: 'Reschedule only allowed until 1 day before check-in.' }, { status: 400 });
+    }
+
+    // Check for recent denied cancellation request (for one-time auto-approve)
+    const deniedCancellation = await prisma.cancellationRequest.findFirst({
+      where: {
+        bookingId: booking.id,
+        status: 'DENIED',
+        userId: userId,
+      },
+      orderBy: {
+        decidedAt: 'desc',
+      },
+    });
+
+    // Check if there's already an auto-approved reschedule after this cancellation denial
+    let hasUsedAutoApprove = false;
+    if (deniedCancellation) {
+      const autoApprovedReschedule = await prisma.rescheduleRequest.findFirst({
+        where: {
+          bookingId: booking.id,
+          userId: userId,
+          autoApproved: true,
+          requestedAt: {
+            gte: deniedCancellation.decidedAt,
+          },
+        },
+      });
+      hasUsedAutoApprove = !!autoApprovedReschedule;
     }
 
     // Check for existing pending request
@@ -38,6 +66,9 @@ export async function POST(req, { params }) {
       return NextResponse.json({ error: 'A reschedule request is already pending.' }, { status: 400 });
     }
 
+    // Determine if this reschedule should be auto-approved
+    const shouldAutoApprove = deniedCancellation && !hasUsedAutoApprove;
+
     // Create reschedule request
     const reqObj = await prisma.rescheduleRequest.create({
       data: {
@@ -48,10 +79,42 @@ export async function POST(req, { params }) {
         newCheckIn: new Date(data.checkIn),
         newCheckOut: new Date(data.checkOut),
         context: data.context || null,
+        status: shouldAutoApprove ? 'APPROVED' : 'PENDING',
+        autoApproved: shouldAutoApprove,
+        decidedAt: shouldAutoApprove ? new Date() : null,
       },
     });
 
-    // Notify superadmin
+    // If auto-approved, update booking dates immediately
+    if (shouldAutoApprove) {
+      await prisma.booking.update({
+        where: { id: booking.id },
+        data: {
+          checkIn: new Date(data.checkIn),
+          checkOut: new Date(data.checkOut),
+        },
+      });
+
+      // Notify guest of auto-approval
+      await prisma.notification.create({
+        data: {
+          message: `Your reschedule request has been automatically approved (one-time courtesy after cancellation denial).`,
+          type: 'reschedule_approved',
+          role: 'CUSTOMER',
+          bookingId: booking.id,
+          userId: userId || null,
+        },
+      });
+
+      return NextResponse.json({ 
+        success: true, 
+        request: reqObj,
+        autoApproved: true,
+        message: 'Reschedule automatically approved (one-time courtesy)',
+      });
+    }
+
+    // Normal flow - notify superadmin
     // Get guest name for notification
     let guestName = 'Unknown Guest';
     if (booking.userId) {

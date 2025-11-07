@@ -6,25 +6,37 @@ import prisma from '@/lib/prisma';
 
 export async function POST(req) {
   try {
-    const { bookingId, amount, status, bookingStatus, paymentType, method, cardDetails } = await req.json();
+    const body = await req.json();
+    const { bookingId, amount, status, bookingStatus, paymentType, method, cardDetails } = body;
+    
+    console.log('💳 Payment Test API - Request received:', { bookingId, amount, status, method, paymentType });
 
     if (!bookingId || !amount || !status || !method) {
+      console.log('❌ Missing required fields:', { bookingId: !!bookingId, amount: !!amount, status: !!status, method: !!method });
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
     // Enforce reservation-only flow
     if (paymentType && paymentType !== 'reservation') {
+      console.log('❌ Invalid payment type:', paymentType);
       return NextResponse.json({ error: 'Only reservation payments are allowed' }, { status: 400 });
     }
 
     // Load booking and validate reservation amount = 2000 * totalRooms
     const booking = await prisma.booking.findUnique({ where: { id: parseInt(bookingId) }, include: { rooms: true } });
+    console.log('📦 Booking data:', { id: booking?.id, rooms: booking?.rooms });
+    
     if (!booking) {
+      console.log('❌ Booking not found:', bookingId);
       return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
     }
+    
     const totalRooms = (booking.rooms || []).reduce((sum, r) => sum + (Number(r.quantity) || 0), 0);
     const expectedAmount = totalRooms * 2000; // pesos
+    console.log('💰 Amount validation:', { received: Math.round(Number(amount)), expected: expectedAmount, totalRooms });
+    
     if (Math.round(Number(amount)) !== Math.round(expectedAmount)) {
+      console.log('❌ Amount mismatch:', { received: amount, expected: expectedAmount });
       return NextResponse.json({ error: `Invalid amount. Expected ₱${expectedAmount}` }, { status: 400 });
     }
 

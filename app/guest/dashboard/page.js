@@ -3,7 +3,13 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import { useNavigationGuard } from '../../../hooks/useNavigationGuard.simple';
-import { NavigationConfirmationModal } from '../../../components/CustomModals';
+import { 
+  NavigationConfirmationModal,
+  CancelConfirmModal,
+  useCancelConfirmModal,
+  CancelRequestModal,
+  useCancelRequestModal
+} from '../../../components/CustomModals';
 import BookingCalendar from '../../../components/BookingCalendar';
 import PromotionPopup from '../../../components/PromotionPopup';
 
@@ -1224,21 +1230,21 @@ const BookingHistoryCard = ({ booking, guest, onViewDetails, onReschedule, resch
     const now = new Date();
     const checkInDate = new Date(booking.checkIn);
     const checkOutDate = new Date(booking.checkOut);
-    // Only allow if booking is confirmed (not completed), no request or last was denied, and not cancelled, and 2 weeks (14 days) before check-in
+    // Updated: Allow if booking is confirmed (not completed), no request or last was denied, and not cancelled, and at least 1 day before check-in
     return (
       booking.status === 'Confirmed' &&
       booking.status !== 'Cancelled' &&
       booking.status !== 'Completed' &&
       now <= checkOutDate &&
-      (checkInDate - now) / (1000 * 60 * 60 * 24) >= 14 &&
+      (checkInDate - now) / (1000 * 60 * 60 * 24) >= 1 &&
       (!rescheduleStatus || rescheduleStatus === 'DENIED')
     );
   };
 
-  const isWithinTwoWeeks = () => {
+  const isWithinOneDay = () => {
     const now = new Date();
     const checkInDate = new Date(booking.checkIn);
-    return (checkInDate - now) / (1000 * 60 * 60 * 24) < 14;
+    return (checkInDate - now) / (1000 * 60 * 60 * 24) < 1;
   };
 
   const shouldShowRescheduleButton = () => {
@@ -1361,7 +1367,7 @@ const BookingHistoryCard = ({ booking, guest, onViewDetails, onReschedule, resch
                 <button className="reschedule-btn" onClick={() => onReschedule(booking)}>
                   Reschedule
                 </button>
-              ) : isWithinTwoWeeks() ? (
+              ) : isWithinOneDay() ? (
                 <button 
                   className="reschedule-btn" 
                   disabled 
@@ -1371,7 +1377,7 @@ const BookingHistoryCard = ({ booking, guest, onViewDetails, onReschedule, resch
                     cursor: 'not-allowed',
                     position: 'relative'
               }}
-              title="Reschedule not available - must be done at least 2 weeks before check-in date"
+              title="Reschedule not available - must be done at least 1 day before check-in date"
             >
               Reschedule
             </button>
@@ -1483,7 +1489,16 @@ const BookingHistoryCard = ({ booking, guest, onViewDetails, onReschedule, resch
 };
 
 // Combined History Card Component
-const HistoryCard = ({ booking, guest, onViewDetails, onReschedule, rescheduleRequests = {} }) => {
+const HistoryCard = ({ 
+  booking, 
+  guest, 
+  onViewDetails, 
+  onReschedule, 
+  onCancel,
+  rescheduleRequests = {}, 
+  cancellationRequests = {},
+  unitAssignments = [] 
+}) => {
   const [showDeniedModal, setShowDeniedModal] = useState(false);
   
   // Get reschedule status from the batch-fetched data
@@ -1517,21 +1532,21 @@ const HistoryCard = ({ booking, guest, onViewDetails, onReschedule, rescheduleRe
     const now = new Date();
     const checkInDate = new Date(booking.checkIn);
     const checkOutDate = new Date(booking.checkOut);
-    // Only allow if booking is confirmed (not completed), no request or last was denied, and not cancelled, and 2 weeks (14 days) before check-in
+    // Updated: Allow if booking is confirmed (not completed), no request or last was denied, and not cancelled, and at least 1 day before check-in
     return (
       booking.status === 'Confirmed' &&
       booking.status !== 'Cancelled' &&
       booking.status !== 'Completed' &&
       now <= checkOutDate &&
-      (checkInDate - now) / (1000 * 60 * 60 * 24) >= 14 &&
+      (checkInDate - now) / (1000 * 60 * 60 * 24) >= 1 &&
       (!rescheduleStatus || rescheduleStatus === 'DENIED')
     );
   };
 
-  const isWithinTwoWeeks = () => {
+  const isWithinOneDay = () => {
     const now = new Date();
     const checkInDate = new Date(booking.checkIn);
-    return (checkInDate - now) / (1000 * 60 * 60 * 24) < 14;
+    return (checkInDate - now) / (1000 * 60 * 60 * 24) < 1;
   };
 
   const shouldShowRescheduleButton = () => {
@@ -1558,12 +1573,27 @@ const HistoryCard = ({ booking, guest, onViewDetails, onReschedule, rescheduleRe
     }
   };
 
+  // NEW: Get unit assignment for first room
+  const firstRoom = booking.rooms && booking.rooms[0];
+  const unitAssignment = firstRoom && unitAssignments.find(
+    u => u.roomId === firstRoom.roomId && u.unitNumber
+  );
+
   return (
     <div className="history-card">
       <div className="card-header">
         <div className="room-info">
-          <h3>{booking.rooms && booking.rooms[0] ? booking.rooms[0].room.name : 'N/A'}</h3>
-          <span className="room-type">{booking.rooms && booking.rooms[0] ? booking.rooms[0].room.type : ''}</span>
+          <h3>
+            {firstRoom ? firstRoom.room.name : 'N/A'}
+            {unitAssignment && ` #${unitAssignment.unitNumber}`}
+          </h3>
+          <span className="room-type">{firstRoom ? firstRoom.room.type : ''}</span>
+          {unitAssignment?.metadata && (
+            <span className="unit-details">
+              {unitAssignment.metadata.description && `${unitAssignment.metadata.description}`}
+              {unitAssignment.metadata.location && ` • ${unitAssignment.metadata.location}`}
+            </span>
+          )}
         </div>
         <div className="status-badges">
           <span className="status-badge booking-status" style={{ backgroundColor: getStatusColor(booking.status) }}>
@@ -1644,16 +1674,61 @@ const HistoryCard = ({ booking, guest, onViewDetails, onReschedule, rescheduleRe
             <button className="action-btn secondary" onClick={() => onReschedule(booking)}>
               Reschedule
             </button>
-          ) : isWithinTwoWeeks() ? (
+          ) : isWithinOneDay() ? (
             <button 
               className="action-btn disabled" 
               disabled 
-              title="Reschedule not available - must be done at least 2 weeks before check-in date"
+              title="Reschedule not available - must be done at least 1 day before check-in date"
             >
               Reschedule
             </button>
           ) : null
         )}
+
+        {/* Cancel Logic */}
+        {(() => {
+          const now = new Date();
+          const checkInDate = new Date(booking.checkIn);
+          const daysUntilCheckIn = Math.ceil((checkInDate - now) / (1000 * 60 * 60 * 24));
+          const cancellationData = cancellationRequests[booking.id];
+          const cancellationStatus = cancellationData?.status || null;
+          
+          // Check if cancel button should be shown
+          const canShowCancelButton = ['Created', 'Pending', 'Confirmed'].includes(booking.status) && 
+                                       booking.status !== 'Cancelled' && 
+                                       booking.status !== 'Completed';
+          
+          // If cancellation is pending
+          if (booking.status === 'CancellationPending' || cancellationStatus === 'PENDING') {
+            return (
+              <button className="action-btn disabled" disabled title="Cancellation request is pending admin approval">
+                Cancellation Pending
+              </button>
+            );
+          }
+          
+          // If not eligible for cancel
+          if (!canShowCancelButton) return null;
+          
+          // Show cancel button
+          const isCancelDisabled = daysUntilCheckIn < 1;
+          
+          return (
+            <button 
+              className={`action-btn ${isCancelDisabled ? 'disabled' : 'danger'}`}
+              onClick={() => onCancel(booking)}
+              disabled={isCancelDisabled}
+              title={isCancelDisabled ? 'Cancellation not available within 24 hours of check-in' : 'Cancel this booking'}
+              style={{
+                background: isCancelDisabled ? '#f8f9fa' : 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)',
+                color: isCancelDisabled ? '#6c757d' : 'white',
+                cursor: isCancelDisabled ? 'not-allowed' : 'pointer'
+              }}
+            >
+              Cancel Booking
+            </button>
+          );
+        })()}
       </div>
 
       {/* Denial Details Modal */}
@@ -1718,6 +1793,14 @@ const HistoryCard = ({ booking, guest, onViewDetails, onReschedule, rescheduleRe
           font-size: 0.9rem;
           color: #A0826D;
           font-weight: 500;
+        }
+        
+        .unit-details {
+          display: block;
+          font-size: 0.85rem;
+          color: #6b7280;
+          margin-top: 0.25rem;
+          font-weight: 400;
         }
         
         .status-badges {
@@ -1928,6 +2011,11 @@ export default function GuestDashboard() {
   const [selectedDetailsBooking, setSelectedDetailsBooking] = useState(null);
   const [selectedRescheduleBooking, setSelectedRescheduleBooking] = useState(null);
   const [rescheduleRequests, setRescheduleRequests] = useState({});
+  const [cancellationRequests, setCancellationRequests] = useState({});
+  const [cancelConfirmModal, setCancelConfirmModal] = useCancelConfirmModal();
+  const [cancelRequestModal, setCancelRequestModal] = useCancelRequestModal();
+  const [cancelLoading, setCancelLoading] = useState(false); // NEW: Loading state for cancel button
+  const [unitAssignments, setUnitAssignments] = useState({}); // NEW: Store unit assignments by bookingId
   const [filters, setFilters] = useState({
     roomName: '',
     paymentStatus: '',
@@ -1935,6 +2023,21 @@ export default function GuestDashboard() {
     dateTo: ''
   });
   const router = useRouter();
+
+  // NEW: Fetch cancellation requests for all bookings (moved outside useEffect)
+  const fetchCancellationRequests = async (bookingsList) => {
+    try {
+      const bookingIds = bookingsList.map(booking => booking.id).join(',');
+      const res = await fetch(`/api/cancellation-requests/batch?bookingIds=${bookingIds}`);
+      
+      if (res.ok) {
+        const data = await res.json();
+        setCancellationRequests(data.cancellationRequests || {});
+      }
+    } catch (err) {
+      console.error('Error fetching cancellation requests:', err);
+    }
+  };
 
   // Logout Navigation Guard - prevents accidental logout via back button
   const navigationGuard = useNavigationGuard({
@@ -1969,6 +2072,8 @@ export default function GuestDashboard() {
         // Fetch reschedule requests for all bookings in batch
         if (data.bookings && data.bookings.length > 0) {
           await fetchRescheduleRequests(data.bookings);
+          await fetchUnitAssignments(data.bookings); // NEW: Fetch unit assignments
+          await fetchCancellationRequests(data.bookings); // NEW: Fetch cancellation requests
         }
       } catch (err) {
         console.error('Error fetching guest info:', err);
@@ -1987,6 +2092,29 @@ export default function GuestDashboard() {
         }
       } catch (err) {
         console.error('Error fetching reschedule requests:', err);
+      }
+    }
+
+    // NEW: Fetch unit assignments for all bookings
+    async function fetchUnitAssignments(bookingsList) {
+      try {
+        const assignments = {};
+        await Promise.all(
+          bookingsList.map(async (booking) => {
+            try {
+              const res = await fetch(`/api/bookings/${booking.id}/units`);
+              if (res.ok) {
+                const data = await res.json();
+                assignments[booking.id] = data.assignments || [];
+              }
+            } catch (err) {
+              console.log(`No unit assignments for booking ${booking.id}`);
+            }
+          })
+        );
+        setUnitAssignments(assignments);
+      } catch (err) {
+        console.error('Error fetching unit assignments:', err);
       }
     }
 
@@ -2024,6 +2152,92 @@ export default function GuestDashboard() {
     fetchNotifications();
     fetchPromotions();
   }, [router]);
+
+  // Handle direct cancellation (>= 7 days)
+  const handleDirectCancel = async (booking) => {
+    setCancelLoading(true);
+    try {
+      const res = await fetch(`/api/bookings/${booking.id}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        alert(`Booking cancelled successfully! Refund: ₱${data.refundAmount.toLocaleString()}`);
+        // Refresh bookings
+        const refreshRes = await fetch('/api/guest/me');
+        if (refreshRes.ok) {
+          const refreshData = await refreshRes.json();
+          setBookings(refreshData.bookings);
+          setFilteredBookings(refreshData.bookings);
+          if (refreshData.bookings && refreshData.bookings.length > 0) {
+            await fetchCancellationRequests(refreshData.bookings);
+          }
+        }
+      } else {
+        const error = await res.json();
+        alert(`Error: ${error.error}`);
+      }
+    } catch (err) {
+      console.error('Cancel error:', err);
+      alert('Failed to cancel booking');
+    } finally {
+      setCancelLoading(false);
+      setCancelConfirmModal({ show: false, booking: null });
+    }
+  };
+
+  // Handle cancellation request (< 7 days)
+  const handleCancelRequest = async (booking, reason) => {
+    setCancelLoading(true);
+    try {
+      const res = await fetch(`/api/bookings/${booking.id}/cancel-request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      });
+
+      if (res.ok) {
+        alert('Cancellation request submitted successfully! Awaiting admin approval.');
+        // Refresh bookings
+        const refreshRes = await fetch('/api/guest/me');
+        if (refreshRes.ok) {
+          const refreshData = await refreshRes.json();
+          setBookings(refreshData.bookings);
+          setFilteredBookings(refreshData.bookings);
+          if (refreshData.bookings && refreshData.bookings.length > 0) {
+            await fetchCancellationRequests(refreshData.bookings);
+          }
+        }
+      } else {
+        const error = await res.json();
+        alert(`Error: ${error.error}`);
+      }
+    } catch (err) {
+      console.error('Cancel request error:', err);
+      alert('Failed to submit cancellation request');
+    } finally {
+      setCancelLoading(false);
+    }
+  };
+
+  // Handle cancel button click - determine which modal to show
+  const handleCancelClick = (booking) => {
+    const now = new Date();
+    const checkInDate = new Date(booking.checkIn);
+    const daysUntilCheckIn = Math.ceil((checkInDate - now) / (1000 * 60 * 60 * 24));
+
+    if (daysUntilCheckIn >= 7) {
+      // Direct cancellation with 50% refund
+      setCancelConfirmModal({ show: true, booking });
+    } else if (daysUntilCheckIn >= 1) {
+      // Request cancellation (no refund, requires admin approval)
+      setCancelRequestModal({ show: true, booking });
+    } else {
+      alert('Cancellation not available within 24 hours of check-in');
+    }
+  };
 
   // Filter bookings based on current filter state
   useEffect(() => {
@@ -2167,7 +2381,10 @@ export default function GuestDashboard() {
                   guest={guest}
                   onViewDetails={setSelectedDetailsBooking}
                   onReschedule={setSelectedRescheduleBooking}
+                  onCancel={handleCancelClick}
                   rescheduleRequests={rescheduleRequests}
+                  cancellationRequests={cancellationRequests}
+                  unitAssignments={unitAssignments[booking.id] || []}
                 />
               ))
             ) : (
@@ -2448,6 +2665,20 @@ export default function GuestDashboard() {
         onLeave={navigationGuard.handleLeave}
         context="logout"
         message={navigationGuard.message}
+      />
+
+      {/* Cancellation Modals */}
+      <CancelConfirmModal
+        modal={cancelConfirmModal}
+        setModal={setCancelConfirmModal}
+        onConfirm={handleDirectCancel}
+        loading={cancelLoading}
+      />
+
+      <CancelRequestModal
+        modal={cancelRequestModal}
+        setModal={setCancelRequestModal}
+        onSubmit={handleCancelRequest}
       />
     </div>
   );

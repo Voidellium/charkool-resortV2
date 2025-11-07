@@ -100,6 +100,7 @@ export default function ReceptionistDashboard() {
   const [optionalAmenitiesData, setOptionalAmenitiesData] = useState([]);
   const [createTotalPrice, setCreateTotalPrice] = useState(0);
   const [availabilityData, setAvailabilityData] = useState({});
+  const [disabledDates, setDisabledDates] = useState([]); // Dates disabled by super admin
 
   // Submit ref to prevent multiple submissions
   const submittingRef = useRef(false);
@@ -838,6 +839,26 @@ export default function ReceptionistDashboard() {
       } catch (err) { console.error('Failed to load availability:', err); }
     }
     fetchAvailability();
+    
+    // Fetch disabled dates from super admin configuration
+    async function fetchDisabledDates() {
+      try {
+        const res = await fetch('/api/booking-config/disabled-dates');
+        if (res.ok) {
+          const data = await res.json();
+          // Extract date strings in yyyy-mm-dd format using UTC
+          const dateStrings = data.map(d => {
+            const utcDate = new Date(d.date);
+            const year = utcDate.getUTCFullYear();
+            const month = String(utcDate.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(utcDate.getUTCDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+          });
+          setDisabledDates(dateStrings);
+        }
+      } catch (err) { console.error('Failed to load disabled dates:', err); }
+    }
+    fetchDisabledDates();
 
     // Fetch rental amenities data for price breakdown
     async function fetchRentalAmenities() {
@@ -1968,6 +1989,7 @@ export default function ReceptionistDashboard() {
                         {/* Left side - Calendar */}
                         <BookingCalendar
                           availabilityData={availabilityData}
+                          disabledDates={disabledDates}
                           onDateChange={({ checkInDate, checkOutDate }) => {
                             setCreateBookingForm(prev => ({
                               ...prev,

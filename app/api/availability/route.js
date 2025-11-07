@@ -34,6 +34,24 @@ export async function POST(req) {
     const checkInDate = new Date(checkIn + 'T00:00:00');
     const checkOutDate = new Date(checkOut + 'T00:00:00');
     const now = new Date();
+    const today = new Date(now);
+    today.setHours(0, 0, 0, 0);
+
+    // NEW: Get booking configuration for max months restriction
+    const bookingConfig = await prisma.bookingDateConfiguration.findFirst();
+    const maxBookingMonths = bookingConfig?.maxBookingMonths || 2;
+
+    // NEW: Get all disabled dates
+    const disabledDates = await prisma.disabledBookingDate.findMany({
+      select: { date: true },
+    });
+    const disabledDateSet = new Set(
+      disabledDates.map(d => formatDate(new Date(d.date)))
+    );
+
+    // NEW: Calculate max allowed booking date (Option 1: exactly N months from today)
+    const maxAllowedDate = new Date(today);
+    maxAllowedDate.setMonth(maxAllowedDate.getMonth() + maxBookingMonths);
 
     // Step 1: Get all rooms except BEACHFRONT for booking
     const rooms = await prisma.room.findMany({
@@ -95,6 +113,17 @@ export async function POST(req) {
         isAvailable = false;
       }
 
+      // NEW: Check if date is disabled by super admin
+      if (disabledDateSet.has(dateStr)) {
+        isAvailable = false;
+      }
+
+      // NEW: Check if date exceeds max booking months
+      const currentDate = new Date(dateStr + 'T00:00:00');
+      if (currentDate > maxAllowedDate) {
+        isAvailable = false;
+      }
+
       availability[dateStr] = isAvailable;
     });
 
@@ -116,6 +145,17 @@ export async function POST(req) {
       // Check if the current date matches the available time
       if (new Date(dateStr).getTime() === availableTime.getTime()) {
         isAvailable = true; // Room becomes available
+      }
+
+      // NEW: Check if date is disabled by super admin
+      if (disabledDateSet.has(dateStr)) {
+        isAvailable = false;
+      }
+
+      // NEW: Check if date exceeds max booking months
+      const currentDate = new Date(dateStr + 'T00:00:00');
+      if (currentDate > maxAllowedDate) {
+        isAvailable = false;
       }
 
       availability[dateStr] = {

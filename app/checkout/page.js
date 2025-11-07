@@ -61,7 +61,10 @@ export default function CheckoutPage() {
           setHeldUntil(data.heldUntil ? new Date(data.heldUntil) : null);
           // Compute total rooms from booking details
           try {
-            const roomsCount = Array.isArray(data.rooms) ? data.rooms.length : 0;
+            // Sum up the quantity field from all room entries
+            const roomsCount = Array.isArray(data.rooms) 
+              ? data.rooms.reduce((sum, room) => sum + (Number(room.quantity) || 0), 0)
+              : 0;
             setTotalRooms(roomsCount);
             // Set the entered amount to the expected reservation fee
             const expected = (roomsCount || 0) * 2000;
@@ -144,7 +147,7 @@ export default function CheckoutPage() {
   const validateTestCard = () => {
     const errors = {};
     
-    // Validate card number (16 digits)
+    // Validate card number (16 digits) - remove spaces for validation
     const cardNum = testCardNumber.replace(/\s/g, '');
     if (!cardNum || cardNum.length !== 16 || !/^\d{16}$/.test(cardNum)) {
       errors.cardNumber = 'Card number must be exactly 16 digits';
@@ -327,7 +330,8 @@ export default function CheckoutPage() {
           }
 
           // Mask card number for display (show last 4 digits)
-          const maskedCard = `**** **** **** ${testCardNumber.slice(-4)}`;
+          const cardDigits = testCardNumber.replace(/\s/g, ''); // Remove spaces
+          const maskedCard = `**** **** **** ${cardDigits.slice(-4)}`;
           
           // Development phase only: simulate payment success with TEST method
           let paymentStatus = 'reservation';
@@ -509,12 +513,15 @@ export default function CheckoutPage() {
                         type="text"
                         value={testCardNumber}
                         onChange={(e) => {
-                          const value = e.target.value.replace(/\D/g, '').slice(0, 16);
-                          setTestCardNumber(value);
+                          // Remove all non-digits and limit to 16 digits
+                          const digits = e.target.value.replace(/\D/g, '').slice(0, 16);
+                          // Add space after every 4 digits
+                          const formatted = digits.replace(/(\d{4})(?=\d)/g, '$1 ');
+                          setTestCardNumber(formatted);
                           setCardErrors({...cardErrors, cardNumber: ''});
                         }}
                         placeholder="1234 5678 9012 3456"
-                        maxLength="16"
+                        maxLength="19"
                         className={cardErrors.cardNumber ? 'input-error' : ''}
                       />
                       {cardErrors.cardNumber && <span className="error-text">{cardErrors.cardNumber}</span>}
@@ -529,7 +536,11 @@ export default function CheckoutPage() {
                           type="text"
                           value={testExpiryMonth}
                           onChange={(e) => {
-                            const value = e.target.value.replace(/\D/g, '').slice(0, 2);
+                            let value = e.target.value.replace(/\D/g, '').slice(0, 2);
+                            // Auto-correct if > 12
+                            if (parseInt(value) > 12) {
+                              value = '12';
+                            }
                             setTestExpiryMonth(value);
                             setCardErrors({...cardErrors, expiryMonth: ''});
                           }}

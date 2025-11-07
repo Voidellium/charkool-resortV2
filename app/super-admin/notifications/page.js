@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import SuperAdminLayout from '@/components/SuperAdminLayout';
-import { useRescheduleModal, RescheduleDetailsModal, ApproveRescheduleModal, DenyRescheduleModal } from '@/components/CustomModals';
 import { 
   Bell, 
   Check, 
@@ -24,10 +24,7 @@ import {
 } from 'lucide-react';
 
 export default function NotificationsPage() {
-  const [rescheduleModal, setRescheduleModal] = useRescheduleModal();
-  const [showApproveModal, setShowApproveModal] = useState(false);
-  const [showDenyModal, setShowDenyModal] = useState(false);
-  const [pendingRequest, setPendingRequest] = useState(null);
+  const router = useRouter();
   const [notifications, setNotifications] = useState([]);
   const [filteredNotifications, setFilteredNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -249,41 +246,9 @@ export default function NotificationsPage() {
     );
   }
 
-  // Approve handler
-  const handleApprove = async () => {
-    setShowApproveModal(false);
-    if (!pendingRequest) return;
-    await fetch(`/api/bookings/${pendingRequest.id}/reschedule`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'APPROVE' })
-    });
-    setRescheduleModal({ show: false, request: null });
-    setPendingRequest(null);
-    fetchNotifications();
-  };
-  // Deny handler
-  const handleDeny = async (context) => {
-    setShowDenyModal(false);
-    if (!pendingRequest) return;
-    await fetch(`/api/bookings/${pendingRequest.id}/reschedule`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'DENY', context })
-    });
-    setRescheduleModal({ show: false, request: null });
-    setPendingRequest(null);
-    fetchNotifications();
-  };
-
-  // Open reschedule modal for a booking
-  const openRescheduleModal = async (bookingId) => {
-    const res = await fetch(`/api/reschedule-request?bookingId=${bookingId}`);
-    if (res.ok) {
-      const req = await res.json();
-      setRescheduleModal({ show: true, request: req });
-      setPendingRequest(req);
-    }
+  // Redirect to reschedule page
+  const handleRescheduleRedirect = () => {
+    router.push('/super-admin/reschedule-cancellation');
   };
 
   return (
@@ -619,14 +584,18 @@ export default function NotificationsPage() {
                         marginRight: '1.5rem',
                         cursor: 'pointer',
                         boxShadow: '0 2px 8px #ebd591',
-                        minWidth: 110
+                        minWidth: 110,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
                       }}
                       onClick={async (e) => {
                         e.stopPropagation();
-                        openRescheduleModal(notification.bookingId);
                         markAsRead(notification.id);
+                        handleRescheduleRedirect();
                       }}
                     >
+                      <Eye size={16} />
                       View Details
                     </button>
                   )}
@@ -710,23 +679,6 @@ export default function NotificationsPage() {
                   </div>
                 </div>
               ))}
-      {/* Reschedule Modals */}
-      <RescheduleDetailsModal
-        modal={rescheduleModal}
-        setModal={setRescheduleModal}
-        onApprove={() => setShowApproveModal(true)}
-        onDeny={() => setShowDenyModal(true)}
-      />
-      <ApproveRescheduleModal
-        show={showApproveModal}
-        onClose={() => setShowApproveModal(false)}
-        onConfirm={handleApprove}
-      />
-      <DenyRescheduleModal
-        show={showDenyModal}
-        onClose={() => setShowDenyModal(false)}
-        onConfirm={handleDeny}
-      />
             </div>
           ) : (
             <div style={{

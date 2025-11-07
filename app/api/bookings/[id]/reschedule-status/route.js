@@ -4,7 +4,8 @@ import prisma from '@/lib/prisma';
 // GET: Get reschedule request status for a booking (for guest UI)
 export async function GET(req, { params }) {
   try {
-    const { id } = params;
+    // Await params in Next.js 15
+    const { id } = await params;
     const reqObj = await prisma.rescheduleRequest.findFirst({
       where: {
         bookingId: parseInt(id),
