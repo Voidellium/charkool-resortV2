@@ -440,7 +440,7 @@ function GuestHeader({ sessionUser }) {
 
         {/* Right Section - Navigation & Actions */}
         <div className="action-links">
-          {/* Navigation Links */}
+          {/* Navigation Links - Desktop visible, Mobile in drawer */}
           <nav className={`nav-links ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
             <GuardedLink href="/guest/dashboard" className={pathname === '/guest/dashboard' ? 'active' : ''}>
               <span>Dashboard</span>
@@ -452,7 +452,65 @@ function GuestHeader({ sessionUser }) {
               <span>Chat</span>
             </GuardedLink>
             
-            {/* Mobile-only Book Now */}
+            {/* Mobile-only sections in drawer */}
+            <div className="mobile-actions-container">
+              {/* Notifications in mobile menu */}
+              <button
+                className="mobile-notification-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsMobileMenuOpen(false);
+                  handleNotificationBellClick();
+                }}
+              >
+                <Bell size={20} color="#fff" />
+                <span>Notifications</span>
+                {unreadCount > 0 && (
+                  <span className="mobile-notification-badge">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Profile in mobile menu */}
+              <button
+                className="mobile-profile-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsMobileMenuOpen(false);
+                  handleEditProfile();
+                }}
+              >
+                {profileImage ? (
+                  <Image
+                    src={profileImage}
+                    alt="Profile"
+                    width={32}
+                    height={32}
+                    className="mobile-profile-avatar"
+                    style={{ borderRadius: '50%', objectFit: 'cover' }}
+                  />
+                ) : (
+                  <User size={20} color="#fff" />
+                )}
+                <span>Profile</span>
+              </button>
+
+              {/* Logout in mobile menu */}
+              <button
+                className="mobile-logout-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsMobileMenuOpen(false);
+                  handleSignOut();
+                }}
+              >
+                <LogOut size={20} color="#fff" />
+                <span>Logout</span>
+              </button>
+            </div>
+            
+            {/* Mobile-only Book Now at bottom */}
             <div className="mobile-book-container">
               <button className="mobile-book-btn" onClick={() => { setIsMobileMenuOpen(false); handleBookNow(); }}>
                 Book Now
@@ -460,13 +518,13 @@ function GuestHeader({ sessionUser }) {
             </div>
           </nav>
 
-          {/* Book Now Button */}
-          <button className="book-now-btn" onClick={handleBookNow}>
+          {/* Desktop Book Now Button */}
+          <button className="book-now-btn desktop-only" onClick={handleBookNow}>
             Book Now
           </button>
 
-          {/* Notifications */}
-          <div className="notification-container" ref={notificationDropdownRef}>
+          {/* Desktop Notifications */}
+          <div className="notification-container desktop-only" ref={notificationDropdownRef}>
             <button
               className="notification-bell"
               onClick={handleNotificationBellClick}
@@ -619,8 +677,8 @@ function GuestHeader({ sessionUser }) {
             )}
           </div>
 
-          {/* Profile Dropdown */}
-          <div className="profile-container" ref={profileDropdownRef}>
+          {/* Desktop Profile Dropdown */}
+          <div className="profile-container desktop-only" ref={profileDropdownRef}>
             <button
               className="profile-btn"
               onClick={handleProfileClick}
@@ -879,6 +937,7 @@ function GuestHeader({ sessionUser }) {
           overflow: hidden;
           letter-spacing: 0.25px;
           backdrop-filter: blur(20px);
+          width: 100%;
         }
 
         .mobile-book-btn::before {
@@ -903,6 +962,69 @@ function GuestHeader({ sessionUser }) {
           transform: translateY(-2px);
           box-shadow: 0 8px 24px rgba(217, 119, 6, 0.3), 
                       0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        /* Mobile Actions Container */
+        .mobile-actions-container {
+          display: none;
+          flex-direction: column;
+          gap: 0.5rem;
+          margin-top: 1rem;
+          padding-top: 1rem;
+          border-top: 1px solid rgba(255, 255, 255, 0.2);
+          width: 100%;
+        }
+
+        .mobile-notification-btn,
+        .mobile-profile-btn,
+        .mobile-logout-btn {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          width: 100%;
+          text-align: left;
+          padding: 1rem;
+          border-radius: 12px;
+          background: rgba(255, 255, 255, 0.1);
+          color: white;
+          border: none;
+          font-size: 1rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          position: relative;
+        }
+
+        .mobile-notification-btn:hover,
+        .mobile-profile-btn:hover,
+        .mobile-logout-btn:hover {
+          background: rgba(255, 255, 255, 0.2);
+          transform: translateX(8px);
+        }
+
+        .mobile-profile-avatar {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          object-fit: cover;
+        }
+
+        .mobile-notification-badge {
+          position: absolute;
+          right: 1rem;
+          background: linear-gradient(135deg, #ef4444, #dc2626);
+          color: white;
+          border-radius: 999px;
+          padding: 0.25rem 0.5rem;
+          font-size: 0.75rem;
+          font-weight: 700;
+          min-width: 24px;
+          text-align: center;
+        }
+
+        /* Hide desktop-only elements by default on desktop */
+        .desktop-only {
+          display: flex;
         }
 
         /* Action Links */
@@ -1474,64 +1596,94 @@ function GuestHeader({ sessionUser }) {
           }
 
           .guest-header-container {
-            flex-direction: column;
+            flex-direction: row;
+            justify-content: space-between;
             align-items: center;
             padding: 0.8rem 1rem;
           }
 
-          .nav-links {
-            justify-content: center;
+          /* Hide desktop elements on mobile */
+          .desktop-only {
+            display: none !important;
           }
 
-          .book-now-btn {
-            order: -1;
-            margin-right: 0;
-            margin-bottom: 0.4rem;
-            font-size: 1rem;
-            padding: 0.55em 1.6em;
-            min-width: 140px;
-          }
-
+          /* Show mobile menu toggle */
           .mobile-menu-toggle {
             display: flex;
           }
 
+          /* Mobile navigation drawer */
           .nav-links {
             position: fixed;
-            top: calc(100% + 1rem);
-            left: 0;
-            right: 0;
-            background: linear-gradient(135deg, rgba(240, 176, 53, 0.98), rgba(252, 211, 77, 0.98));
+            top: 0;
+            right: -100%;
+            height: 100vh;
+            width: 280px;
+            max-width: 80vw;
+            background: linear-gradient(180deg, rgba(240, 176, 53, 0.98), rgba(251, 146, 60, 0.98));
             backdrop-filter: blur(20px);
             flex-direction: column;
-            padding: 1.5rem;
-            transform: translateY(-100%);
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.12);
-            border-radius: 0 0 1rem 1rem;
+            align-items: stretch;
+            gap: 0;
+            padding: 5rem 1.5rem 6rem;
+            box-shadow: -10px 0 40px rgba(0, 0, 0, 0.3);
+            transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-y: auto;
+            z-index: 1002;
           }
 
           .nav-links.mobile-open {
-            transform: translateY(0);
-            opacity: 1;
-            visibility: visible;
+            right: 0;
+          }
+
+          /* Mobile menu backdrop */
+          .nav-links.mobile-open::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 280px;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: -1;
+            animation: fadeIn 0.3s ease;
+          }
+
+          @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
           }
 
           .nav-links :global(a) {
             width: 100%;
-            text-align: center;
-            padding: 1rem;
+            text-align: left;
+            padding: 1rem 1.2rem;
             margin-bottom: 0.5rem;
             background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            justify-content: flex-start;
           }
 
+          .nav-links :global(a):hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateX(8px);
+          }
+
+          /* Show mobile actions */
+          .mobile-actions-container {
+            display: flex;
+          }
+
+          /* Mobile book now at bottom, sticky */
           .mobile-book-container {
             display: block;
-            margin-top: 1rem;
-            padding-top: 1rem;
-            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            position: sticky;
+            bottom: 0;
+            background: linear-gradient(180deg, rgba(240, 176, 53, 0.98), rgba(251, 146, 60, 0.98));
+            padding: 1rem 0;
+            margin-top: auto;
+            border-top: 2px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1);
           }
 
           .action-links {
@@ -1569,19 +1721,20 @@ function GuestHeader({ sessionUser }) {
           }
 
           .nav-links {
-            gap: 0.6rem;
+            width: 260px;
+            padding: 4.5rem 1.2rem 5.5rem;
           }
 
           .nav-links :global(a) {
             font-size: 0.95rem;
-            padding: 0.4rem 0.75rem;
+            padding: 0.9rem 1rem;
           }
 
-          .book-now-btn {
-            font-size: 1rem;
-            padding: 0.55em 1.6em;
-            letter-spacing: 0.1em;
-            min-width: 140px;
+          .mobile-notification-btn,
+          .mobile-profile-btn,
+          .mobile-logout-btn {
+            font-size: 0.95rem;
+            padding: 0.9rem;
           }
 
           .notification-dropdown {
@@ -1600,14 +1753,26 @@ function GuestHeader({ sessionUser }) {
             letter-spacing: 0.28rem;
           }
 
-          .nav-links :global(a) {
-            font-size: 0.85rem;
-            padding: 0.35rem 0.65rem;
+          .nav-links {
+            width: 240px;
+            padding: 4rem 1rem 5rem;
           }
 
-          .book-now-btn {
+          .nav-links :global(a) {
+            font-size: 0.9rem;
+            padding: 0.85rem 0.9rem;
+          }
+
+          .mobile-notification-btn,
+          .mobile-profile-btn,
+          .mobile-logout-btn {
+            font-size: 0.9rem;
+            padding: 0.85rem;
+          }
+
+          .mobile-book-btn {
             font-size: 0.95rem;
-            min-width: 125px;
+            padding: 0.85rem 1.2rem;
           }
         }
 

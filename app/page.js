@@ -1075,6 +1075,9 @@ export default function Home() {
   background: #e8cfa3;
   color: #123238;
   padding: 60px 20px 30px;
+  max-width: 100vw;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 .footer-top {
   max-width: 1200px;
@@ -1083,6 +1086,8 @@ export default function Home() {
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 40px;
   align-items: start;
+  width: 100%;
+  box-sizing: border-box;
 }
 .footer-about h3,
 .footer-links h4,
@@ -1202,11 +1207,13 @@ export default function Home() {
 }
 
 /* Footer inquiry form */
-.footer-inquiry { margin-top: 14px; }
+.footer-inquiry { margin-top: 14px; max-width: 100%; }
 .inquiry-heading { margin: 8px 0; font-size: 1rem; color: #0b3a4a; }
-.inquiry-form { display: flex; flex-direction: column; gap: 10px; }
+.inquiry-form { display: flex; flex-direction: column; gap: 10px; max-width: 100%; }
 .inquiry-textarea {
   width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   resize: vertical;
   padding: 12px 14px;
   border-radius: 12px;
@@ -1303,6 +1310,8 @@ export default function Home() {
 }
 .footer-bottom {
   max-width: 1200px;
+  width: 100%;
+  box-sizing: border-box;
   margin: 40px auto 0;
   text-align: center;
   border-top: 1px solid rgba(0, 0, 0, 0.1);
@@ -1313,9 +1322,19 @@ export default function Home() {
 @media (max-width: 600px) {
   .site-footer {
     padding: 40px 16px 20px;
+    max-width: 100vw;
   }
   .footer-top {
     gap: 24px;
+    grid-template-columns: 1fr;
+    padding: 0 0.5rem;
+  }
+  .inquiry-textarea {
+    max-width: 100%;
+    min-width: 0;
+  }
+  .inquiry-form {
+    max-width: 100%;
   }
   .footer-about h3 {
     font-size: 1.2rem;
@@ -1343,6 +1362,7 @@ export default function Home() {
           max-height: 90vh;
           overflow-y: auto;
           color: #0b3a4a;
+          overflow-x: hidden;
         }
         .modal-content h2 { 
           color: #FEBE54; 
@@ -1356,6 +1376,7 @@ export default function Home() {
           overflow-x: auto;
           margin-bottom: 1rem;
           scroll-snap-type: x mandatory;
+          max-width: 100%;
         }
         .image-gallery img {
           width: 180px;
@@ -1366,6 +1387,7 @@ export default function Home() {
           box-shadow: 0 2px 8px rgba(0,0,0,0.12);
           scroll-snap-align: start;
           transition: transform 0.25s ease, box-shadow 0.25s ease;
+          max-width: calc(100% - 1rem);
         }
         .image-gallery img:hover { 
           transform: translateY(-2px); 
@@ -1497,14 +1519,56 @@ export default function Home() {
         .close-image-btn:hover { background-color: #d1d5db; }
         
         @media (max-width: 640px) {
+          .modal-content {
+            width: calc(100vw - 2rem);
+            max-width: calc(100vw - 2rem);
+            padding: 1.5rem 1rem;
+            margin: 1rem;
+          }
+          
           .book-room-btn,
           .close-btn { 
             width: 100%; 
             margin-bottom: 0.5rem; 
           }
+          .image-gallery {
+            gap: 0.5rem;
+            max-width: 100%;
+          }
           .image-gallery img { 
-            width: 120px; 
-            height: 80px; 
+            width: 140px; 
+            height: 90px; 
+          }
+        }
+        
+        @media (max-width: 480px) {
+          .modal-content {
+            width: calc(100vw - 1rem);
+            max-width: calc(100vw - 1rem);
+            padding: 1.25rem 0.875rem;
+            margin: 0.5rem;
+            border-radius: 12px;
+          }
+          
+          .modal-content h2 {
+            font-size: 1.3rem;
+          }
+          
+          .image-gallery {
+            gap: 0.375rem;
+          }
+          
+          .image-gallery img {
+            width: 120px;
+            height: 80px;
+          }
+          
+          .amenities {
+            gap: 0.75rem;
+          }
+          
+          .modal-actions {
+            flex-direction: column;
           }
         }
 

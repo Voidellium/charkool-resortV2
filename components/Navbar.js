@@ -98,6 +98,7 @@ export default function Navbar() {
           onClick={(e) => {
             e.stopPropagation();
             setIsMobileMenuOpen(!isMobileMenuOpen);
+            setShowUserDropdown(false);
           }}
           aria-label="Toggle menu"
           aria-expanded={isMobileMenuOpen}
@@ -504,15 +505,36 @@ export default function Navbar() {
             flex-direction: column;
             align-items: stretch;
             gap: 0;
-            padding: 5rem 1.5rem 2rem;
+            padding: 5rem 1.5rem 6rem;
             box-shadow: -10px 0 40px rgba(0, 0, 0, 0.3);
             transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             overflow-y: auto;
-            z-index: 1000;
+            z-index: 1002;
           }
 
           .nav-menu-open {
             right: 0;
+          }
+
+          .nav-menu-open::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: -1;
+            animation: fadeIn 0.3s ease;
+          }
+
+          @keyframes fadeIn {
+            from {
+              opacity: 0;
+            }
+            to {
+              opacity: 1;
+            }
           }
 
           .nav-menu li {
@@ -539,10 +561,14 @@ export default function Navbar() {
           }
 
           .book-now-li {
+            position: sticky;
+            bottom: 0;
+            background: linear-gradient(180deg, rgba(240, 176, 53, 0.98), rgba(251, 146, 60, 0.98));
+            padding: 1rem 0;
             margin-top: auto;
-            padding-top: 1rem;
             border-top: 2px solid rgba(255, 255, 255, 0.2);
             border-bottom: none;
+            box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1);
           }
 
           .book-now-btn {

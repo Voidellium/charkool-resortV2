@@ -1027,11 +1027,15 @@ export default function BookingPage() {
                       <p className="card-subtitle">Select dates, pick rooms, and customize guest details.</p>
                     </div>
                     <div className="card-body">
-                      {/* Booking Calendar */}
-                      <div style={{ marginBottom: '2rem' }}>
-                        <label className="label" style={{ marginBottom: '1rem', display: 'block' }}>Select Your Dates</label>
-                        <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-                          <div style={{ flex: '0 0 350px' }}>
+                      {/* Booking Calendar Section */}
+                      <div className="calendar-section">
+                        <div className="section-header">
+                          <h3 className="section-title">Select Your Dates</h3>
+                          <p className="section-subtitle">Choose your check-in and check-out dates to see available rooms</p>
+                        </div>
+                        
+                        <div className="calendar-wrapper">
+                          <div className="calendar-container">
                             <BookingCalendar
                               availabilityData={availabilityData}
                               disabledDates={disabledDates}
@@ -1047,45 +1051,74 @@ export default function BookingPage() {
                               checkOut={formData.checkOut ? new Date(formData.checkOut) : null}
                             />
                           </div>
-                          <div style={{ flex: '1', minWidth: '250px' }}>
-                            <div style={{ 
-                              background: '#f9fafb', 
-                              padding: '1.5rem', 
-                              borderRadius: '0.75rem',
-                              border: '1px solid #e5e7eb'
-                            }}>
-                              <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.125rem', fontWeight: '600', color: '#111827' }}>
-                                Selected Dates
-                              </h3>
-                              <div style={{ marginBottom: '1rem' }}>
-                                <p style={{ margin: '0 0 0.25rem 0', fontSize: '0.875rem', fontWeight: '500', color: '#6b7280' }}>
-                                  Check-in
-                                </p>
-                                <p style={{ margin: 0, fontSize: '1rem', fontWeight: '600', color: '#111827' }}>
-                                  {formData.checkIn ? new Date(formData.checkIn).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) : 'Select date'}
-                                </p>
-                                <small style={{ color: '#6b7280', fontSize: '0.75rem' }}>Check-in time: 2:00 PM</small>
+                          
+                          <div className="date-summary-card">
+                            <div className="date-summary-header">
+                              <h4>Selected Dates</h4>
+                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M16 1V5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M8 1V5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M3 9H21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            </div>
+                            
+                            <div className="date-info-grid">
+                              <div className="date-info-item">
+                                <span className="date-label">Check-in</span>
+                                <div className="date-value">
+                                  {formData.checkIn ? new Date(formData.checkIn).toLocaleDateString('en-US', { 
+                                    weekday: 'short', 
+                                    year: 'numeric', 
+                                    month: 'short', 
+                                    day: 'numeric' 
+                                  }) : 'Select date'}
+                                </div>
+                                <small className="date-time">Check-in time: 2:00 PM</small>
                               </div>
-                              <div>
-                                <p style={{ margin: '0 0 0.25rem 0', fontSize: '0.875rem', fontWeight: '500', color: '#6b7280' }}>
-                                  Check-out
-                                </p>
-                                <p style={{ margin: 0, fontSize: '1rem', fontWeight: '600', color: '#111827' }}>
-                                  {formData.checkOut ? new Date(formData.checkOut).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) : 'Select date'}
-                                </p>
-                                <small style={{ color: '#6b7280', fontSize: '0.75rem' }}>Check-out time: 12:00 PM</small>
+                              
+                              <div className="date-divider">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                  <path d="M5 12H19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                  <path d="M12 5L19 12L12 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                              </div>
+                              
+                              <div className="date-info-item">
+                                <span className="date-label">Check-out</span>
+                                <div className="date-value">
+                                  {formData.checkOut ? new Date(formData.checkOut).toLocaleDateString('en-US', { 
+                                    weekday: 'short', 
+                                    year: 'numeric', 
+                                    month: 'short', 
+                                    day: 'numeric' 
+                                  }) : 'Select date'}
+                                </div>
+                                <small className="date-time">Check-out time: 12:00 PM</small>
                               </div>
                             </div>
+                            
+                            {formData.checkIn && formData.checkOut && (
+                              <div className="stay-duration">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                  <path d="M12 2V6M12 18V22M4.93 4.93L7.76 7.76M16.24 16.24L19.07 19.07M2 12H6M18 12H22M4.93 19.07L7.76 16.24M16.24 7.76L19.07 4.93" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                                {Math.max(1, (new Date(formData.checkOut) - new Date(formData.checkIn)) / (1000 * 60 * 60 * 24))} night(s) stay
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
 
                       {dateWarning && (
-                        <div className="date-warning" role="alert" style={{ marginBottom: '1.5rem' }}>{dateWarning}</div>
+                        <div className="date-warning" role="alert">{dateWarning}</div>
                       )}
 
                       <div className="rooms-header" style={{ marginBottom: '1rem' }}>
-                        <label className="label">Available Rooms</label>
+                        <div className="section-header">
+                          <h3 className="section-title">Available Rooms</h3>
+                          <p className="section-subtitle">Browse and select rooms for your stay. Customize each room individually.</p>
+                        </div>
                         <span className="hint">Tap a card to select. We’ll lock other options once capacity is met.</span>
                       </div>
 
@@ -1286,15 +1319,15 @@ export default function BookingPage() {
                         </div>
                       )}
 
-                      {/* Selected Rooms Section - NEW */}
+                      {/* Selected Rooms Section */}
                       {formData.rooms.length > 0 && (
-                        <div style={{ marginTop: '2rem' }}>
-                          <div className="rooms-header" style={{ marginBottom: '1rem' }}>
-                            <label className="label">Your Selected Rooms</label>
-                            <span className="hint">Expand each room to customize guest details and amenities.</span>
+                        <div className="selected-rooms-section">
+                          <div className="section-header">
+                            <h3 className="section-title">Your Selected Rooms</h3>
+                            <p className="section-subtitle">Expand each room to customize guest details and amenities.</p>
                           </div>
                           
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                          <div className="selected-rooms-list">
                             {formData.rooms.map((roomData) => {
                               const room = availableRooms.find(r => r.id === roomData.roomId);
                               if (!room) return null;
@@ -2168,14 +2201,31 @@ export default function BookingPage() {
         * {
           -webkit-font-smoothing: antialiased;
           -moz-osx-font-smoothing: grayscale;
+          box-sizing: border-box;
+        }
+        
+        html, body {
+          overflow-x: hidden;
+          width: 100%;
+          margin: 0;
+          padding: 0;
         }
 
         .container {
           min-height: 100vh;
+          width: 100%;
+          max-width: 100vw;
+          overflow-x: hidden;
+          box-sizing: border-box;
           /* Subtle beach-inspired gradient matching the navbar palette */
           background: radial-gradient(1400px 360px at 50% -80px, rgba(254, 190, 82, 0.24), rgba(254, 190, 82, 0) 65%),
                       linear-gradient(135deg, rgba(254, 190, 82, 0.12), rgba(2, 132, 199, 0.04)),
                       linear-gradient(180deg, #fff, #fafbfc);
+        }
+        
+        .container * {
+          max-width: 100%;
+          box-sizing: border-box;
         }
 
         /* Hero */
@@ -2220,11 +2270,13 @@ export default function BookingPage() {
         /* Layout */
         .layout {
           max-width: 1240px;
+          width: 100%;
           margin: 0 auto;
           padding: 32px 20px 60px 20px;
           display: grid;
           grid-template-columns: 1fr;
           gap: 32px;
+          box-sizing: border-box;
         }
         @media (min-width: 768px) {
           .layout {
@@ -2242,6 +2294,9 @@ export default function BookingPage() {
           display: flex;
           flex-direction: column;
           gap: 20px;
+          min-width: 0;
+          width: 100%;
+          box-sizing: border-box;
         }
 
         /* Stepper */
@@ -2385,6 +2440,239 @@ export default function BookingPage() {
           .card-body {
             padding: 18px;
           }
+        }
+
+        /* === NEW: Enhanced Section Styles === */
+        .calendar-section {
+          margin-bottom: 3rem;
+        }
+        
+        .section-header {
+          margin-bottom: 1.5rem;
+        }
+        
+        .section-title {
+          font-size: clamp(1.25rem, 2vw, 1.5rem);
+          font-weight: 800;
+          color: var(--ink);
+          margin: 0 0 0.5rem 0;
+          letter-spacing: -0.01em;
+          line-height: 1.3;
+        }
+        
+        .section-subtitle {
+          font-size: clamp(0.9rem, 1.5vw, 1rem);
+          color: var(--muted);
+          margin: 0;
+          font-weight: 500;
+          line-height: 1.5;
+        }
+        
+        /* Calendar Layout */
+        .calendar-wrapper {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 1.5rem;
+          width: 100%;
+          max-width: 100%;
+          box-sizing: border-box;
+        }
+        
+        @media (min-width: 768px) {
+          .calendar-wrapper {
+            grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
+            gap: 2rem;
+          }
+        }
+        
+        @media (min-width: 1024px) {
+          .calendar-wrapper {
+            grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+            gap: 2.5rem;
+          }
+        }
+        
+        .calendar-container {
+          background: #fff;
+          border-radius: 16px;
+          padding: 1rem;
+          width: 100%;
+          max-width: 100%;
+          box-sizing: border-box;
+          min-width: 0;
+          border: 2px solid var(--line);
+          box-shadow: var(--shadow-md);
+          transition: all 0.3s ease;
+        }
+        
+        .calendar-container:hover {
+          box-shadow: var(--shadow-lg);
+          border-color: rgba(254, 190, 82, 0.3);
+        }
+        
+        /* Date Summary Card */
+        .date-summary-card {
+          background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+          border: 2px solid var(--line);
+          border-radius: 16px;
+          padding: 1.5rem;
+          box-shadow: var(--shadow-md);
+          transition: all 0.3s ease;
+          height: fit-content;
+          width: 100%;
+          max-width: 100%;
+          box-sizing: border-box;
+          min-width: 0;
+        }
+        
+        .date-summary-card:hover {
+          box-shadow: var(--shadow-lg);
+          border-color: rgba(254, 190, 82, 0.3);
+        }
+        
+        .date-summary-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 1.25rem;
+          padding-bottom: 1rem;
+          border-bottom: 2px solid var(--line);
+        }
+        
+        .date-summary-header h4 {
+          margin: 0;
+          font-size: 1.125rem;
+          font-weight: 700;
+          color: var(--ink);
+        }
+        
+        .date-summary-header svg {
+          color: var(--amber);
+          flex-shrink: 0;
+        }
+        
+        .date-info-grid {
+          display: grid;
+          grid-template-columns: 1fr auto 1fr;
+          gap: 1rem;
+          align-items: center;
+        }
+        
+        @media (max-width: 640px) {
+          .date-info-grid {
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+          }
+          
+          .date-divider {
+            display: none;
+          }
+        }
+        
+        .date-info-item {
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+        
+        .date-label {
+          font-size: 0.875rem;
+          font-weight: 600;
+          color: var(--muted);
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+        
+        .date-value {
+          font-size: 1rem;
+          font-weight: 700;
+          color: var(--ink);
+          line-height: 1.4;
+          min-height: 2.5rem;
+          display: flex;
+          align-items: center;
+        }
+        
+        .date-time {
+          font-size: 0.75rem;
+          color: var(--muted);
+          font-weight: 500;
+        }
+        
+        .date-divider {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: var(--amber);
+        }
+        
+        .stay-duration {
+          margin-top: 1.25rem;
+          padding: 1rem;
+          background: linear-gradient(135deg, rgba(254, 190, 82, 0.1), rgba(254, 190, 82, 0.05));
+          border-radius: 12px;
+          border: 1.5px solid rgba(254, 190, 82, 0.3);
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          font-weight: 700;
+          color: var(--amber-dark);
+          font-size: 0.95rem;
+        }
+        
+        .stay-duration svg {
+          color: var(--amber);
+          flex-shrink: 0;
+        }
+        
+        /* Rooms Section Header */
+        .rooms-section-header {
+          margin-top: 3rem;
+          margin-bottom: 1.75rem;
+        }
+        
+        .rooms-hint {
+          display: flex;
+          align-items: flex-start;
+          gap: 0.75rem;
+          padding: 1rem 1.25rem;
+          background: linear-gradient(135deg, rgba(219, 234, 254, 0.4), rgba(191, 219, 254, 0.2));
+          border: 2px solid rgba(59, 130, 246, 0.3);
+          border-radius: 12px;
+          margin-top: 1rem;
+          font-size: 0.9rem;
+          color: #1e40af;
+          font-weight: 600;
+          line-height: 1.6;
+        }
+        
+        .rooms-hint svg {
+          flex-shrink: 0;
+          margin-top: 0.125rem;
+          color: #3b82f6;
+        }
+        
+        /* Date Warning Enhanced */
+        .date-warning {
+          color: #991b1b;
+          background: linear-gradient(135deg, #fff1f2, #fecdd3);
+          border: 2px solid #fca5a5;
+          padding: 1rem 1.25rem;
+          border-radius: 14px;
+          margin-top: 1.5rem;
+          margin-bottom: 2rem;
+          font-weight: 800;
+          box-shadow: var(--shadow-sm);
+          font-size: clamp(0.9rem, 1.5vw, 1rem);
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+        }
+        
+        .date-warning::before {
+          content: '⚠';
+          font-size: 1.5rem;
+          flex-shrink: 0;
         }
 
         /* Form basics */
@@ -2533,24 +2821,44 @@ export default function BookingPage() {
         /* Rooms grid */
         .room-selector { 
           display: grid; 
-          grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); 
-          gap: 20px; 
-          margin-top: 16px; 
+          grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); 
+          gap: 24px; 
+          margin-top: 1.5rem;
+          width: 100%;
+          max-width: 100%;
+          box-sizing: border-box;
         }
         @media (max-width: 640px) {
           .room-selector {
             grid-template-columns: 1fr;
+            gap: 20px;
           }
         }
-        .room-skeletons { 
+        @media (min-width: 1024px) {
+          .room-selector {
+            grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+            gap: 28px;
+          }
+        }
+        .room-skeletons {
           display: grid; 
-          grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); 
-          gap: 20px; 
-          margin-top: 16px; 
+          grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); 
+          gap: 24px; 
+          margin-top: 1.5rem;
+          width: 100%;
+          max-width: 100%;
+          box-sizing: border-box;
         }
         @media (max-width: 640px) {
           .room-skeletons {
             grid-template-columns: 1fr;
+            gap: 20px;
+          }
+        }
+        @media (min-width: 1024px) {
+          .room-skeletons {
+            grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+            gap: 28px;
           }
         }
         .skeleton-card { 
@@ -2833,6 +3141,205 @@ export default function BookingPage() {
           font-weight: 800;
           box-shadow: var(--shadow-sm);
           font-size: clamp(0.9rem, 1.5vw, 1rem);
+        }
+
+        /* Selected Rooms Section */
+        .selected-rooms-section {
+          margin-top: 3rem;
+          padding-top: 2rem;
+          border-top: 2px dashed rgba(254, 190, 82, 0.3);
+        }
+        
+        .selected-rooms-list {
+          display: flex;
+          flex-direction: column;
+          gap: 1.25rem;
+        }
+        
+        .selected-room-card {
+          border: 2px solid #2563eb;
+          border-radius: 16px;
+          overflow: hidden;
+          background: #fff;
+          box-shadow: var(--shadow-md);
+          transition: all 0.3s ease;
+        }
+        
+        .selected-room-card:hover {
+          box-shadow: var(--shadow-lg);
+          transform: translateY(-2px);
+        }
+        
+        .room-card-header {
+          padding: 1.25rem;
+          background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+          color: #fff;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          cursor: pointer;
+          transition: background 0.2s ease;
+        }
+        
+        .room-card-header:hover {
+          background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+        }
+        
+        .room-card-title {
+          margin: 0;
+          font-size: 1.25rem;
+          font-weight: 700;
+          line-height: 1.3;
+        }
+        
+        .room-card-subtitle {
+          margin: 0.375rem 0 0 0;
+          font-size: 0.9375rem;
+          opacity: 0.95;
+          font-weight: 500;
+        }
+        
+        .room-card-actions {
+          display: flex;
+          gap: 0.75rem;
+          align-items: center;
+        }
+        
+        .room-card-body {
+          padding: 1.75rem;
+        }
+        
+        @media (max-width: 640px) {
+          .room-card-header {
+            padding: 1rem;
+          }
+          
+          .room-card-body {
+            padding: 1.25rem;
+          }
+          
+          .room-card-title {
+            font-size: 1.125rem;
+          }
+          
+          .room-card-subtitle {
+            font-size: 0.875rem;
+          }
+        }
+        
+        /* Guest Details Section in Selected Rooms */
+        .guest-details-section {
+          margin-bottom: 1.75rem;
+        }
+        
+        .guest-details-section h4 {
+          margin: 0 0 1.25rem 0;
+          font-size: 1.125rem;
+          font-weight: 700;
+          color: #374151;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+        
+        .guest-details-section h4::before {
+          content: '👥';
+          font-size: 1.25rem;
+        }
+        
+        .guest-input-grid {
+          display: flex;
+          flex-direction: column;
+          gap: 1.5rem;
+        }
+        
+        .guest-input-item {
+          display: flex;
+          flex-direction: column;
+          gap: 0.625rem;
+        }
+        
+        .guest-input-label {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          font-size: 0.9375rem;
+          font-weight: 600;
+          color: #4b5563;
+        }
+        
+        .guest-input-label .price-badge {
+          font-size: 0.875rem;
+          color: #059669;
+          font-weight: 700;
+        }
+        
+        .guest-input-label .free-badge {
+          font-size: 0.875rem;
+          color: #059669;
+          font-weight: 700;
+        }
+        
+        .guest-input-controls {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+        }
+        
+        .guest-input-button {
+          width: 44px;
+          height: 44px;
+          background: #2563eb;
+          color: #fff;
+          border: none;
+          border-radius: 10px;
+          font-size: 1.5rem;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          box-shadow: var(--shadow-sm);
+        }
+        
+        .guest-input-button:hover:not(:disabled) {
+          background: #1d4ed8;
+          transform: translateY(-2px);
+          box-shadow: var(--shadow-md);
+        }
+        
+        .guest-input-button:disabled {
+          background: #e5e7eb;
+          color: #9ca3af;
+          cursor: not-allowed;
+          box-shadow: none;
+        }
+        
+        .guest-input-field {
+          flex: 1;
+          padding: 0.75rem 1rem;
+          border: 2px solid #d1d5db;
+          border-radius: 10px;
+          font-size: 1.0625rem;
+          text-align: center;
+          font-weight: 700;
+          color: var(--ink);
+          transition: all 0.2s ease;
+        }
+        
+        .guest-input-field:focus {
+          outline: none;
+          border-color: #2563eb;
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        
+        .guest-input-help {
+          font-size: 0.8125rem;
+          color: #6b7280;
+          font-weight: 500;
+          margin-top: 0.375rem;
         }
         .date-warning { 
           color: #991b1b; 
