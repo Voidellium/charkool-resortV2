@@ -307,7 +307,7 @@ export default function ChatInterface({ isModal, onClose }) {
   const inputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const didWelcomeRef = useRef(false);
-  const { categories, isLoading, error, fetchAnswer } = useChatbot();
+  const { categories, mergedKeywordSuggestions, dataSource, isLoading, error, fetchAnswer } = useChatbot(keywordSuggestions);
 
   // theme removed: component uses single light appearance
 
@@ -1167,13 +1167,13 @@ export default function ChatInterface({ isModal, onClose }) {
       return;
     }
 
-    // Check for keyword matches in predefined suggestions
+    // Check for keyword matches in merged suggestions (database + hardcoded)
     let suggestionMatched = false;
     let matchedSuggestions = [];
     
-    for (const categoryKey in keywordSuggestions) {
-      const category = keywordSuggestions[categoryKey];
-      if (category.keywords.some((kw) => lowerInput.includes(kw))) {
+    for (const categoryKey in mergedKeywordSuggestions) {
+      const category = mergedKeywordSuggestions[categoryKey];
+      if (category.keywords && category.keywords.some((kw) => lowerInput.includes(kw))) {
         matchedSuggestions = category.suggestions;
         suggestionMatched = true;
         break;
@@ -1305,6 +1305,21 @@ export default function ChatInterface({ isModal, onClose }) {
                 <span>{agentOnline ? 'Active now' : 'Away'}</span>
                 {conversationStarted && (
                   <span className="response-time">• {responseTime}</span>
+                )}
+                {/* Data source indicator */}
+                {dataSource && (
+                  <span 
+                    className={`data-source-badge ${dataSource}`}
+                    title={
+                      dataSource === 'database' ? 'Using database responses' :
+                      dataSource === 'hybrid' ? 'Using database + fallback responses' :
+                      'Using fallback responses'
+                    }
+                  >
+                    {dataSource === 'database' ? '🗄️ DB' : 
+                     dataSource === 'hybrid' ? '🔄 Hybrid' : 
+                     '📝 Default'}
+                  </span>
                 )}
               </div>
             </div>
@@ -1658,6 +1673,31 @@ export default function ChatInterface({ isModal, onClose }) {
           font-size: 0.75rem;
           opacity: 0.8;
           margin-left: 0.5rem;
+        }
+
+        .data-source-badge {
+          font-size: 0.65rem;
+          padding: 0.15rem 0.4rem;
+          border-radius: 4px;
+          margin-left: 0.5rem;
+          font-weight: 500;
+          background: rgba(255, 255, 255, 0.2);
+          border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .data-source-badge.database {
+          background: rgba(34, 197, 94, 0.2);
+          border-color: rgba(34, 197, 94, 0.4);
+        }
+
+        .data-source-badge.hybrid {
+          background: rgba(59, 130, 246, 0.2);
+          border-color: rgba(59, 130, 246, 0.4);
+        }
+
+        .data-source-badge.hardcoded {
+          background: rgba(251, 146, 60, 0.2);
+          border-color: rgba(251, 146, 60, 0.4);
         }
 
         .chat-actions {

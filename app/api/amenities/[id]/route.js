@@ -18,7 +18,7 @@ export async function PUT(req, { params }) {
     await recordAudit({
       actorId: token?.sub ? parseInt(token.sub) : null,
       actorName: token?.name || token?.email || 'Unknown',
-      actorRole: token?.role || 'ADMIN',
+      actorRole: token?.role || 'SUPERADMIN',
       action: 'UPDATE',
       entity: 'Amenity',
       entityId: String(updated.id),
@@ -39,7 +39,7 @@ export async function DELETE(_, { params }) {
     await recordAudit({
       actorId: null,
       actorName: 'Unknown',
-      actorRole: 'ADMIN',
+      actorRole: 'SUPERADMIN',
       action: 'DELETE',
       entity: 'Amenity',
       entityId: String(params.id),

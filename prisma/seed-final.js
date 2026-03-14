@@ -20,33 +20,21 @@ async function main() {
 
   console.log("✅ Super Admin seeded:", superAdmin.email);
 
-  const admin = await prisma.user.upsert({
-    where: { email: 'admin@example.com' },
-    update: {},
-    create: {
-      name: 'Admin User',
-      firstName: 'Admin',
-      lastName: 'User',
-      birthdate: new Date('1985-01-01'),
-      contactNumber: '+1234567891',
-      email: 'admin@example.com',
-      password: 'admin123',
-      role: Role.ADMIN,
-    },
-  });
-
-  const guest = await prisma.user.upsert({
+  // Customer user for testing
+  const customer = await prisma.user.upsert({
     where: { email: 'guest@example.com' },
-    update: {},
+    update: {
+      role: Role.CUSTOMER,
+    },
     create: {
-      name: 'Guest User',
-      firstName: 'Guest',
+      name: 'Customer User',
+      firstName: 'Customer',
       lastName: 'User',
       birthdate: new Date('1990-01-01'),
       contactNumber: '+1234567892',
       email: 'guest@example.com',
-      password: 'guest123',
-      role: Role.GUEST,
+      password: 'customer123',
+      role: Role.CUSTOMER,
     },
   });
 

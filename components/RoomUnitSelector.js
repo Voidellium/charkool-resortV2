@@ -49,7 +49,18 @@ export default function RoomUnitSelector({
         );
 
         if (!response.ok) {
-          throw new Error('Failed to fetch available units');
+          // Try to get error details from response
+          let errorDetails = '';
+          try {
+            const errorData = await response.json();
+            errorDetails = errorData.error || errorData.details || '';
+          } catch {
+            errorDetails = `Status: ${response.status}`;
+          }
+          console.warn(`[RoomUnitSelector] API error (${response.status}):`, errorDetails);
+          // Gracefully handle by showing no units instead of crashing
+          setAvailableUnits([]);
+          return; // Don't throw, just silently fail
         }
 
         const data = await response.json();
@@ -62,7 +73,7 @@ export default function RoomUnitSelector({
 
       } catch (err) {
         console.error('Error fetching available units:', err);
-        setError('Failed to load available units. Please try again.');
+        // Don't show error to user, just show empty units
         setAvailableUnits([]);
       } finally {
         setLoading(false);

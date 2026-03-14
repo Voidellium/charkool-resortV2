@@ -221,16 +221,23 @@ export default function RentalAmenitiesSelector({
         }
 
         .rental-card {
-          background: white;
-          border: 1px solid #e0e0e0;
+          background: transparent;
+          border: 2px solid transparent;
           border-radius: 8px;
           padding: 16px;
-          transition: all 0.2s ease;
+          transition: all 0.3s ease;
         }
 
         .rental-card:hover {
-          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          box-shadow: 0 2px 8px rgba(253, 126, 20, 0.15);
+          border-color: rgba(253, 126, 20, 0.3);
+          background: rgba(253, 126, 20, 0.05);
+        }
+
+        .rental-card:has(.rental-summary) {
+          background: linear-gradient(135deg, rgba(253, 126, 20, 0.08), rgba(253, 126, 20, 0.04));
           border-color: #fd7e14;
+          box-shadow: 0 4px 12px rgba(253, 126, 20, 0.25);
         }
 
         .rental-header {

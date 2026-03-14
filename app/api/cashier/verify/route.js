@@ -15,11 +15,14 @@ export async function POST(req) {
     const { paymentId, note } = await req.json();
     if (!paymentId) return NextResponse.json({ error: 'Missing paymentId' }, { status: 400 });
 
-    const payment = await prisma.payment.findUnique({ where: { id: paymentId }, include: { booking: true } });
+    // Ensure paymentId is a string (Prisma Payment.id is String type)
+    const paymentIdStr = String(paymentId);
+
+    const payment = await prisma.payment.findUnique({ where: { id: paymentIdStr }, include: { booking: true } });
     if (!payment) return NextResponse.json({ error: 'Payment not found' }, { status: 404 });
 
     const updated = await prisma.payment.update({
-      where: { id: paymentId },
+      where: { id: paymentIdStr },
       data: {
         verificationStatus: 'Verified',
         verifiedById: session?.user?.id || null,

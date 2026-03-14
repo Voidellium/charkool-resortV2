@@ -1,7 +1,9 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { Menu, X } from 'lucide-react';
+import { useModelPaths } from '@/hooks/useModelPaths';
 
 const EnhancedThreeDModelViewer = dynamic(() => import('../../components/EnhancedThreeDModelViewer'), {
   ssr: false,
@@ -21,10 +23,19 @@ const EnhancedThreeDModelViewer = dynamic(() => import('../../components/Enhance
 });
 
 export default function VirtualTour() {
+  const { modelPaths } = useModelPaths();
   const [selectedObject, setSelectedObject] = useState(null);
   const [openDropdown, setOpenDropdown] = useState(null);
   const [viewMode, setViewMode] = useState('exterior'); // 'exterior' or 'interior'
-  const [modelPath, setModelPath] = useState('/models/WholeMap_12.glb');
+  const [modelPath, setModelPath] = useState(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Initialize modelPath when modelPaths is loaded
+  useEffect(() => {
+    if (modelPaths.resortMap && !modelPath) {
+      setModelPath(modelPaths.resortMap);
+    }
+  }, [modelPaths, modelPath]);
 
   // Mesh names from GLTF for zoom buttons
   const objects = [
@@ -39,6 +50,7 @@ export default function VirtualTour() {
   const handleObjectSelect = (objectName) => {
     setSelectedObject(objectName);
     setOpenDropdown(null); // Close any open dropdown
+    setIsMobileMenuOpen(false); // Close mobile menu on selection
   };
 
   const handleObjectClickFromViewer = (objectName) => {
@@ -52,27 +64,24 @@ export default function VirtualTour() {
   const handleViewSelect = (objectName, view) => {
     if (view === 'interior') {
       // Load interior model
-      const interiorModelMap = {
-        'Teepee': '/models/Interior_Teepee.glb',
-        'Villa': '/models/Interior_Villa.glb',
-        'Loft': '/models/Interior_Loft.glb'
-      };
-      setModelPath(interiorModelMap[objectName]);
+      setModelPath(modelPaths.interiors[objectName]);
       setViewMode('interior');
       setSelectedObject(objectName);
     } else {
       // Load exterior model (WholeMap)
-      setModelPath('/models/WholeMap_12.glb');
+      setModelPath(modelPaths.resortMap);
       setViewMode('exterior');
       setSelectedObject(objectName);
     }
     setOpenDropdown(null); // Close dropdown after selection
+    setIsMobileMenuOpen(false); // Close mobile menu on selection
   };
 
   const handleBackToExterior = () => {
-    setModelPath('/models/WholeMap_12.glb');
+    setModelPath(modelPaths.resortMap);
     setViewMode('exterior');
     setSelectedObject(null); // Reset to free view
+    setIsMobileMenuOpen(false); // Close mobile menu
   };
 
   return (
@@ -86,22 +95,52 @@ export default function VirtualTour() {
         marginTop: '0',
         background: 'linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%)'
       }}>
+        {/* Mobile Hamburger Menu Button */}
+        <button
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          style={{
+            position: 'fixed',
+            top: '90px',
+            left: '16px',
+            zIndex: 1100,
+            background: 'linear-gradient(135deg, #febe52 0%, #ebd591 100%)',
+            border: 'none',
+            borderRadius: '50%',
+            width: '48px',
+            height: '48px',
+            display: 'none',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+            transition: 'all 0.2s'
+          }}
+          className="mobile-menu-toggle"
+        >
+          {isMobileMenuOpen ? <X size={24} color="#6b4700" /> : <Menu size={24} color="#6b4700" />}
+        </button>
+
         <div style={{
           display: 'flex',
           flex: 1,
           overflow: 'hidden'
         }}>
           {/* Left Sidebar - Object Selection */}
-          <div style={{
-            width: '320px',
-            minWidth: '320px',
-            display: 'flex',
-            flexDirection: 'column',
-            padding: '24px 16px',
-            background: 'linear-gradient(180deg, #ffffff 0%, #fafafa 100%)',
-            borderRight: '1px solid rgba(253, 211, 92, 0.3)',
-            boxShadow: '2px 0 12px rgba(0, 0, 0, 0.05)'
-          }}>
+          <div 
+            className="virtual-tour-sidebar"
+            style={{
+              width: '320px',
+              minWidth: '320px',
+              display: 'flex',
+              flexDirection: 'column',
+              padding: '24px 16px',
+              background: 'linear-gradient(180deg, #ffffff 0%, #fafafa 100%)',
+              borderRight: '1px solid rgba(253, 211, 92, 0.3)',
+              boxShadow: '2px 0 12px rgba(0, 0, 0, 0.05)',
+              transition: 'transform 0.3s ease',
+              zIndex: 1050
+            }}
+          >
             <div style={{
               background: 'linear-gradient(135deg, rgba(253, 211, 92, 0.15) 0%, rgba(254, 190, 82, 0.1) 100%)',
               borderRadius: '16px',
@@ -256,47 +295,6 @@ export default function VirtualTour() {
                   Back to Exterior
                 </button>
               )}
-              
-              {/* Instructions Overlay */}
-              <div style={{
-                position: 'absolute',
-                top: '24px',
-                left: '24px',
-                background: 'linear-gradient(135deg, rgba(46, 46, 46, 0.92) 0%, rgba(30, 30, 30, 0.95) 100%)',
-                backdropFilter: 'blur(12px)',
-                color: 'white',
-                padding: '18px 20px',
-                borderRadius: '14px',
-                fontSize: '0.875rem',
-                maxWidth: '280px',
-                zIndex: 10,
-                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(253, 211, 92, 0.1)',
-                border: '1px solid rgba(253, 211, 92, 0.15)'
-              }}>
-                <h4 style={{ 
-                  margin: '0 0 12px 0', 
-                  fontSize: '1rem',
-                  fontWeight: '700',
-                  color: '#FDD35C',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px'
-                }}>
-                   Controls
-                </h4>
-                <p style={{ margin: '6px 0', lineHeight: '1.5', color: 'rgba(255, 255, 255, 0.9)' }}>
-                   Hold & drag to rotate
-                </p>
-                <p style={{ margin: '6px 0', lineHeight: '1.5', color: 'rgba(255, 255, 255, 0.9)' }}>
-                   Scroll or W/S to zoom
-                </p>
-                <p style={{ margin: '6px 0', lineHeight: '1.5', color: 'rgba(255, 255, 255, 0.9)' }}>
-                   Double-click to focus
-                </p>
-                <p style={{ margin: '6px 0', lineHeight: '1.5', color: 'rgba(255, 255, 255, 0.9)' }}>
-                   W/A/S/D keys in free view
-                </p>
-              </div>
             </div>
           </div>
         </div>
@@ -523,18 +521,37 @@ export default function VirtualTour() {
         }
 
         @media (max-width: 768px) {
-          /* Stack layout on mobile */
-          div[style*="flex: 1"] {
-            flex-direction: column !important;
+          /* Mobile hamburger menu toggle */
+          .mobile-menu-toggle {
+            display: flex !important;
           }
-          
-          div[style*="width: 320px"] {
-            width: 100% !important;
-            min-width: 100% !important;
-            max-height: 200px;
-            border-right: none !important;
-            border-bottom: 1px solid rgba(253, 211, 92, 0.3);
+
+          /* Sidebar becomes slide-in menu on mobile */
+          .virtual-tour-sidebar {
+            position: fixed !important;
+            top: 80px;
+            left: 0;
+            width: 280px !important;
+            min-width: 280px !important;
+            height: calc(100vh - 80px) !important;
+            transform: translateX(${isMobileMenuOpen ? '0' : '-100%'});
+            box-shadow: ${isMobileMenuOpen ? '4px 0 12px rgba(0, 0, 0, 0.2)' : 'none'} !important;
+            border-right: ${isMobileMenuOpen ? '1px solid rgba(253, 211, 92, 0.3)' : 'none'} !important;
           }
+
+          /* Overlay when menu is open */
+          ${isMobileMenuOpen ? `
+            .virtual-tour-sidebar::before {
+              content: '';
+              position: fixed;
+              top: 80px;
+              left: 280px;
+              width: calc(100vw - 280px);
+              height: calc(100vh - 80px);
+              background: rgba(0, 0, 0, 0.5);
+              z-index: -1;
+            }
+          ` : ''}
 
           :global(.location-btn) {
             min-height: 44px;

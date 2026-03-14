@@ -3,7 +3,8 @@ import { useState, useEffect } from 'react';
 
 export default function OptionalAmenitiesSelector({
   selectedAmenities,
-  onAmenitiesChange
+  onAmenitiesChange,
+  excludedAmenityNames = []
 }) {
   const [optionalAmenities, setOptionalAmenities] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -17,7 +18,18 @@ export default function OptionalAmenitiesSelector({
 
         if (response.ok) {
           const data = await response.json();
-          setOptionalAmenities(data);
+          // Filter out "Extra Bed" as it's automatically handled by additional pax,
+          // plus any per-page exclusions passed via props.
+          const excludedSet = new Set(
+            excludedAmenityNames.map((name) => name.toLowerCase().trim())
+          );
+          excludedSet.add('extra bed');
+
+          const filtered = data.filter((amenity) => {
+            const normalizedName = (amenity.name || '').toLowerCase().trim();
+            return !excludedSet.has(normalizedName);
+          });
+          setOptionalAmenities(filtered);
         } else {
           setError('Failed to load optional amenities');
         }
@@ -94,51 +106,84 @@ export default function OptionalAmenitiesSelector({
       <div className="amenities-grid">
         {optionalAmenities.map((amenity) => {
           const currentQuantity = selectedAmenities[amenity.id] || 0;
+          const isBroomDustpan = amenity.name.toLowerCase().includes('broom') && amenity.name.toLowerCase().includes('dustpan');
 
           return (
             <div key={amenity.id} className="amenity-card">
               <div className="amenity-header">
                 <h5 className="amenity-name">{amenity.name}</h5>
-                {amenity.description && (
+                {amenity.description && !isBroomDustpan && (
                   <p className="amenity-description">{amenity.description}</p>
+                )}
+                {isBroomDustpan && amenity.description && (
+                  <p className="amenity-description">
+                    {amenity.description.replace(/\(Quantity:.*?\)/i, '').trim()}
+                  </p>
                 )}
               </div>
 
-              <div className="amenity-controls">
-                <div className="quantity-info">
-                  <span className="quantity-label">Quantity:</span>
-                  <span className="max-quantity">Max: {amenity.maxQuantity}</span>
+              {isBroomDustpan ? (
+                // Special handling for Broom & Dustpan - checkbox only, no quantity
+                <div className="amenity-controls">
+                  <label className="checkbox-container">
+                    <input
+                      type="checkbox"
+                      checked={currentQuantity > 0}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          onAmenitiesChange({ ...selectedAmenities, [amenity.id]: 1 });
+                        } else {
+                          const newAmenities = { ...selectedAmenities };
+                          delete newAmenities[amenity.id];
+                          onAmenitiesChange(newAmenities);
+                        }
+                      }}
+                    />
+                    <span className="checkbox-label">
+                      {currentQuantity > 0 ? 'Selected' : 'Select this amenity'}
+                    </span>
+                  </label>
                 </div>
+              ) : (
+                // Normal quantity selector for other amenities
+                <>
+                  <div className="amenity-controls">
+                    <div className="quantity-info">
+                      <span className="quantity-label">Quantity:</span>
+                      <span className="max-quantity">Max: {amenity.maxQuantity}</span>
+                    </div>
 
-                <div className="quantity-selector">
-                  <button
-                    type="button"
-                    onClick={() => decrementQuantity(amenity.id)}
-                    className="quantity-btn"
-                    disabled={currentQuantity === 0}
-                  >
-                    −
-                  </button>
+                    <div className="quantity-selector">
+                      <button
+                        type="button"
+                        onClick={() => decrementQuantity(amenity.id)}
+                        className="quantity-btn"
+                        disabled={currentQuantity === 0}
+                      >
+                        −
+                      </button>
 
-                  <span className="quantity-value">{currentQuantity}</span>
+                      <span className="quantity-value">{currentQuantity}</span>
 
-                  <button
-                    type="button"
-                    onClick={() => incrementQuantity(amenity.id)}
-                    className="quantity-btn"
-                    disabled={currentQuantity >= amenity.maxQuantity}
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
+                      <button
+                        type="button"
+                        onClick={() => incrementQuantity(amenity.id)}
+                        className="quantity-btn"
+                        disabled={currentQuantity >= amenity.maxQuantity}
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
 
-              {currentQuantity > 0 && (
-                <div className="selection-indicator">
-                  <span className="selected-text">
-                    {currentQuantity} selected
-                  </span>
-                </div>
+                  {currentQuantity > 0 && (
+                    <div className="selection-indicator">
+                      <span className="selected-text">
+                        {currentQuantity} selected
+                      </span>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           );
@@ -173,16 +218,23 @@ export default function OptionalAmenitiesSelector({
         }
 
         .amenity-card {
-          background: white;
-          border: 1px solid #e0e0e0;
+          background: transparent;
+          border: 2px solid transparent;
           border-radius: 8px;
           padding: 16px;
-          transition: all 0.2s ease;
+          transition: all 0.3s ease;
         }
 
         .amenity-card:hover {
-          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          box-shadow: 0 2px 8px rgba(0, 123, 255, 0.15);
+          border-color: rgba(0, 123, 255, 0.3);
+          background: rgba(0, 123, 255, 0.05);
+        }
+
+        .amenity-card:has(.selection-indicator) {
+          background: linear-gradient(135deg, rgba(0, 123, 255, 0.08), rgba(0, 123, 255, 0.04));
           border-color: #007bff;
+          box-shadow: 0 4px 12px rgba(0, 123, 255, 0.25);
         }
 
         .amenity-header {
@@ -275,6 +327,27 @@ export default function OptionalAmenitiesSelector({
           font-size: 12px;
           font-weight: 600;
           color: #28a745;
+        }
+
+        .checkbox-container {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          cursor: pointer;
+          padding: 8px 0;
+        }
+
+        .checkbox-container input[type="checkbox"] {
+          width: 20px;
+          height: 20px;
+          cursor: pointer;
+          accent-color: #007bff;
+        }
+
+        .checkbox-label {
+          font-size: 14px;
+          color: #333;
+          font-weight: 500;
         }
 
         .optional-amenities-loading,

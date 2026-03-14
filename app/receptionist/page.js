@@ -1,14 +1,18 @@
 'use client';
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useEarlyCheckInModal, EarlyCheckInModal, NavigationConfirmationModal } from '@/components/CustomModals';
 import { signOut, useSession } from 'next-auth/react';
 import { useNavigationGuard } from '../../hooks/useNavigationGuard.simple';
-import { User } from 'lucide-react';
+import { User, CheckCircle, XCircle, AlertCircle, Info, Lock } from 'lucide-react';
 import './receptionist-styles.css';
 import RoomAmenitiesSelector from '@/components/RoomAmenitiesSelector';
 import RentalAmenitiesSelector from '@/components/RentalAmenitiesSelector';
 import OptionalAmenitiesSelector from '@/components/OptionalAmenitiesSelector';
 import BookingCalendar from '@/components/BookingCalendar';
+import RoomUnitSelector from '@/components/RoomUnitSelector';
+import Loading from '@/components/Loading';
+import { useBookingUpdates, useStaffNotifications } from '@/hooks/usePusher';
+import ChangePasswordModal from '@/components/ChangePasswordModal';
 
 // Timezone-safe date formatting utility
 function formatDate(date) {
@@ -20,6 +24,20 @@ function formatDate(date) {
 }
 
 export default function ReceptionistDashboard() {
+  // Helper function to get room capacity details
+  const getRoomCapacityDetails = (type) => {
+    switch (type) {
+      case 'TEPEE':
+        return { base: 5, additionalPaxMax: 2, max: 7, childrenMax: 2 };
+      case 'LOFT':
+        return { base: 2, additionalPaxMax: 2, max: 4, childrenMax: 2 };
+      case 'VILLA':
+        return { base: 8, additionalPaxMax: 2, max: 10, childrenMax: 2 };
+      default:
+        return { base: 1, additionalPaxMax: 0, max: 1, childrenMax: 2 };
+    }
+  };
+
   // Session hook
   const { data: session } = useSession();
   
@@ -27,6 +45,7 @@ export default function ReceptionistDashboard() {
   const [loading, setLoading] = useState(true);
   const [bookings, setBookings] = useState([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
   const [error, setError] = useState(null);
   
   // Modal manager state - centralized modal management
@@ -51,13 +70,18 @@ export default function ReceptionistDashboard() {
     rental: []
   });
   
+  // Memoized callbacks for navigation guard to prevent re-renders
+  const shouldPreventNav = useCallback(() => true, []);
+  const onNavAttempt = useCallback(() => {
+    console.log('Receptionist Dashboard: Navigation attempt detected, showing logout confirmation');
+  }, []);
+  const customLogout = useCallback(() => signOut({ callbackUrl: '/login' }), []);
+
   // Logout Navigation Guard
   const navigationGuard = useNavigationGuard({
-    shouldPreventNavigation: () => true,
-    onNavigationAttempt: () => {
-      console.log('Receptionist Dashboard: Navigation attempt detected, showing logout confirmation');
-    },
-    customAction: () => signOut({ callbackUrl: '/login' }),
+    shouldPreventNavigation: shouldPreventNav,
+    onNavigationAttempt: onNavAttempt,
+    customAction: customLogout,
     context: 'logout',
     message: 'Are you sure you want to log out of your Receptionist dashboard?'
   });
@@ -155,6 +179,14 @@ export default function ReceptionistDashboard() {
   // Early check-in modal (shared)
   const [earlyCheckInModal, setEarlyCheckInModal] = useEarlyCheckInModal();
 
+  // Alert modal state
+  const [alertModal, setAlertModal] = useState({ show: false, title: '', message: '', type: 'info', onClose: null });
+
+  // Show alert function
+  const showAlert = useCallback((title, message, type = 'info', onClose = null) => {
+    setAlertModal({ show: true, title, message, type, onClose });
+  }, []);
+
   // Status change form
   const [statusChangeData, setStatusChangeData] = useState({
     bookingId: null,
@@ -201,7 +233,7 @@ export default function ReceptionistDashboard() {
   const handleCancelBooking = async () => {
     const bookingToCancel = modalData;
     if (!bookingToCancel || !cancelReason) {
-      alert('Please provide a reason for cancellation.');
+      showAlert('Validation Error', 'Please provide a reason for cancellation.', 'warning');
       return;
     }
     try {
@@ -253,7 +285,7 @@ export default function ReceptionistDashboard() {
 
   // Pagination and filtering utilities
   const getAllBookings = () => {
-    return [...(pendingBookings || []), ...(confirmedBookings || [])];
+    return activeBookings; // Return all active (non-cancelled) bookings
   };
 
   const getFilteredBookings = () => {
@@ -264,6 +296,12 @@ export default function ReceptionistDashboard() {
       filteredBookings = pendingBookings || [];
     } else if (activeBookingFilter === 'confirmed') {
       filteredBookings = confirmedBookings || [];
+    } else if (activeBookingFilter === 'checkedIn') {
+      filteredBookings = checkedInBookings || [];
+    } else if (activeBookingFilter === 'checkedOut') {
+      filteredBookings = checkedOutBookings || [];
+    } else if (activeBookingFilter === 'completed') {
+      filteredBookings = completedBookings || [];
     } else {
       filteredBookings = getAllBookings();
     }
@@ -423,11 +461,11 @@ export default function ReceptionistDashboard() {
     if (!bookingToAdjust) return;
     // Validate guest name and number of guests
     if (!adjustBookingForm.guestName?.trim()) {
-      alert('❌ Guest name is required.');
+      showAlert('Validation Error', 'Guest name is required.', 'error');
       return;
     }
     if (!adjustBookingForm.numberOfGuests || adjustBookingForm.numberOfGuests < 1) {
-      alert('❌ Number of guests must be at least 1.');
+      showAlert('Validation Error', 'Number of guests must be at least 1.', 'error');
       return;
     }
     try {
@@ -514,13 +552,13 @@ export default function ReceptionistDashboard() {
 
   const handleStatusChange = async () => {
     if (!statusChangeData.bookingId || !statusChangeData.reason.trim()) {
-      alert('Please provide a reason for the status change.');
+      showAlert('Validation Error', 'Please provide a reason for the status change.', 'warning');
       return;
     }
     
     // Prevent receptionist from confirming bookings
     if (statusChangeData.newStatus === 'Confirmed') {
-      alert('Only cashier and super admin can confirm bookings after payment verification.');
+      showAlert('Permission Denied', 'Only cashier and super admin can confirm bookings after payment verification.', 'warning');
       return;
     }
     
@@ -547,7 +585,7 @@ export default function ReceptionistDashboard() {
       setStatusChangeData({ bookingId: null, newStatus: '', reason: '' });
     } catch (error) {
       console.error('Error updating status:', error);
-      alert('Failed to update status. Please try again.');
+      showAlert('Error', 'Failed to update status. Please try again.', 'error');
     }
   };
 
@@ -795,6 +833,48 @@ export default function ReceptionistDashboard() {
     fetchRooms(null, null, true); // Initial load flag
   }, []);
 
+  // 🔔 PUSHER: Real-time booking updates
+  // Wrap fetchBookings in useCallback for use in Pusher hooks
+  const refetchBookings = useCallback(() => {
+    console.log('[Pusher] Received booking update, refreshing data...');
+    fetchBookings();
+  }, []);
+
+  // Subscribe to booking events (new bookings, updates, cancellations)
+  useBookingUpdates({
+    onBookingCreated: (data) => {
+      console.log('[Pusher] New booking created:', data.guestName);
+      refetchBookings();
+    },
+    onBookingUpdated: (data) => {
+      console.log('[Pusher] Booking updated:', data.bookingId);
+      refetchBookings();
+    },
+    onBookingCancelled: (data) => {
+      console.log('[Pusher] Booking cancelled:', data.bookingId);
+      refetchBookings();
+    },
+    onCheckedIn: (data) => {
+      console.log('[Pusher] Guest checked in:', data.guestName);
+      refetchBookings();
+    },
+    onCheckedOut: (data) => {
+      console.log('[Pusher] Guest checked out:', data.bookingId);
+      refetchBookings();
+    },
+    onPaymentReceived: (data) => {
+      console.log('[Pusher] Payment received:', data.guestName);
+      refetchBookings();
+    },
+  });
+
+  // Subscribe to receptionist-specific notifications
+  useStaffNotifications('RECEPTIONIST', (notification) => {
+    console.log('[Pusher] New notification:', notification.message);
+    // Refresh notifications panel
+    loadNotifications();
+  });
+
   useEffect(() => {
     if (bookings.length > 0) {
       updateNotifications(bookings);
@@ -892,7 +972,7 @@ export default function ReceptionistDashboard() {
   // Live total calculation for create modal
   useEffect(() => {
     async function calculateCreateTotal() {
-      if (!createBookingForm.checkIn || !createBookingForm.checkOut || Object.keys(createBookingForm.selectedRooms).length === 0) {
+      if (!createBookingForm.checkIn || !createBookingForm.checkOut || !createBookingForm.rooms || createBookingForm.rooms.length === 0) {
         setCreateTotalPrice(0);
         return;
       }
@@ -912,7 +992,7 @@ export default function ReceptionistDashboard() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            selectedRooms: createBookingForm.selectedRooms,
+            rooms: createBookingForm.rooms,
             nights,
             optionalAmenities: createBookingForm.selectedAmenities.optional || {},
             rentalAmenities: rentalAmenitiesFormatted,
@@ -930,7 +1010,7 @@ export default function ReceptionistDashboard() {
     }
 
     calculateCreateTotal();
-  }, [createBookingForm.selectedRooms, createBookingForm.selectedAmenities, createBookingForm.checkIn, createBookingForm.checkOut]);
+  }, [createBookingForm.rooms, createBookingForm.selectedAmenities, createBookingForm.checkIn, createBookingForm.checkOut]);
 
   // Date validation
   useEffect(() => {
@@ -1038,22 +1118,20 @@ export default function ReceptionistDashboard() {
     }
   };
 
-  // compute total capacity from selectedRooms
+  // compute total capacity from rooms array
   const computeTotalCapacity = () => {
-    return Object.entries(createBookingForm.selectedRooms).reduce((sum, [roomId, qty]) => {
-      const r = availableRooms.find(room => room.id == roomId);
-      if (r) {
-        const cap = getRoomCapacity(r.type);
-        return sum + (cap.max * qty);
-      }
-      return sum;
+    if (!createBookingForm.rooms || !Array.isArray(createBookingForm.rooms)) {
+      return 0;
+    }
+    return createBookingForm.rooms.reduce((sum, roomData) => {
+      return sum + roomData.adults + roomData.additionalPax + roomData.children;
     }, 0);
   };
 
   // is room lock active (other rooms locked when true)
   const isRoomLockActive = () => {
     const totalCap = computeTotalCapacity();
-    return totalCap >= createBookingForm.numberOfGuests && Object.keys(createBookingForm.selectedRooms).length > 0;
+    return totalCap >= createBookingForm.numberOfGuests && createBookingForm.rooms && createBookingForm.rooms.length > 0;
   };
 
   // date selection validity: we treat single-date selection (checkOut empty OR checkOut === checkIn) as invalid
@@ -1142,9 +1220,13 @@ export default function ReceptionistDashboard() {
   // Fix: Ensure the value is a number by providing a default value if 'remaining' is not defined.
   const availableRoomsCount = allRooms.reduce((sum, room) => sum + (room.remaining || 0), 0);
   
-  // Computed booking filters
-  const pendingBookings = bookings.filter(b => ['HELD', 'PENDING'].includes(b.status));
-  const confirmedBookings = bookings.filter(b => b.status === 'Confirmed');
+  // Computed booking filters - show all non-cancelled bookings
+  const activeBookings = bookings.filter(b => b.status !== 'Cancelled' && !b.isDeleted);
+  const pendingBookings = activeBookings.filter(b => ['HELD', 'PENDING', 'Pending'].includes(b.status));
+  const confirmedBookings = activeBookings.filter(b => b.status === 'Confirmed');
+  const checkedInBookings = activeBookings.filter(b => b.status === 'Checked In');
+  const checkedOutBookings = activeBookings.filter(b => b.status === 'Checked Out');
+  const completedBookings = activeBookings.filter(b => b.status === 'Completed');
 
   return (
     <div className="receptionist-layout">
@@ -1285,6 +1367,10 @@ export default function ReceptionistDashboard() {
                       <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
                     </svg>
                     Settings
+                  </div>
+                  <div className="dropdown-item" onClick={() => { setIsDropdownOpen(false); setShowChangePassword(true); }}>
+                    <Lock size={16} className="dropdown-icon" style={{ marginRight: '8px' }} />
+                    Change Password
                   </div>
                   <div className="dropdown-item logout" onClick={handleSignOut}>
                     <svg className="dropdown-icon" viewBox="0 0 20 20" fill="currentColor">
@@ -1803,32 +1889,36 @@ export default function ReceptionistDashboard() {
       )}
 
       {isModalOpen(MODALS.CREATE_BOOKING) && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h2 className="modal-title">Create Walk-In Reservation</h2>
-              <button 
-                className="modal-close-button" 
-                onClick={() => {
-                  closeModal();
-                  setCreateBookingStep(1);
-                  setCreateBookingForm({
-                    firstName: '',
-                    middleName: '',
-                    lastName: '',
-                    checkIn: '',
-                    checkOut: '',
-                    numberOfGuests: 1,
-                    paymentMode: 'cash',
-                    selectedRooms: {},
-                    selectedRoomDetails: {},
-                    selectedAmenities: { optional: {}, rental: {}, cottage: null },
-                  });
-                }}
-              >
-                ✕
-              </button>
-            </div>
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            backdropFilter: 'blur(5px)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1000,
+            padding: '10px',
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFF8E1',
+              borderRadius: '8px',
+              width: '100%',
+              maxWidth: '700px',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              boxShadow: '0 8px 24px rgba(251, 190, 82, 0.5)',
+              padding: '20px',
+              color: '#5a3e00',
+              fontFamily: 'Arial, sans-serif',
+            }}
+          >
+            <h2 style={{ marginBottom: '20px', color: '#FEBE52' }}>Create Walk-In Reservation</h2>
             {/* Multi-step booking form */}
             <form
               onSubmit={async (e) => {
@@ -1837,24 +1927,24 @@ export default function ReceptionistDashboard() {
 
                 // Validation: Required name fields
                 if (!createBookingForm.firstName?.trim()) {
-                  alert('❌ First name is required.');
+                  showAlert('Validation Error', 'First name is required.', 'error');
                   return;
                 }
                 
                 if (!createBookingForm.lastName?.trim()) {
-                  alert('❌ Last name is required.');
+                  showAlert('Validation Error', 'Last name is required.', 'error');
                   return;
                 }
 
                 // Validation: Number of guests
                 if (createBookingForm.numberOfGuests < 1) {
-                  alert('❌ Number of guests must be at least 1.');
+                  showAlert('Validation Error', 'Number of guests must be at least 1.', 'error');
                   return;
                 }
 
                 // Validation: date validity
                 if (!isDateSelectionValid()) {
-                  alert('❌ Please select both check-in and check-out dates (single date selection is not allowed).');
+                  showAlert('Validation Error', 'Please select both check-in and check-out dates (single date selection is not allowed).', 'error');
                   return;
                 }
 
@@ -1863,28 +1953,44 @@ export default function ReceptionistDashboard() {
                 today.setHours(0, 0, 0, 0);
                 const checkInDate = new Date(createBookingForm.checkIn);
                 if (checkInDate < today) {
-                  alert('❌ Check-in date cannot be in the past.');
+                  showAlert('Validation Error', 'Check-in date cannot be in the past.', 'error');
                   return;
                 }
 
                 // Validation: Check-out after check-in
                 const checkOutDate = new Date(createBookingForm.checkOut);
                 if (checkOutDate <= checkInDate) {
-                  alert('❌ Check-out date must be after check-in date.');
+                  showAlert('Validation Error', 'Check-out date must be after check-in date.', 'error');
+                  return;
+                }
+
+                // Validation: selected rooms exist (use new format)
+                if (!createBookingForm.rooms || createBookingForm.rooms.length === 0) {
+                  showAlert('Validation Error', 'Please select at least one room.', 'error');
+                  return;
+                }
+
+                // NEW: Validation - all rooms configured
+                const totalGuests = createBookingForm.rooms.reduce((sum, r) => 
+                  sum + r.adults + r.additionalPax + r.children, 0
+                );
+                
+                if (totalGuests < 1) {
+                  showAlert('Validation Error', 'Please configure guest count for all rooms.', 'error');
                   return;
                 }
 
                 // Validation: selected rooms exist (check both formats)
-                const hasRooms = createBookingForm.rooms.length > 0 || Object.keys(createBookingForm.selectedRooms).length > 0;
+                const hasRooms = (createBookingForm.rooms && createBookingForm.rooms.length > 0) || Object.keys(createBookingForm.selectedRooms).length > 0;
                 if (!hasRooms) {
-                  alert('❌ Please select at least one room.');
+                  showAlert('Validation Error', 'Please select at least one room.', 'error');
                   return;
                 }
 
                 // Validation: capacity meets guests
                 const totalCapacity = computeTotalCapacity();
                 if (totalCapacity < createBookingForm.numberOfGuests) {
-                  alert(`❌ Selected rooms can accommodate ${totalCapacity} guest(s), but you have ${createBookingForm.numberOfGuests} guests. Add more rooms or decrease guest count.`);
+                  showAlert('Capacity Error', `Selected rooms can accommodate ${totalCapacity} guest(s), but you have ${createBookingForm.numberOfGuests} guests. Add more rooms or decrease guest count.`, 'error');
                   return;
                 }
 
@@ -1893,56 +1999,79 @@ export default function ReceptionistDashboard() {
                 try {
                   const nights = Math.max(1, (new Date(createBookingForm.checkOut) - new Date(createBookingForm.checkIn)) / (1000 * 60 * 60 * 24));
 
+                  // Prepare rental amenities in expected format
+                  const rental = {};
+                  for (const [id, selection] of Object.entries(createBookingForm.selectedAmenities.rental || {})) {
+                    rental[id] = {
+                      quantity: selection.quantity || 0,
+                      hoursUsed: selection.hoursUsed || 0
+                    };
+                  }
+
+                  const optional = createBookingForm.selectedAmenities.optional || {};
+                  const cottage = createBookingForm.selectedAmenities.cottage;
+
                   // Combine the name fields for submission
                   const guestName = `${createBookingForm.firstName}${createBookingForm.middleName ? ' ' + createBookingForm.middleName : ''} ${createBookingForm.lastName}`.trim();
 
-                  // Prepare request body - use new format if rooms array exists
-                  const requestBody = {
+                  // Prepare payload with new rooms format
+                  const payload = {
                     guestName,
                     checkIn: createBookingForm.checkIn,
                     checkOut: createBookingForm.checkOut,
                     numberOfGuests: createBookingForm.numberOfGuests,
                     paymentMode: createBookingForm.paymentMode,
+                    optional,
+                    rental,
+                    cottage,
                     nights,
-                    status: 'Pending', // Changed from 'Confirmed' - only cashier/super admin can confirm
-                    paymentStatus: 'Pending'
+                    status: 'Pending', // Receptionist creates pending bookings
+                    paymentStatus: 'Pending',
+                    rooms: createBookingForm.rooms
                   };
-
-                  if (createBookingForm.rooms.length > 0) {
-                    // NEW FORMAT: Send rooms array with guest details
-                    requestBody.rooms = createBookingForm.rooms;
-                  } else {
-                    // OLD FORMAT: Fall back to selectedRooms (backward compatibility)
-                    const rental = {};
-                    for (const [id, selection] of Object.entries(createBookingForm.selectedAmenities.rental || {})) {
-                      rental[id] = {
-                        quantity: selection.quantity || 0,
-                        hoursUsed: selection.hoursUsed || 0
-                      };
-                    }
-
-                    requestBody.selectedRooms = createBookingForm.selectedRooms;
-                    requestBody.optional = createBookingForm.selectedAmenities.optional || {};
-                    requestBody.rental = rental;
-                    requestBody.cottage = createBookingForm.selectedAmenities.cottage;
-                  }
 
                   const response = await fetch('/api/bookings', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(requestBody)
+                    body: JSON.stringify(payload)
                   });
 
+                  // Handle network or server errors
                   if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.error || errorData.details || 'Failed to create booking');
+                    let errorMessage = 'Failed to create booking';
+                    
+                    try {
+                      const errorData = await response.json();
+                      
+                      // Check for specific error types
+                      if (errorData.error) {
+                        if (errorData.error.includes('inventory') || errorData.error.includes('stock')) {
+                          errorMessage = `❌ Inventory Error: ${errorData.error}. Please check amenity availability.`;
+                        } else if (errorData.error.includes('available') || errorData.error.includes('capacity')) {
+                          errorMessage = `❌ Availability Error: ${errorData.error}. Room may have been booked by another user.`;
+                        } else {
+                          errorMessage = errorData.error;
+                        }
+                      }
+                    } catch (parseErr) {
+                      // If error response isn't JSON, use status-based message
+                      if (response.status === 400) {
+                        errorMessage = 'Invalid booking data. Please check all fields.';
+                      } else if (response.status === 409) {
+                        errorMessage = 'Rooms are no longer available. Please select different dates or rooms.';
+                      } else if (response.status === 500) {
+                        errorMessage = 'Server error occurred. Please try again or contact support.';
+                      }
+                    }
+                    
+                    throw new Error(errorMessage);
                   }
 
                   const newBookingData = await response.json();
                   setBookings([...bookings, newBookingData]);
-                  alert('✅ Walk-in booking created successfully!');
+                  showAlert('Success', 'Walk-in booking created successfully!', 'success');
 
-                  // Reset form
+                  // Reset form with new structure
                   closeModal();
                   setCreateBookingStep(1);
                   setCreateBookingForm({
@@ -1953,28 +2082,21 @@ export default function ReceptionistDashboard() {
                     checkOut: '',
                     numberOfGuests: 1,
                     paymentMode: 'cash',
-                    selectedRooms: {},
                     rooms: [],
-                    selectedRoomDetails: {},
                     selectedAmenities: { optional: {}, rental: {}, cottage: null },
                   });
                   await fetchBookings();
-                } catch (error) {
-                  console.error('❌ Booking Error:', error);
-                  // More descriptive error messages
-                  let errorMessage = 'An unexpected error occurred while creating the booking.';
+                } catch (err) {
+                  console.error('❌ Booking Error:', err);
                   
-                  if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-                    errorMessage = 'Network error. Please check your internet connection and try again.';
-                  } else if (error.message.includes('Insufficient stock')) {
-                    errorMessage = `Inventory error: ${error.message}`;
-                  } else if (error.message.includes('only') && error.message.includes('available')) {
-                    errorMessage = `Room availability error: ${error.message}`;
-                  } else if (error.message) {
-                    errorMessage = error.message;
+                  // Provide user-friendly error messages
+                  if (err.message.includes('fetch')) {
+                    showAlert('Network Error', 'Please check your connection and try again.', 'error');
+                  } else if (err.message.includes('Inventory') || err.message.includes('Availability')) {
+                    showAlert('Booking Error', err.message, 'error'); // Already formatted
+                  } else {
+                    showAlert('Booking Failed', err.message, 'error');
                   }
-                  
-                  alert(`❌ Booking Failed: ${errorMessage}`);
                 } finally {
                   submittingRef.current = false;
                   setShowSubmitModal(false);
@@ -2012,95 +2134,123 @@ export default function ReceptionistDashboard() {
                         }}>
                           <div style={{ marginBottom: '15px' }}>
                             <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>
-                              Guest Name:
+                              Guest Information
                             </label>
-                            <div style={{ display: 'flex', gap: '10px' }}>
-                              <div style={{ flex: '1' }}>
-                                <label style={{ display: 'block', fontSize: '12px', marginBottom: '2px', color: '#666' }}>
-                                  First Name *
-                                </label>
-                                <input
-                                  type="text"
-                                  name="firstName"
-                                  value={createBookingForm.firstName}
-                                  onChange={(e) => setCreateBookingForm(prev => ({ ...prev, firstName: e.target.value }))}
-                                  required
-                                  placeholder="First name"
-                                  style={{
-                                    width: '100%',
-                                    padding: '8px',
-                                    borderRadius: '4px',
-                                    border: '1px solid #ccc',
-                                  }}
-                                />
-                              </div>
-                              <div style={{ flex: '0.8' }}>
-                                <label style={{ display: 'block', fontSize: '12px', marginBottom: '2px', color: '#666' }}>
-                                  Middle Name
-                                </label>
-                                <input
-                                  type="text"
-                                  name="middleName"
-                                  value={createBookingForm.middleName}
-                                  onChange={(e) => setCreateBookingForm(prev => ({ ...prev, middleName: e.target.value }))}
-                                  placeholder="Middle name (optional)"
-                                  style={{
-                                    width: '100%',
-                                    padding: '8px',
-                                    borderRadius: '4px',
-                                    border: '1px solid #ccc',
-                                  }}
-                                />
-                              </div>
-                              <div style={{ flex: '1' }}>
-                                <label style={{ display: 'block', fontSize: '12px', marginBottom: '2px', color: '#666' }}>
-                                  Last Name *
-                                </label>
-                                <input
-                                  type="text"
-                                  name="lastName"
-                                  value={createBookingForm.lastName}
-                                  onChange={(e) => setCreateBookingForm(prev => ({ ...prev, lastName: e.target.value }))}
-                                  required
-                                  placeholder="Last name"
-                                  style={{
-                                    width: '100%',
-                                    padding: '8px',
-                                    borderRadius: '4px',
-                                    border: '1px solid #ccc',
-                                  }}
-                                />
-                              </div>
+                            
+                            {/* First Name */}
+                            <div style={{ marginBottom: '10px' }}>
+                              <label style={{ display: 'block', fontSize: '14px', marginBottom: '4px', color: '#374151' }}>
+                                First Name <span style={{ color: 'red' }}>*</span>
+                              </label>
+                              <input
+                                type="text"
+                                name="firstName"
+                                value={createBookingForm.firstName}
+                                onChange={(e) => setCreateBookingForm(prev => ({ ...prev, firstName: e.target.value }))}
+                                required
+                                placeholder="Enter first name"
+                                style={{
+                                  width: '100%',
+                                  padding: '8px',
+                                  borderRadius: '4px',
+                                  border: '1px solid #ccc',
+                                  fontSize: '14px'
+                                }}
+                              />
+                            </div>
+
+                            {/* Middle Name */}
+                            <div style={{ marginBottom: '10px' }}>
+                              <label style={{ display: 'block', fontSize: '14px', marginBottom: '4px', color: '#374151' }}>
+                                Middle Name (Optional)
+                              </label>
+                              <input
+                                type="text"
+                                name="middleName"
+                                value={createBookingForm.middleName}
+                                onChange={(e) => setCreateBookingForm(prev => ({ ...prev, middleName: e.target.value }))}
+                                placeholder="Enter middle name"
+                                style={{
+                                  width: '100%',
+                                  padding: '8px',
+                                  borderRadius: '4px',
+                                  border: '1px solid #ccc',
+                                  fontSize: '14px'
+                                }}
+                              />
+                            </div>
+
+                            {/* Last Name */}
+                            <div style={{ marginBottom: '10px' }}>
+                              <label style={{ display: 'block', fontSize: '14px', marginBottom: '4px', color: '#374151' }}>
+                                Last Name <span style={{ color: 'red' }}>*</span>
+                              </label>
+                              <input
+                                type="text"
+                                name="lastName"
+                                value={createBookingForm.lastName}
+                                onChange={(e) => setCreateBookingForm(prev => ({ ...prev, lastName: e.target.value }))}
+                                required
+                                placeholder="Enter last name"
+                                style={{
+                                  width: '100%',
+                                  padding: '8px',
+                                  borderRadius: '4px',
+                                  border: '1px solid #ccc',
+                                  fontSize: '14px'
+                                }}
+                              />
                             </div>
                           </div>
 
-          <div className="form-field-group">
-            <div className="form-field">
-              <label className="form-label">
-                Number of Guests:
-              </label>
-              <input
-                type="number"
-                name="numberOfGuests"
-                min="1"
-                value={createBookingForm.numberOfGuests}
-                onChange={(e) => setCreateBookingForm(prev => ({ ...prev, numberOfGuests: parseInt(e.target.value) || 1 }))}
-                required
-                className="form-input"
-              />
-            </div>
-          </div>                          <div className="date-display-group">
-                            <div className="date-field">
-                              <label className="form-label">Check-in:</label>
-                              <div className="date-display">
-                                <span className="date-icon">📅</span>
+                          <div style={{ marginBottom: '15px' }}>
+                            {/* Payment Mode */}
+                            <div>
+                              <label style={{ display: 'block', fontSize: '14px', marginBottom: '4px' }}>
+                                Payment Mode <span style={{ color: 'red' }}>*</span>
+                              </label>
+                              <select
+                                name="paymentMode"
+                                value={createBookingForm.paymentMode}
+                                onChange={(e) => setCreateBookingForm(prev => ({ ...prev, paymentMode: e.target.value }))}
+                                required
+                                style={{
+                                  width: '100%',
+                                  padding: '8px',
+                                  borderRadius: '4px',
+                                  border: '1px solid #ccc',
+                                }}
+                              >
+                                <option value="cash">Cash</option>
+                                <option value="gcash">GCash</option>
+                                <option value="card">Card</option>
+                                <option value="bank_transfer">Bank Transfer</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                            <div style={{ flex: '1' }}>
+                              <p style={{ margin: '0 0 4px 0', fontSize: '14px' }}>Check-in:</p>
+                              <div style={{ 
+                                padding: '8px', 
+                                backgroundColor: '#fff',
+                                border: '1px solid #ccc',
+                                borderRadius: '4px',
+                                fontSize: '14px'
+                              }}>
                                 {createBookingForm.checkIn ? new Date(createBookingForm.checkIn).toLocaleDateString() : 'Select date'}
                               </div>
                             </div>
-                            <div className="date-field">
-                              <label className="form-label">Check-out:</label>
-                              <div className="date-display">
-                                <span className="date-icon">📅</span>
+                            <div style={{ flex: '1' }}>
+                              <p style={{ margin: '0 0 4px 0', fontSize: '14px' }}>Check-out:</p>
+                              <div style={{ 
+                                padding: '8px', 
+                                backgroundColor: '#fff',
+                                border: '1px solid #ccc',
+                                borderRadius: '4px',
+                                fontSize: '14px'
+                              }}>
                                 {createBookingForm.checkOut ? new Date(createBookingForm.checkOut).toLocaleDateString() : 'Select date'}
                               </div>
                             </div>
@@ -2109,57 +2259,29 @@ export default function ReceptionistDashboard() {
 
                         {dateWarning && (
                           <div style={{ 
-                            color: '#92400E', 
-                            backgroundColor: '#FEF3C7', 
-                            padding: '12px 16px', 
-                            borderRadius: '8px',
-                            margin: '15px 0',
-                            border: '1px solid #FCD34D',
-                            fontSize: '14px',
-                            fontWeight: '500',
-                            boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
-                            position: 'relative',
-                            zIndex: 10
+                            color: '#856404', 
+                            backgroundColor: '#fff3cd', 
+                            padding: '10px', 
+                            borderRadius: '4px',
+                            marginTop: '10px',
+                            border: '1px solid #ffeeba',
+                            fontSize: '14px'
                           }}>
-                            <div style={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              gap: '8px' 
-                            }}>
-                              <span style={{ fontSize: '16px' }}>⚠️</span>
-                              {dateWarning}
-                            </div>
+                            {dateWarning}
                           </div>
                         )}
                       </div>
                     </div>
 
-                    {/* Room Selection Below Calendar */}
+                    {/* Room Selection Below Calendar - NEW FORMAT */}
                     {!dateWarning && createBookingForm.checkIn && createBookingForm.checkOut && (
                       <div style={{ marginTop: '20px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
-                          <h3 style={{ margin: 0, color: '#92400E' }}>Available Rooms</h3>
-                          {roomSearchInProgress && (
-                            <div style={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              gap: '8px',
-                              color: '#6b7280',
-                              fontSize: '14px'
-                            }}>
-                              <div style={{ 
-                                width: '16px', 
-                                height: '16px', 
-                                border: '2px solid #e5e7eb',
-                                borderTop: '2px solid #FEBE52',
-                                borderRadius: '50%',
-                                animation: 'spin 1s linear infinite'
-                              }}></div>
-                              Updating...
-                            </div>
-                          )}
-                        </div>
-                        {availableRooms.length === 0 && !roomSearchInProgress ? (
+                        <h3 style={{ marginBottom: '15px', color: '#5a3e00' }}>Select Rooms for Walk-in Guest</h3>
+                        {loadingRooms ? (
+                          <div style={{ position: 'relative', height: '100px' }}>
+                            <Loading size="medium" text="Loading rooms..." />
+                          </div>
+                        ) : availableRooms.length === 0 ? (
                           <div style={{ 
                             textAlign: 'center', 
                             padding: '20px',
@@ -2172,457 +2294,495 @@ export default function ReceptionistDashboard() {
                             <p style={{ margin: '8px 0 0 0', fontSize: '12px', opacity: 0.8 }}>Try selecting different dates.</p>
                           </div>
                         ) : (
-                          <div>
-                            {/* Requirements Status */}
-                            <div className="requirements-status">
-                              <h4 className="requirements-title">
-                                <span className="requirements-icon">📋</span>
-                                Booking Requirements
-                              </h4>
-                              <div className="requirements-grid">
-                                <div className={`requirement-item ${(createBookingForm.firstName && createBookingForm.lastName) ? 'completed' : 'pending'}`}>
-                                  <span className="requirement-check">
-                                    {(createBookingForm.firstName && createBookingForm.lastName) ? '✓' : '○'}
-                                  </span>
-                                  <span>Guest Name</span>
-                                </div>
-                                <div className={`requirement-item ${(createBookingForm.checkIn && createBookingForm.checkOut) ? 'completed' : 'pending'}`}>
-                                  <span className="requirement-check">
-                                    {(createBookingForm.checkIn && createBookingForm.checkOut) ? '✓' : '○'}
-                                  </span>
-                                  <span>Dates</span>
-                                </div>
-                                <div className={`requirement-item ${(Object.keys(createBookingForm.selectedRooms).length > 0) ? 'completed' : 'pending'}`}>
-                                  <span className="requirement-check">
-                                    {(Object.keys(createBookingForm.selectedRooms).length > 0) ? '✓' : '○'}
-                                  </span>
-                                  <span>Room Selection</span>
-                                </div>
-                                <div className={`requirement-item ${(computeTotalCapacity() >= createBookingForm.numberOfGuests) ? 'completed' : 'pending'}`}>
-                                  <span className="requirement-check">
-                                    {(computeTotalCapacity() >= createBookingForm.numberOfGuests) ? '✓' : '○'}
-                                  </span>
-                                  <span>Capacity</span>
-                                </div>
-                              </div>
-                            </div>
-                            
-                            <div className={`rooms-grid ${roomSearchInProgress ? 'loading' : ''}`}>
+                          <div style={{ 
+                            display: 'grid', 
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', 
+                            gap: '20px' 
+                          }}>
                             {availableRooms
                               .filter(room => room.type !== 'FAMILY_LODGE')
                               .map((room) => {
-                              const selectedQty = createBookingForm.selectedRooms[room.id] || 0;
+                              // Count how many instances of this room are already added
+                              const roomInstances = (createBookingForm.rooms || []).filter(r => r.roomId === room.id);
                               const isFull = room.remaining <= 0;
-                              const isSelected = selectedQty > 0;
-
-                              // Calculate total capacity of all selected rooms
-                              const totalCapacity = Object.entries(createBookingForm.selectedRooms).reduce((acc, [roomId, qty]) => {
-                                const r = availableRooms.find(r => r.id === roomId);
-                                if (!r) return acc;
-                                let capacity = 0;
-                                if (r.type === 'TEPEE') capacity = 5;
-                                else if (r.type === 'LOFT') capacity = 3;
-                                else if (r.type === 'VILLA') capacity = 10;
-                                return acc + (capacity * qty);
-                              }, 0);
-
-                              const isCapacitySatisfied = totalCapacity >= createBookingForm.numberOfGuests;
-                              const isDisabled = (isFull || (isCapacitySatisfied && !isSelected));
+                              const hasInstances = roomInstances.length > 0;
+                              const allInstancesAdded = roomInstances.length >= room.remaining;
+                              
+                              const roomCapacity = room.type === 'TEPEE' ? 5 : room.type === 'LOFT' ? 3 : room.type === 'VILLA' ? 10 : 1;
 
                               return (
                                 <div
                                   key={room.id}
-                                  className={`room-card ${isSelected ? 'selected' : ''} ${isFull ? 'disabled' : ''}`}
-                                  onClick={() => {
-                                    if (isDisabled && !isSelected) return;
-                                    setCreateBookingForm(prev => {
-                                      const selectedRooms = { ...prev.selectedRooms };
-                                      const selectedRoomDetails = { ...prev.selectedRoomDetails };
-                                      const currentCapacity = Object.entries(selectedRooms).reduce((acc, [rId, qty]) => {
-                                        const r = availableRooms.find(r => r.id === rId);
-                                        if (!r) return acc;
-                                        let cap = 0;
-                                        if (r.type === 'TEPEE') cap = 5;
-                                        else if (r.type === 'LOFT') cap = 3;
-                                        else if (r.type === 'VILLA') cap = 10;
-                                        return acc + (cap * qty);
-                                      }, 0);
-
-                                      if (!selectedRooms[room.id]) {
-                                        // Adding a room - store details
-                                        selectedRooms[room.id] = 1;
-                                        selectedRoomDetails[room.id] = {
-                                          name: room.name,
-                                          type: room.type,
-                                          price: room.price,
-                                          image: room.image,
-                                          remaining: room.remaining
-                                        };
-                                      } else {
-                                        // Removing a room - remove details
-                                        delete selectedRooms[room.id];
-                                        delete selectedRoomDetails[room.id];
-                                      }
-                                      return { ...prev, selectedRooms, selectedRoomDetails };
-                                    });
+                                  style={{
+                                    border: hasInstances ? '2px solid #FEBE52' : '1px solid #d1d5db',
+                                    borderRadius: '12px',
+                                    padding: '0',
+                                    backgroundColor: 'white',
+                                    cursor: isFull ? 'not-allowed' : 'pointer',
+                                    opacity: isFull ? 0.5 : 1,
+                                    transition: 'all 0.2s ease',
+                                    overflow: 'hidden',
+                                    position: 'relative'
                                   }}
                                 >
-                                  {/* Room Image with Availability Badge */}
-                                  <div style={{ position: 'relative', width: '100%', height: '140px' }}>
+                                  <div style={{ position: 'relative' }}>
                                     <img 
                                       src={room.image || '/images/default-room.jpg'} 
                                       alt={room.name}
                                       style={{
                                         width: '100%',
-                                        height: '100%',
-                                        objectFit: 'cover',
-                                        borderRadius: '8px 8px 0 0'
+                                        height: '140px',
+                                        objectFit: 'cover'
                                       }}
                                     />
                                     {/* Availability Badge */}
-                                    <div style={{
+                                    <span style={{
                                       position: 'absolute',
                                       top: '8px',
                                       right: '8px',
-                                      padding: '4px 8px',
-                                      borderRadius: '4px',
-                                      fontSize: '11px',
-                                      fontWeight: '600',
-                                      backgroundColor: room.remaining === 0 ? '#ef4444' : room.remaining <= 3 ? '#f59e0b' : '#10b981',
+                                      backgroundColor: isFull ? '#ef4444' : room.remaining <= 3 ? '#f59e0b' : '#10b981',
                                       color: 'white',
+                                      padding: '4px 10px',
+                                      borderRadius: '12px',
+                                      fontSize: '12px',
+                                      fontWeight: '600',
                                       boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
                                     }}>
-                                      {room.remaining === 0 ? 'Full' : `${room.remaining} left`}
-                                    </div>
-                                    {/* Selected Checkmark */}
-                                    {isSelected && (
+                                      {isFull ? 'Full' : `${room.remaining - roomInstances.length} left`}
+                                    </span>
+                                    {/* Selected Count Indicator */}
+                                    {hasInstances && (
                                       <div style={{
                                         position: 'absolute',
                                         top: '8px',
                                         left: '8px',
-                                        width: '24px',
-                                        height: '24px',
+                                        backgroundColor: '#FEBE52',
+                                        color: 'white',
+                                        width: '32px',
+                                        height: '32px',
                                         borderRadius: '50%',
-                                        backgroundColor: '#10b981',
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
-                                        color: 'white',
-                                        fontSize: '14px',
+                                        fontSize: '16px',
                                         fontWeight: 'bold',
-                                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                        boxShadow: '0 2px 6px rgba(0,0,0,0.3)'
                                       }}>
-                                        ✓
+                                        {roomInstances.length}
                                       </div>
                                     )}
                                   </div>
-                                  
-                                  {/* Room Content */}
-                                  <div style={{ padding: '12px', flex: 1, display: 'flex', flexDirection: 'column' }}>
-                                    <h4 style={{ 
-                                      margin: '0 0 8px 0',
-                                      fontSize: '16px',
-                                      fontWeight: '600',
-                                      color: '#1f2937'
-                                    }}>
+                                  <div style={{ padding: '12px' }}>
+                                    <h4 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: '600', color: '#1f2937' }}>
                                       {room.name}
                                     </h4>
-                                    
-                                    {/* Type and Capacity Tags */}
-                                    <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '10px' }}>
+                                      {/* Room Type Tag */}
                                       <span style={{
-                                        padding: '2px 8px',
+                                        backgroundColor: '#e5e7eb',
+                                        color: '#374151',
+                                        padding: '3px 8px',
                                         borderRadius: '4px',
                                         fontSize: '11px',
-                                        fontWeight: '500',
-                                        backgroundColor: '#fef3c7',
-                                        color: '#92400e',
-                                        border: '1px solid #fcd34d'
+                                        fontWeight: '600',
+                                        textTransform: 'uppercase'
                                       }}>
-                                        {room.type === 'TEPEE' ? '🏕️ Tepee' : room.type === 'LOFT' ? '🏠 Loft' : '🏰 Villa'}
+                                        {room.type}
                                       </span>
+                                      {/* Capacity Tag */}
                                       <span style={{
-                                        padding: '2px 8px',
-                                        borderRadius: '4px',
-                                        fontSize: '11px',
-                                        fontWeight: '500',
                                         backgroundColor: '#dbeafe',
                                         color: '#1e40af',
-                                        border: '1px solid #93c5fd'
+                                        padding: '3px 8px',
+                                        borderRadius: '4px',
+                                        fontSize: '11px',
+                                        fontWeight: '600',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '3px'
                                       }}>
-                                        👥 {room.type === 'TEPEE' ? '1-5' : room.type === 'LOFT' ? '1-3' : '1-10'} guests
+                                        👥 {roomCapacity} guests
                                       </span>
                                     </div>
-                                    
                                     {/* Price */}
-                                    <div style={{ 
-                                      marginTop: 'auto',
-                                      paddingTop: '8px'
-                                    }}>
-                                      <div style={{ 
-                                        fontSize: '18px',
-                                        fontWeight: '700',
-                                        color: '#92400e'
-                                      }}>
-                                        ₱{(room.price / 100).toFixed(2)}
-                                        <span style={{ fontSize: '12px', fontWeight: '400', color: '#6b7280' }}>/night</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                  
-                                  {/* Quantity Controls */}
-                                  {isSelected && (
-                                    <div style={{
-                                      borderTop: '1px solid #e5e7eb',
-                                      padding: '8px 12px',
-                                      backgroundColor: '#fffbeb',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'space-between'
-                                    }}>
-                                      <span style={{ fontSize: '13px', fontWeight: '500', color: '#92400e' }}>Quantity:</span>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setCreateBookingForm(prev => {
-                                              const selectedRooms = { ...prev.selectedRooms };
-                                              if (selectedRooms[room.id] > 1) {
-                                                selectedRooms[room.id] = selectedRooms[room.id] - 1;
-                                              }
-                                              return { ...prev, selectedRooms };
-                                            });
-                                          }}
-                                          disabled={selectedQty <= 1}
-                                          style={{
-                                            width: '28px',
-                                            height: '28px',
-                                            borderRadius: '4px',
-                                            border: '1px solid #d1d5db',
-                                            backgroundColor: selectedQty <= 1 ? '#f3f4f6' : 'white',
-                                            color: selectedQty <= 1 ? '#9ca3af' : '#374151',
-                                            cursor: selectedQty <= 1 ? 'not-allowed' : 'pointer',
-                                            fontSize: '16px',
-                                            fontWeight: '600',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            transition: 'all 0.2s'
-                                          }}
-                                          onMouseEnter={(e) => {
-                                            if (selectedQty > 1) {
-                                              e.currentTarget.style.borderColor = '#FEBE52';
-                                              e.currentTarget.style.backgroundColor = '#fffbeb';
-                                            }
-                                          }}
-                                          onMouseLeave={(e) => {
-                                            if (selectedQty > 1) {
-                                              e.currentTarget.style.borderColor = '#d1d5db';
-                                              e.currentTarget.style.backgroundColor = 'white';
-                                            }
-                                          }}
-                                        >
-                                          −
-                                        </button>
-                                        <span style={{
-                                          minWidth: '30px',
-                                          textAlign: 'center',
-                                          fontSize: '15px',
+                                    <p style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: 'bold', color: '#FEBE52' }}>
+                                      ₱{(room.price / 100).toLocaleString()}<span style={{ fontSize: '12px', fontWeight: 'normal', color: '#6b7280' }}>/night</span>
+                                    </p>
+                                    
+                                    {/* Add Room Button */}
+                                    {!isFull && !allInstancesAdded && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const capacity = getRoomCapacityDetails(room.type);
+                                          const instanceNumber = roomInstances.length + 1;
+                                          setCreateBookingForm(prev => ({
+                                            ...prev,
+                                            rooms: [...prev.rooms, {
+                                              roomId: room.id,
+                                              instanceNumber,
+                                              unitNumber: null,
+                                              adults: 1,
+                                              additionalPax: 0,
+                                              children: 0,
+                                              optionalAmenities: {},
+                                              rentalAmenities: {}
+                                            }]
+                                          }));
+                                        }}
+                                        style={{
+                                          width: '100%',
+                                          padding: '8px',
+                                          backgroundColor: '#FEBE52',
+                                          color: 'white',
+                                          border: 'none',
+                                          borderRadius: '6px',
                                           fontWeight: '600',
-                                          color: '#1f2937'
-                                        }}>
-                                          {selectedQty}
-                                        </span>
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setCreateBookingForm(prev => {
-                                              const selectedRooms = { ...prev.selectedRooms };
-                                              if ((selectedRooms[room.id] || 0) < room.remaining) {
-                                                selectedRooms[room.id] = (selectedRooms[room.id] || 0) + 1;
-                                              }
-                                              return { ...prev, selectedRooms };
-                                            });
-                                          }}
-                                          disabled={selectedQty >= room.remaining}
-                                          style={{
-                                            width: '28px',
-                                            height: '28px',
-                                            borderRadius: '4px',
-                                            border: '1px solid #d1d5db',
-                                            backgroundColor: selectedQty >= room.remaining ? '#f3f4f6' : 'white',
-                                            color: selectedQty >= room.remaining ? '#9ca3af' : '#374151',
-                                            cursor: selectedQty >= room.remaining ? 'not-allowed' : 'pointer',
-                                            fontSize: '16px',
-                                            fontWeight: '600',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            transition: 'all 0.2s'
-                                          }}
-                                          onMouseEnter={(e) => {
-                                            if (selectedQty < room.remaining) {
-                                              e.currentTarget.style.borderColor = '#FEBE52';
-                                              e.currentTarget.style.backgroundColor = '#fffbeb';
-                                            }
-                                          }}
-                                          onMouseLeave={(e) => {
-                                            if (selectedQty < room.remaining) {
-                                              e.currentTarget.style.borderColor = '#d1d5db';
-                                              e.currentTarget.style.backgroundColor = 'white';
-                                            }
-                                          }}
-                                        >
-                                          +
-                                        </button>
-                                      </div>
-                                    </div>
-                                  )}
+                                          cursor: 'pointer',
+                                          fontSize: '14px'
+                                        }}
+                                      >
+                                        + Add Room
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
                               );
                             })}
-                            </div>
                           </div>
                         )}
                         
-                        {/* Capacity Status Indicator */}
-                        {Object.keys(createBookingForm.selectedRooms).length > 0 && (() => {
-                          const totalCapacity = computeTotalCapacity();
-                          const isCapacitySufficient = totalCapacity >= createBookingForm.numberOfGuests;
-                          
-                          return (
-                            <div style={{ 
-                              marginTop: '15px',
-                              padding: '12px',
-                              borderRadius: '8px',
-                              backgroundColor: isCapacitySufficient ? '#d1fae5' : '#fee2e2',
-                              border: `1px solid ${isCapacitySufficient ? '#10b981' : '#ef4444'}`,
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '8px'
-                            }}>
-                              <div style={{ 
-                                fontSize: '18px',
-                                color: isCapacitySufficient ? '#10b981' : '#ef4444'
-                              }}>
-                                {isCapacitySufficient ? '✓' : '⚠'}
-                              </div>
-                              <div style={{ 
-                                fontSize: '14px',
-                                color: isCapacitySufficient ? '#065f46' : '#991b1b'
-                              }}>
-                                <strong>Capacity Status:</strong> Selected rooms can accommodate {totalCapacity} guest{totalCapacity !== 1 ? 's' : ''}.
-                                {!isCapacitySufficient && (
-                                  <span> You need {createBookingForm.numberOfGuests - totalCapacity} more guest capacity.</span>
-                                )}
-                              </div>
+                        {/* Room Configuration Panel - NEW */}
+                        {createBookingForm.rooms && createBookingForm.rooms.length > 0 && (
+                          <div style={{ marginTop: '30px' }}>
+                            <h3 style={{ marginBottom: '15px', color: '#5a3e00' }}>Configure Room Details</h3>
+                            <div style={{ display: 'grid', gap: '15px' }}>
+                              {createBookingForm.rooms.map((roomData, idx) => {
+                                const room = availableRooms.find(r => r.id === roomData.roomId);
+                                if (!room) return null;
+                                
+                                const capacity = getRoomCapacityDetails(room.type);
+                                const roomTypeName = room.type === 'LOFT' ? 'Loft' : room.type === 'TEPEE' ? 'Tepee' : room.type === 'VILLA' ? 'Villa' : room.name;
+                                const additionalPaxFee = 400; // ₱400 per additional pax
+                                
+                                return (
+                                  <div
+                                    key={`${roomData.roomId}-${roomData.instanceNumber}`}
+                                    style={{
+                                      backgroundColor: 'white',
+                                      border: '2px solid #FEBE52',
+                                      borderRadius: '12px',
+                                      padding: '15px',
+                                      position: 'relative'
+                                    }}
+                                  >
+                                    {/* Header */}
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                                      <h4 style={{ margin: 0, color: '#5a3e00' }}>
+                                        {roomTypeName} #{roomData.instanceNumber}
+                                      </h4>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setCreateBookingForm(prev => ({
+                                            ...prev,
+                                            rooms: prev.rooms.filter(r => !(r.roomId === roomData.roomId && r.instanceNumber === roomData.instanceNumber))
+                                          }));
+                                        }}
+                                        style={{
+                                          padding: '4px 8px',
+                                          backgroundColor: '#ef4444',
+                                          color: 'white',
+                                          border: 'none',
+                                          borderRadius: '4px',
+                                          cursor: 'pointer',
+                                          fontSize: '12px'
+                                        }}
+                                      >
+                                        Remove
+                                      </button>
+                                    </div>
+                                    
+                                    {/* Room Unit Selector */}
+                                    <div style={{ marginBottom: '15px' }}>
+                                      <RoomUnitSelector
+                                        roomId={room.id}
+                                        roomType={room.type}
+                                        checkIn={createBookingForm.checkIn}
+                                        checkOut={createBookingForm.checkOut}
+                                        selectedUnit={roomData.unitNumber}
+                                        onUnitSelect={(unitNumber) => {
+                                          setCreateBookingForm(prev => ({
+                                            ...prev,
+                                            rooms: prev.rooms.map(r => 
+                                              r.roomId === roomData.roomId && r.instanceNumber === roomData.instanceNumber
+                                                ? { ...r, unitNumber }
+                                                : r
+                                            )
+                                          }));
+                                        }}
+                                      />
+                                    </div>
+                                    
+                                    {/* Guest Configuration */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '15px' }}>
+                                      {/* Adults */}
+                                      <div>
+                                        <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px', fontWeight: '600' }}>
+                                          Adults (max {capacity.base})
+                                        </label>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setCreateBookingForm(prev => ({
+                                                ...prev,
+                                                rooms: prev.rooms.map(r => 
+                                                  r.roomId === roomData.roomId && r.instanceNumber === roomData.instanceNumber
+                                                    ? { ...r, adults: Math.max(1, r.adults - 1) }
+                                                    : r
+                                                )
+                                              }));
+                                            }}
+                                            disabled={roomData.adults <= 1}
+                                            style={{
+                                              padding: '4px 8px',
+                                              backgroundColor: '#FEBE52',
+                                              color: 'white',
+                                              border: 'none',
+                                              borderRadius: '4px',
+                                              cursor: roomData.adults <= 1 ? 'not-allowed' : 'pointer',
+                                              opacity: roomData.adults <= 1 ? 0.5 : 1
+                                            }}
+                                          >
+                                            −
+                                          </button>
+                                          <span style={{ fontWeight: 'bold', minWidth: '20px', textAlign: 'center' }}>
+                                            {roomData.adults}
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setCreateBookingForm(prev => ({
+                                                ...prev,
+                                                rooms: prev.rooms.map(r => 
+                                                  r.roomId === roomData.roomId && r.instanceNumber === roomData.instanceNumber
+                                                    ? { ...r, adults: Math.min(capacity.base, r.adults + 1) }
+                                                    : r
+                                                )
+                                              }));
+                                            }}
+                                            disabled={roomData.adults >= capacity.base}
+                                            style={{
+                                              padding: '4px 8px',
+                                              backgroundColor: '#FEBE52',
+                                              color: 'white',
+                                              border: 'none',
+                                              borderRadius: '4px',
+                                              cursor: roomData.adults >= capacity.base ? 'not-allowed' : 'pointer',
+                                              opacity: roomData.adults >= capacity.base ? 0.5 : 1
+                                            }}
+                                          >
+                                            +
+                                          </button>
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Additional Pax */}
+                                      <div>
+                                        <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px', fontWeight: '600' }}>
+                                          Extra Pax (max {capacity.additionalPaxMax})
+                                        </label>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setCreateBookingForm(prev => ({
+                                                ...prev,
+                                                rooms: prev.rooms.map(r => 
+                                                  r.roomId === roomData.roomId && r.instanceNumber === roomData.instanceNumber
+                                                    ? { ...r, additionalPax: Math.max(0, r.additionalPax - 1) }
+                                                    : r
+                                                )
+                                              }));
+                                            }}
+                                            disabled={roomData.additionalPax <= 0}
+                                            style={{
+                                              padding: '4px 8px',
+                                              backgroundColor: '#FEBE52',
+                                              color: 'white',
+                                              border: 'none',
+                                              borderRadius: '4px',
+                                              cursor: roomData.additionalPax <= 0 ? 'not-allowed' : 'pointer',
+                                              opacity: roomData.additionalPax <= 0 ? 0.5 : 1
+                                            }}
+                                          >
+                                            −
+                                          </button>
+                                          <span style={{ fontWeight: 'bold', minWidth: '20px', textAlign: 'center' }}>
+                                            {roomData.additionalPax}
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setCreateBookingForm(prev => ({
+                                                ...prev,
+                                                rooms: prev.rooms.map(r => 
+                                                  r.roomId === roomData.roomId && r.instanceNumber === roomData.instanceNumber
+                                                    ? { ...r, additionalPax: Math.min(capacity.additionalPaxMax, r.additionalPax + 1) }
+                                                    : r
+                                                )
+                                              }));
+                                            }}
+                                            disabled={roomData.additionalPax >= capacity.additionalPaxMax}
+                                            style={{
+                                              padding: '4px 8px',
+                                              backgroundColor: '#FEBE52',
+                                              color: 'white',
+                                              border: 'none',
+                                              borderRadius: '4px',
+                                              cursor: roomData.additionalPax >= capacity.additionalPaxMax ? 'not-allowed' : 'pointer',
+                                              opacity: roomData.additionalPax >= capacity.additionalPaxMax ? 0.5 : 1
+                                            }}
+                                          >
+                                            +
+                                          </button>
+                                        </div>
+                                        {roomData.additionalPax > 0 && (
+                                          <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '2px' }}>
+                                            +₱{(additionalPaxFee * roomData.additionalPax).toLocaleString()}/night
+                                          </div>
+                                        )}
+                                      </div>
+                                      
+                                      {/* Children */}
+                                      <div>
+                                        <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px', fontWeight: '600' }}>
+                                          Children (max {capacity.max})
+                                        </label>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setCreateBookingForm(prev => ({
+                                                ...prev,
+                                                rooms: prev.rooms.map(r => 
+                                                  r.roomId === roomData.roomId && r.instanceNumber === roomData.instanceNumber
+                                                    ? { ...r, children: Math.max(0, r.children - 1) }
+                                                    : r
+                                                )
+                                              }));
+                                            }}
+                                            disabled={roomData.children <= 0}
+                                            style={{
+                                              padding: '4px 8px',
+                                              backgroundColor: '#FEBE52',
+                                              color: 'white',
+                                              border: 'none',
+                                              borderRadius: '4px',
+                                              cursor: roomData.children <= 0 ? 'not-allowed' : 'pointer',
+                                              opacity: roomData.children <= 0 ? 0.5 : 1
+                                            }}
+                                          >
+                                            −
+                                          </button>
+                                          <span style={{ fontWeight: 'bold', minWidth: '20px', textAlign: 'center' }}>
+                                            {roomData.children}
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setCreateBookingForm(prev => ({
+                                                ...prev,
+                                                rooms: prev.rooms.map(r => 
+                                                  r.roomId === roomData.roomId && r.instanceNumber === roomData.instanceNumber
+                                                    ? { ...r, children: Math.min(capacity.childrenMax || 2, r.children + 1) }
+                                                    : r
+                                                )
+                                              }));
+                                            }}
+                                            disabled={roomData.children >= (capacity.childrenMax || 2)}
+                                            style={{
+                                              padding: '4px 8px',
+                                              backgroundColor: '#FEBE52',
+                                              color: 'white',
+                                              border: 'none',
+                                              borderRadius: '4px',
+                                              cursor: roomData.children >= (capacity.childrenMax || 2) ? 'not-allowed' : 'pointer',
+                                              opacity: roomData.children >= (capacity.childrenMax || 2) ? 0.5 : 1
+                                            }}
+                                          >
+                                            +
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Summary */}
+                                    <div style={{ padding: '8px', backgroundColor: '#FFF7ED', borderRadius: '6px', fontSize: '12px' }}>
+                                      <strong>Room Summary:</strong> {roomData.adults} Adult{roomData.adults !== 1 ? 's' : ''}
+                                      {roomData.additionalPax > 0 && ` + ${roomData.additionalPax} Extra`}
+                                      {roomData.children > 0 && `, ${roomData.children} ${roomData.children === 1 ? 'Child' : 'Children'}`}
+                                      {roomData.additionalPax > 0 && (
+                                        <div style={{ marginTop: '4px', color: '#059669', fontWeight: '600' }}>
+                                          ✓ {roomData.additionalPax} extra bed{roomData.additionalPax !== 1 ? 's' : ''} included
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
-                          );
-                        })()}
+                          </div>
+                        )}
                       </div>
                     )}
-
-                    {/* Payment Mode Selection */}
-                    <div style={{ 
-                      backgroundColor: '#FFF7ED',
-                      padding: '20px',
-                      borderRadius: '8px',
-                      border: '1px solid rgba(254, 190, 82, 0.3)',
-                      marginTop: '20px'
-                    }}>
-                      <h4 style={{ color: '#92400E', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span>💳</span>
-                        Payment Mode Selection
-                      </h4>
-                      <p style={{ fontSize: '14px', color: '#666', marginBottom: '15px' }}>
-                        Choose the payment method the customer will use for this booking:
-                      </p>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '12px' }}>
-                        {[
-                          { value: 'cash', label: 'Cash', icon: '💵' },
-                          { value: 'gcash', label: 'GCash', icon: '📱' },
-                          { value: 'maya', label: 'Maya', icon: '💳' },
-                          { value: 'card', label: 'Card', icon: '💳' }
-                        ].map((mode) => (
-                          <label key={mode.value} style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            padding: '10px',
-                            borderRadius: '6px',
-                            border: `2px solid ${createBookingForm.paymentMode === mode.value ? '#FEBE52' : '#e5e7eb'}`,
-                            backgroundColor: createBookingForm.paymentMode === mode.value ? '#FEF3C7' : '#f9fafb',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease',
-                            fontSize: '14px',
-                            fontWeight: createBookingForm.paymentMode === mode.value ? '600' : '400'
-                          }}>
-                            <input
-                              type="radio"
-                              name="paymentMode"
-                              value={mode.value}
-                              checked={createBookingForm.paymentMode === mode.value}
-                              onChange={(e) => setCreateBookingForm(prev => ({ ...prev, paymentMode: e.target.value }))}
-                              style={{ margin: 0 }}
-                            />
-                            <span>{mode.icon}</span>
-                            <span>{mode.label}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
                   </div>
                 </>
               )}
 
               {createBookingStep === 2 && (
                 <>
-                  <h3 style={{ color: '#92400E', marginBottom: '20px' }}>Room Amenities</h3>
+                  <h3 style={{ color: '#5a3e00', marginBottom: '20px' }}>Optional & Rental Amenities</h3>
                   <div style={{ 
-                    backgroundColor: '#FFF7ED',
+                    backgroundColor: '#FFF8E1',
                     padding: '20px',
                     borderRadius: '8px',
-                    border: '1px solid rgba(254, 190, 82, 0.3)'
+                    border: '1px solid rgba(251, 190, 82, 0.3)'
                   }}>
                     <div style={{ marginBottom: '20px' }}>
-                      <h4 style={{ color: '#92400E', marginBottom: '15px' }}>Selected Rooms:</h4>
+                      <h4 style={{ color: '#5a3e00', marginBottom: '15px' }}>Selected Rooms:</h4>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                        {Object.entries(createBookingForm.selectedRooms).map(([roomId, quantity]) => {
-                        const roomDetails = createBookingForm.selectedRoomDetails[roomId];
-                        if (!roomDetails) return null;
-                        return (
-                          <div key={`selected-room-${roomId}`}>
-                            {roomDetails.name} x{quantity}
-                          </div>
-                        );
-                      })}
+                        {(createBookingForm.rooms || []).map((roomData) => {
+                          const room = availableRooms.find(r => r.id === roomData.roomId);
+                          if (!room) return null;
+                          const roomTypeName = room.type === 'LOFT' ? 'Loft' : room.type === 'TEPEE' ? 'Tepee' : room.type === 'VILLA' ? 'Villa' : room.name;
+                          return (
+                            <div key={`selected-room-${roomData.roomId}-${roomData.instanceNumber}`} style={{
+                              padding: '8px 12px',
+                              backgroundColor: 'rgba(251, 190, 82, 0.1)',
+                              borderRadius: '6px',
+                              border: '1px solid rgba(251, 190, 82, 0.3)',
+                              fontSize: '14px'
+                            }}>
+                              {roomTypeName} #{roomData.instanceNumber} ({roomData.adults} adults
+                              {roomData.additionalPax > 0 && ` +${roomData.additionalPax} extra`}
+                              {roomData.children > 0 && `, ${roomData.children} ${roomData.children === 1 ? 'child' : 'children'}`})
+                              {roomData.additionalPax > 0 && (
+                                <div style={{ fontSize: '11px', color: '#059669', marginTop: '2px' }}>
+                                  ✓ {roomData.additionalPax} extra bed{roomData.additionalPax !== 1 ? 's' : ''}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
 
                     <div style={{ display: 'grid', gap: '20px' }}>
-                      {/* Room Type Based Amenities */}
-                      {Object.entries(createBookingForm.selectedRooms).map(([roomId, quantity]) => {
-                        const roomDetails = createBookingForm.selectedRoomDetails[roomId];
-                        if (!roomDetails) return null;
-                        return (
-                          <div key={roomId}>
-                            <h4 style={{ color: '#92400E', marginBottom: '10px' }}>{roomDetails.name} Included Amenities:</h4>
-                            <RoomAmenitiesSelector
-                              roomTypes={[roomDetails.type]}
-                              selectedAmenities={createBookingForm.selectedAmenities}
-                              onAmenitiesChange={(newAmenities) => setCreateBookingForm(prev => ({ 
-                                ...prev, 
-                                selectedAmenities: newAmenities 
-                              }))}
-                              showIncludedOnly={true}
-                            />
-                          </div>
-                        );
-                      })}
-
                       {/* Optional Amenities */}
                       <div>
-                        <h4 style={{ color: '#92400E', marginBottom: '10px' }}>Optional Amenities:</h4>
+                        <h4 style={{ color: '#5a3e00', marginBottom: '10px' }}>Optional Amenities:</h4>
                         <OptionalAmenitiesSelector
                           selectedAmenities={createBookingForm.selectedAmenities.optional}
                           onAmenitiesChange={(newOptional) => setCreateBookingForm(prev => ({ 
@@ -2637,7 +2797,7 @@ export default function ReceptionistDashboard() {
 
                       {/* Rental Amenities */}
                       <div>
-                        <h4 style={{ color: '#92400E', marginBottom: '10px' }}>Rental Amenities:</h4>
+                        <h4 style={{ color: '#5a3e00', marginBottom: '10px' }}>Rental Amenities:</h4>
                         <RentalAmenitiesSelector
                           selectedAmenities={createBookingForm.selectedAmenities.rental}
                           onAmenitiesChange={(newRental) => setCreateBookingForm(prev => ({ 
@@ -2656,22 +2816,25 @@ export default function ReceptionistDashboard() {
 
               {createBookingStep === 3 && (
                 <>
-                  <h3 style={{ color: '#92400E', marginBottom: '20px' }}>Booking Summary</h3>
+                  <h3 style={{ color: '#5a3e00', marginBottom: '20px' }}>Booking Summary</h3>
                   <div style={{ 
-                    backgroundColor: '#FFF7ED',
+                    backgroundColor: '#FFF8E1',
                     padding: '20px',
                     borderRadius: '8px',
-                    border: '1px solid rgba(254, 190, 82, 0.3)'
+                    border: '1px solid rgba(251, 190, 82, 0.3)'
                   }}>
                     {/* Guest Information */}
                     <div style={{ marginBottom: '20px' }}>
-                      <h4 style={{ color: '#92400E', marginBottom: '10px' }}>Guest Information</h4>
+                      <h4 style={{ color: '#5a3e00', marginBottom: '10px' }}>Guest Information</h4>
                       <div style={{ display: 'grid', gap: '10px' }}>
                         <div>
-                          <strong>Guest Name:</strong> {`${createBookingForm.firstName}${createBookingForm.middleName ? ' ' + createBookingForm.middleName : ''} ${createBookingForm.lastName}`.trim()}
+                          <strong>Guest Name:</strong> {createBookingForm.firstName} {createBookingForm.middleName && createBookingForm.middleName + ' '}{createBookingForm.lastName}
                         </div>
                         <div>
-                          <strong>Number of Guests:</strong> {createBookingForm.numberOfGuests}
+                          <strong>Total Guests:</strong> {createBookingForm.rooms.reduce((sum, r) => sum + r.adults + r.additionalPax + r.children, 0)}
+                        </div>
+                        <div>
+                          <strong>Payment Mode:</strong> {createBookingForm.paymentMode.charAt(0).toUpperCase() + createBookingForm.paymentMode.slice(1).replace('_', ' ')}
                         </div>
                         <div>
                           <strong>Check-in:</strong> {new Date(createBookingForm.checkIn).toLocaleDateString()}
@@ -2687,20 +2850,25 @@ export default function ReceptionistDashboard() {
 
                     {/* Selected Rooms */}
                     <div style={{ marginBottom: '20px' }}>
-                      <h4 style={{ color: '#92400E', marginBottom: '10px' }}>Selected Rooms</h4>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                        {Object.entries(createBookingForm.selectedRooms).map(([roomId, quantity]) => {
-                          const roomDetails = createBookingForm.selectedRoomDetails[roomId];
-                          if (!roomDetails) return null;
+                      <h4 style={{ color: '#5a3e00', marginBottom: '10px' }}>Selected Rooms</h4>
+                      <div style={{ display: 'grid', gap: '10px' }}>
+                        {(createBookingForm.rooms || []).map((roomData) => {
+                          const room = availableRooms.find(r => r.id === roomData.roomId);
+                          if (!room) return null;
+                          const roomTypeName = room.type === 'LOFT' ? 'Loft' : room.type === 'TEPEE' ? 'Tepee' : room.type === 'VILLA' ? 'Villa' : room.name;
                           return (
-                            <div key={roomId} style={{
-                              padding: '8px 12px',
-                              backgroundColor: 'rgba(254, 190, 82, 0.1)',
+                            <div key={`summary-room-${roomData.roomId}-${roomData.instanceNumber}`} style={{
+                              padding: '12px',
+                              backgroundColor: 'white',
                               borderRadius: '6px',
-                              border: '1px solid rgba(254, 190, 82, 0.3)',
-                              fontSize: '14px'
+                              border: '1px solid rgba(251, 190, 82, 0.3)'
                             }}>
-                              {roomDetails.name} x{quantity}
+                              <strong>{roomTypeName} #{roomData.instanceNumber}</strong>
+                              <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>
+                                • {roomData.adults} Adult{roomData.adults !== 1 ? 's' : ''}
+                                {roomData.additionalPax > 0 && ` + ${roomData.additionalPax} Additional Pax (₱${(400 * roomData.additionalPax).toLocaleString()}/night)`}
+                                {roomData.children > 0 && `\n• ${roomData.children} ${roomData.children === 1 ? 'Child' : 'Children'}`}
+                              </div>
                             </div>
                           );
                         })}
@@ -2844,40 +3012,35 @@ export default function ReceptionistDashboard() {
                       if (createBookingStep === 1) {
                         // Validate Step 1: Guest info and dates
                         if (!createBookingForm.firstName?.trim()) {
-                          alert('❌ First name is required.');
+                          showAlert('Validation Error', 'First name is required.', 'error');
                           return;
                         }
                         if (!createBookingForm.lastName?.trim()) {
-                          alert('❌ Last name is required.');
+                          showAlert('Validation Error', 'Last name is required.', 'error');
                           return;
                         }
                         if (createBookingForm.numberOfGuests < 1) {
-                          alert('❌ Number of guests must be at least 1.');
+                          showAlert('Validation Error', 'Number of guests must be at least 1.', 'error');
                           return;
                         }
                         if (!createBookingForm.checkIn || !createBookingForm.checkOut) {
-                          alert('❌ Please select both check-in and check-out dates.');
+                          showAlert('Validation Error', 'Please select both check-in and check-out dates.', 'error');
                           return;
                         }
                         const today = new Date();
                         today.setHours(0, 0, 0, 0);
                         const checkInDate = new Date(createBookingForm.checkIn);
                         if (checkInDate < today) {
-                          alert('❌ Check-in date cannot be in the past.');
+                          showAlert('Validation Error', 'Check-in date cannot be in the past.', 'error');
                           return;
                         }
                         const checkOutDate = new Date(createBookingForm.checkOut);
                         if (checkOutDate <= checkInDate) {
-                          alert('❌ Check-out date must be after check-in date.');
+                          showAlert('Validation Error', 'Check-out date must be after check-in date.', 'error');
                           return;
                         }
-                        if (Object.keys(createBookingForm.selectedRooms).length === 0) {
-                          alert('❌ Please select at least one room.');
-                          return;
-                        }
-                        const totalCapacity = computeTotalCapacity();
-                        if (totalCapacity < createBookingForm.numberOfGuests) {
-                          alert(`❌ Selected rooms can accommodate ${totalCapacity} guest(s), but you have ${createBookingForm.numberOfGuests} guests.`);
+                        if (!createBookingForm.rooms || createBookingForm.rooms.length === 0) {
+                          showAlert('Validation Error', 'Please select at least one room.', 'error');
                           return;
                         }
                       }
@@ -2897,38 +3060,22 @@ export default function ReceptionistDashboard() {
                     Next
                   </button>
                 )}
-                {createBookingStep === 3 && (() => {
-                  // Check if all requirements are satisfied
-                  const isValidForSubmission = 
-                    createBookingForm.firstName?.trim() &&
-                    createBookingForm.lastName?.trim() &&
-                    createBookingForm.numberOfGuests >= 1 &&
-                    createBookingForm.checkIn &&
-                    createBookingForm.checkOut &&
-                    Object.keys(createBookingForm.selectedRooms).length > 0 &&
-                    computeTotalCapacity() >= createBookingForm.numberOfGuests;
-
-                  return (
-                    <button
-                      type="submit"
-                      disabled={!isValidForSubmission}
-                      style={{
-                        padding: '10px 20px',
-                        backgroundColor: isValidForSubmission ? '#FEBE52' : '#d1d5db',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: isValidForSubmission ? 'pointer' : 'not-allowed',
-                        color: isValidForSubmission ? '#fff' : '#9ca3af',
-                        fontWeight: 'bold',
-                        opacity: isValidForSubmission ? 1 : 0.6,
-                        transition: 'all 0.2s ease'
-                      }}
-                      title={!isValidForSubmission ? 'Please complete all required fields and selections' : 'Create booking'}
-                    >
-                      {isValidForSubmission ? 'Create Booking' : 'Complete Requirements'}
-                    </button>
-                  );
-                })()}
+                {createBookingStep === 3 && (
+                  <button
+                    type="submit"
+                    style={{
+                      padding: '10px 20px',
+                      backgroundColor: '#FEBE52',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      color: '#fff',
+                      fontWeight: 'bold',
+                    }}
+                  >
+                    Create
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => {
@@ -2942,8 +3089,7 @@ export default function ReceptionistDashboard() {
                       checkOut: '',
                       numberOfGuests: 1,
                       paymentMode: 'cash',
-                      selectedRooms: {},
-                      selectedRoomDetails: {},
+                      rooms: [],
                       selectedAmenities: { optional: {}, rental: {}, cottage: null },
                     });
                   }}
@@ -3103,6 +3249,33 @@ export default function ReceptionistDashboard() {
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
               </svg>
               Confirmed ({(confirmedBookings || []).length})
+            </button>
+            <button 
+              className={`filter-tab ${activeBookingFilter === 'checkedIn' ? 'active' : ''}`}
+              onClick={() => handleFilterChange('checkedIn')}
+            >
+              <svg viewBox="0 0 20 20" fill="currentColor">
+                <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+              </svg>
+              Checked In ({(checkedInBookings || []).length})
+            </button>
+            <button 
+              className={`filter-tab ${activeBookingFilter === 'checkedOut' ? 'active' : ''}`}
+              onClick={() => handleFilterChange('checkedOut')}
+            >
+              <svg viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd" />
+              </svg>
+              Checked Out ({(checkedOutBookings || []).length})
+            </button>
+            <button 
+              className={`filter-tab ${activeBookingFilter === 'completed' ? 'active' : ''}`}
+              onClick={() => handleFilterChange('completed')}
+            >
+              <svg viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              Completed ({(completedBookings || []).length})
             </button>
           </div>
           
@@ -4771,6 +4944,82 @@ export default function ReceptionistDashboard() {
         onLeave={navigationGuard.handleLeave}
         context="logout"
         message={navigationGuard.message}
+      />
+
+      {/* Alert Modal */}
+      {alertModal.show && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999,
+        }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #febe52 0%, #fcd34d 50%, #f6e27a 100%)',
+            borderRadius: '16px',
+            padding: '24px',
+            maxWidth: '400px',
+            width: '90%',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+            textAlign: 'center',
+          }}>
+            <div style={{ marginBottom: '16px' }}>
+              {alertModal.type === 'error' && <XCircle size={48} color="#dc2626" />}
+              {alertModal.type === 'warning' && <AlertCircle size={48} color="#f59e0b" />}
+              {alertModal.type === 'success' && <CheckCircle size={48} color="#16a34a" />}
+              {alertModal.type === 'info' && <Info size={48} color="#2563eb" />}
+            </div>
+            <h3 style={{
+              margin: '0 0 12px 0',
+              color: '#5a3e00',
+              fontSize: '20px',
+              fontWeight: 'bold',
+            }}>{alertModal.title}</h3>
+            <p style={{
+              margin: '0 0 20px 0',
+              color: '#6b4a00',
+              fontSize: '14px',
+              lineHeight: '1.5',
+            }}>{alertModal.message}</p>
+            <button
+              onClick={() => {
+                const onCloseCallback = alertModal.onClose;
+                setAlertModal({ show: false, title: '', message: '', type: 'info', onClose: null });
+                if (onCloseCallback) onCloseCallback();
+              }}
+              style={{
+                backgroundColor: '#56A86B',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '12px 32px',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                transition: 'background-color 0.2s',
+              }}
+              onMouseOver={(e) => e.target.style.backgroundColor = '#4a9660'}
+              onMouseOut={(e) => e.target.style.backgroundColor = '#56A86B'}
+            >
+              Okay
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={showChangePassword}
+        onClose={() => setShowChangePassword(false)}
+        onSuccess={() => {
+          console.log('Receptionist password changed successfully');
+        }}
       />
     </div>
   );

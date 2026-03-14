@@ -174,11 +174,9 @@ export async function middleware(req: NextRequest) {
       const safeRedirects: Record<string, string[]> = {
         "customer": ["/booking", "/guest"],
         "superadmin": ["/super-admin", "/booking"],
-        "admin": ["/admin", "/booking"],
         "receptionist": ["/receptionist", "/booking"],
         "cashier": ["/cashier", "/booking"],
         "amenityinventorymanager": ["/amenityinventorymanager", "/booking"],
-        "developer": ["/developer", "/booking"],
       };
 
       const allowedRedirects = safeRedirects[role] || [];
@@ -194,11 +192,9 @@ export async function middleware(req: NextRequest) {
       const role = token.role.toLowerCase();
       switch (role) {
         case "superadmin": return NextResponse.redirect(new URL("/super-admin/dashboard", req.url));
-        case "admin": return NextResponse.redirect(new URL("/admin/dashboard", req.url));
         case "receptionist": return NextResponse.redirect(new URL("/receptionist", req.url));
         case "cashier": return NextResponse.redirect(new URL("/cashier", req.url));
         case "amenityinventorymanager": return NextResponse.redirect(new URL("/amenityinventorymanager", req.url));
-        case "developer": return NextResponse.redirect(new URL("/developer/dashboard", req.url));
         case "customer": return NextResponse.redirect(new URL("/guest/dashboard", req.url));
         default: return NextResponse.redirect(new URL("/", req.url));
       }
@@ -220,39 +216,39 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // --- 2.6 Handle booking route - CUSTOMER role only ---
+  // --- 2.6 Handle booking route - CUSTOMER or GUEST role only ---
   if (pathname.startsWith('/booking') && token) {
-    if (typeof token.role !== "string" || token.role.toUpperCase() !== "CUSTOMER") {
+    const userRole = typeof token.role === "string" ? token.role.toUpperCase() : "";
+    // Accept both CUSTOMER and legacy GUEST roles for booking
+    if (userRole !== "CUSTOMER") {
       // Redirect non-customers to their appropriate dashboard
       const role = typeof token.role === "string" ? token.role.toLowerCase() : "";
       switch (role) {
         case "superadmin": return NextResponse.redirect(new URL("/super-admin/dashboard", req.url));
-        case "admin": return NextResponse.redirect(new URL("/admin/dashboard", req.url));
         case "receptionist": return NextResponse.redirect(new URL("/receptionist", req.url));
         case "cashier": return NextResponse.redirect(new URL("/cashier", req.url));
         case "amenityinventorymanager": return NextResponse.redirect(new URL("/amenityinventorymanager", req.url));
-        case "developer": return NextResponse.redirect(new URL("/developer/dashboard", req.url));
         default: return NextResponse.redirect(new URL("/unauthorized", req.url));
       }
     }
   }
 
   // --- 3. Role-based protection for specific routes ---
-  const roleProtectedRoutes: Record<string, string> = {
-    "/super-admin": "superadmin",
-    "/receptionist": "receptionist",
-    "/cashier": "cashier",
-    "/amenityinventorymanager": "amenityinventorymanager",
-    "/developer": "developer",
-    "/customer": "customer",
+  const roleProtectedRoutes: Record<string, string[]> = {
+    "/super-admin": ["superadmin"],
+    "/receptionist": ["receptionist"],
+    "/cashier": ["cashier"],
+    "/amenityinventorymanager": ["amenityinventorymanager"],
+    "/guest": ["customer"],
   };
 
   for (const route in roleProtectedRoutes) {
     if (pathname.startsWith(route)) {
-      const requiredRole = roleProtectedRoutes[route];
+      const allowedRoles = roleProtectedRoutes[route];
 
-      // Check if user has the required role
-      if (typeof token?.role !== "string" || token.role.toLowerCase() !== requiredRole) {
+      // Check if user has one of the allowed roles
+      const userRole = typeof token?.role === "string" ? token.role.toLowerCase() : "";
+      if (!allowedRoles.includes(userRole)) {
         return NextResponse.redirect(new URL("/unauthorized", req.url));
       }
 

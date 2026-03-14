@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import { recordAudit } from '@/src/lib/audit';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/auth';
+import { notifyStaff, notifyUser, EVENTS } from '@/lib/pusher-server';
 
 // ✅ GET: Fetch notifications by role or userId
 export async function GET(req) {
@@ -60,6 +61,31 @@ export async function POST(req) {
     const newNotification = await prisma.notification.create({
       data: { message, type, role },
     });
+
+    // 🔔 PUSHER: Send real-time notification to the appropriate channel
+    try {
+      if (role.toUpperCase() === 'CUSTOMER' && body.userId) {
+        // Notify specific user
+        await notifyUser(body.userId, EVENTS.NEW_NOTIFICATION, {
+          id: newNotification.id,
+          message,
+          type,
+          createdAt: newNotification.createdAt,
+        });
+      } else {
+        // Notify staff by role
+        await notifyStaff(role, {
+          id: newNotification.id,
+          message,
+          type,
+          createdAt: newNotification.createdAt,
+        });
+      }
+      console.log('[Pusher] Sent real-time notification');
+    } catch (pusherErr) {
+      console.error('[Pusher] Failed to send real-time notification:', pusherErr);
+      // Non-critical: notification was still saved to database
+    }
 
     // Record audit for notification creation
     try {

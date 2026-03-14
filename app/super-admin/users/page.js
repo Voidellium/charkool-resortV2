@@ -6,648 +6,616 @@ import {
   Edit,
   Trash2,
   X,
-  Plus
+  Plus,
+  Users,
+  UserCog,
+  Eye,
+  Shield,
+  Calendar,
+  Mail,
+  Phone,
+  CheckCircle,
+  XCircle
 } from 'lucide-react';
 import SuperAdminLayout from '@/components/SuperAdminLayout';
 import { useToast, ConfirmModal } from '@/components/Toast';
 
+// Role configuration
+const STAFF_ROLES = [
+  { value: 'RECEPTIONIST', label: 'Receptionist', color: '#2563eb' },
+  { value: 'CASHIER', label: 'Cashier', color: '#16a34a' },
+  { value: 'AMENITYINVENTORYMANAGER', label: 'Inventory Manager', color: '#9333ea' },
+  { value: 'SUPERADMIN', label: 'Super Admin', color: '#dc2626' },
+];
+
+const getRoleBadgeColor = (role) => {
+  const roleConfig = STAFF_ROLES.find(r => r.value === role);
+  if (roleConfig) return roleConfig.color;
+  if (role === 'CUSTOMER') return '#6b7280';
+  return '#6b7280';
+};
+
+const getRoleLabel = (role) => {
+  const roleConfig = STAFF_ROLES.find(r => r.value === role);
+  if (roleConfig) return roleConfig.label;
+  if (role === 'CUSTOMER') return 'Customer';
+  return role;
+};
+
 export default function UsersPage() {
-  const [users, setUsers] = useState([]);
-  const [showForm, setShowForm] = useState(false);
-  const [editingUser, setEditingUser] = useState(null);
-  const [filterRole, setFilterRole] = useState('');
+  // Tab state
+  const [activeTab, setActiveTab] = useState('staff'); // 'staff' or 'customers'
+  
+  // Data state
+  const [staff, setStaff] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  
+  // UI state
+  const [showStaffForm, setShowStaffForm] = useState(false);
+  const [editingStaff, setEditingStaff] = useState(null);
+  const [viewingCustomer, setViewingCustomer] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [confirmModal, setConfirmModal] = useState({ isOpen: false, userId: null });
+  const [filterRole, setFilterRole] = useState('');
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, userId: null, userType: null });
   const [loading, setLoading] = useState(false);
+  const [formLoading, setFormLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [isTablet, setIsTablet] = useState(false);
+  
+  // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const USERS_PER_PAGE = 5;
+  const ITEMS_PER_PAGE = 8;
   
   const { success, error } = useToast();
 
   // Responsive detection
   useEffect(() => {
-    const checkScreenSize = () => {
-      setIsMobile(window.innerWidth <= 768);
-      setIsTablet(window.innerWidth > 768 && window.innerWidth <= 1024);
-    };
-    
+    const checkScreenSize = () => setIsMobile(window.innerWidth <= 768);
     checkScreenSize();
     window.addEventListener('resize', checkScreenSize);
-    
     return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
 
-  // Fetch users
-  const fetchUsers = async () => {
-    setLoading(true);
+  // Fetch data
+  const fetchStaff = async () => {
     try {
-      const res = await fetch('/api/user', { headers: { 'Content-Type': 'application/json' } });
-      const data = await res.json();
-      setUsers(data);
+      const res = await fetch('/api/staff');
+      if (res.ok) {
+        const data = await res.json();
+        setStaff(data);
+      }
     } catch (err) {
-      console.error('Failed to fetch users:', err);
-      error('Failed to load users');
-    } finally {
-      setLoading(false);
+      console.error('Failed to fetch staff:', err);
+      error('Failed to load staff');
     }
   };
 
-  useEffect(() => { fetchUsers(); }, []);
-
-  const handleAdd = () => {
-    setEditingUser(null);
-    setShowForm(true);
+  const fetchCustomers = async () => {
+    try {
+      const res = await fetch('/api/customers');
+      if (res.ok) {
+        const data = await res.json();
+        setCustomers(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch customers:', err);
+      error('Failed to load customers');
+    }
   };
 
-  const handleEdit = (user) => {
-    setEditingUser(user);
-    setShowForm(true);
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([fetchStaff(), fetchCustomers()]).finally(() => setLoading(false));
+  }, []);
+
+  // Reset page when changing tabs or filters
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, filterRole, searchQuery]);
+
+  // Filter logic
+  const filteredStaff = staff
+    .filter(s => filterRole ? s.role === filterRole : true)
+    .filter(s => {
+      const name = s.name || '';
+      const email = s.email || '';
+      return name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+             email.toLowerCase().includes(searchQuery.toLowerCase());
+    });
+
+  const filteredCustomers = customers
+    .filter(c => {
+      const name = c.name || `${c.firstName || ''} ${c.lastName || ''}`;
+      const email = c.email || '';
+      return name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+             email.toLowerCase().includes(searchQuery.toLowerCase());
+    });
+
+  // Pagination
+  const currentItems = activeTab === 'staff' ? filteredStaff : filteredCustomers;
+  const totalPages = Math.ceil(currentItems.length / ITEMS_PER_PAGE);
+  const paginatedItems = currentItems.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
+  // Handlers
+  const handleAddStaff = () => {
+    setEditingStaff(null);
+    setShowStaffForm(true);
   };
 
-  const handleDelete = (id) => {
-    setConfirmModal({ isOpen: true, userId: id });
+  const handleEditStaff = (staffMember) => {
+    setEditingStaff(staffMember);
+    setShowStaffForm(true);
+  };
+
+  const handleViewCustomer = (customer) => {
+    setViewingCustomer(customer);
+  };
+
+  const handleDelete = (id, userType) => {
+    setConfirmModal({ isOpen: true, userId: id, userType });
   };
 
   const confirmDelete = async () => {
-    const id = confirmModal.userId;
-    setLoading(true);
+    const { userId, userType } = confirmModal;
+    setFormLoading(true);
     try {
-      const res = await fetch(`/api/user/${id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' } });
+      const res = await fetch(`/api/user/${userId}`, { method: 'DELETE' });
       if (res.ok) {
-        setUsers(users.filter(u => u.id !== id));
-        success('User deleted successfully');
+        if (userType === 'staff') {
+          setStaff(staff.filter(s => s.id !== userId));
+        } else {
+          setCustomers(customers.filter(c => c.id !== userId));
+        }
+        success(`${userType === 'staff' ? 'Staff' : 'Customer'} deleted successfully`);
       } else {
-        throw new Error('Delete failed');
+        const data = await res.json();
+        throw new Error(data.error || 'Delete failed');
       }
     } catch (err) {
       console.error(err);
-      error('Failed to delete user');
+      error(err.message || 'Failed to delete');
     } finally {
-      setLoading(false);
+      setFormLoading(false);
+      setConfirmModal({ isOpen: false, userId: null, userType: null });
     }
   };
 
-  const handleSave = async (user) => {
-    setLoading(true);
+  const handleSaveStaff = async (formData) => {
+    setFormLoading(true);
     try {
-      if (editingUser) {
-        const res = await fetch(`/api/user/${editingUser.id}`, {
+      if (editingStaff) {
+        // Update existing staff
+        const res = await fetch(`/api/user/${editingStaff.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(user),
+          body: JSON.stringify(formData),
         });
-        const updatedUser = await res.json();
-        setUsers(users.map(u => u.id === updatedUser.id ? updatedUser : u));
-        success('User updated successfully');
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || 'Update failed');
+        }
+        const updatedStaff = await res.json();
+        setStaff(staff.map(s => s.id === updatedStaff.id ? updatedStaff : s));
+        success('Staff updated successfully');
       } else {
-        const res = await fetch('/api/user', {
+        // Create new staff
+        const res = await fetch('/api/staff', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(user),
+          body: JSON.stringify(formData),
         });
-        const newUser = await res.json();
-        setUsers([...users, newUser]);
-        success('User created successfully');
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || 'Creation failed');
+        }
+        const newStaff = await res.json();
+        setStaff([newStaff, ...staff]);
+        success('Staff created successfully');
       }
-      setShowForm(false);
+      setShowStaffForm(false);
     } catch (err) {
       console.error(err);
-      error('Failed to save user');
+      error(err.message || 'Failed to save staff');
     } finally {
-      setLoading(false);
+      setFormLoading(false);
     }
   };
 
-  const filteredUsers = users
-    .filter(u => filterRole ? u.role === filterRole : true)
-    .filter(u => {
-      const name = u.name || '';
-      const email = u.email || '';
-      return name.toLowerCase().includes(searchQuery.toLowerCase()) || email.toLowerCase().includes(searchQuery.toLowerCase());
-    });
+  // Styles
+  const tabStyle = (isActive) => ({
+    padding: '12px 24px',
+    background: isActive ? 'linear-gradient(135deg, #febe52 0%, #EBD591 100%)' : 'transparent',
+    color: isActive ? 'white' : '#666',
+    border: isActive ? 'none' : '2px solid #e5e7eb',
+    borderRadius: '12px 12px 0 0',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontSize: '1rem',
+    fontWeight: '600',
+    transition: 'all 0.3s ease',
+  });
 
-  // Pagination calculation
-  const totalPages = Math.ceil(filteredUsers.length / USERS_PER_PAGE);
-  const startIndex = (currentPage - 1) * USERS_PER_PAGE;
-  const paginatedUsers = filteredUsers.slice(startIndex, startIndex + USERS_PER_PAGE);
-
-  // Reset to first page when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filterRole, searchQuery]);
+  const cardStyle = {
+    background: 'rgba(255,255,255,0.95)',
+    borderRadius: '16px',
+    padding: isMobile ? '1rem' : '1.5rem',
+    boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+  };
 
   return (
     <SuperAdminLayout activePage="users">
       <div style={{ 
-        padding: isMobile ? '0.75rem' : isTablet ? '1rem 1.25rem' : '1.5rem 2rem', 
+        padding: isMobile ? '0.75rem' : '1.5rem 2rem', 
         minHeight: '100vh',
         background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)'
       }}>
-        {/* Header Section */}
+        {/* Header */}
         <div style={{ 
-          display: 'flex', 
+          ...cardStyle,
+          marginBottom: '1.5rem',
+          display: 'flex',
           flexDirection: isMobile ? 'column' : 'row',
-          justifyContent: 'space-between', 
-          alignItems: isMobile ? 'flex-start' : 'center', 
-          gap: isMobile ? '1rem' : '0',
-          marginBottom: isMobile ? '1rem' : '2rem',
-          background: 'rgba(255,255,255,0.9)',
-          padding: isMobile ? '1.25rem' : isTablet ? '1.5rem' : '2rem',
-          borderRadius: '16px',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
-          backdropFilter: 'blur(10px)'
+          justifyContent: 'space-between',
+          alignItems: isMobile ? 'flex-start' : 'center',
+          gap: '1rem'
         }}>
           <div>
             <h1 style={{ 
-              fontSize: isMobile ? '1.75rem' : isTablet ? '2rem' : '2.5rem', 
+              fontSize: isMobile ? '1.75rem' : '2.5rem', 
               fontWeight: '700', 
               margin: 0, 
               background: 'linear-gradient(135deg, #febe52 0%, #EBD591 100%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text'
             }}>
               User Management
             </h1>
-            <p style={{ 
-              fontSize: isMobile ? '0.9rem' : '1.1rem', 
-              color: '#666', 
-              margin: '0.5rem 0 0 0' 
-            }}>
-              Manage all system users and their permissions
+            <p style={{ fontSize: '1rem', color: '#666', margin: '0.5rem 0 0 0' }}>
+              Manage staff accounts and view customer information
             </p>
           </div>
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '1rem' }}>
             <div style={{ 
-              background: 'linear-gradient(135deg, #febe52 0%, #EBD591 100%)',
-              padding: '1rem',
-              borderRadius: '12px',
+              background: '#2563eb',
+              padding: '0.75rem 1rem',
+              borderRadius: '8px',
               color: 'white',
-              fontWeight: '600'
+              fontWeight: '600',
+              fontSize: '0.9rem'
             }}>
-              Total Users: {filteredUsers.length}
+              <UserCog size={16} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
+              Staff: {staff.length}
+            </div>
+            <div style={{ 
+              background: '#6b7280',
+              padding: '0.75rem 1rem',
+              borderRadius: '8px',
+              color: 'white',
+              fontWeight: '600',
+              fontSize: '0.9rem'
+            }}>
+              <Users size={16} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
+              Customers: {customers.length}
             </div>
           </div>
         </div>
 
-        {/* Controls Panel */}
-        <div
-          style={{
-            display: isMobile ? 'flex' : 'grid',
-            flexDirection: isMobile ? 'column' : undefined,
-            gridTemplateColumns: isMobile ? undefined : isTablet ? '1fr 1fr' : 'auto 1fr auto',
-            gap: isMobile ? '1rem' : '1.5rem',
-            padding: isMobile ? '1rem' : '1.5rem',
-            borderRadius: '16px',
-            background: 'rgba(255,255,255,0.9)',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
-            alignItems: 'center',
-            marginBottom: isMobile ? '1rem' : '2rem',
-            backdropFilter: 'blur(10px)'
-          }}
-        >
-          {/* Filter Dropdown */}
-          <select
-            aria-label="Filter by role"
-            style={{
-              padding: '12px 16px',
-              borderRadius: '12px',
-              border: '2px solid #e5e7eb',
-              minWidth: isMobile ? '100%' : '200px',
-              fontSize: isMobile ? '0.9rem' : '1rem',
-              background: 'white',
-              cursor: 'pointer',
-              order: isMobile ? 1 : undefined,
-              transition: 'all 0.3s ease'
-            }}
-            value={filterRole}
-            onChange={(e) => setFilterRole(e.target.value)}
-            onFocus={(e) => e.target.style.borderColor = '#febe52'}
-            onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
-          >
-            <option value="">All Roles</option>
-            <option value="RECEPTIONIST">Receptionist</option>
-            <option value="AMENITYINVENTORYMANAGER">Inventory Manager</option>
-            <option value="MANAGER">Manager</option>
-            <option value="SUPERADMIN">Super Admin</option>
-            <option value="CASHIER">Cashier</option>
-          </select>
-
-          {/* Search Input */}
-          <div style={{ 
-            position: 'relative', 
-            flex: 1,
-            order: isMobile ? 2 : undefined,
-            width: isMobile ? '100%' : undefined
-          }}>
-            <Search 
-              size={20} 
-              style={{ 
-                position: 'absolute', 
-                left: '12px', 
-                top: '50%', 
-                transform: 'translateY(-50%)', 
-                color: '#6b7280' 
-              }} 
-            />
-            <input
-              aria-label="Search users"
-              type="text"
-              placeholder="Search by name or email..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{
-                padding: '12px 16px 12px 60px',
-                borderRadius: '12px',
-                border: '2px solid #e5e7eb',
-                fontSize: '1rem',
-                background: 'white',
-                transition: 'all 0.3s ease',
-                width: '100%'
-              }}
-              onFocus={(e) => e.target.style.borderColor = '#febe52'}
-              onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
-            />
-          </div>
-
-          {/* Add User Button */}
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: '4px', marginBottom: '-2px', position: 'relative', zIndex: 1 }}>
           <button
-            onClick={handleAdd}
-            style={{
-              padding: isMobile ? '10px 16px' : '12px 24px',
-              background: 'linear-gradient(135deg, #febe52 0%, #EBD591 100%)',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '12px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: isMobile ? '0.9rem' : '1rem',
-              fontWeight: '600',
-              transition: 'all 0.3s ease',
-              boxShadow: '0 4px 15px rgba(102, 126, 234, 0.3)',
-              width: isMobile ? '100%' : 'auto',
-              order: isMobile ? 3 : undefined
-            }}
-            aria-label="Add new user"
-            onMouseEnter={(e) => {
-              e.target.style.transform = 'translateY(-2px)';
-              e.target.style.boxShadow = '0 8px 25px rgba(102, 126, 234, 0.4)';
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.transform = 'translateY(0)';
-              e.target.style.boxShadow = '0 4px 15px rgba(102, 126, 234, 0.3)';
-            }}
+            onClick={() => setActiveTab('staff')}
+            style={tabStyle(activeTab === 'staff')}
           >
-            <Plus size={20} style={{ marginRight: '8px' }} /> Add New User
+            <UserCog size={20} />
+            Staff Accounts
+          </button>
+          <button
+            onClick={() => setActiveTab('customers')}
+            style={tabStyle(activeTab === 'customers')}
+          >
+            <Users size={20} />
+            Customers
           </button>
         </div>
 
-        {/* User Management Table */}
-        <div style={{
-          background: 'rgba(255,255,255,0.9)',
-          borderRadius: '16px',
-          padding: isMobile ? '1rem' : '1.5rem',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
-          backdropFilter: 'blur(10px)'
-        }}>
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            marginBottom: isMobile ? '1rem' : '1.5rem' 
+        {/* Main Content Card */}
+        <div style={cardStyle}>
+          {/* Controls */}
+          <div style={{
+            display: 'flex',
+            flexDirection: isMobile ? 'column' : 'row',
+            gap: '1rem',
+            marginBottom: '1.5rem',
+            alignItems: isMobile ? 'stretch' : 'center'
           }}>
-            <h3 style={{ 
-              color: '#333', 
-              fontSize: isMobile ? '1.2rem' : '1.4rem',
-              fontWeight: '600',
-              margin: 0
-            }}>
-              User Management ({filteredUsers.length} users)
-            </h3>
-            <span style={{ 
-              color: '#666', 
-              fontSize: '0.9rem' 
-            }}>
-              Page {currentPage} of {totalPages}
-            </span>
+            {/* Search */}
+            <div style={{ position: 'relative', flex: 1 }}>
+              <Search size={20} style={{ 
+                position: 'absolute', left: '12px', top: '50%', 
+                transform: 'translateY(-50%)', color: '#6b7280' 
+              }} />
+              <input
+                type="text"
+                placeholder={`Search ${activeTab}...`}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '12px 12px 12px 44px',
+                  borderRadius: '8px',
+                  border: '2px solid #e5e7eb',
+                  fontSize: '1rem',
+                }}
+              />
+            </div>
+
+            {/* Filter (staff only) */}
+            {activeTab === 'staff' && (
+              <select
+                value={filterRole}
+                onChange={(e) => setFilterRole(e.target.value)}
+                style={{
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  border: '2px solid #e5e7eb',
+                  fontSize: '1rem',
+                  minWidth: '180px',
+                }}
+              >
+                <option value="">All Roles</option>
+                {STAFF_ROLES.map(role => (
+                  <option key={role.value} value={role.value}>{role.label}</option>
+                ))}
+              </select>
+            )}
+
+            {/* Add Staff Button (staff tab only) */}
+            {activeTab === 'staff' && (
+              <button
+                onClick={handleAddStaff}
+                style={{
+                  padding: '12px 20px',
+                  background: 'linear-gradient(135deg, #febe52 0%, #EBD591 100%)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontSize: '1rem',
+                  fontWeight: '600',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <Plus size={20} /> Add Staff
+              </button>
+            )}
           </div>
-          
-          <div style={{ 
-            overflowX: 'auto',
-            borderRadius: '12px',
-            background: 'rgba(255,255,255,0.3)',
-            WebkitOverflowScrolling: 'touch',
-            scrollbarWidth: 'thin'
-          }}>
-            <table style={{ 
-              width: '100%', 
-              borderCollapse: 'separate',
-              borderSpacing: '0 4px',
-              minWidth: isMobile ? '600px' : '800px'
+
+          {/* Info Banner for Customers */}
+          {activeTab === 'customers' && (
+            <div style={{
+              background: '#f0f9ff',
+              border: '1px solid #bae6fd',
+              borderRadius: '8px',
+              padding: '12px 16px',
+              marginBottom: '1rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              color: '#0369a1'
             }}>
+              <Shield size={20} />
+              <span>
+                <strong>Customer accounts are created through registration.</strong> You can view their information and booking history here.
+              </span>
+            </div>
+          )}
+
+          {/* Table */}
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
               <thead>
-                <tr>
-                  <th style={{ 
-                    padding: '1rem', 
-                    textAlign: 'left',
-                    background: 'linear-gradient(135deg, #febe52%, #EBD591 100%)',
-                    color: 'white',
-                    fontWeight: '600',
-                    borderRadius: '12px 0 0 12px'
-                  }}>Name</th>
-                  <th style={{ 
-                    padding: '1rem', 
-                    textAlign: 'left',
-                    background: 'linear-gradient(135deg, #febe52%, #EBD591 100%)',
-                    color: 'white',
-                    fontWeight: '600'
-                  }}>Email</th>
-                  <th style={{ 
-                    padding: '1rem', 
-                    textAlign: 'left',
-                    background: 'linear-gradient(135deg, #febe52%, #EBD591 100%)',
-                    color: 'white',
-                    fontWeight: '600'
-                  }}>Role</th>
-                  <th style={{ 
-                    padding: '1rem', 
-                    textAlign: 'center',
-                    background: 'linear-gradient(135deg, #febe52%, #EBD591 100%)',
-                    color: 'white',
-                    fontWeight: '600',
-                    borderRadius: '0 12px 12px 0'
-                  }}>Actions</th>
+                <tr style={{ background: 'linear-gradient(135deg, #febe52 0%, #EBD591 100%)' }}>
+                  <th style={{ padding: '14px', textAlign: 'left', color: 'white', fontWeight: '600' }}>Name</th>
+                  <th style={{ padding: '14px', textAlign: 'left', color: 'white', fontWeight: '600' }}>Email</th>
+                  {activeTab === 'staff' ? (
+                    <th style={{ padding: '14px', textAlign: 'left', color: 'white', fontWeight: '600' }}>Role</th>
+                  ) : (
+                    <>
+                      <th style={{ padding: '14px', textAlign: 'center', color: 'white', fontWeight: '600' }}>Verified</th>
+                      <th style={{ padding: '14px', textAlign: 'center', color: 'white', fontWeight: '600' }}>Bookings</th>
+                    </>
+                  )}
+                  <th style={{ padding: '14px', textAlign: 'center', color: 'white', fontWeight: '600' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-              {loading ? (
-                <TableLoading colSpan={4} />
-              ) : paginatedUsers.length === 0 ? (
-                <tr>
-                  <td colSpan={4} style={{ 
-                    padding: '2rem', 
-                    textAlign: 'center',
-                    background: 'rgba(249, 250, 251, 0.7)',
-                    borderRadius: '12px',
-                    color: '#6b7280',
-                    fontSize: '1rem'
-                  }}>
-                    No users found matching your criteria
-                  </td>
-                </tr>
-              ) : (
-                paginatedUsers.map((user, index) => (
-                  <tr 
-                    key={user.id} 
-                    style={{ 
-                      background: 'rgba(255,255,255,0.7)',
-                      transition: 'all 0.2s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      const cells = e.currentTarget.querySelectorAll('td');
-                      e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.95)';
-                      e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.1)';
-                      cells.forEach(cell => {
-                        cell.style.transform = 'translateY(-1px)';
-                      });
-                    }}
-                    onMouseLeave={(e) => {
-                      const cells = e.currentTarget.querySelectorAll('td');
-                      e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.7)';
-                      e.currentTarget.style.boxShadow = 'none';
-                      cells.forEach(cell => {
-                        cell.style.transform = 'translateY(0)';
-                      });
-                    }}
-                  >
-                    <td style={{ 
-                      padding: '1rem', 
-                      borderRadius: index === 0 ? '12px 0 0 12px' : '0',
-                      fontWeight: '600',
-                      color: '#1f2937',
-                      background: index % 2 === 0 ? 'rgba(248,250,252,0.5)' : 'transparent',
-                      transition: 'all 0.2s ease',
-                      verticalAlign: 'middle'
-                    }}>
-                      {user.name || 'N/A'}
-                    </td>
-                    <td style={{ 
-                      padding: '1rem',
-                      color: '#6b7280',
-                      background: index % 2 === 0 ? 'rgba(248,250,252,0.5)' : 'transparent',
-                      transition: 'all 0.2s ease',
-                      verticalAlign: 'middle',
-                      wordBreak: 'break-word'
-                    }}>
-                      {user.email || 'N/A'}
-                    </td>
-                    <td style={{ 
-                      padding: '1rem',
-                      color: '#374151',
-                      background: index % 2 === 0 ? 'rgba(248,250,252,0.5)' : 'transparent',
-                      transition: 'all 0.2s ease',
-                      verticalAlign: 'middle'
-                    }}>
-                      <span style={{
-                        background: user.role === 'SUPERADMIN' ? '#EB7407' :
-                                  user.role === 'RECEPTIONIST' ? '#EBB307' :
-                                  user.role === 'CASHIER' ? '#EBEA07' :
-                                  user.role === 'AMENITYINVENTORYMANAGER' ? '#febe52' :
-                                  user.role === 'MANAGER' ? '#f59e0b' : '#9f1af7ff',
-                        color: 'white',
-                        padding: '0.4rem 0.8rem',
-                        borderRadius: '20px',
-                        fontSize: '0.8rem',
-                        fontWeight: '500',
-                        display: 'inline-block',
-                        minWidth: '80px',
-                        textAlign: 'center'
+                {loading ? (
+                  <TableLoading colSpan={activeTab === 'staff' ? 4 : 5} />
+                ) : paginatedItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={activeTab === 'staff' ? 4 : 5} style={{ 
+                        padding: '2rem', textAlign: 'center', color: '#6b7280' 
                       }}>
-                        {user.role ? user.role.replace('AMENITYINVENTORYMANAGER', 'INVENTORY') : 'N/A'}
-                      </span>
-                    </td>
-                    <td style={{ 
-                      padding: '1rem', 
-                      borderRadius: index === 0 ? '0 12px 12px 0' : '0',
-                      textAlign: 'center',
-                      background: index % 2 === 0 ? 'rgba(248,250,252,0.5)' : 'transparent',
-                      transition: 'all 0.2s ease',
-                      verticalAlign: 'middle'
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
-                        <button
-                          aria-label={`Edit ${user.name}`}
-                          onClick={() => handleEdit(user)}
-                          style={{
-                            padding: '8px 12px',
-                            borderRadius: '8px',
-                            border: 'none',
-                            background: 'linear-gradient(135deg, #febe52 0%, #EBD591 100%)',
-                            color: '#fff',
-                            cursor: 'pointer',
-                            fontSize: '0.9rem',
-                            fontWeight: '500',
-                            transition: 'all 0.3s ease',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.25rem'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.transform = 'translateY(-2px)';
-                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.4)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.transform = 'translateY(0)';
-                            e.currentTarget.style.boxShadow = 'none';
-                          }}
-                        >
-                          <Edit size={16} style={{ marginRight: '4px' }} /> Edit
-                        </button>
-                        <button
-                          aria-label={`Delete ${user.name}`}
-                          onClick={() => handleDelete(user.id)}
-                          style={{
-                            padding: '8px 12px',
-                            borderRadius: '8px',
-                            border: 'none',
-                            background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-                            color: '#fff',
-                            cursor: 'pointer',
-                            fontSize: '0.9rem',
-                            fontWeight: '500',
-                            transition: 'all 0.3s ease',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.25rem'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.transform = 'translateY(-2px)';
-                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.4)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.transform = 'translateY(0)';
-                            e.currentTarget.style.boxShadow = 'none';
-                          }}
-                        >
-                          <Trash2 size={16} style={{ marginRight: '4px' }} /> Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-              </tbody>
-            </table>
+                        No {activeTab} found
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedItems.map((item, idx) => (
+                      <tr key={item.id} style={{ 
+                        background: idx % 2 === 0 ? '#f9fafb' : 'white',
+                        borderBottom: '1px solid #e5e7eb'
+                      }}>
+                        <td style={{ padding: '14px', fontWeight: '500' }}>
+                          {item.name || `${item.firstName || ''} ${item.lastName || ''}`.trim() || 'N/A'}
+                        </td>
+                        <td style={{ padding: '14px', color: '#6b7280' }}>{item.email}</td>
+                        {activeTab === 'staff' ? (
+                          <td style={{ padding: '14px' }}>
+                            <span style={{
+                              background: getRoleBadgeColor(item.role),
+                              color: 'white',
+                              padding: '6px 12px',
+                              borderRadius: '20px',
+                              fontSize: '0.85rem',
+                              fontWeight: '500'
+                            }}>
+                              {getRoleLabel(item.role)}
+                            </span>
+                          </td>
+                        ) : (
+                          <>
+                            <td style={{ padding: '14px', textAlign: 'center' }}>
+                              {item.isVerified ? (
+                                <CheckCircle size={20} color="#16a34a" />
+                              ) : (
+                                <XCircle size={20} color="#dc2626" />
+                              )}
+                            </td>
+                            <td style={{ padding: '14px', textAlign: 'center', fontWeight: '600' }}>
+                              {item.bookingCount || 0}
+                            </td>
+                          </>
+                        )}
+                        <td style={{ padding: '14px', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
+                            {activeTab === 'staff' ? (
+                              <>
+                                <button
+                                  onClick={() => handleEditStaff(item)}
+                                  style={{
+                                    padding: '8px 12px',
+                                    background: '#2563eb',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    fontSize: '0.85rem'
+                                  }}
+                                >
+                                  <Edit size={14} /> Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(item.id, 'staff')}
+                                  style={{
+                                    padding: '8px 12px',
+                                    background: '#dc2626',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    fontSize: '0.85rem'
+                                  }}
+                                >
+                                  <Trash2 size={14} /> Delete
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => handleViewCustomer(item)}
+                                  style={{
+                                    padding: '8px 12px',
+                                    background: '#6b7280',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    fontSize: '0.85rem'
+                                  }}
+                                >
+                                  <Eye size={14} /> View
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(item.id, 'customer')}
+                                  style={{
+                                    padding: '8px 12px',
+                                    background: '#dc2626',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    fontSize: '0.85rem'
+                                  }}
+                                >
+                                  <Trash2 size={14} /> Delete
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
           </div>
 
-          {/* Pagination Controls */}
+          {/* Pagination */}
           {totalPages > 1 && (
             <div style={{
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
               marginTop: '1.5rem',
+              flexWrap: 'wrap',
               gap: '1rem'
             }}>
-              <span style={{
-                color: '#666',
-                fontSize: '0.9rem'
-              }}>
-                Showing {startIndex + 1}-{Math.min(startIndex + USERS_PER_PAGE, filteredUsers.length)} of {filteredUsers.length} users
+              <span style={{ color: '#666', fontSize: '0.9rem' }}>
+                Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1}-{Math.min(currentPage * ITEMS_PER_PAGE, currentItems.length)} of {currentItems.length}
               </span>
-              
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: '8px' }}>
                 <button
-                  onClick={() => setCurrentPage(currentPage - 1)}
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
                   style={{
-                    padding: '8px 12px',
+                    padding: '8px 16px',
                     border: '1px solid #e5e7eb',
-                    borderRadius: '8px',
-                    background: currentPage === 1 ? '#f9fafb' : 'white',
+                    borderRadius: '6px',
+                    background: currentPage === 1 ? '#f3f4f6' : 'white',
                     color: currentPage === 1 ? '#9ca3af' : '#374151',
                     cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
-                    fontSize: '0.875rem',
-                    fontWeight: '500',
-                    transition: 'all 0.2s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (currentPage !== 1) {
-                      e.currentTarget.style.background = '#f3f4f6';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (currentPage !== 1) {
-                      e.currentTarget.style.background = 'white';
-                    }
                   }}
                 >
                   Previous
                 </button>
-                
-                <div style={{ display: 'flex', gap: '0.25rem' }}>
-                  {[...Array(totalPages)].map((_, i) => {
-                    const page = i + 1;
-                    return (
-                      <button
-                        key={page}
-                        onClick={() => setCurrentPage(page)}
-                        style={{
-                          padding: '8px 12px',
-                          border: '1px solid #e5e7eb',
-                          borderRadius: '8px',
-                          background: currentPage === page ? 'linear-gradient(135deg, #febe52 0%, #EBD591 100%)' : 'white',
-                          color: currentPage === page ? 'white' : '#374151',
-                          cursor: 'pointer',
-                          fontSize: '0.875rem',
-                          fontWeight: '500',
-                          minWidth: '40px',
-                          transition: 'all 0.2s ease'
-                        }}
-                        onMouseEnter={(e) => {
-                          if (currentPage !== page) {
-                            e.currentTarget.style.background = '#f3f4f6';
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (currentPage !== page) {
-                            e.currentTarget.style.background = 'white';
-                          }
-                        }}
-                      >
-                        {page}
-                      </button>
-                    );
-                  })}
-                </div>
-                
+                <span style={{ 
+                  padding: '8px 16px', 
+                  background: 'linear-gradient(135deg, #febe52 0%, #EBD591 100%)',
+                  color: 'white',
+                  borderRadius: '6px',
+                  fontWeight: '600'
+                }}>
+                  {currentPage} / {totalPages}
+                </span>
                 <button
-                  onClick={() => setCurrentPage(currentPage + 1)}
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                   disabled={currentPage === totalPages}
                   style={{
-                    padding: '8px 12px',
+                    padding: '8px 16px',
                     border: '1px solid #e5e7eb',
-                    borderRadius: '8px',
-                    background: currentPage === totalPages ? '#f9fafb' : 'white',
+                    borderRadius: '6px',
+                    background: currentPage === totalPages ? '#f3f4f6' : 'white',
                     color: currentPage === totalPages ? '#9ca3af' : '#374151',
                     cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
-                    fontSize: '0.875rem',
-                    fontWeight: '500',
-                    transition: 'all 0.2s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (currentPage !== totalPages) {
-                      e.currentTarget.style.background = '#f3f4f6';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (currentPage !== totalPages) {
-                      e.currentTarget.style.background = 'white';
-                    }
                   }}
                 >
                   Next
@@ -657,226 +625,377 @@ export default function UsersPage() {
           )}
         </div>
 
-        {/* Modal for Add/Edit */}
-        {showForm && (
-          <div style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 999,
-            animation: 'fadeIn 0.3s ease',
-          }}>
-            <div style={{
-              background: '#fff',
-              borderRadius: isMobile ? '12px' : '8px',
-              padding: isMobile ? '20px' : '30px',
-              maxWidth: isMobile ? '95%' : '90%',
-              width: isMobile ? 'calc(100% - 2rem)' : '400px',
-              maxHeight: isMobile ? '90vh' : 'auto',
-              overflowY: isMobile ? 'auto' : 'visible',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-              position: 'relative',
-              animation: 'scaleIn 0.3s ease',
-            }}>
-              {/* Close button */}
-              <button
-                onClick={() => setShowForm(false)}
-                style={{
-                  position: 'absolute',
-                  top: '10px',
-                  right: '15px',
-                  background: 'none',
-                  border: 'none',
-                  fontSize: '1.5em',
-                  cursor: 'pointer',
-                  color: '#999',
-                  transition: 'color 0.2s',
-                }}
-                aria-label="Close modal"
-                onMouseEnter={(e) => (e.currentTarget.style.color = '#333')}
-                onMouseLeave={(e) => (e.currentTarget.style.color = '#999')}
-              >
-                <X size={20} />
-              </button>
-              <h2 style={{ marginBottom: '20px', fontSize: '1.5rem' }}>{editingUser ? 'Edit User' : 'Add User'}</h2>
-              {/* Form */}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleSave({
-                    name: e.target.name.value,
-                    email: e.target.email.value,
-                    password: e.target.password?.value,
-                    role: e.target.role.value,
-                  });
-                }}
-              >
-                {/* Inputs with focus styles */}
-                <input
-                  name="name"
-                  placeholder="Name"
-                  defaultValue={editingUser?.name || ''}
-                  style={{
-                    width: '100%',
-                    padding: '10px',
-                    marginBottom: '10px',
-                    borderRadius: '4px',
-                    border: '1px solid #ccc',
-                    outline: 'none',
-                    transition: 'border-color 0.2s, box-shadow 0.2s',
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = '#0070f3';
-                    e.currentTarget.style.boxShadow = '0 0 5px rgba(0,123,255,0.3)';
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = '#ccc';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                  required
-                />
-                <input
-                  name="email"
-                  placeholder="Email"
-                  type="email"
-                  defaultValue={editingUser?.email || ''}
-                  style={{
-                    width: '100%',
-                    padding: '10px',
-                    marginBottom: '10px',
-                    borderRadius: '4px',
-                    border: '1px solid #ccc',
-                    outline: 'none',
-                    transition: 'border-color 0.2s, box-shadow 0.2s',
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = '#0070f3';
-                    e.currentTarget.style.boxShadow = '0 0 5px rgba(0,123,255,0.3)';
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = '#ccc';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                  required
-                />
-                <input
-                  name="password"
-                  type="password"
-                  placeholder={editingUser ? 'Leave blank to keep current password' : 'Password'}
-                  style={{
-                    width: '100%',
-                    padding: '10px',
-                    marginBottom: '10px',
-                    borderRadius: '4px',
-                    border: '1px solid #ccc',
-                    outline: 'none',
-                    transition: 'border-color 0.2s, box-shadow 0.2s',
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = '#0070f3';
-                    e.currentTarget.style.boxShadow = '0 0 5px rgba(0,123,255,0.3)';
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = '#ccc';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                  {...(!editingUser && { required: true })}
-                />
-                {/* Role select */}
-                <select
-                  name="role"
-                  defaultValue={editingUser?.role || 'RECEPTIONIST'}
-                  style={{
-                    width: '100%',
-                    padding: '10px',
-                    marginBottom: '20px',
-                    borderRadius: '4px',
-                    border: '1px solid #ccc',
-                    outline: 'none',
-                    transition: 'border-color 0.2s, box-shadow 0.2s',
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = '#0070f3';
-                    e.currentTarget.style.boxShadow = '0 0 5px rgba(0,123,255,0.3)';
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = '#ccc';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                >
-                  <option value="RECEPTIONIST">Receptionist</option>
-                  <option value="AMENITYINVENTORYMANAGER">Inventory/Admin</option>
-                  <option value="MANAGER">Manager</option>
-                  <option value="SUPERADMIN">Super Admin</option>
-                  <option value="CASHIER">Cashier</option>
-                </select>
+        {/* Staff Form Modal */}
+        {showStaffForm && (
+          <StaffFormModal
+            staff={editingStaff}
+            onSave={handleSaveStaff}
+            onClose={() => setShowStaffForm(false)}
+            loading={formLoading}
+            isMobile={isMobile}
+          />
+        )}
 
-                {/* Buttons */}
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    style={{
-                      padding: '10px 20px',
-                      backgroundColor: '#0070f3',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      opacity: loading ? 0.7 : 1,
-                      transition: 'background-color 0.2s',
-                    }}
-                  >
-                    {loading ? (
-                      <ButtonLoading size="small" color="#ffffff" />
-                    ) : null}
-                    {editingUser ? 'Update' : 'Add'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowForm(false)}
-                    style={{
-                      padding: '10px 20px',
-                      backgroundColor: '#ccc',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      transition: 'background-color 0.2s',
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
-            {/* Animations */}
-            <style jsx>{`
-              @keyframes fadeIn {
-                from { opacity: 0; }
-                to { opacity: 1; }
-              }
-              @keyframes scaleIn {
-                from { transform: scale(0.9); opacity: 0; }
-                to { transform: scale(1); opacity: 1; }
-              }
-            `}</style>
+        {/* Customer View Modal */}
+        {viewingCustomer && (
+          <CustomerViewModal
+            customer={viewingCustomer}
+            onClose={() => setViewingCustomer(null)}
+            isMobile={isMobile}
+          />
+        )}
+
+        {/* Confirm Delete Modal */}
+        <ConfirmModal
+          isOpen={confirmModal.isOpen}
+          onClose={() => setConfirmModal({ isOpen: false, userId: null, userType: null })}
+          onConfirm={confirmDelete}
+          title={`Delete ${confirmModal.userType === 'staff' ? 'Staff' : 'Customer'}`}
+          message={`Are you sure you want to delete this ${confirmModal.userType}? This action cannot be undone.`}
+          confirmText="Delete"
+          cancelText="Cancel"
+          variant="danger"
+        />
+      </div>
+    </SuperAdminLayout>
+  );
+}
+
+// Staff Form Modal Component
+function StaffFormModal({ staff, onSave, onClose, loading, isMobile }) {
+  const [formData, setFormData] = useState({
+    name: staff?.name || '',
+    email: staff?.email || '',
+    password: '',
+    role: staff?.role || 'RECEPTIONIST',
+  });
+  const [errors, setErrors] = useState({});
+
+  const validate = () => {
+    const newErrors = {};
+    if (!formData.name.trim()) newErrors.name = 'Name is required';
+    if (!formData.email.trim()) newErrors.email = 'Email is required';
+    if (!staff && !formData.password) newErrors.password = 'Password is required';
+    if (formData.password && formData.password.length < 8) {
+      newErrors.password = 'Password must be at least 8 characters';
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (validate()) {
+      const submitData = { ...formData };
+      if (!submitData.password) delete submitData.password;
+      onSave(submitData);
+    }
+  };
+
+  const inputStyle = (hasError) => ({
+    width: '100%',
+    padding: '12px',
+    borderRadius: '8px',
+    border: `2px solid ${hasError ? '#dc2626' : '#e5e7eb'}`,
+    fontSize: '1rem',
+    outline: 'none',
+    transition: 'border-color 0.2s',
+  });
+
+  return (
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(0,0,0,0.5)',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 1000,
+    }}>
+      <div style={{
+        background: 'white',
+        borderRadius: '16px',
+        padding: '24px',
+        width: isMobile ? '95%' : '450px',
+        maxHeight: '90vh',
+        overflowY: 'auto',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h2 style={{ margin: 0, fontSize: '1.5rem', color: '#1f2937' }}>
+            {staff ? 'Edit Staff' : 'Create Staff Account'}
+          </h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+            <X size={24} color="#6b7280" />
+          </button>
+        </div>
+
+        {!staff && (
+          <div style={{
+            background: '#fef3c7',
+            border: '1px solid #f59e0b',
+            borderRadius: '8px',
+            padding: '12px',
+            marginBottom: '20px',
+            fontSize: '0.9rem',
+            color: '#92400e'
+          }}>
+            <strong>Staff accounts</strong> are created with direct password access. 
+            Share the credentials securely with the new staff member.
           </div>
         )}
-      </div>
 
-      <ConfirmModal
-        isOpen={confirmModal.isOpen}
-        onClose={() => setConfirmModal({ isOpen: false, userId: null })}
-        onConfirm={confirmDelete}
-        title="Delete User"
-        message="Are you sure you want to delete this user? This action cannot be undone."
-        confirmText="Delete User"
-        cancelText="Cancel"
-        variant="danger"
-      />
-    </SuperAdminLayout>
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', marginBottom: '6px', fontWeight: '500', color: '#374151' }}>
+              Full Name *
+            </label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              style={inputStyle(errors.name)}
+              placeholder="Enter full name"
+            />
+            {errors.name && <span style={{ color: '#dc2626', fontSize: '0.85rem' }}>{errors.name}</span>}
+          </div>
+
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', marginBottom: '6px', fontWeight: '500', color: '#374151' }}>
+              Email Address *
+            </label>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              style={inputStyle(errors.email)}
+              placeholder="staff@example.com"
+            />
+            {errors.email && <span style={{ color: '#dc2626', fontSize: '0.85rem' }}>{errors.email}</span>}
+          </div>
+
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', marginBottom: '6px', fontWeight: '500', color: '#374151' }}>
+              Password {staff ? '(leave blank to keep current)' : '*'}
+            </label>
+            <input
+              type="password"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              style={inputStyle(errors.password)}
+              placeholder={staff ? '••••••••' : 'Minimum 8 characters'}
+            />
+            {errors.password && <span style={{ color: '#dc2626', fontSize: '0.85rem' }}>{errors.password}</span>}
+          </div>
+
+          <div style={{ marginBottom: '24px' }}>
+            <label style={{ display: 'block', marginBottom: '6px', fontWeight: '500', color: '#374151' }}>
+              Role *
+            </label>
+            <select
+              value={formData.role}
+              onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+              style={inputStyle(false)}
+            >
+              {STAFF_ROLES.map(role => (
+                <option key={role.value} value={role.value}>{role.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                padding: '12px 24px',
+                background: '#e5e7eb',
+                color: '#374151',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: '500',
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                padding: '12px 24px',
+                background: 'linear-gradient(135deg, #febe52 0%, #EBD591 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                fontWeight: '600',
+                opacity: loading ? 0.7 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}
+            >
+              {loading && <ButtonLoading size="small" color="#ffffff" />}
+              {staff ? 'Update Staff' : 'Create Staff'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// Customer View Modal Component
+function CustomerViewModal({ customer, onClose, isMobile }) {
+  const formatDate = (date) => {
+    if (!date) return 'N/A';
+    return new Date(date).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  };
+
+  return (
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(0,0,0,0.5)',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 1000,
+    }}>
+      <div style={{
+        background: 'white',
+        borderRadius: '16px',
+        padding: '24px',
+        width: isMobile ? '95%' : '500px',
+        maxHeight: '90vh',
+        overflowY: 'auto',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h2 style={{ margin: 0, fontSize: '1.5rem', color: '#1f2937' }}>
+            Customer Details
+          </h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+            <X size={24} color="#6b7280" />
+          </button>
+        </div>
+
+        <div style={{ 
+          background: '#f9fafb', 
+          borderRadius: '12px', 
+          padding: '20px',
+          marginBottom: '20px'
+        }}>
+          <div style={{ 
+            width: '80px', 
+            height: '80px', 
+            background: 'linear-gradient(135deg, #febe52 0%, #EBD591 100%)',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 16px',
+            color: 'white',
+            fontSize: '2rem',
+            fontWeight: '600'
+          }}>
+            {(customer.name?.[0] || customer.firstName?.[0] || '?').toUpperCase()}
+          </div>
+          <h3 style={{ textAlign: 'center', margin: '0 0 8px', color: '#1f2937' }}>
+            {customer.name || `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'N/A'}
+          </h3>
+          <div style={{ textAlign: 'center' }}>
+            <span style={{
+              background: customer.isVerified ? '#dcfce7' : '#fee2e2',
+              color: customer.isVerified ? '#16a34a' : '#dc2626',
+              padding: '4px 12px',
+              borderRadius: '20px',
+              fontSize: '0.85rem',
+              fontWeight: '500'
+            }}>
+              {customer.isVerified ? '✓ Verified' : '✗ Not Verified'}
+            </span>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <Mail size={20} color="#6b7280" />
+            <div>
+              <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>Email</div>
+              <div style={{ fontWeight: '500' }}>{customer.email}</div>
+            </div>
+          </div>
+
+          {customer.contactNumber && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <Phone size={20} color="#6b7280" />
+              <div>
+                <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>Contact Number</div>
+                <div style={{ fontWeight: '500' }}>{customer.contactNumber}</div>
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <Calendar size={20} color="#6b7280" />
+            <div>
+              <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>Member Since</div>
+              <div style={{ fontWeight: '500' }}>{formatDate(customer.createdAt)}</div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <Calendar size={20} color="#6b7280" />
+            <div>
+              <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>Last Login</div>
+              <div style={{ fontWeight: '500' }}>{formatDate(customer.lastLogin)}</div>
+            </div>
+          </div>
+
+          <div style={{ 
+            background: '#eff6ff', 
+            padding: '16px', 
+            borderRadius: '8px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <span style={{ color: '#1e40af', fontWeight: '500' }}>Total Bookings</span>
+            <span style={{ 
+              background: '#2563eb', 
+              color: 'white', 
+              padding: '4px 16px', 
+              borderRadius: '20px',
+              fontWeight: '600',
+              fontSize: '1.1rem'
+            }}>
+              {customer.bookingCount || 0}
+            </span>
+          </div>
+        </div>
+
+        <button
+          onClick={onClose}
+          style={{
+            width: '100%',
+            marginTop: '24px',
+            padding: '12px',
+            background: '#e5e7eb',
+            color: '#374151',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: '500',
+            fontSize: '1rem'
+          }}
+        >
+          Close
+        </button>
+      </div>
+    </div>
   );
 }

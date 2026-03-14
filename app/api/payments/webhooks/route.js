@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import prisma from '@/lib/prisma';
+import { sendReservationReceipt } from '@/src/lib/receiptService';
+import { triggerEvent, notifyStaff, CHANNELS, EVENTS } from '@/lib/pusher-server';
 
 export async function POST(req) {
   try {
@@ -113,6 +115,70 @@ export async function POST(req) {
             where: { id: booking.userId },
             data: { failedPaymentAttempts: 0, paymentCooldownUntil: null },
           });
+        }
+
+        // 📧 Send reservation receipt email to customer
+        try {
+          const receiptResult = await sendReservationReceipt(payment.bookingId, payment.id);
+          if (receiptResult.success) {
+            console.log(`✅ Receipt email sent for Booking #${payment.bookingId}:`, receiptResult.receiptNumber);
+          } else {
+            console.warn(`⚠️ Failed to send receipt email for Booking #${payment.bookingId}:`, receiptResult.error);
+          }
+        } catch (receiptError) {
+          // Don't fail the webhook if receipt email fails - payment is already processed
+          console.error('❌ Error sending receipt email:', receiptError);
+        }
+
+        // Create notification for guest about successful payment
+        try {
+          await prisma.notification.create({
+            data: {
+              message: `Your reservation payment for Booking #${payment.bookingId} was successful! Check your email for the receipt.`,
+              type: 'PAYMENT_SUCCESS',
+              role: 'GUEST',
+              bookingId: payment.bookingId,
+              userId: booking?.userId
+            }
+          });
+        } catch (notifError) {
+          console.warn('Failed to create payment success notification:', notifError);
+        }
+
+        // 🔔 PUSHER: Notify dashboards about payment received
+        try {
+          const pusherData = {
+            bookingId: payment.bookingId,
+            paymentId: payment.id,
+            guestName: payment.booking?.guestName || 'Guest',
+            amount: payment.amount,
+            status: 'Pending',
+            paymentStatus: 'Reservation'
+          };
+          
+          // Notify booking channel (staff dashboards will refresh)
+          await triggerEvent(CHANNELS.BOOKINGS, EVENTS.BOOKING_UPDATED, pusherData);
+          await triggerEvent(CHANNELS.BOOKINGS, EVENTS.PAYMENT_RECEIVED, pusherData);
+          
+          // Notify all staff roles
+          await notifyStaff('SUPERADMIN', { 
+            type: 'payment_received', 
+            message: `Payment received from ${pusherData.guestName}`, 
+            ...pusherData 
+          });
+          await notifyStaff('RECEPTIONIST', { 
+            type: 'payment_received', 
+            message: `Payment received from ${pusherData.guestName}`, 
+            ...pusherData 
+          });
+          await notifyStaff('CASHIER', { 
+            type: 'payment_received', 
+            message: `Payment received from ${pusherData.guestName}`, 
+            ...pusherData 
+          });
+          console.log(`✅ [Pusher] Sent payment notification for Booking #${payment.bookingId}`);
+        } catch (pusherErr) {
+          console.warn('[Pusher] Failed to send payment notification:', pusherErr);
         }
       }
     }

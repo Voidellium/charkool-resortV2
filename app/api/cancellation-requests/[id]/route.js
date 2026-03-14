@@ -8,7 +8,7 @@ export async function PATCH(req, context) {
   try {
     const session = await getServerSession(authOptions);
     
-    if (!session || !['SUPERADMIN', 'ADMIN'].includes(session.user.role)) {
+    if (!session || !['SUPERADMIN'].includes(session.user.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 

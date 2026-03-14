@@ -8,6 +8,271 @@ import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader";
 import * as THREE from "three";
 import gsap from "gsap";
 
+/* ---------- Interior Camera Configuration per Room Type ---------- */
+const INTERIOR_CAMERA_CONFIG = {
+  Teepee: {
+    // Teepee is smaller, camera needs to be closer and centered
+    positionMultiplier: { y: 0.4, z: 0.4 },
+    targetOffset: { x: 0, y: 0, z: 0 }
+  },
+  Loft: {
+    // Loft has vertical space, adjust for better view
+    positionMultiplier: { y: 0.35, z: 0.45 },
+    targetOffset: { x: 0, y: 0, z: 0 }
+  },
+  Villa: {
+    // Villa is larger, needs moderate distance
+    positionMultiplier: { y: 0.3, z: 0.5 },
+    targetOffset: { x: 0, y: 0, z: 0 }
+  },
+  default: {
+    positionMultiplier: { y: 0.3, z: 0.5 },
+    targetOffset: { x: 0, y: 0, z: 0 }
+  }
+};
+
+/* ---------- Collapsible Instructions Component ---------- */
+function CollapsibleInstructions({ isMobile }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  return (
+    <div style={{
+      position: 'absolute',
+      top: '20px',
+      left: '20px',
+      zIndex: 1000,
+      maxWidth: isMobile ? '90%' : '320px'
+    }}>
+      {/* Toggle Button */}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        style={{
+          width: '100%',
+          background: 'linear-gradient(135deg, #febe52 0%, #ebd591 100%)',
+          border: '2px solid rgba(253, 211, 92, 0.3)',
+          borderRadius: '12px',
+          padding: '12px 16px',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
+          transition: 'all 0.3s ease',
+          fontWeight: '600',
+          fontSize: '0.95rem',
+          color: '#2e2e2e'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = 'translateY(-2px)';
+          e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.25)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = 'translateY(0)';
+          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.2)';
+        }}
+      >
+        <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '1.2rem' }}>🎮</span>
+          {isMobile ? 'Controls' : 'Navigation Controls'}
+        </span>
+        <span style={{
+          transition: 'transform 0.3s ease',
+          transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+          fontSize: '0.8rem'
+        }}>
+          ▼
+        </span>
+      </button>
+
+      {/* Expandable Content */}
+      {isExpanded && (
+        <div style={{
+          marginTop: '8px',
+          background: 'linear-gradient(135deg, rgba(46, 46, 46, 0.95) 0%, rgba(30, 30, 30, 0.98) 100%)',
+          backdropFilter: 'blur(12px)',
+          borderRadius: '12px',
+          padding: '16px',
+          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)',
+          border: '1px solid rgba(253, 211, 92, 0.15)',
+          animation: 'slideDown 0.3s ease-out'
+        }}>
+          <style jsx>{`
+            @keyframes slideDown {
+              from {
+                opacity: 0;
+                transform: translateY(-10px);
+              }
+              to {
+                opacity: 1;
+                transform: translateY(0);
+              }
+            }
+          `}</style>
+          
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+            color: 'white',
+            fontSize: '0.875rem'
+          }}>
+            {isMobile ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '1.3rem' }}>👆</span>
+                  <span><strong>Rotate:</strong> Single finger drag</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '1.3rem' }}>🤏</span>
+                  <span><strong>Zoom:</strong> Pinch with two fingers</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '1.3rem' }}>✌️</span>
+                  <span><strong>Pan:</strong> Two finger drag</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '1.3rem' }}>🖱️</span>
+                  <span><strong>Rotate:</strong> Left click + drag</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '1.3rem' }}>🔄</span>
+                  <span><strong>Zoom:</strong> Scroll wheel or W/S keys</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '1.3rem' }}>⌨️</span>
+                  <span><strong>Move:</strong> WASD keys (Free view)</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '1.3rem' }}>👆</span>
+                  <span><strong>Pan:</strong> Right click + drag</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '1.3rem' }}>🎯</span>
+                  <span><strong>Focus:</strong> Double-click on object</span>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------- Tutorial Overlay Component ---------- */
+function TutorialOverlay({ onClose, isMobile }) {
+  return (
+    <div style={{
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: '100%',
+      background: 'rgba(0, 0, 0, 0.85)',
+      zIndex: 1000,
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '20px',
+      color: 'white'
+    }}>
+      <div style={{
+        background: 'linear-gradient(135deg, #febe52 0%, #ebd591 100%)',
+        borderRadius: '16px',
+        padding: '30px',
+        maxWidth: '500px',
+        width: '90%',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+        color: '#2e2e2e'
+      }}>
+        <h2 style={{
+          margin: '0 0 20px 0',
+          fontSize: '1.5rem',
+          fontWeight: '700',
+          textAlign: 'center',
+          color: '#6b4700'
+        }}>
+          {isMobile ? '📱 Touch Controls' : '🖱️ Navigation Controls'}
+        </h2>
+        
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '15px',
+          marginBottom: '20px'
+        }}>
+          {isMobile ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '24px' }}>👆</span>
+                <span><strong>Rotate:</strong> Single finger drag</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '24px' }}>🤏</span>
+                <span><strong>Zoom:</strong> Pinch with two fingers</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '24px' }}>✌️</span>
+                <span><strong>Pan:</strong> Two finger drag</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '24px' }}>🖱️</span>
+                <span><strong>Rotate:</strong> Left click + drag</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '24px' }}>🔄</span>
+                <span><strong>Zoom:</strong> Scroll wheel</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '24px' }}>⌨️</span>
+                <span><strong>Move:</strong> WASD keys (Free view)</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '24px' }}>👆</span>
+                <span><strong>Pan:</strong> Right click + drag</span>
+              </div>
+            </>
+          )}
+        </div>
+
+        <button
+          onClick={onClose}
+          style={{
+            width: '100%',
+            padding: '12px',
+            background: 'linear-gradient(135deg, #d97706, #f59e0b)',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            fontSize: '1rem',
+            fontWeight: '600',
+            cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(217, 119, 6, 0.3)',
+            transition: 'all 0.2s'
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.background = 'linear-gradient(135deg, #b45309, #d97706)';
+            e.target.style.transform = 'translateY(-2px)';
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.background = 'linear-gradient(135deg, #d97706, #f59e0b)';
+            e.target.style.transform = 'translateY(0)';
+          }}
+        >
+          Got it!
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- Error Boundary (unchanged) ---------- */
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -272,12 +537,14 @@ function AnimatedControls({ target, position, isLocked, onAnimationStart, onAnim
   // Scroll zoom - accumulate scroll for smooth continuous zoom like WASD
   useEffect(() => {
     const handleWheel = (event) => {
-      event.preventDefault();
-      
-      // Accumulate scroll delta (like holding a key)
-      // Positive deltaY (scroll down) = zoom out (negative)
-      // Negative deltaY (scroll up) = zoom in (positive)
-      zoomVelocity.current += -event.deltaY * 0.0005;
+      // Only prevent default for non-touch devices to allow native pinch zoom on mobile
+      if (!event.touches) {
+        event.preventDefault();
+        // Accumulate scroll delta (like holding a key)
+        // Positive deltaY (scroll down) = zoom out (negative)
+        // Negative deltaY (scroll up) = zoom in (positive)
+        zoomVelocity.current += -event.deltaY * 0.0005;
+      }
     };
 
     // Add wheel event listener to canvas
@@ -367,7 +634,8 @@ function AnimatedControls({ target, position, isLocked, onAnimationStart, onAnim
     // In interior mode (viewMode === 'interior'), no WASD controls at all - only scroll zoom works
 
     // Handle lerp-based smooth animation - but STOP once completed (only for object selection)
-    if (isAnimating.current && !hasCompletedAnimation.current) {
+    // IMPORTANT: Disable animation in interior mode to allow free rotation
+    if (isAnimating.current && !hasCompletedAnimation.current && viewMode !== 'interior') {
       // Animate camera to target position
       camera.position.lerp(targetPosition.current, lerpSpeed);
       controlsRef.current.target.lerp(targetTarget.current, lerpSpeed);
@@ -381,6 +649,13 @@ function AnimatedControls({ target, position, isLocked, onAnimationStart, onAnim
       }
     }
 
+    // For interior mode, immediately mark animation as complete to allow free rotation
+    if (viewMode === 'interior' && isAnimating.current) {
+      isAnimating.current = false;
+      hasCompletedAnimation.current = true;
+      if (onAnimationEnd) onAnimationEnd();
+    }
+
     controlsRef.current.update();
   });
 
@@ -390,13 +665,20 @@ function AnimatedControls({ target, position, isLocked, onAnimationStart, onAnim
       controlsRef.current.dampingFactor = 0.12;
       controlsRef.current.enablePan = true; // Always enable pan
       controlsRef.current.enableRotate = true; // Always allow rotation
-      controlsRef.current.enableZoom = false; // Disable default zoom
-      controlsRef.current.zoomSpeed = 0; // Ensure no default zoom
+      controlsRef.current.enableZoom = true; // Enable zoom for both mouse and touch
+      controlsRef.current.zoomSpeed = 1.2;
       controlsRef.current.rotateSpeed = 0.5;
       controlsRef.current.minDistance = 5;
       controlsRef.current.maxDistance = 200;
       controlsRef.current.maxPolarAngle = Math.PI * 0.48; // Ground lock - prevent going under the model (slightly less than 90°)
       controlsRef.current.minPolarAngle = 0.1; // Prevent flipping at top
+      
+      // Enhanced touch controls for mobile
+      controlsRef.current.touches = {
+        ONE: THREE.TOUCH.ROTATE,    // Single finger = rotate
+        TWO: THREE.TOUCH.DOLLY_PAN  // Two fingers = zoom + pan
+      };
+      controlsRef.current.zoomToCursor = false; // Better mobile zoom behavior
     }
   }, [isLocked]);
 
@@ -416,7 +698,33 @@ function EnhancedThreeDModelViewerInner({ selectedObject: externalSelected, onSe
   const [modelError, setModelError] = useState(null);
   const [selectedObject, setSelectedObject] = useState(null);
   const [initialCameraReady, setInitialCameraReady] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const modelPath = externalModelPath || "/models/WholeMap_12.glb";
+
+  // Detect mobile device and check if tutorial has been shown
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      setIsMobile(mobile);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+
+    // Check if tutorial has been shown before
+    const tutorialShown = localStorage.getItem('3d-viewer-tutorial-shown');
+    if (!tutorialShown) {
+      setShowTutorial(true);
+    }
+
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  const handleCloseTutorial = () => {
+    setShowTutorial(false);
+    localStorage.setItem('3d-viewer-tutorial-shown', 'true');
+  };
 
   // Sync external selected object with internal state
   useEffect(() => {
@@ -427,7 +735,7 @@ function EnhancedThreeDModelViewerInner({ selectedObject: externalSelected, onSe
   useEffect(() => {
     setObjectPositions({});
     setInitialCameraReady(false);
-    setSelectedObject(null);
+    // Don't reset selectedObject here - it should be controlled by externalSelected
     setModelError(null);
   }, [modelPath]);
 
@@ -435,16 +743,30 @@ function EnhancedThreeDModelViewerInner({ selectedObject: externalSelected, onSe
   const getObjectPosition = useCallback((objectName) => {
     const name = objectName || 'overall';
     
-    // For interior views, use overall position (full room view)
+    // For interior views, use room-specific camera configuration
     if (viewMode === 'interior') {
       if (objectPositions['overall']) {
         const { center, radius } = objectPositions['overall'];
+        
+        // Get room-specific config or use default
+        const roomName = objectName || 'default';
+        const config = INTERIOR_CAMERA_CONFIG[roomName] || INTERIOR_CAMERA_CONFIG.default;
+        
+        // Calculate target with offset (where camera looks at)
+        const targetX = center[0] + config.targetOffset.x;
+        const targetY = center[1] + config.targetOffset.y;
+        const targetZ = center[2] + config.targetOffset.z;
+        
+        // Calculate camera position using room-specific multipliers
+        const posY = center[1] + radius * config.positionMultiplier.y;
+        const posZ = center[2] + radius * config.positionMultiplier.z;
+        
         return {
-          target: center,
-          position: [center[0], center[1] + radius * 0.3, center[2] + radius * 0.8],
+          target: [targetX, targetY, targetZ],
+          position: [center[0], posY, posZ],
         };
       }
-      return { target: [0, 0, 0], position: [0, 5, 15] };
+      return { target: [0, 0, 0], position: [0, 3, 8] };
     }
     
     // For exterior views, use specific mesh positions
@@ -515,6 +837,14 @@ function EnhancedThreeDModelViewerInner({ selectedObject: externalSelected, onSe
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden', background: '#505050' }}>
+      {/* Tutorial Overlay */}
+      {showTutorial && (
+        <TutorialOverlay onClose={handleCloseTutorial} isMobile={isMobile} />
+      )}
+      
+      {/* Collapsible Instructions */}
+      <CollapsibleInstructions isMobile={isMobile} />
+      
       <Canvas
         camera={defaultCamera}
         style={{ width: '100%', height: '100%' }}
@@ -584,13 +914,38 @@ function ControlsStarter({ initialReady, overall, animatedTarget, animatedPositi
     if (!initialReady || !overall || appliedInitial) return;
     const [cx, cy, cz] = overall.center;
     const radius = overall.radius;
-    // Closer initial framing - reduced distance multiplier
-    const distance = radius * 0.6; // Much closer to the model
-    const startPos = [cx, cy + radius * 0.3, cz + distance];
+    
+    let startPos, lookAtPos;
+    
+    if (viewMode === 'interior') {
+      // Use room-specific config for interior views
+      const roomName = selectedObject || 'default';
+      const config = INTERIOR_CAMERA_CONFIG[roomName] || INTERIOR_CAMERA_CONFIG.default;
+      
+      const posY = cy + radius * config.positionMultiplier.y;
+      const posZ = cz + radius * config.positionMultiplier.z;
+      startPos = [cx, posY, posZ];
+      lookAtPos = [
+        cx + config.targetOffset.x,
+        cy + config.targetOffset.y,
+        cz + config.targetOffset.z
+      ];
+    } else {
+      // Exterior view - use default framing
+      const distance = radius * 0.6;
+      startPos = [cx, cy + radius * 0.3, cz + distance];
+      lookAtPos = [cx, cy, cz];
+    }
+    
     camera.position.set(...startPos);
-    camera.lookAt(cx, cy, cz);
+    camera.lookAt(...lookAtPos);
     setAppliedInitial(true);
-  }, [initialReady, overall, camera, appliedInitial]);
+  }, [initialReady, overall, camera, appliedInitial, viewMode, selectedObject]);
+
+  // Reset appliedInitial when viewMode changes (switching between exterior/interior)
+  useEffect(() => {
+    setAppliedInitial(false);
+  }, [viewMode]);
 
   // handle animation start/end callbacks - DON'T lock controls, rotation should always work
   const handleAnimStart = () => {

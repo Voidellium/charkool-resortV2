@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../../../../src/lib/auth";
-import prisma from "../../../../../lib/prisma";
+import prisma from "../../../../../src/lib/prisma";
 
 /**
  * POST /api/developer/maintenance/clean-database

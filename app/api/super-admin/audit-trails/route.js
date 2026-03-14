@@ -8,7 +8,7 @@ export async function GET(req) {
     {
       id: 1,
       actorName: 'Alice Johnson',
-      actorRole: 'ADMIN',
+      actorRole: 'SUPERADMIN',
       action: 'UPDATE',
       entity: 'Policy',
       details: 'Updated policy title from "Check-in" to "Check-in Times"',
@@ -26,7 +26,7 @@ export async function GET(req) {
     {
       id: 3,
       actorName: 'Carlos Mendoza',
-      actorRole: 'ADMIN',
+      actorRole: 'SUPERADMIN',
       action: 'CREATE',
       entity: 'Amenity',
       details: 'Added "Pool Towels" optional amenity',

@@ -5,7 +5,7 @@ import { useToast, ConfirmModal } from '@/components/Toast';
 import { useNavigationGuard } from '../../../hooks/useNavigationGuard.simple';
 import { useNavigationContext } from '../../../context/NavigationContext';
 import { NavigationConfirmationModal } from '../../../components/CustomModals';
-import { Package, Plus, Edit2, Trash2, Search, Filter, RefreshCw, Clock, AlertCircle } from 'lucide-react';
+import { Package, Plus, Edit2, Trash2, Search, Filter, RefreshCw, Clock, AlertCircle, AlertTriangle } from 'lucide-react';
 
 export default function SuperAdminAmenityInventoryPage() {
   const [amenities, setAmenities] = useState([]);
@@ -19,6 +19,7 @@ export default function SuperAdminAmenityInventoryPage() {
     amenityQuantity: 0, 
     amenityCategory: '' 
   });
+  const [resetConfirmModal, setResetConfirmModal] = useState({ show: false });
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -278,21 +279,11 @@ export default function SuperAdminAmenityInventoryPage() {
   };
 
   const handleResetInventory = async () => {
-    const confirmed = window.confirm(
-      'Are you sure you want to reset the amenity inventory?\n\n' +
-      'This will:\n' +
-      '• Delete ALL existing amenities\n' +
-      '• Create only the 6 required amenities:\n' +
-      '  - Broom & Dustpan (48)\n' +
-      '  - Extra Bed (48)\n' +
-      '  - Extra Blanket (48)\n' +
-      '  - Extra Pillow (50)\n' +
-      '  - Toiletries Kit (47)\n' +
-      '  - Towels Set (49)\n\n' +
-      'This action cannot be undone!'
-    );
-    
-    if (!confirmed) return;
+    setResetConfirmModal({ show: true });
+  };
+
+  const confirmResetInventory = async () => {
+    setResetConfirmModal({ show: false });
     
     try {
       setLoading(true);
@@ -766,6 +757,103 @@ export default function SuperAdminAmenityInventoryPage() {
         context={navigationGuard.context}
         message={navigationGuard.message}
       />
+
+      {/* Reset Inventory Confirmation Modal */}
+      {resetConfirmModal.show && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 99999,
+        }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #febe52 0%, #fcd34d 50%, #f6e27a 100%)',
+            borderRadius: '16px',
+            padding: '24px',
+            maxWidth: '450px',
+            width: '90%',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+            textAlign: 'center',
+          }}>
+            <div style={{ marginBottom: '16px' }}>
+              <AlertTriangle size={48} color="#dc2626" />
+            </div>
+            <h3 style={{
+              margin: '0 0 12px 0',
+              color: '#5a3e00',
+              fontSize: '20px',
+              fontWeight: 'bold',
+            }}>Reset Inventory?</h3>
+            <div style={{
+              margin: '0 0 20px 0',
+              color: '#6b4a00',
+              fontSize: '14px',
+              lineHeight: '1.6',
+              textAlign: 'left',
+            }}>
+              <p style={{ marginBottom: '10px' }}>This will:</p>
+              <ul style={{ margin: '0', paddingLeft: '20px' }}>
+                <li>Delete ALL existing amenities</li>
+                <li>Create only the 6 required amenities:
+                  <ul style={{ marginTop: '5px' }}>
+                    <li>Broom & Dustpan (48)</li>
+                    <li>Extra Bed (48)</li>
+                    <li>Extra Blanket (48)</li>
+                    <li>Extra Pillow (50)</li>
+                    <li>Toiletries Kit (47)</li>
+                    <li>Towels Set (49)</li>
+                  </ul>
+                </li>
+              </ul>
+              <p style={{ marginTop: '10px', fontWeight: 'bold', color: '#dc2626' }}>This action cannot be undone!</p>
+            </div>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <button
+                onClick={() => setResetConfirmModal({ show: false })}
+                style={{
+                  backgroundColor: '#9ca3af',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '12px 24px',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s',
+                }}
+                onMouseOver={(e) => e.target.style.backgroundColor = '#6b7280'}
+                onMouseOut={(e) => e.target.style.backgroundColor = '#9ca3af'}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmResetInventory}
+                style={{
+                  backgroundColor: '#dc2626',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '12px 24px',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s',
+                }}
+                onMouseOver={(e) => e.target.style.backgroundColor = '#b91c1c'}
+                onMouseOut={(e) => e.target.style.backgroundColor = '#dc2626'}
+              >
+                Reset Inventory
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </SuperAdminLayout>
   );
 }

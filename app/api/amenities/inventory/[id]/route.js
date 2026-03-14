@@ -45,7 +45,7 @@ export async function PUT(req, { params }) {
       await recordAudit({
         actorId: session?.user?.id || null,
         actorName: session?.user?.name || 'System',
-        actorRole: session?.user?.role || 'ADMIN',
+        actorRole: session?.user?.role || 'SUPERADMIN',
         action: 'UPDATE',
         entity: 'Amenity Inventory',
         entityId: id.toString(),
@@ -96,7 +96,7 @@ export async function DELETE(req, { params }) {
       await recordAudit({
         actorId: session?.user?.id || null,
         actorName: session?.user?.name || 'System',
-        actorRole: session?.user?.role || 'ADMIN',
+        actorRole: session?.user?.role || 'SUPERADMIN',
         action: 'DELETE',
         entity: 'Amenity Inventory', 
         entityId: id.toString(),

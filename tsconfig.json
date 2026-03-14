@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -11,7 +15,7 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "incremental": true,
     "plugins": [
       {
@@ -19,12 +23,29 @@
       }
     ],
     "paths": {
-      "@/src/*": ["./src/*"],  // New alias for src directory
-      "@/components/*": ["./components/*"], // New alias for components folder at root
-      "@/lib/*": ["./src/lib/*"], // Explicit alias for lib
-      "@/*": ["./*"] // Catch-all for all other files from the root
+      "@/src/*": [
+        "./src/*"
+      ], // New alias for src directory
+      "@/components/*": [
+        "./components/*"
+      ], // New alias for components folder at root
+      "@/lib/*": [
+        "./src/lib/*"
+      ], // Explicit alias for lib
+      "@/*": [
+        "./*"
+      ] // Catch-all for all other files from the root
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "prisma/seed.js"],
-  "exclude": ["node_modules"]
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    "prisma/seed.js",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
 }

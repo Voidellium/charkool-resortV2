@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { recordAudit } from '@/src/lib/audit';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/auth';
+import { triggerEvent, notifyUser, notifyStaff, CHANNELS, EVENTS } from '@/lib/pusher-server';
 
 // Function to serialize BigInt values for JSON response
 function serializeBigInt(obj) {
@@ -374,6 +375,54 @@ export const PUT = async (req, context) => {
       });
     } catch (auditErr) {
       console.error('Failed to record audit for booking update:', auditErr);
+    }
+
+    // 🔔 PUSHER: Broadcast booking update to all connected clients
+    try {
+      const pusherData = {
+        bookingId: updatedBooking.id,
+        guestName: updatedBooking.guestName,
+        checkIn: updatedBooking.checkIn,
+        checkOut: updatedBooking.checkOut,
+        status: updatedBooking.status,
+        paymentStatus: updatedBooking.paymentStatus,
+      };
+
+      // Determine which event to broadcast
+      if (data.status === 'Cancelled') {
+        await triggerEvent(CHANNELS.BOOKINGS, EVENTS.BOOKING_CANCELLED, pusherData);
+        await notifyStaff('RECEPTIONIST', { type: 'booking', message: `Booking cancelled for ${updatedBooking.guestName}`, ...pusherData });
+        await notifyStaff('CASHIER', { type: 'booking', message: `Booking cancelled for ${updatedBooking.guestName}`, ...pusherData });
+      } else if (data.status === 'Confirmed' && data.actualCheckIn) {
+        await triggerEvent(CHANNELS.BOOKINGS, EVENTS.BOOKING_CHECKED_IN, pusherData);
+        await notifyStaff('CASHIER', { type: 'checkin', message: `${updatedBooking.guestName} has checked in`, ...pusherData });
+      } else if (data.status === 'CHECKED_OUT' && data.actualCheckOut) {
+        await triggerEvent(CHANNELS.BOOKINGS, EVENTS.BOOKING_CHECKED_OUT, pusherData);
+      } else {
+        await triggerEvent(CHANNELS.BOOKINGS, EVENTS.BOOKING_UPDATED, pusherData);
+      }
+
+      // Notify the guest if they have a userId
+      if (updatedBooking.userId) {
+        await notifyUser(updatedBooking.userId, EVENTS.BOOKING_STATUS_CHANGED, {
+          bookingId: updatedBooking.id,
+          status: updatedBooking.status,
+          paymentStatus: updatedBooking.paymentStatus,
+          message: `Your booking status has been updated to: ${updatedBooking.status}`,
+        });
+      }
+
+      // Broadcast availability change (room became available/unavailable)
+      await triggerEvent(CHANNELS.AVAILABILITY, EVENTS.AVAILABILITY_CHANGED, {
+        checkIn: updatedBooking.checkIn,
+        checkOut: updatedBooking.checkOut,
+        action: data.status === 'Cancelled' ? 'released' : 'updated',
+      });
+
+      console.log('[Pusher] Broadcasted booking update event');
+    } catch (pusherErr) {
+      console.error('[Pusher] Failed to broadcast booking update:', pusherErr);
+      // Non-critical: don't fail the request if Pusher fails
     }
 
     return NextResponse.json(serializeBigInt(updatedBookingFull));

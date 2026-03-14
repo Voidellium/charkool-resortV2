@@ -6,9 +6,11 @@ import { useSession, signOut } from 'next-auth/react';
 import { 
   ChevronDown, 
   Menu, 
-  X
+  X,
+  Info,
+  AlertCircle
 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 export default function Navbar() {
   const router = useRouter();
@@ -18,6 +20,31 @@ export default function Navbar() {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false);
+  
+  // Alert modal state
+  const [alertModal, setAlertModal] = useState({ show: false, title: '', message: '', type: 'info', onClose: null });
+  
+  const showAlert = useCallback((title, message, type = 'info', onClose = null) => {
+    setAlertModal({ show: true, title, message, type, onClose });
+  }, []);
+
+  // Timeout for loading state - if session loading takes more than 5 seconds, treat as unauthenticated
+  useEffect(() => {
+    let timeoutId;
+    if (status === 'loading') {
+      timeoutId = setTimeout(() => {
+        console.warn('[Navbar] Session loading timed out after 5 seconds');
+        setLoadingTimedOut(true);
+      }, 5000);
+    } else {
+      setLoadingTimedOut(false);
+    }
+    return () => clearTimeout(timeoutId);
+  }, [status]);
+
+  // Effective status: if loading timed out, treat as unauthenticated
+  const effectiveStatus = loadingTimedOut ? 'unauthenticated' : status;
 
   // Handle scroll effect
   useEffect(() => {
@@ -30,7 +57,11 @@ export default function Navbar() {
 
   // Close dropdowns when clicking outside
   useEffect(() => {
-    const handleClickOutside = () => {
+    const handleClickOutside = (e) => {
+      // Don't close if clicking the toggle button or inside the menu
+      if (e.target.closest('.mobile-menu-toggle') || e.target.closest('.nav-menu')) {
+        return;
+      }
       setShowUserDropdown(false);
       setIsMobileMenuOpen(false);
     };
@@ -76,10 +107,12 @@ export default function Navbar() {
   }, [pathname, mounted]);
 
   const isActivePath = (path) => pathname === path;
+  const isCashier = typeof pathname === 'string' && pathname.startsWith('/cashier');
 
   return (
-    <nav className={`navbar ${scrolled ? 'navbar-scrolled' : ''}`}>
+    <nav className={`navbar ${scrolled ? 'navbar-scrolled' : ''} ${isCashier ? 'navbar-internal' : ''}`}>
       <div className="navbar-container">
+        {/* Left Section - Brand */}
         <div className="navbar-brand">
           <Link href="/" className="logo-link">
             <div className="brand-text-container">
@@ -92,66 +125,99 @@ export default function Navbar() {
           </Link>
         </div>
 
-        {/* Mobile Menu Toggle */}
-        <button 
-          className="mobile-menu-toggle"
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsMobileMenuOpen(!isMobileMenuOpen);
-            setShowUserDropdown(false);
-          }}
-          aria-label="Toggle menu"
-          aria-expanded={isMobileMenuOpen}
-        >
-          {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
-        </button>
-
-        {/* Navigation Menu */}
-        <ul className={`nav-menu ${isMobileMenuOpen ? 'nav-menu-open' : ''}`}>
-          <li><Link href="/" onClick={() => setIsMobileMenuOpen(false)}>Home</Link></li>
-          <li><Link href="/virtual-tour" onClick={() => setIsMobileMenuOpen(false)}>Virtual Tour</Link></li>
-          <li>
-            {!mounted ? (
-              <Link href="/room" onClick={() => setIsMobileMenuOpen(false)}>Rooms</Link>
-            ) : (
-              <button onClick={(e) => { handleRoomsClick(e); setIsMobileMenuOpen(false); }} className="rooms-nav-btn">
-                Rooms
-              </button>
-            )}
-          </li>
-          <li><Link href="/about-us" onClick={() => setIsMobileMenuOpen(false)}>About Us</Link></li>
-          <li>
-            {status === 'loading' ? (
-              <span style={{ color: '#fff', fontSize: '1.1rem', fontWeight: 600 }}>Login</span>
-            ) : session?.user?.role === 'CUSTOMER' ? (
-              <Link href="/guest/dashboard" onClick={() => setIsMobileMenuOpen(false)}>Dashboard</Link>
-            ) : (
-              <Link href="/login" onClick={() => setIsMobileMenuOpen(false)}>Login</Link>
-            )}
-          </li>
-          <li className="book-now-li">
-            <button
-              onClick={() => {
-                setIsMobileMenuOpen(false);
-                if (!session) {
-                  const isConfirmed = window.confirm(
-                    'You must be logged in to book. Click OK to go to the login page.'
-                  );
-                  if (isConfirmed) {
-                    router.push('/login?redirect=/booking');
+        {/* Right Section - Navigation & Actions */}
+        <div className="navbar-right">
+          {/* Navigation Menu */}
+          <ul className={`nav-menu ${isMobileMenuOpen ? 'nav-menu-open' : ''}`}>
+            <li><Link href="/" onClick={() => setIsMobileMenuOpen(false)}>Home</Link></li>
+            <li><Link href="/virtual-tour" onClick={() => setIsMobileMenuOpen(false)}>Virtual Tour</Link></li>
+            <li>
+              {!mounted ? (
+                <Link href="/room" onClick={() => setIsMobileMenuOpen(false)}>Rooms</Link>
+              ) : (
+                <button onClick={(e) => { handleRoomsClick(e); setIsMobileMenuOpen(false); }} className="rooms-nav-btn">
+                  Rooms
+                </button>
+              )}
+            </li>
+            <li><Link href="/about-us" onClick={() => setIsMobileMenuOpen(false)}>About Us</Link></li>
+            <li>
+              {effectiveStatus === 'loading' ? (
+                // Show clickable login link even during loading to prevent blocking
+                <Link href="/login" onClick={() => setIsMobileMenuOpen(false)} style={{ color: '#fff', fontSize: '1.1rem', fontWeight: 600, opacity: 0.7 }}>Login</Link>
+              ) : session?.user ? (
+                // User is authenticated - show Dashboard for customers, or their dashboard for other roles
+                (session.user.role === 'CUSTOMER') ? (
+                  <Link href="/guest/dashboard" onClick={() => setIsMobileMenuOpen(false)}>Dashboard</Link>
+                ) : session.user.role ? (
+                  // Staff user - show "Dashboard" for their role
+                  <Link href={`/${session.user.role.toLowerCase() === 'superadmin' ? 'super-admin' : session.user.role.toLowerCase()}/dashboard`} onClick={() => setIsMobileMenuOpen(false)}>Dashboard</Link>
+                ) : (
+                  // Session exists but no role - likely corrupted session, show login
+                  <Link href="/login" onClick={() => setIsMobileMenuOpen(false)}>Login</Link>
+                )
+              ) : (
+                // Not authenticated - show login
+                <Link href="/login" onClick={() => setIsMobileMenuOpen(false)}>Login</Link>
+              )}
+            </li>
+            
+            {/* Mobile-only Book Now at bottom */}
+            <li className="mobile-book-container">
+              <button
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  if (!session) {
+                    showAlert('Login Required', 'You must be logged in to book. Click OK to go to the login page.', 'info', () => {
+                      router.push('/login?redirect=/booking');
+                    });
+                  } else if (session.user.role !== 'CUSTOMER') {
+                    showAlert('Access Restricted', 'Only customers can make bookings. Please contact the front desk if you need assistance.', 'warning');
+                  } else {
+                    router.push('/booking');
                   }
-                } else if (session.user.role !== 'CUSTOMER') {
-                  alert('Only customers can make bookings. Please contact the front desk if you need assistance.');
-                } else {
-                  router.push('/booking');
-                }
-              }}
-              className="book-now-btn"
-            >
-              Book Now
-            </button>
-          </li>
-        </ul>
+                }}
+                className="mobile-book-btn"
+              >
+                Book Now
+              </button>
+            </li>
+          </ul>
+
+          {/* Desktop Book Now Button */}
+          <button
+            className="book-now-btn desktop-only"
+            onClick={() => {
+              if (!session) {
+                showAlert('Login Required', 'You must be logged in to book. Click OK to go to the login page.', 'info', () => {
+                  router.push('/login?redirect=/booking');
+                });
+              } else if (session.user.role !== 'CUSTOMER') {
+                showAlert('Access Restricted', 'Only customers can make bookings. Please contact the front desk if you need assistance.', 'warning');
+              } else {
+                router.push('/booking');
+              }
+            }}
+          >
+            Book Now
+          </button>
+
+          {/* Mobile Menu Toggle - Moved to Right */}
+          <button 
+            className="mobile-menu-toggle"
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              setIsMobileMenuOpen(!isMobileMenuOpen);
+              setShowUserDropdown(false);
+            }}
+            aria-label="Toggle menu"
+            aria-expanded={isMobileMenuOpen}
+            type="button"
+          >
+            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+        </div>
       </div>
 
       <style jsx>{`
@@ -186,13 +252,28 @@ export default function Navbar() {
           z-index: 1000;
           background: linear-gradient(135deg, rgba(240, 176, 53, 0.55), rgba(252, 211, 77, 0.12));
           backdrop-filter: blur(10px);
-          /* remove thin white border that caused a visible seam */
-          border-bottom: none;
-          /* keep a subtle separation without a hard white line */
-          box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset, 0 6px 18px rgba(0,0,0,0.06);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.18);
           padding: 1rem 0;
           transition: background 0.4s ease, box-shadow 0.4s ease, padding 0.4s ease;
+          height: auto;
         }
+
+        /* Internal pages (cashier, admin) should use a cleaner opaque navbar */
+        .navbar.navbar-internal {
+          background: #ffffff;
+          border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+          backdrop-filter: none;
+        }
+        .navbar.navbar-internal .brand-title {
+          -webkit-background-clip: unset;
+          color: #0f172a;
+          background: none;
+        }
+        .navbar.navbar-internal .nav-menu li :global(a) {
+          color: #0f172a;
+          background: transparent;
+        }
+        .navbar.navbar-internal .mobile-menu-toggle { color: #0f172a; background: rgba(15,23,42,0.04); }
         
         .navbar :global(*) {
           text-decoration: none !important;
@@ -228,13 +309,14 @@ export default function Navbar() {
           margin: 0 auto;
           padding: 0 1.5rem;
           gap: 1.5rem;
+          height: 60px;
         }
 
+        /* Left Section - Brand */
         .navbar-brand {
           display: flex;
           align-items: center;
           position: relative;
-          z-index: 1001;
         }
 
         .logo-link {
@@ -245,13 +327,6 @@ export default function Navbar() {
           position: relative;
           padding: 0.3rem 0;
           border-bottom: none !important;
-        }
-
-        .logo-img {
-          display: block;
-          height: 72px;
-          width: auto;
-          filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.18));
         }
 
         .brand-text-container {
@@ -304,26 +379,29 @@ export default function Navbar() {
           transform: scale(1.1);
         }
 
-        /* Mobile Menu Toggle Button */
+        /* Right Section - Navigation & Actions */
+        .navbar-right {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+        }
+
+        /* Mobile Menu Toggle - Right Side */
         .mobile-menu-toggle {
           display: none;
-          background: rgba(255, 255, 255, 0.12);
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.08);
+          border: none;
+          border-radius: 12px;
           padding: 0.5rem;
-          cursor: pointer;
           color: white;
+          cursor: pointer;
           transition: all 0.3s ease;
-          z-index: 1001;
+          backdrop-filter: blur(12px);
         }
 
         .mobile-menu-toggle:hover {
-          background: rgba(255, 255, 255, 0.18);
+          background: rgba(255, 255, 255, 0.2);
           transform: scale(1.05);
-        }
-
-        .mobile-menu-toggle:active {
-          transform: scale(0.95);
         }
 
         /* Navigation Menu */
@@ -334,7 +412,6 @@ export default function Navbar() {
           margin: 0;
           padding: 0;
           align-items: center;
-          flex-wrap: wrap;
         }
 
         .nav-menu li {
@@ -350,14 +427,14 @@ export default function Navbar() {
           padding: 0.45rem 0.95rem;
           border-radius: 999px;
           transition: transform 0.3s ease, background 0.3s ease, color 0.3s ease;
-          background: rgba(255, 255, 255, 0.08);
-          backdrop-filter: blur(12px);
+          background: transparent;
           border-bottom: none !important;
         }
 
         .nav-menu li :global(a):hover {
           color: #ffffff;
-          background: linear-gradient(135deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.08));
+          background: rgba(255, 255, 255, 0.15);
+          backdrop-filter: blur(12px);
           transform: translateY(-3px);
           box-shadow: 0 8px 18px rgba(255, 255, 255, 0.16);
           text-decoration: none !important;
@@ -372,8 +449,7 @@ export default function Navbar() {
           padding: 0.45rem 0.95rem;
           border-radius: 999px;
           transition: transform 0.3s ease, background 0.3s ease, color 0.3s ease;
-          background: rgba(255, 255, 255, 0.08);
-          backdrop-filter: blur(12px);
+          background: transparent;
           border: none !important;
           border-bottom: none !important;
           outline: none !important;
@@ -389,7 +465,8 @@ export default function Navbar() {
 
         .rooms-nav-btn:hover {
           color: #ffffff;
-          background: linear-gradient(135deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.08));
+          background: rgba(255, 255, 255, 0.15);
+          backdrop-filter: blur(12px);
           transform: translateY(-3px);
           box-shadow: 0 8px 18px rgba(255, 255, 255, 0.16) !important;
         }
@@ -408,6 +485,15 @@ export default function Navbar() {
         ul li {
           display: flex;
           align-items: center;
+        }
+
+        /* Hide mobile book container on desktop - more specific selector */
+        .mobile-book-container {
+          display: none;
+        }
+        
+        .mobile-book-btn {
+          display: none;
         }
 
         .book-now-btn {
@@ -467,6 +553,13 @@ export default function Navbar() {
           outline-offset: 3px;
         }
 
+        /* Desktop only - hide on mobile */
+        .desktop-only {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+
         @media (max-width: 1024px) {
           .navbar-container {
             padding: 0 1.2rem;
@@ -489,43 +582,66 @@ export default function Navbar() {
 
         /* Tablet and below - Show mobile menu */
         @media (max-width: 900px) {
+          .desktop-only {
+            display: none !important;
+          }
+
           .mobile-menu-toggle {
-            display: block;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            z-index: 1003;
           }
 
           .nav-menu {
             position: fixed;
-            top: 0;
-            right: -100%;
-            height: 100vh;
-            width: 280px;
-            max-width: 80vw;
-            background: linear-gradient(180deg, rgba(240, 176, 53, 0.98), rgba(251, 146, 60, 0.98));
-            backdrop-filter: blur(20px);
+            top: 100%;
+            left: 0;
+            right: 0;
+            width: 100%;
+            max-height: 0;
+            background: linear-gradient(165deg, 
+              rgba(251, 191, 36, 0.98) 0%, 
+              rgba(245, 158, 11, 0.96) 50%, 
+              rgba(217, 119, 6, 0.98) 100%);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
             flex-direction: column;
             align-items: stretch;
             gap: 0;
-            padding: 5rem 1.5rem 6rem;
-            box-shadow: -10px 0 40px rgba(0, 0, 0, 0.3);
-            transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            overflow-y: auto;
+            padding: 0;
+            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.4);
+            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), padding 0.4s ease;
+            overflow: hidden;
             z-index: 1002;
+            transform-origin: top;
+          }
+
+          .nav-menu::before {
+            display: none;
           }
 
           .nav-menu-open {
-            right: 0;
+            max-height: calc(100vh - 80px);
+            max-height: calc(100dvh - 80px);
+            padding: 1.5rem 0 2rem;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
           }
 
-          .nav-menu-open::before {
+          .nav-menu-open::after {
             content: '';
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
+            background: rgba(0, 0, 0, 0.6);
             z-index: -1;
             animation: fadeIn 0.3s ease;
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
           }
 
           @keyframes fadeIn {
@@ -539,44 +655,102 @@ export default function Navbar() {
 
           .nav-menu li {
             width: 100%;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+            margin: 0;
+            padding: 0 1.5rem;
+          }
+
+          .nav-menu li:first-child {
+            border-top: 1px solid rgba(255, 255, 255, 0.15);
           }
 
           .nav-menu li :global(a),
           .rooms-nav-btn {
             width: 100%;
             justify-content: flex-start;
-            padding: 1rem 1.2rem;
-            border-radius: 8px;
+            padding: 1.2rem 1.3rem;
+            border-radius: 12px;
             background: transparent;
-            font-size: 1.05rem;
+            font-size: 1.1rem;
+            font-weight: 600;
             transform: none;
+            color: rgba(255, 255, 255, 0.95);
+            transition: all 0.25s ease;
+            letter-spacing: 0.02em;
           }
 
           .nav-menu li :global(a):hover,
           .rooms-nav-btn:hover {
-            background: rgba(255, 255, 255, 0.15);
-            transform: translateX(8px);
-            box-shadow: none;
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateX(10px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            color: #ffffff;
           }
 
-          .book-now-li {
+          .nav-menu li :global(a):active,
+          .rooms-nav-btn:active {
+            transform: translateX(8px) scale(0.98);
+            background: rgba(255, 255, 255, 0.25);
+          }
+
+          .mobile-book-container {
+            display: block;
             position: sticky;
             bottom: 0;
             background: linear-gradient(180deg, rgba(240, 176, 53, 0.98), rgba(251, 146, 60, 0.98));
-            padding: 1rem 0;
+            padding: 1rem 1.5rem;
             margin-top: auto;
             border-top: 2px solid rgba(255, 255, 255, 0.2);
-            border-bottom: none;
             box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1);
+            left: 0;
+            right: 0;
+            width: 100%;
+            box-sizing: border-box;
           }
 
-          .book-now-btn {
+          .mobile-book-btn {
+            display: block;
+            background: rgba(255, 255, 255, 0.95);
+            color: #d97706;
+            border: 2px solid rgba(217, 119, 6, 0.2);
+            padding: 0.75rem 1.75rem;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 16px rgba(255, 255, 255, 0.2), 
+                        0 2px 8px rgba(0, 0, 0, 0.1);
+            position: relative;
+            overflow: hidden;
+            letter-spacing: 0.25px;
+            backdrop-filter: blur(20px);
             width: 100%;
-            justify-content: center;
-            margin-right: 0;
-            font-size: 1.05rem;
-            padding: 1rem 1.5rem;
+            max-width: 100%;
+            box-sizing: border-box;
+          }
+
+          .mobile-book-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 0;
+            height: 100%;
+            background: linear-gradient(135deg, #d97706, #b45309);
+            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: -1;
+          }
+
+          .mobile-book-btn:hover::before {
+            width: 100%;
+          }
+
+          .mobile-book-btn:hover {
+            color: white;
+            border-color: #d97706;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(217, 119, 6, 0.3), 
+                        0 4px 12px rgba(0, 0, 0, 0.15);
           }
         }
 
@@ -592,7 +766,7 @@ export default function Navbar() {
           }
 
           .navbar-container {
-            padding: 0.6rem 0.9rem;
+            padding: 0.6rem 1rem;
             gap: 0.8rem;
           }
 
@@ -610,29 +784,36 @@ export default function Navbar() {
             letter-spacing: 0.35rem;
           }
 
-          .nav-menu {
-            width: 260px;
-            padding: 4.5rem 1.2rem 1.5rem;
+          .nav-menu li {
+            padding: 0 1.25rem;
           }
 
           .nav-menu li :global(a),
           .rooms-nav-btn {
-            font-size: 0.95rem;
-            padding: 0.9rem 1rem;
+            font-size: 1.05rem;
+            padding: 1.1rem 1.15rem;
+          }
+
+          .book-now-li {
+            padding: 1.25rem 1.25rem 1rem;
           }
 
           .book-now-btn {
-            font-size: 1rem;
-            padding: 0.9rem 1.3rem;
-            letter-spacing: 0.1em;
+            font-size: 1.05rem;
+            padding: 1.05rem 1.5rem;
+            letter-spacing: 0.06em;
           }
 
           .mobile-menu-toggle {
-            padding: 0.4rem;
+            padding: 0.45rem;
           }
         }
 
         @media (max-width: 420px) {
+          .navbar-container {
+            padding: 0.6rem 0.85rem;
+          }
+
           .brand-title {
             font-size: 1.35rem;
           }
@@ -642,20 +823,23 @@ export default function Navbar() {
             letter-spacing: 0.28rem;
           }
 
-          .nav-menu {
-            width: 240px;
-            padding: 4rem 1rem 1rem;
+          .nav-menu li {
+            padding: 0 1rem;
           }
 
           .nav-menu li :global(a),
           .rooms-nav-btn {
-            font-size: 0.9rem;
-            padding: 0.85rem 0.9rem;
+            font-size: 1rem;
+            padding: 1rem 1.1rem;
+          }
+
+          .book-now-li {
+            padding: 1.15rem 1rem 0.85rem;
           }
 
           .book-now-btn {
-            font-size: 0.95rem;
-            padding: 0.85rem 1.2rem;
+            font-size: 1rem;
+            padding: 1rem 1.4rem;
           }
         }
 
@@ -751,6 +935,71 @@ export default function Navbar() {
           }
         }
       `}</style>
+
+      {/* Alert Modal */}
+      {alertModal.show && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 99999,
+        }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #febe52 0%, #fcd34d 50%, #f6e27a 100%)',
+            borderRadius: '16px',
+            padding: '24px',
+            maxWidth: '400px',
+            width: '90%',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+            textAlign: 'center',
+          }}>
+            <div style={{ marginBottom: '16px' }}>
+              {alertModal.type === 'warning' && <AlertCircle size={48} color="#f59e0b" />}
+              {alertModal.type === 'info' && <Info size={48} color="#2563eb" />}
+            </div>
+            <h3 style={{
+              margin: '0 0 12px 0',
+              color: '#5a3e00',
+              fontSize: '20px',
+              fontWeight: 'bold',
+            }}>{alertModal.title}</h3>
+            <p style={{
+              margin: '0 0 20px 0',
+              color: '#6b4a00',
+              fontSize: '14px',
+              lineHeight: '1.5',
+            }}>{alertModal.message}</p>
+            <button
+              onClick={() => {
+                const onCloseCallback = alertModal.onClose;
+                setAlertModal({ show: false, title: '', message: '', type: 'info', onClose: null });
+                if (onCloseCallback) onCloseCallback();
+              }}
+              style={{
+                backgroundColor: '#56A86B',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '12px 32px',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                transition: 'background-color 0.2s',
+              }}
+              onMouseOver={(e) => e.target.style.backgroundColor = '#4a9660'}
+              onMouseOut={(e) => e.target.style.backgroundColor = '#56A86B'}
+            >
+              Okay
+            </button>
+          </div>
+        </div>
+      )}
     </nav>
   );
 }

@@ -110,6 +110,12 @@ export default function Home() {
   const [inquiryMessage, setInquiryMessage] = useState('');
   const [isSendingInquiry, setIsSendingInquiry] = useState(false);
 
+  // Alert Modal state (replaces browser alert())
+  const [alertModal, setAlertModal] = useState({ show: false, title: '', message: '', type: 'info', onClose: null });
+  const showAlert = (title, message, type = 'info', onClose = null) => {
+    setAlertModal({ show: true, title, message, type, onClose });
+  };
+
   const startSlideshow = () => {
     clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
@@ -155,9 +161,6 @@ export default function Home() {
         case 'SUPERADMIN':
           router.push('/super-admin/dashboard');
           break;
-        case 'ADMIN':
-          router.push('/admin/dashboard');
-          break;
         case 'RECEPTIONIST':
           router.push('/receptionist');
           break;
@@ -191,10 +194,11 @@ export default function Home() {
 
   const handleBookNow = () => {
     if (!session) {
-      alert('You must be logged in to book.');
-      router.push('/login?redirect=/booking');
+      showAlert('Login Required', 'You must be logged in to book. Click OK to go to the login page.', 'info', () => {
+        router.push('/login?redirect=/booking');
+      });
     } else if (session.user.role !== 'CUSTOMER') {
-      alert('Only customers can make bookings. Please contact the front desk if you need assistance.');
+      showAlert('Access Restricted', 'Only customers can make bookings. Please contact the front desk if you need assistance.', 'warning');
     } else {
       router.push('/booking');
     }
@@ -229,10 +233,10 @@ export default function Home() {
         throw new Error(data?.error || 'Failed to send');
       }
       setInquiryMessage('');
-      alert('Thanks! Your message was sent to our super admin.');
+      showAlert('Message Sent', 'Thanks! Your message was sent to our super admin.', 'success');
     } catch (err) {
       console.error('Inquiry error', err);
-      alert('Sorry, we could not send your message. Please try again later.');
+      showAlert('Failed to Send', 'Sorry, we could not send your message. Please try again later.', 'error');
     } finally {
       setIsSendingInquiry(false);
     }
@@ -241,6 +245,96 @@ export default function Home() {
   return (
     <>
       <WelcomeModal />
+      {/* Alert Modal */}
+      {alertModal.show && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 99999,
+        }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #febe52 0%, #fcd34d 50%, #f6e27a 100%)',
+            borderRadius: '16px',
+            padding: '24px',
+            maxWidth: '400px',
+            width: '90%',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+            animation: 'alertModalSlideIn 0.3s ease-out',
+          }}>
+            <style>{`
+              @keyframes alertModalSlideIn {
+                from { opacity: 0; transform: translateY(-20px) scale(0.95); }
+                to { opacity: 1; transform: translateY(0) scale(1); }
+              }
+            `}</style>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              marginBottom: '16px',
+            }}>
+              <div style={{ 
+                backgroundColor: alertModal.type === 'error' ? '#fee2e2' : 
+                               alertModal.type === 'warning' ? '#fef3c7' : 
+                               alertModal.type === 'success' ? '#dcfce7' : '#dbeafe', 
+                borderRadius: '50%', 
+                padding: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                {alertModal.type === 'error' && <span style={{ color: '#dc2626', fontSize: '20px' }}>✕</span>}
+                {alertModal.type === 'warning' && <span style={{ color: '#d97706', fontSize: '20px' }}>⚠</span>}
+                {alertModal.type === 'success' && <span style={{ color: '#16a34a', fontSize: '20px' }}>✓</span>}
+                {alertModal.type === 'info' && <span style={{ color: '#2563eb', fontSize: '20px' }}>ℹ</span>}
+              </div>
+              <h3 style={{
+                margin: 0,
+                fontSize: '18px',
+                fontWeight: '700',
+                color: '#5a3e00',
+              }}>{alertModal.title}</h3>
+            </div>
+            <p style={{
+              margin: '0 0 24px 0',
+              fontSize: '15px',
+              color: '#6b4700',
+              lineHeight: '1.5',
+            }}>{alertModal.message}</p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => {
+                  const callback = alertModal.onClose;
+                  setAlertModal({ show: false, title: '', message: '', type: 'info', onClose: null });
+                  if (callback) callback();
+                }}
+                style={{
+                  backgroundColor: '#56A86B',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '12px 32px',
+                  fontSize: '15px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  boxShadow: '0 2px 8px rgba(86, 168, 107, 0.4)',
+                }}
+              >
+                Okay
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="landing">
         <header className={`hero ${display.variable} ${sans.variable}`}>
           <div className="background-images-container" aria-hidden>
@@ -636,6 +730,9 @@ export default function Home() {
           font-size: 0.98rem;
           font-family: var(--font-sans), 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
           transition: all 220ms ease;
+          -webkit-tap-highlight-color: transparent;
+          touch-action: manipulation;
+          user-select: none;
         }
         /* Hero-specific CTAs with premium finish */
         .hero-ctas .btn.primary {
@@ -702,6 +799,9 @@ export default function Home() {
           text-align: center;
           min-height: 480px;
           background: linear-gradient(180deg, #eef4f8 0%, #f6f8fb 100%);
+          width: 100%;
+          max-width: 100vw;
+          box-sizing: border-box;
         }
         .welcome-inner {
           position: relative;
@@ -715,6 +815,7 @@ export default function Home() {
           flex-direction: column;
           align-items: center;
           justify-content: center;
+          box-sizing: border-box;
         }
         .welcome-inner h2 {
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -723,6 +824,8 @@ export default function Home() {
           font-weight: 700;
           color: #0b3a4a;
           line-height: 1.2;
+          word-wrap: break-word;
+          overflow-wrap: break-word;
         }
         .welcome-inner p {
           font-size: clamp(1rem, 1.3vw, 1.15rem);
@@ -730,6 +833,8 @@ export default function Home() {
           max-width: 780px;
           margin: 0 auto 30px auto;
           color: #3b5157;
+          word-wrap: break-word;
+          overflow-wrap: break-word;
         }
         .welcome-bg, .welcome-overlay {
           display: none;
@@ -743,6 +848,9 @@ export default function Home() {
           justify-content: center;
           overflow: hidden;
           z-index: 0;
+          width: 100%;
+          max-width: 100vw;
+          box-sizing: border-box;
         }
         .explore-bg {
           position: absolute;
@@ -774,6 +882,7 @@ export default function Home() {
           border-radius: 16px;
           backdrop-filter: blur(6px);
           box-shadow: 0 20px 50px rgba(0,0,0,0.25);
+          box-sizing: border-box;
         }
         .explore-inner h2 {
           margin: 0 0 10px 0;
@@ -781,12 +890,16 @@ export default function Home() {
           color: #fff;
           font-family: inherit; /* unified heading font */
           text-shadow: 0 10px 28px rgba(0,0,0,0.55);
+          word-wrap: break-word;
+          overflow-wrap: break-word;
         }
         .explore-note {
           color: #f3f6f7;
           margin: 0 0 26px 0;
           font-size: 1.08rem;
           font-family: var(--font-sans), 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+          word-wrap: break-word;
+          overflow-wrap: break-word;
         }
         .explore-inner .btn.primary.big {
           background: linear-gradient(135deg, #FBD669 0%, #FEBE54 60%, #F7A83A 100%);
@@ -891,8 +1004,11 @@ export default function Home() {
           transition: 0.3s;
           box-shadow: 0 8px 18px rgba(0,0,0,0.25);
           backdrop-filter: blur(4px);
+          -webkit-tap-highlight-color: transparent;
+          touch-action: manipulation;
         }
         .nav-btn:hover { background: rgba(0,0,0,0.55); transform: translateY(-50%) scale(1.05); }
+        .nav-btn:active { transform: translateY(-50%) scale(0.95); }
         .nav-btn.left { left: 16px; }
         .nav-btn.right { right: 16px; }
         .dots {
@@ -910,8 +1026,28 @@ export default function Home() {
           border: none;
           cursor: pointer;
           transition: all 0.3s;
+          -webkit-tap-highlight-color: transparent;
+          touch-action: manipulation;
+          min-width: 32px;
+          min-height: 32px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          position: relative;
         }
-        .dot.active { background: #f4ae40; transform: scale(1.25); box-shadow: 0 6px 12px rgba(0,0,0,0.15); }
+        .dot::before {
+          content: '';
+          width: 12px;
+          height: 12px;
+          border-radius: 50%;
+          background: #d8d8d8;
+          transition: all 0.3s;
+        }
+        .dot.active::before { 
+          background: #f4ae40; 
+          transform: scale(1.25); 
+          box-shadow: 0 6px 12px rgba(0,0,0,0.15); 
+        }
         @media (max-width: 1024px) {
           .room-image { height: 360px; }
           .dots { margin: 18px 0 20px 0; }
@@ -1377,6 +1513,22 @@ export default function Home() {
           margin-bottom: 1rem;
           scroll-snap-type: x mandatory;
           max-width: 100%;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: thin;
+          scrollbar-color: rgba(0,0,0,0.2) transparent;
+        }
+        .image-gallery::-webkit-scrollbar {
+          height: 6px;
+        }
+        .image-gallery::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .image-gallery::-webkit-scrollbar-thumb {
+          background: rgba(0,0,0,0.2);
+          border-radius: 3px;
+        }
+        .image-gallery::-webkit-scrollbar-thumb:hover {
+          background: rgba(0,0,0,0.3);
         }
         .image-gallery img {
           width: 180px;
@@ -1522,53 +1674,135 @@ export default function Home() {
           .modal-content {
             width: calc(100vw - 2rem);
             max-width: calc(100vw - 2rem);
-            padding: 1.5rem 1rem;
+            padding: 1.75rem 1.25rem;
             margin: 1rem;
+            border-radius: 12px;
+          }
+          
+          .modal-content h2 {
+            font-size: 1.5rem;
+            margin-bottom: 0.75rem;
           }
           
           .book-room-btn,
           .close-btn { 
-            width: 100%; 
-            margin-bottom: 0.5rem; 
+            width: 100%;
+            margin-bottom: 0.6rem;
+            min-height: 48px;
+            font-size: 1rem;
           }
+          
           .image-gallery {
-            gap: 0.5rem;
+            gap: 0.6rem;
             max-width: 100%;
+            padding-bottom: 8px;
+            -webkit-overflow-scrolling: touch;
           }
+          
           .image-gallery img { 
-            width: 140px; 
-            height: 90px; 
+            width: 160px;
+            height: 100px;
+            border-radius: 6px;
+          }
+          
+          .capacity {
+            font-size: 1.15rem;
+          }
+          
+          .description {
+            font-size: 0.95rem;
+            line-height: 1.6;
+          }
+          
+          .amenities {
+            gap: 0.85rem;
+            font-size: 0.9rem;
+          }
+          
+          .modal-actions {
+            gap: 0.6rem;
           }
         }
         
         @media (max-width: 480px) {
           .modal-content {
-            width: calc(100vw - 1rem);
-            max-width: calc(100vw - 1rem);
-            padding: 1.25rem 0.875rem;
-            margin: 0.5rem;
-            border-radius: 12px;
+            width: calc(100vw - 1.5rem);
+            max-width: calc(100vw - 1.5rem);
+            padding: 1.5rem 1rem;
+            margin: 0.75rem;
+            border-radius: 10px;
+            max-height: 92vh;
           }
           
           .modal-content h2 {
-            font-size: 1.3rem;
+            font-size: 1.35rem;
+            margin-bottom: 0.65rem;
           }
           
           .image-gallery {
-            gap: 0.375rem;
+            gap: 0.5rem;
+            margin-bottom: 0.85rem;
           }
           
           .image-gallery img {
-            width: 120px;
-            height: 80px;
+            width: 140px;
+            height: 90px;
+            border-radius: 6px;
+          }
+          
+          .capacity {
+            font-size: 1.05rem;
+            margin-bottom: 0.6rem;
+          }
+          
+          .description {
+            font-size: 0.9rem;
+            margin-bottom: 0.85rem;
           }
           
           .amenities {
-            gap: 0.75rem;
+            gap: 0.7rem;
+            margin-bottom: 0.85rem;
+          }
+          
+          .amenity-item {
+            font-size: 0.85rem;
           }
           
           .modal-actions {
             flex-direction: column;
+            gap: 0.5rem;
+          }
+          
+          .book-room-btn {
+            padding: 0.9rem 1.2rem;
+            font-size: 0.95rem;
+            min-height: 48px;
+          }
+          
+          .close-btn {
+            padding: 0.75rem 1rem;
+            font-size: 0.95rem;
+            min-height: 44px;
+          }
+          
+          .image-modal-content {
+            max-width: 95%;
+            max-height: 95%;
+            padding: 0.75rem;
+          }
+          
+          .full-image {
+            max-height: 75vh;
+            border-radius: 6px;
+          }
+          
+          .close-image-btn {
+            margin-top: 0.75rem;
+            padding: 0.6rem 1rem;
+            font-size: 0.9rem;
+            min-height: 44px;
+            width: 100%;
           }
         }
 
@@ -1581,8 +1815,9 @@ export default function Home() {
         @media (max-width: 520px) {
           .hero h1 { font-size: 28px; }
           .hero .sub { font-size: 14px; }
-          .explore-3d { padding: 48px 14px; }
-          .welcome { padding: 48px 14px; min-height: 380px; }
+          .explore-3d { padding: 48px 20px; }
+          .welcome { padding: 48px 20px; min-height: 380px; }
+          .welcome-inner { padding: 24px 18px; max-width: 100%; margin: 0 auto; }
           .welcome-inner h2 { font-size: 28px; }
           .welcome-inner p { font-size: 0.95rem; }
         }
@@ -1595,301 +1830,510 @@ export default function Home() {
         @media (max-width: 479px) {
           .hero {
             height: auto;
-            min-height: 500px;
-            padding: 30px 0;
+            min-height: 550px;
+            padding: 20px 0;
           }
           
           .hero-inner {
-            padding: 1.5rem 1rem;
+            padding: 1rem 0.75rem;
           }
           
           .hero-text {
-            padding: 1.5rem;
+            padding: 1.25rem 1rem;
             max-width: 100%;
+            border-radius: 8px;
           }
           
           .hero h1 {
-            font-size: clamp(24px, 7vw, 32px);
-            margin-bottom: 0.5rem;
+            font-size: clamp(26px, 8vw, 34px);
+            margin-bottom: 0.6rem;
+            line-height: 1.1;
           }
           
           .hero .sub {
-            font-size: clamp(13px, 3.5vw, 15px);
-            margin-bottom: 1rem;
+            font-size: clamp(14px, 4vw, 16px);
+            margin-bottom: 1.2rem;
+            line-height: 1.4;
           }
           
           .hero-ctas {
             flex-direction: column;
-            gap: 10px;
+            gap: 12px;
             width: 100%;
           }
           
           .hero-ctas .btn {
             width: 100%;
             justify-content: center;
-            font-size: 0.9rem;
-            padding: 10px 16px;
+            font-size: 0.95rem;
+            padding: 12px 18px;
+            min-height: 44px; /* Touch-friendly minimum */
           }
           
           .welcome {
-            padding: 40px 15px;
-            min-height: 300px;
+            padding: 50px 18px;
+            min-height: 350px;
           }
           
           .welcome-inner {
-            padding: 20px 15px;
+            padding: 24px 18px;
+            border-radius: 10px;
+            max-width: 100%;
+            margin: 0 auto;
           }
           
           .welcome-inner h2 {
-            font-size: clamp(22px, 6vw, 28px);
-            margin-bottom: 15px;
+            font-size: clamp(24px, 7vw, 30px);
+            margin-bottom: 18px;
+            line-height: 1.2;
           }
           
           .welcome-inner p {
-            font-size: 0.9rem;
-            margin-bottom: 20px;
+            font-size: 0.95rem;
+            margin-bottom: 24px;
+            line-height: 1.65;
           }
           
           .btn.ghost-white {
-            padding: 10px 20px;
-            font-size: 0.9rem;
+            padding: 12px 24px;
+            font-size: 0.95rem;
             width: 100%;
-            justify-content: center;
+            max-width: 280px;
+            min-height: 44px;
           }
           
           .explore-3d {
-            padding: 40px 15px;
+            padding: 50px 18px;
           }
           
           .explore-inner {
-            padding: 30px 20px;
+            padding: 32px 20px;
+            border-radius: 12px;
+            max-width: 100%;
+            margin: 0 auto;
           }
           
           .explore-inner h2 {
-            font-size: clamp(22px, 6vw, 28px);
+            font-size: clamp(24px, 7vw, 30px);
+            margin-bottom: 12px;
+            line-height: 1.2;
           }
           
           .explore-note {
-            font-size: 0.9rem;
-            margin-bottom: 20px;
+            font-size: 0.95rem;
+            margin-bottom: 24px;
+            line-height: 1.5;
           }
           
           .explore-inner .btn.primary.big {
             width: 100%;
-            padding: 12px 20px;
-            font-size: 0.95rem;
+            max-width: 280px;
+            padding: 14px 24px;
+            font-size: 1rem;
+            min-height: 48px;
           }
           
           .rooms {
-            padding: 60px 15px 80px;
+            padding: 70px 16px 90px;
           }
           
           .rooms-title {
-            font-size: clamp(24px, 6vw, 32px);
-            margin-bottom: 30px;
+            font-size: clamp(26px, 7vw, 34px);
+            margin-bottom: 35px;
+            line-height: 1.2;
           }
           
           .room-carousel {
             border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
           }
           
           .room-image {
-            height: 180px;
+            height: 200px;
+            border-radius: 12px 12px 0 0;
           }
           
           .room-info {
-            padding: 16px;
+            padding: 18px 16px;
           }
           
           .room-info h4 {
-            font-size: 1.3rem;
+            font-size: 1.4rem;
+            margin-bottom: 8px;
           }
           
           .room-info p {
-            font-size: 0.9rem;
+            font-size: 0.95rem;
+            margin-bottom: 12px;
+            line-height: 1.5;
           }
           
           .see-room {
             width: 100%;
-            padding: 10px 18px;
+            padding: 12px 20px;
+            font-size: 0.95rem;
+            min-height: 44px;
           }
           
           .site-footer {
-            padding: 30px 15px 20px;
+            padding: 40px 16px 24px;
           }
           
           .footer-top {
             grid-template-columns: 1fr;
-            gap: 30px;
+            gap: 32px;
           }
           
           .footer-about h3,
           .footer-links h4,
           .footer-contact h4 {
-            font-size: 1rem;
+            font-size: 1.1rem;
+            margin-bottom: 12px;
           }
           
           .footer-about p,
           .footer-contact p {
-            font-size: 0.85rem;
+            font-size: 0.9rem;
+            line-height: 1.6;
           }
           
           .inquiry-textarea {
-            font-size: 0.9rem;
-            padding: 10px 12px;
+            font-size: 0.95rem;
+            padding: 12px 14px;
+            border-radius: 10px;
+            min-height: 100px;
           }
           
           .inquiry-button {
             width: 100%;
-            font-size: 0.9rem;
+            font-size: 0.95rem;
+            min-height: 44px;
+            padding: 12px 18px;
+          }
+          
+          .inquiry-note {
+            font-size: 0.85rem;
+          }
+          
+          .location-links {
+            flex-direction: column;
+            gap: 12px;
+          }
+          
+          .location-link {
+            width: 100%;
+            justify-content: flex-start;
+            padding: 10px 12px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 8px;
+          }
+          
+          .facebook-link {
+            width: 100%;
+            justify-content: flex-start;
+            padding: 10px 12px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 8px;
           }
         }
         
         /* Small Mobile (480px - 639px) */
         @media (min-width: 480px) and (max-width: 639px) {
           .hero {
-            min-height: 580px;
+            min-height: 600px;
+            padding: 25px 0;
+          }
+          
+          .hero-inner {
+            padding: 1.5rem 1.25rem;
           }
           
           .hero-text {
-            padding: 2rem;
+            padding: 2rem 1.5rem;
+            border-radius: 10px;
           }
           
           .hero h1 {
-            font-size: clamp(28px, 6vw, 36px);
+            font-size: clamp(30px, 6.5vw, 38px);
+            line-height: 1.15;
           }
           
           .hero .sub {
-            font-size: clamp(14px, 3vw, 16px);
+            font-size: clamp(15px, 3.2vw, 17px);
+            line-height: 1.45;
           }
           
           .hero-ctas {
             flex-direction: row;
             flex-wrap: wrap;
             justify-content: center;
+            gap: 12px;
           }
           
           .hero-ctas .btn {
             flex: 1 1 auto;
-            min-width: 140px;
+            min-width: 160px;
+            min-height: 46px;
+            padding: 11px 18px;
           }
           
           .welcome {
-            padding: 60px 20px;
-            min-height: 400px;
+            padding: 70px 24px;
+            min-height: 420px;
           }
           
           .welcome-inner {
-            padding: 25px 20px;
+            padding: 28px 24px;
+            max-width: 100%;
+            margin: 0 auto;
+          }
+          
+          .welcome-inner h2 {
+            font-size: clamp(30px, 6vw, 36px);
+          }
+          
+          .welcome-inner p {
+            font-size: 1rem;
+            line-height: 1.7;
+          }
+          
+          .btn.ghost-white {
+            max-width: 320px;
+            min-height: 46px;
+          }
+          
+          .explore-3d {
+            padding: 70px 24px;
+          }
+          
+          .explore-inner {
+            padding: 38px 28px;
+            max-width: 100%;
+            margin: 0 auto;
           }
           
           .rooms {
-            padding: 80px 20px 100px;
+            padding: 90px 24px 110px;
           }
           
           .room-image {
-            height: 220px;
+            height: 240px;
+          }
+          
+          .room-info {
+            padding: 20px 18px;
+          }
+          
+          .site-footer {
+            padding: 50px 24px 28px;
+          }
+          
+          .footer-top {
+            grid-template-columns: 1fr;
+            gap: 35px;
           }
         }
         
         /* Tablets Portrait (640px - 767px) */
         @media (min-width: 640px) and (max-width: 767px) {
           .hero {
-            min-height: 650px;
+            min-height: 680px;
+            padding: 30px 0;
+          }
+          
+          .hero-inner {
+            padding: 2rem 1.5rem;
           }
           
           .hero-text {
-            max-width: 600px;
-            padding: 2.2rem;
+            max-width: 620px;
+            padding: 2.5rem 2rem;
           }
           
           .hero h1 {
-            font-size: clamp(36px, 5.5vw, 48px);
+            font-size: clamp(38px, 5.8vw, 50px);
+            line-height: 1.12;
           }
           
           .hero .sub {
-            font-size: clamp(15px, 2.5vw, 18px);
+            font-size: clamp(16px, 2.8vw, 19px);
+            line-height: 1.5;
+            margin-bottom: 1.3rem;
+          }
+          
+          .hero-ctas {
+            gap: 14px;
+          }
+          
+          .hero-ctas .btn {
+            min-height: 48px;
+            padding: 12px 22px;
+            font-size: 1rem;
           }
           
           .welcome {
-            padding: 80px 30px;
+            padding: 85px 32px;
+            min-height: 460px;
           }
           
           .welcome-inner {
-            padding: 30px 25px;
+            padding: 32px 28px;
+            max-width: 100%;
+            margin: 0 auto;
+          }
+          
+          .welcome-inner h2 {
+            font-size: clamp(38px, 5vw, 46px);
+          }
+          
+          .welcome-inner p {
+            font-size: 1.05rem;
+          }
+          
+          .explore-3d {
+            padding: 85px 32px;
+          }
+          
+          .explore-inner {
+            padding: 42px 32px;
+            max-width: 100%;
+            margin: 0 auto;
           }
           
           .rooms {
-            padding: 100px 30px 120px;
+            padding: 110px 32px 130px;
           }
           
           .room-image {
-            height: 280px;
+            height: 300px;
+          }
+          
+          .room-info {
+            padding: 24px 22px;
           }
           
           .footer-top {
             grid-template-columns: repeat(2, 1fr);
-            gap: 30px;
+            gap: 32px;
+          }
+          
+          .site-footer {
+            padding: 60px 32px 32px;
           }
         }
         
         /* Tablets Landscape (768px - 1023px) */
         @media (min-width: 768px) and (max-width: 1023px) {
           .hero {
-            min-height: 700px;
+            min-height: 720px;
+            padding: 35px 0;
+          }
+          
+          .hero-inner {
+            padding: 2.5rem 2rem;
           }
           
           .hero-text {
-            max-width: 750px;
-            padding: 2.5rem;
+            max-width: 780px;
+            padding: 2.8rem 2.5rem;
           }
           
           .hero h1 {
-            font-size: clamp(42px, 5.2vw, 56px);
+            font-size: clamp(44px, 5.5vw, 58px);
+            line-height: 1.1;
           }
           
           .hero .sub {
-            font-size: clamp(16px, 2.2vw, 19px);
+            font-size: clamp(17px, 2.5vw, 20px);
+            line-height: 1.55;
+            margin-bottom: 1.4rem;
+          }
+          
+          .hero-ctas {
+            gap: 16px;
           }
           
           .hero-ctas .btn {
-            font-size: 0.95rem;
-            padding: 11px 20px;
+            font-size: 1.02rem;
+            padding: 13px 24px;
+            min-height: 50px;
           }
           
           .welcome {
-            padding: 90px 40px;
-            min-height: 450px;
+            padding: 95px 42px;
+            min-height: 480px;
           }
           
           .welcome-inner {
-            padding: 35px 30px;
+            padding: 38px 34px;
+            max-width: 100%;
+            margin: 0 auto;
+          }
+          
+          .welcome-inner h2 {
+            font-size: clamp(42px, 4.8vw, 52px);
+          }
+          
+          .welcome-inner p {
+            font-size: 1.08rem;
           }
           
           .explore-3d {
-            padding: 90px 40px;
+            padding: 95px 42px;
           }
           
           .explore-inner {
-            padding: 45px 35px;
+            padding: 48px 38px;
+            max-width: 100%;
+            margin: 0 auto;
+          }
+          
+          .explore-inner h2 {
+            font-size: clamp(36px, 4.2vw, 44px);
+          }
+          
+          .explore-note {
+            font-size: 1.1rem;
           }
           
           .rooms {
-            padding: 120px 40px 130px;
+            padding: 125px 42px 140px;
           }
           
           .room-image {
-            height: 340px;
+            height: 360px;
+          }
+          
+          .room-info {
+            padding: 26px 24px;
+          }
+          
+          .room-info h4 {
+            font-size: 1.65rem;
+          }
+          
+          .room-info p {
+            font-size: 1.02rem;
           }
           
           .footer-top {
             grid-template-columns: repeat(3, 1fr);
-            gap: 35px;
+            gap: 38px;
+          }
+          
+          .site-footer {
+            padding: 70px 42px 36px;
           }
           
           .modal-content {
-            max-width: 650px;
-            width: 85%;
+            max-width: 680px;
+            width: 88%;
+            padding: 2rem 1.75rem;
+          }
+          
+          .image-gallery img {
+            width: 180px;
+            height: 115px;
           }
         }
         
@@ -2273,44 +2717,69 @@ export default function Home() {
         /* Landscape orientation adjustments for mobile/tablet */
         @media (max-width: 1023px) and (orientation: landscape) {
           .hero {
-            min-height: 85vh;
-            padding: 30px 0;
+            min-height: 90vh;
+            padding: 25px 0;
+          }
+          
+          .hero-inner {
+            padding: 2rem 1.5rem;
           }
           
           .hero-text {
-            padding: 1.5rem;
+            padding: 1.8rem 1.5rem;
           }
           
           .hero h1 {
-            font-size: clamp(28px, 5vw, 42px);
-            margin-bottom: 0.4rem;
+            font-size: clamp(32px, 5.5vw, 46px);
+            margin-bottom: 0.5rem;
           }
           
           .hero .sub {
-            font-size: clamp(14px, 2vw, 17px);
-            margin-bottom: 0.8rem;
+            font-size: clamp(15px, 2.2vw, 18px);
+            margin-bottom: 1rem;
           }
           
           .hero-ctas {
-            gap: 10px;
-            margin-top: 0.8rem;
+            gap: 12px;
+            margin-top: 1rem;
+          }
+          
+          .hero-ctas .btn {
+            padding: 10px 18px;
+            min-height: 42px;
           }
           
           .welcome {
-            padding: 50px 30px;
-            min-height: 300px;
+            padding: 60px 32px;
+            min-height: 320px;
+          }
+          
+          .welcome-inner {
+            padding: 28px 24px;
           }
           
           .explore-3d {
-            padding: 50px 30px;
+            padding: 60px 32px;
+          }
+          
+          .explore-inner {
+            padding: 32px 28px;
           }
           
           .rooms {
-            padding: 70px 30px 80px;
+            padding: 80px 32px 90px;
           }
           
           .room-image {
-            height: 300px;
+            height: 320px;
+          }
+          
+          .room-info {
+            padding: 20px 18px;
+          }
+          
+          .site-footer {
+            padding: 50px 32px 28px;
           }
         }
         

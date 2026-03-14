@@ -168,6 +168,8 @@ html {
   overflow-x: hidden;
   max-width: 100vw;
   height: 100%;
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
 }
 
 body {
@@ -184,6 +186,8 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 main {
@@ -247,6 +251,10 @@ p {
   white-space: nowrap;
   position: relative;
   overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  min-height: 40px;
 }
 
 .btn:disabled {
@@ -586,6 +594,7 @@ p {
   .btn {
     font-size: var(--text-xs);
     padding: var(--space-xs) var(--space-sm);
+    min-height: 44px;
   }
   
   .card-header,
@@ -604,6 +613,17 @@ p {
   
   h3 {
     font-size: var(--text-xl);
+  }
+  
+  /* Better touch targets on mobile */
+  a, button, input, select, textarea {
+    min-height: 44px;
+  }
+  
+  /* Improve readability on mobile */
+  p {
+    font-size: var(--text-sm);
+    line-height: 1.6;
   }
 }
 
@@ -625,3 +645,50 @@ p {
     scroll-behavior: auto !important;
   }
 }
+
+/* Mobile-specific smooth scrolling */
+@media (max-width: 1023px) {
+  * {
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Prevent horizontal scroll bounce on iOS */
+  html, body {
+    overflow-x: hidden;
+    position: relative;
+  }
+  
+  /* Better tap highlight */
+  a, button, [role="button"] {
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Improve form input experience on mobile */
+  input, textarea, select {
+    font-size: 16px; /* Prevents auto-zoom on iOS */
+  }
+}
+
+/* Landscape mobile optimization */
+@media (max-width: 767px) and (orientation: landscape) {
+  html {
+    font-size: 14px;
+  }
+}
+
+/* Small mobile optimization */
+@media (max-width: 480px) {
+  html {
+    font-size: 15px;
+  }
+  
+  /* Improve spacing on small screens */
+  .card {
+    border-radius: var(--radius-lg);
+  }
+  
+  .modal-content {
+    border-radius: var(--radius-lg);
+  }
+}
+

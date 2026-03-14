@@ -7,7 +7,7 @@ export async function GET() {
   try {
     // Check authentication
     const session = await getServerSession(authOptions);
-    if (!session || !['SUPERADMIN', 'CASHIER', 'ADMIN'].includes(session.user?.role)) {
+    if (!session || !['SUPERADMIN', 'CASHIER'].includes(session.user?.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 

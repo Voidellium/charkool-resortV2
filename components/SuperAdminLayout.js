@@ -1,9 +1,10 @@
 import Head from 'next/head';
-import React from 'react';
+import React, { useCallback } from 'react';
 import Link from 'next/link';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ToastProvider } from './Toast';
+import ChangePasswordModal from './ChangePasswordModal';
 import { 
   Bell, 
   Home, 
@@ -21,7 +22,10 @@ import {
   Menu,
   X,
   Check,
-  Calendar
+  Calendar,
+  AlertCircle,
+  LogOut,
+  Lock
 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import styles from './SuperAdminLayout.module.css';
@@ -48,6 +52,16 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
   const [isMobile, setIsMobile] = useState(false);
   const [collapsedDropdownOpen, setCollapsedDropdownOpen] = useState(null);
   const [mounted, setMounted] = useState(false); // Track client-side mounting for hydration
+  
+  // Confirm modal state for logout
+  const [confirmModal, setConfirmModal] = useState({ show: false, title: '', message: '', onConfirm: null });
+  
+  // Change password modal state
+  const [showChangePassword, setShowChangePassword] = useState(false);
+
+  const showConfirmModal = useCallback((title, message, onConfirm) => {
+    setConfirmModal({ show: true, title, message, onConfirm });
+  }, []);
 
 
   const toggleSidebar = () => {
@@ -183,7 +197,8 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
   ];
 
   const handleLogout = async () => {
-    if (window.confirm("Are you sure you want to log out?")) {
+    showConfirmModal('Confirm Logout', 'Are you sure you want to log out?', async () => {
+      setConfirmModal({ show: false, title: '', message: '', onConfirm: null });
       setIsLoading(true);
       try {
         await signOut({ callbackUrl: '/login' });
@@ -191,7 +206,7 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
         console.error('Logout error:', error);
         setIsLoading(false);
       }
-    }
+    });
   };
 
   const handleSwitchAccount = () => router.push('/account-switch');
@@ -985,6 +1000,17 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                       Change Picture
                     </div>
                     <div
+                      className={`${styles.profileAction} ${styles.profileActionPrimary}`}
+                      onClick={() => {
+                        setShowChangePassword(true);
+                        setProfileOpen(false);
+                      }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                    >
+                      <Lock size={16} />
+                      Change Password
+                    </div>
+                    <div
                       className={`${styles.profileAction} ${styles.profileActionDanger}`}
                       onClick={handleLogout}
                     >
@@ -1013,6 +1039,95 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
           </div>
         </div>
       </div>
+
+      {/* Confirm Modal */}
+      {confirmModal.show && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 99999,
+        }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #febe52 0%, #fcd34d 50%, #f6e27a 100%)',
+            borderRadius: '16px',
+            padding: '24px',
+            maxWidth: '400px',
+            width: '90%',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+            textAlign: 'center',
+          }}>
+            <div style={{ marginBottom: '16px' }}>
+              <LogOut size={48} color="#dc2626" />
+            </div>
+            <h3 style={{
+              margin: '0 0 12px 0',
+              color: '#5a3e00',
+              fontSize: '20px',
+              fontWeight: 'bold',
+            }}>{confirmModal.title}</h3>
+            <p style={{
+              margin: '0 0 20px 0',
+              color: '#6b4a00',
+              fontSize: '14px',
+              lineHeight: '1.5',
+            }}>{confirmModal.message}</p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <button
+                onClick={() => setConfirmModal({ show: false, title: '', message: '', onConfirm: null })}
+                style={{
+                  backgroundColor: '#9ca3af',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '12px 24px',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s',
+                }}
+                onMouseOver={(e) => e.target.style.backgroundColor = '#6b7280'}
+                onMouseOut={(e) => e.target.style.backgroundColor = '#9ca3af'}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmModal.onConfirm}
+                style={{
+                  backgroundColor: '#dc2626',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '12px 24px',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s',
+                }}
+                onMouseOver={(e) => e.target.style.backgroundColor = '#b91c1c'}
+                onMouseOut={(e) => e.target.style.backgroundColor = '#dc2626'}
+              >
+                Log Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={showChangePassword}
+        onClose={() => setShowChangePassword(false)}
+        onSuccess={() => {
+          console.log('Password changed successfully');
+        }}
+      />
       </>
     </ToastProvider>
   );

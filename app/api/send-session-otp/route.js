@@ -5,6 +5,14 @@ import { Resend } from 'resend';
 const prisma = new PrismaClient();
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+// List of test/example email domains that bypass OTP email sending
+const TEST_EMAIL_DOMAINS = ['@example.com'];
+const TEST_ACCOUNT_BYPASS_OTP = '123456'; // Fixed OTP for test accounts
+
+function isTestAccount(email) {
+  return TEST_EMAIL_DOMAINS.some(domain => email.toLowerCase().endsWith(domain));
+}
+
 function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
@@ -30,8 +38,11 @@ export async function POST(req) {
       },
     });
 
-    // Generate OTP
-    const otp = generateOTP();
+    // Check if this is a test account
+    const isTest = isTestAccount(token.email);
+    
+    // Generate OTP - use fixed OTP for test accounts
+    const otp = isTest ? TEST_ACCOUNT_BYPASS_OTP : generateOTP();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     // Get user details for OTP record
@@ -66,6 +77,17 @@ export async function POST(req) {
         password: 'session-verification', // Placeholder for session OTP
       },
     });
+
+    // Skip email sending for test accounts - they use bypass OTP
+    if (isTest) {
+      console.log(`Test account ${token.email} - using bypass OTP: ${TEST_ACCOUNT_BYPASS_OTP}`);
+      return new Response(JSON.stringify({
+        message: 'Test account detected. Use bypass OTP: ' + TEST_ACCOUNT_BYPASS_OTP,
+        isTestAccount: true,
+        bypassOtp: TEST_ACCOUNT_BYPASS_OTP,
+        expiresIn: 10,
+      }), { status: 200 });
+    }
 
     // Send OTP email using Resend
     try {

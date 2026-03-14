@@ -14,11 +14,14 @@ export async function POST(req) {
     const { paymentId, reason } = await req.json();
     if (!paymentId || !reason) return NextResponse.json({ error: 'Missing paymentId or reason' }, { status: 400 });
 
-    const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
+    // Ensure paymentId is a string (Prisma Payment.id is String type)
+    const paymentIdStr = String(paymentId);
+
+    const payment = await prisma.payment.findUnique({ where: { id: paymentIdStr } });
     if (!payment) return NextResponse.json({ error: 'Payment not found' }, { status: 404 });
 
     const updated = await prisma.payment.update({
-      where: { id: paymentId },
+      where: { id: paymentIdStr },
       data: { verificationStatus: 'Flagged', flagReason: reason }
     });
 

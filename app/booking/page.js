@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useFormStatus } from 'react-dom';
   
 import { motion } from 'framer-motion';
@@ -14,6 +14,7 @@ import { useNavigationGuard } from '../../hooks/useNavigationGuard.simple';
 import { useNavigationContext } from '../../context/NavigationContext';
 import { NavigationConfirmationModal, ThreeDRoomViewerModal, MaxCapacityModal, MidnightAlertModal } from '../../components/CustomModals';
 import DataPrivacyModal from '../../components/DataPrivacyModal';
+import { useAvailabilityUpdates } from '../../hooks/usePusher';
 
 // Timezone-safe date formatting utility
 function formatDate(date) {
@@ -28,59 +29,7 @@ export default function BookingPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
-  // Role-based access control - CUSTOMER only
-  useEffect(() => {
-    if (status !== 'loading') {
-      if (!session) {
-        // Not authenticated, redirect to login
-        router.push('/login?redirect=/booking');
-        return;
-      }
-      
-      if (session.user.role !== 'CUSTOMER') {
-        // Not a customer, redirect to appropriate dashboard
-        const role = session.user.role;
-        switch (role) {
-          case 'SUPERADMIN':
-            router.push('/super-admin/dashboard');
-            break;
-          case 'ADMIN':
-            router.push('/admin/dashboard');
-            break;
-          case 'RECEPTIONIST':
-            router.push('/receptionist');
-            break;
-          case 'CASHIER':
-            router.push('/cashier');
-            break;
-          case 'AMENITYINVENTORYMANAGER':
-            router.push('/amenityinventorymanager');
-            break;
-          default:
-            router.push('/unauthorized');
-            break;
-        }
-        return;
-      }
-    }
-  }, [session, status, router]);
-
-  // Don't render booking page for non-customers or while checking auth
-  if (status === 'loading' || !session || session.user.role !== 'CUSTOMER') {
-    return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '100vh',
-        fontSize: '1.2rem',
-        color: '#666'
-      }}>
-        {status === 'loading' ? 'Loading...' : 'Redirecting...'}
-      </div>
-    );
-  }
-
+  // ALL HOOKS MUST BE DECLARED BEFORE ANY CONDITIONAL RETURNS
   const [availableRooms, setAvailableRooms] = useState([]);
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [step, setStep] = useState(1);
@@ -91,9 +40,17 @@ export default function BookingPage() {
   const [showPendingPrompt, setShowPendingPrompt] = useState(false);
   const [pendingBooking, setPendingBooking] = useState(null);
   const submittingRef = useRef(false);
+  const availableRoomsSectionRef = useRef(null);
+  const selectedRoomsSectionRef = useRef(null);
+  const selectedRoomCardRefs = useRef({});
+  const shouldAutoScrollToRoomsRef = useRef(false);
 
   // Modal state to prevent spam clicks
   const [showSubmitModal, setShowSubmitModal] = useState(false);
+  
+  // NEW: State for unit reassignment notification
+  const [showReassignmentModal, setShowReassignmentModal] = useState(false);
+  const [reassignmentInfo, setReassignmentInfo] = useState(null);
 
   // New state for animated dots in modal
   const [dotCount, setDotCount] = useState(1);
@@ -168,6 +125,43 @@ export default function BookingPage() {
 
   // NEW: Track which room cards are expanded in selected rooms section
   const [expandedRooms, setExpandedRooms] = useState({});
+  
+  // NEW: Track if booking is within one week
+  const [isWithinOneWeek, setIsWithinOneWeek] = useState(false);
+
+  // Role-based access control - CUSTOMER only
+  useEffect(() => {
+    if (status !== 'loading') {
+      if (!session) {
+        // Not authenticated, redirect to login
+        router.push('/login?redirect=/booking');
+        return;
+      }
+      
+      if (session.user.role !== 'CUSTOMER') {
+        // Not a customer, redirect to appropriate dashboard
+        const role = session.user.role;
+        switch (role) {
+          case 'SUPERADMIN':
+            router.push('/super-admin/dashboard');
+            break;
+          case 'RECEPTIONIST':
+            router.push('/receptionist');
+            break;
+          case 'CASHIER':
+            router.push('/cashier');
+            break;
+          case 'AMENITYINVENTORYMANAGER':
+            router.push('/amenityinventorymanager');
+            break;
+          default:
+            router.push('/unauthorized');
+            break;
+        }
+        return;
+      }
+    }
+  }, [session, status, router]);
 
   // Track booking state for navigation protection with memo
   const bookingStateData = useMemo(() => {
@@ -361,7 +355,52 @@ export default function BookingPage() {
       }
     }
     fetchOptionalAmenities();
+
+    // Store fetchAvailability reference for Pusher hook
+    window._refetchAvailability = fetchAvailability;
   }, []);
+
+  // 🔔 PUSHER: Real-time room availability updates
+  // Callback to refresh availability when another user books
+  const refetchAvailability = useCallback(async () => {
+    console.log('[Pusher] Room availability changed, refreshing...');
+    try {
+      const today = new Date();
+      const startOfMonth = new Date(today);
+      const endOf3Months = new Date(today.getFullYear(), today.getMonth() + 4, 0);
+      const res = await fetch('/api/availability', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          checkIn: formatDate(startOfMonth),
+          checkOut: formatDate(endOf3Months),
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAvailabilityData(data.availability || {});
+      }
+    } catch (err) {
+      console.error('[Pusher] Failed to refresh availability:', err);
+    }
+  }, []);
+
+  // Subscribe to availability updates - refreshes when someone else books a room
+  useAvailabilityUpdates({
+    onAvailabilityChange: () => {
+      console.log('[Pusher] Availability changed');
+      refetchAvailability();
+    },
+    onRoomBooked: (data) => {
+      console.log('[Pusher] Room booked by another user:', data);
+      refetchAvailability();
+      // Optionally show a notification
+      if (formData.checkInDate && formData.checkOutDate) {
+        // Only show if user is actively booking
+        console.log('[Pusher] Updating availability for active booking session');
+      }
+    },
+  });
 
   // Midnight polling: Start at 11:55 PM, stop at 12:05 AM
   useEffect(() => {
@@ -444,19 +483,19 @@ export default function BookingPage() {
   }, [formData.checkIn, formData.checkOut]);
 
   const getRoomCapacity = (roomType) => {
-    // Base capacity is the minimum (1 guest), max includes +2 additional pax
+    // Base capacity is the minimum (1 guest), max includes +2 additional pax, children max is always 2
     switch (roomType) {
       case 'TEPEE':
-        return { min: 1, base: 5, max: 7, additionalPaxMax: 2 }; // 5 base + 2 additional pax
+        return { min: 1, base: 5, max: 7, additionalPaxMax: 2, childrenMax: 2 }; // 5 base + 2 additional pax, 2 children
       case 'LOFT':
-        return { min: 1, base: 2, max: 4, additionalPaxMax: 2 }; // 2 base + 2 additional pax
+        return { min: 1, base: 2, max: 4, additionalPaxMax: 2, childrenMax: 2 }; // 2 base + 2 additional pax, 2 children
       case 'VILLA':
-        return { min: 1, base: 8, max: 10, additionalPaxMax: 2 }; // 8 base + 2 additional pax
+        return { min: 1, base: 8, max: 10, additionalPaxMax: 2, childrenMax: 2 }; // 8 base + 2 additional pax, 2 children
       case 'FAMILY_LODGE':
-        return { min: 1, base: 20, max: 22, additionalPaxMax: 2 }; // 20 base + 2 additional pax
+        return { min: 1, base: 20, max: 22, additionalPaxMax: 2, childrenMax: 2 }; // 20 base + 2 additional pax, 2 children
       default:
         // Default capacity for other rooms
-        return { min: 1, base: 100, max: 100, additionalPaxMax: 0 };
+        return { min: 1, base: 100, max: 100, additionalPaxMax: 0, childrenMax: 2 };
     }
   };
 
@@ -654,11 +693,29 @@ export default function BookingPage() {
 
 
   const handleDateChange = ({ checkInDate, checkOutDate }) => {
+    const hasFullRange = !!checkInDate && !!checkOutDate && formatDate(checkInDate) !== formatDate(checkOutDate);
+
     setFormData(prev => ({
       ...prev,
       checkIn: formatDate(checkInDate),
       checkOut: formatDate(checkOutDate)
     }));
+
+    if (hasFullRange) {
+      shouldAutoScrollToRoomsRef.current = true;
+    }
+    
+    // Check if check-in date is within one week from today
+    if (checkInDate) {
+      const now = new Date();
+      now.setHours(0, 0, 0, 0); // Reset to start of day for accurate comparison
+      const checkIn = new Date(checkInDate);
+      checkIn.setHours(0, 0, 0, 0);
+      const diffDays = (checkIn - now) / (1000 * 60 * 60 * 24);
+      setIsWithinOneWeek(diffDays < 7 && diffDays >= 0);
+    } else {
+      setIsWithinOneWeek(false);
+    }
   };
 
   const handleRoomSelect = (room) => {
@@ -715,10 +772,13 @@ export default function BookingPage() {
   // NEW: Handler functions for rooms array format
   const handleAddRoom = (room) => {
     const capacity = getRoomCapacity(room.type);
+    let newRoomKey = '';
+
     setFormData(prev => {
       // Count how many instances of this room type already exist
       const existingInstances = prev.rooms.filter(r => r.roomId === room.id);
       const instanceNumber = existingInstances.length + 1;
+      newRoomKey = `${room.id}-${instanceNumber}`;
       
       const newRoom = {
         roomId: room.id,
@@ -737,7 +797,27 @@ export default function BookingPage() {
     });
     // Auto-expand the newly added room instance
     setExpandedRooms(prev => ({ ...prev, [`${room.id}-${prev.rooms ? prev.rooms.filter(r => r.roomId === room.id).length + 1 : 1}`]: true }));
+
+    // Auto-scroll to selected rooms, then focus the newly added room card.
+    setTimeout(() => {
+      selectedRoomsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+      setTimeout(() => {
+        const roomCard = selectedRoomCardRefs.current[newRoomKey];
+        if (roomCard) {
+          roomCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 220);
+    }, 120);
   };
+
+  useEffect(() => {
+    if (!shouldAutoScrollToRoomsRef.current) return;
+    if (loadingRooms) return;
+
+    availableRoomsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    shouldAutoScrollToRoomsRef.current = false;
+  }, [loadingRooms, availableRooms.length, formData.checkIn, formData.checkOut]);
 
   const handleRemoveRoom = (roomId, instanceNumber) => {
     setFormData(prev => ({
@@ -785,9 +865,9 @@ export default function BookingPage() {
             }
             
             updatedRoom.adults = targetAdults;
-            // Children can't exceed max capacity
-            if (updatedRoom.children > capacity.max) {
-              updatedRoom.children = capacity.max;
+            // Children can't exceed childrenMax (always 2)
+            if (updatedRoom.children > (capacity.childrenMax || 2)) {
+              updatedRoom.children = (capacity.childrenMax || 2);
             }
           } else if (field === 'additionalPax') {
             const targetPax = Math.max(0, Math.min(newValue, capacity.additionalPaxMax));
@@ -800,12 +880,12 @@ export default function BookingPage() {
             
             updatedRoom.additionalPax = targetPax;
           } else if (field === 'children') {
-            // Children limited by max capacity (base + additional pax)
-            const targetChildren = Math.max(0, Math.min(newValue, capacity.max));
+            // Children limited to max 2 for all room types
+            const targetChildren = Math.max(0, Math.min(newValue, capacity.childrenMax || 2));
             
-            // Check if trying to exceed capacity
-            if (newValue > capacity.max) {
-              setMaxCapacityModal({ show: true, roomType: room.type, maxCapacity: capacity.max });
+            // Check if trying to exceed children limit
+            if (newValue > (capacity.childrenMax || 2)) {
+              setMaxCapacityModal({ show: true, roomType: room.type, maxCapacity: capacity.childrenMax || 2 });
               return r; // Don't update
             }
             
@@ -952,7 +1032,27 @@ export default function BookingPage() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.details || 'Booking failed');
+        // Handle specific error cases
+        if (data.error && data.error.includes('only') && data.error.includes('units available')) {
+          // Room availability error - clear message
+          throw new Error(data.error);
+        } else if (data.error && data.error.includes('cooldown')) {
+          // Cooldown error
+          throw new Error(`${data.error}\nPlease try again later.`);
+        } else {
+          throw new Error(data.error || data.details || 'Booking failed. Please try again.');
+        }
+      }
+
+      // Check if there's a unit assignment warning
+      if (data.booking?.unitAssignmentWarning) {
+        setReassignmentInfo({
+          bookingId: data.booking.id,
+          warning: data.booking.unitAssignmentWarning,
+          totalPrice: totalPrice / 100
+        });
+        setShowReassignmentModal(true);
+        return; // Don't auto-redirect, let user acknowledge the warning
       }
 
   // Store booking details for checkout page
@@ -965,7 +1065,19 @@ export default function BookingPage() {
 
     } catch (err) {
       console.error('❌ Booking Error:', err);
-      alert(`❌ Booking Failed: ${err.message}`);
+      
+      // More user-friendly error messages
+      let errorMessage = err.message;
+      
+      if (errorMessage.includes('only') && errorMessage.includes('units available')) {
+        errorMessage = `${errorMessage}\n\nThe rooms may have just been booked by another guest. Please try selecting different dates or rooms.`;
+      } else if (errorMessage.includes('no longer available')) {
+        errorMessage = 'Selected room units are no longer available. Please refresh the page and try again with different units.';
+      } else if (!errorMessage || errorMessage === 'Failed to fetch') {
+        errorMessage = 'Unable to connect to the server. Please check your internet connection and try again.';
+      }
+      
+      alert(`❌ Booking Failed\n\n${errorMessage}`);
       // Clear localStorage on error to prevent stale data
       localStorage.removeItem('bookingId');
       localStorage.removeItem('bookingAmount');
@@ -977,6 +1089,22 @@ export default function BookingPage() {
 
   if (status === 'loading' || !session) {
     return <div>Loading...</div>;
+  }
+
+  // Don't render booking page for non-customers or while checking auth
+  if (status === 'loading' || !session || session?.user?.role !== 'CUSTOMER') {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh',
+        fontSize: '1.2rem',
+        color: '#666'
+      }}>
+        {status === 'loading' ? 'Loading...' : 'Redirecting...'}
+      </div>
+    );
   }
 
   const progressPercent = (step / 2) * 100; // Changed from 3 to 2 steps
@@ -1031,7 +1159,7 @@ export default function BookingPage() {
                       <div className="calendar-section">
                         <div className="section-header">
                           <h3 className="section-title">Select Your Dates</h3>
-                          <p className="section-subtitle">Choose your check-in and check-out dates to see available rooms</p>
+                          <p className="section-subtitle">Pick your check-in and check-out dates</p>
                         </div>
                         
                         <div className="calendar-wrapper">
@@ -1040,18 +1168,12 @@ export default function BookingPage() {
                               availabilityData={availabilityData}
                               disabledDates={disabledDates}
                               maxBookingMonths={maxBookingMonths}
-                              onDateChange={({ checkInDate, checkOutDate }) => {
-                                setFormData(prev => ({
-                                  ...prev,
-                                  checkIn: checkInDate ? formatDate(checkInDate) : '',
-                                  checkOut: checkOutDate ? formatDate(checkOutDate) : ''
-                                }));
-                              }}
+                              onDateChange={handleDateChange}
                               checkIn={formData.checkIn ? new Date(formData.checkIn) : null}
                               checkOut={formData.checkOut ? new Date(formData.checkOut) : null}
                             />
                           </div>
-                          
+
                           <div className="date-summary-card">
                             <div className="date-summary-header">
                               <h4>Selected Dates</h4>
@@ -1106,6 +1228,17 @@ export default function BookingPage() {
                                 {Math.max(1, (new Date(formData.checkOut) - new Date(formData.checkIn)) / (1000 * 60 * 60 * 24))} night(s) stay
                               </div>
                             )}
+                            
+                            {/* Warning for bookings within one week - Inside date-summary-card */}
+                            {isWithinOneWeek && formData.checkIn && (
+                              <div className="one-week-warning" role="alert">
+                                <div className="warning-icon">⚠️</div>
+                                <div className="warning-content">
+                                  <strong>Short Notice Booking</strong>
+                                  <p>You are booking within one week from today. Please note that reschedule requests can only be made up to 7 days before check-in.</p>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1114,12 +1247,11 @@ export default function BookingPage() {
                         <div className="date-warning" role="alert">{dateWarning}</div>
                       )}
 
-                      <div className="rooms-header" style={{ marginBottom: '1rem' }}>
+                      <div className="rooms-header" style={{ marginBottom: '1rem' }} ref={availableRoomsSectionRef}>
                         <div className="section-header">
                           <h3 className="section-title">Available Rooms</h3>
                           <p className="section-subtitle">Browse and select rooms for your stay. Customize each room individually.</p>
                         </div>
-                        <span className="hint">Tap a card to select. We’ll lock other options once capacity is met.</span>
                       </div>
 
                       {loadingRooms ? (
@@ -1141,32 +1273,39 @@ export default function BookingPage() {
                             const instancesAdded = formData.rooms.filter(r => r.roomId === room.id).length;
                             const isFull = room.remaining <= 0;
                             const allInstancesAdded = instancesAdded >= room.remaining;
-                            const isUnavailable = room.type === 'FAMILY_LODGE'; // Family Lodge is unavailable
+                            const isFamilyLodge = room.type === 'FAMILY_LODGE'; // Family Lodge is coming soon
+                            const isFullyBooked = !isFamilyLodge && isFull; // Other rooms fully booked for this date
 
                             return (
                               <div 
                                 key={room.id} 
-                                className={`room-option ${instancesAdded > 0 ? 'in-cart' : ''} ${isFull || isUnavailable ? 'disabled' : ''} ${isUnavailable ? 'unavailable' : ''}`}
+                                className={`room-option ${instancesAdded > 0 ? 'in-cart' : ''} ${isFull || isFamilyLodge ? 'disabled' : ''} ${isFamilyLodge ? 'unavailable' : ''} ${isFullyBooked ? 'fully-booked' : ''}`}
                                 style={{ cursor: 'default', position: 'relative' }}
                               >
-                                {instancesAdded > 0 && !isUnavailable && (
+                                {instancesAdded > 0 && !isFamilyLodge && !isFullyBooked && (
                                   <div className="selected-check" aria-hidden="true">
                                     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                       <path d="M20 6L9 17L4 12" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
                                     </svg>
                                   </div>
                                 )}
-                                {isUnavailable && (
+                                {isFamilyLodge && (
                                   <div className="unavailable-overlay">
-                                    <div className="unavailable-badge">UNAVAILABLE</div>
+                                    <div className="unavailable-badge">COMING SOON</div>
+                                  </div>
+                                )}
+                                {isFullyBooked && (
+                                  <div className="unavailable-overlay fully-booked-overlay">
+                                    <div className="unavailable-badge fully-booked-badge">FULLY BOOKED</div>
+                                    <p className="unavailable-message">No availability for selected dates</p>
                                   </div>
                                 )}
                                 <div className="room-media">
                                   <img src={room.image || '/images/default.jpg'} alt={room.name} />
-                                  {isUnavailable ? (
+                                  {isFamilyLodge ? (
                                     <span className="available-count unavailable-tag">Coming Soon</span>
-                                  ) : isFull ? (
-                                    <span className="available-count full">Full</span>
+                                  ) : isFullyBooked ? (
+                                    <span className="available-count fully-booked-tag">Fully Booked</span>
                                   ) : (
                                     <span className="available-count">{room.remaining} left</span>
                                   )}
@@ -1192,8 +1331,10 @@ export default function BookingPage() {
                                       type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        if (isUnavailable) {
+                                        if (isFamilyLodge) {
                                           alert('Coming Soon! Images for Family Lodge will be available soon.');
+                                        } else if (isFullyBooked) {
+                                          alert('This room is fully booked for the selected dates. Please try different dates.');
                                         } else {
                                           setRoomImagesModal({ open: true, selectedRoomId: room.id, selectedImage: null });
                                         }
@@ -1202,26 +1343,26 @@ export default function BookingPage() {
                                         flex: '1',
                                         minWidth: '90px',
                                         padding: '0.5rem 0.75rem',
-                                        background: isUnavailable ? '#9ca3af' : 'linear-gradient(135deg, #f59e0b, #fbbf24)',
+                                        background: (isFamilyLodge || isFullyBooked) ? '#9ca3af' : 'linear-gradient(135deg, #f59e0b, #fbbf24)',
                                         color: '#fff',
                                         border: 'none',
                                         borderRadius: '0.5rem',
                                         fontSize: '0.75rem',
                                         fontWeight: '600',
-                                        cursor: isUnavailable ? 'not-allowed' : 'pointer',
+                                        cursor: (isFamilyLodge || isFullyBooked) ? 'not-allowed' : 'pointer',
                                         transition: 'all 0.2s',
-                                        opacity: isUnavailable ? 0.7 : 1,
-                                        boxShadow: isUnavailable ? 'none' : '0 2px 8px rgba(245, 158, 11, 0.3)'
+                                        opacity: (isFamilyLodge || isFullyBooked) ? 0.7 : 1,
+                                        boxShadow: (isFamilyLodge || isFullyBooked) ? 'none' : '0 2px 8px rgba(245, 158, 11, 0.3)'
                                       }}
                                       onMouseEnter={(e) => { 
-                                        if (!isUnavailable) {
+                                        if (!isFamilyLodge && !isFullyBooked) {
                                           e.target.style.background = 'linear-gradient(135deg, #d97706, #f59e0b)';
                                           e.target.style.transform = 'translateY(-1px)';
                                           e.target.style.boxShadow = '0 4px 12px rgba(245, 158, 11, 0.4)';
                                         }
                                       }}
                                       onMouseLeave={(e) => { 
-                                        if (!isUnavailable) {
+                                        if (!isFamilyLodge && !isFullyBooked) {
                                           e.target.style.background = 'linear-gradient(135deg, #f59e0b, #fbbf24)';
                                           e.target.style.transform = 'translateY(0)';
                                           e.target.style.boxShadow = '0 2px 8px rgba(245, 158, 11, 0.3)';
@@ -1234,8 +1375,10 @@ export default function BookingPage() {
                                       type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        if (isUnavailable) {
+                                        if (isFamilyLodge) {
                                           alert('Coming Soon! 3D view for Family Lodge will be available soon.');
+                                        } else if (isFullyBooked) {
+                                          alert('This room is fully booked for the selected dates. Please try different dates.');
                                         } else {
                                           setThreeDViewerModal({ open: true, roomType: room.type });
                                         }
@@ -1244,26 +1387,26 @@ export default function BookingPage() {
                                         flex: '1',
                                         minWidth: '90px',
                                         padding: '0.5rem 0.75rem',
-                                        background: isUnavailable ? '#9ca3af' : 'linear-gradient(135deg, #fb923c, #fdba74)',
+                                        background: (isFamilyLodge || isFullyBooked) ? '#9ca3af' : 'linear-gradient(135deg, #fb923c, #fdba74)',
                                         color: '#fff',
                                         border: 'none',
                                         borderRadius: '0.5rem',
                                         fontSize: '0.75rem',
                                         fontWeight: '600',
-                                        cursor: isUnavailable ? 'not-allowed' : 'pointer',
+                                        cursor: (isFamilyLodge || isFullyBooked) ? 'not-allowed' : 'pointer',
                                         transition: 'all 0.2s',
-                                        opacity: isUnavailable ? 0.7 : 1,
-                                        boxShadow: isUnavailable ? 'none' : '0 2px 8px rgba(251, 146, 60, 0.3)'
+                                        opacity: (isFamilyLodge || isFullyBooked) ? 0.7 : 1,
+                                        boxShadow: (isFamilyLodge || isFullyBooked) ? 'none' : '0 2px 8px rgba(251, 146, 60, 0.3)'
                                       }}
                                       onMouseEnter={(e) => { 
-                                        if (!isUnavailable) {
+                                        if (!isFamilyLodge && !isFullyBooked) {
                                           e.target.style.background = 'linear-gradient(135deg, #f97316, #fb923c)';
                                           e.target.style.transform = 'translateY(-1px)';
                                           e.target.style.boxShadow = '0 4px 12px rgba(251, 146, 60, 0.4)';
                                         }
                                       }}
                                       onMouseLeave={(e) => { 
-                                        if (!isUnavailable) {
+                                        if (!isFamilyLodge && !isFullyBooked) {
                                           e.target.style.background = 'linear-gradient(135deg, #fb923c, #fdba74)';
                                           e.target.style.transform = 'translateY(0)';
                                           e.target.style.boxShadow = '0 2px 8px rgba(251, 146, 60, 0.3)';
@@ -1276,40 +1419,40 @@ export default function BookingPage() {
                                       type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        if (!isFull && !allInstancesAdded && !isUnavailable) handleAddRoom(room);
+                                        if (!isFull && !allInstancesAdded && !isFamilyLodge && !isFullyBooked) handleAddRoom(room);
                                       }}
-                                      disabled={isFull || allInstancesAdded || isUnavailable}
+                                      disabled={isFull || allInstancesAdded || isFamilyLodge || isFullyBooked}
                                       style={{
                                         flex: '1',
                                         minWidth: '90px',
                                         padding: '0.5rem 0.75rem',
-                                        background: (isFull || allInstancesAdded || isUnavailable) ? '#e5e7eb' : 'linear-gradient(135deg, #fbbf24, #fcd34d)',
-                                        color: (isFull || allInstancesAdded || isUnavailable) ? '#9ca3af' : '#92400e',
+                                        background: (isFull || allInstancesAdded || isFamilyLodge || isFullyBooked) ? '#e5e7eb' : 'linear-gradient(135deg, #fbbf24, #fcd34d)',
+                                        color: (isFull || allInstancesAdded || isFamilyLodge || isFullyBooked) ? '#9ca3af' : '#92400e',
                                         border: 'none',
                                         borderRadius: '0.5rem',
                                         fontSize: '0.75rem',
                                         fontWeight: '600',
-                                        cursor: (isFull || allInstancesAdded || isUnavailable) ? 'not-allowed' : 'pointer',
+                                        cursor: (isFull || allInstancesAdded || isFamilyLodge || isFullyBooked) ? 'not-allowed' : 'pointer',
                                         transition: 'all 0.2s',
                                         position: 'relative',
-                                        boxShadow: (isFull || allInstancesAdded || isUnavailable) ? 'none' : '0 2px 8px rgba(251, 191, 36, 0.3)'
+                                        boxShadow: (isFull || allInstancesAdded || isFamilyLodge || isFullyBooked) ? 'none' : '0 2px 8px rgba(251, 191, 36, 0.3)'
                                       }}
                                       onMouseEnter={(e) => {
-                                        if (!isFull && !allInstancesAdded && !isUnavailable) {
+                                        if (!isFull && !allInstancesAdded && !isFamilyLodge && !isFullyBooked) {
                                           e.target.style.background = 'linear-gradient(135deg, #f59e0b, #fbbf24)';
                                           e.target.style.transform = 'translateY(-1px)';
                                           e.target.style.boxShadow = '0 4px 12px rgba(251, 191, 36, 0.4)';
                                         }
                                       }}
                                       onMouseLeave={(e) => {
-                                        if (!isFull && !allInstancesAdded && !isUnavailable) {
+                                        if (!isFull && !allInstancesAdded && !isFamilyLodge && !isFullyBooked) {
                                           e.target.style.background = 'linear-gradient(135deg, #fbbf24, #fcd34d)';
                                           e.target.style.transform = 'translateY(0)';
                                           e.target.style.boxShadow = '0 2px 8px rgba(251, 191, 36, 0.3)';
                                         }
                                       }}
                                     >
-                                      {isUnavailable ? 'Unavailable' : isFull ? 'Full' : allInstancesAdded ? 'All Added' : instancesAdded > 0 ? `Add Room (${instancesAdded}/${room.remaining})` : 'Add Room'}
+                                      {isFamilyLodge ? 'Coming Soon' : isFullyBooked ? 'Fully Booked' : isFull ? 'Full' : allInstancesAdded ? 'All Added' : instancesAdded > 0 ? `Add Room (${instancesAdded}/${room.remaining})` : 'Add Room'}
                                     </button>
                                   </div>
                                 </div>
@@ -1321,7 +1464,7 @@ export default function BookingPage() {
 
                       {/* Selected Rooms Section */}
                       {formData.rooms.length > 0 && (
-                        <div className="selected-rooms-section">
+                        <div className="selected-rooms-section" ref={selectedRoomsSectionRef}>
                           <div className="section-header">
                             <h3 className="section-title">Your Selected Rooms</h3>
                             <p className="section-subtitle">Expand each room to customize guest details and amenities.</p>
@@ -1342,6 +1485,7 @@ export default function BookingPage() {
                               return (
                                 <div 
                                   key={key} 
+                                  ref={(el) => { selectedRoomCardRefs.current[key] = el; }}
                                   style={{ 
                                     border: '2px solid #2563eb',
                                     borderRadius: '0.75rem',
@@ -1564,7 +1708,7 @@ export default function BookingPage() {
                                           {/* Children */}
                                           <div>
                                             <label htmlFor={`children-${key}`} style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', color: '#4b5563' }}>
-                                              Children (0-{capacity.max}) <span style={{ color: '#059669', fontWeight: '600' }}>Free</span>
+                                              Children (0-{capacity.childrenMax || 2}) <span style={{ color: '#059669', fontWeight: '600' }}>Free</span>
                                             </label>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                               <button
@@ -1595,7 +1739,7 @@ export default function BookingPage() {
                                                 type="number"
                                                 id={`children-${key}`}
                                                 min="0"
-                                                max={capacity.max}
+                                                max={capacity.childrenMax || 2}
                                                 value={roomData.children}
                                                 onChange={(e) => handleRoomGuestChange(room.id, roomData.instanceNumber, 'children', e.target.value)}
                                                 style={{
@@ -1650,6 +1794,29 @@ export default function BookingPage() {
                                           onUnitSelect={(unitNumber) => handleUnitSelection(room.id, roomData.instanceNumber, unitNumber)}
                                           disabled={!formData.checkIn || !formData.checkOut}
                                         />
+                                        
+                                        {/* Unit Assignment Warning */}
+                                        <div style={{ 
+                                          marginTop: '0.75rem',
+                                          padding: '0.75rem 1rem',
+                                          background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)',
+                                          border: '1px solid #93c5fd',
+                                          borderRadius: '0.5rem',
+                                          display: 'flex',
+                                          alignItems: 'flex-start',
+                                          gap: '0.625rem'
+                                        }}>
+                                          <span style={{ fontSize: '1.125rem', flexShrink: 0 }}>ℹ️</span>
+                                          <p style={{ 
+                                            margin: 0, 
+                                            fontSize: '0.8125rem', 
+                                            lineHeight: '1.5',
+                                            color: '#1e3a8a',
+                                            fontWeight: '500'
+                                          }}>
+                                            <strong>Note:</strong> Room unit assignments are subject to availability at the time of payment confirmation. If your selected unit becomes unavailable, you may be automatically reassigned to another available unit of the same type.
+                                          </p>
+                                        </div>
                                       </div>
 
                                       {/* Included Room Amenities */}
@@ -1689,6 +1856,7 @@ export default function BookingPage() {
                                           </h5>
                                           <OptionalAmenitiesSelector
                                             selectedAmenities={roomData.optionalAmenities || {}}
+                                            excludedAmenityNames={['Broom & Dustpan', 'Toiletries Kit']}
                                             onAmenitiesChange={(newOptional) => {
                                               handleRoomAmenityChange(room.id, roomData.instanceNumber, 'optional', null, newOptional);
                                             }}
@@ -1718,7 +1886,7 @@ export default function BookingPage() {
                                             marginTop: '1rem'
                                           }}>
                                             <p style={{ margin: 0, color: '#1e40af', fontSize: '0.875rem' }}>
-                                              � Tip: {roomData.additionalPax} additional pax selected. Consider adding {roomData.additionalPax} pillow(s) and blanket(s) from optional amenities above.
+                                              💡 {roomData.additionalPax} extra bed(s) will be automatically included for your {roomData.additionalPax} additional pax.
                                             </p>
                                           </div>
                                         )}
@@ -1769,6 +1937,7 @@ export default function BookingPage() {
                                   <ul style={{ listStyleType: 'none', paddingLeft: '1.5rem', margin: '0.25rem 0' }}>
                                     {roomData.adults > 0 && <li style={{ fontSize: '0.9rem', color: '#4b5563' }}>- {roomData.adults} adult{roomData.adults !== 1 ? 's' : ''}</li>}
                                     {roomData.additionalPax > 0 && <li style={{ fontSize: '0.9rem', color: '#4b5563' }}>- {roomData.additionalPax} additional pax</li>}
+                                    {roomData.additionalPax > 0 && <li style={{ fontSize: '0.9rem', color: '#059669', fontWeight: '500' }}>- {roomData.additionalPax} extra bed{roomData.additionalPax !== 1 ? 's' : ''} (included)</li>}
                                     {roomData.children > 0 && <li style={{ fontSize: '0.9rem', color: '#4b5563' }}>- {roomData.children} {roomData.children === 1 ? 'child' : 'children'}</li>}
                                   </ul>
                                 </li>
@@ -2029,6 +2198,7 @@ export default function BookingPage() {
                         <ul style={{ listStyleType: 'none', paddingLeft: '0.75rem', margin: 0, fontSize: '0.8rem', color: '#6b7280' }}>
                           {roomData.adults > 0 && <li>- {roomData.adults} adult{roomData.adults !== 1 ? 's' : ''}</li>}
                           {roomData.additionalPax > 0 && <li>- {roomData.additionalPax} additional pax</li>}
+                          {roomData.additionalPax > 0 && <li style={{ color: '#059669' }}>- {roomData.additionalPax} extra bed{roomData.additionalPax !== 1 ? 's' : ''}</li>}
                           {roomData.children > 0 && <li>- {roomData.children} {roomData.children === 1 ? 'child' : 'children'}</li>}
                         </ul>
                       </li>
@@ -2204,11 +2374,27 @@ export default function BookingPage() {
           box-sizing: border-box;
         }
         
-        html, body {
-          overflow-x: hidden;
+        html {
+          overflow-x: hidden !important;
           width: 100%;
+          max-width: 100vw;
+          position: relative;
+        }
+        
+        body {
+          overflow-x: hidden !important;
+          width: 100%;
+          max-width: 100vw;
           margin: 0;
           padding: 0;
+          position: relative;
+        }
+        
+        #__next {
+          overflow-x: hidden !important;
+          width: 100%;
+          max-width: 100vw;
+          position: relative;
         }
 
         .container {
@@ -2216,6 +2402,7 @@ export default function BookingPage() {
           width: 100%;
           max-width: 100vw;
           overflow-x: hidden;
+          position: relative;
           box-sizing: border-box;
           /* Subtle beach-inspired gradient matching the navbar palette */
           background: radial-gradient(1400px 360px at 50% -80px, rgba(254, 190, 82, 0.24), rgba(254, 190, 82, 0) 65%),
@@ -2231,16 +2418,22 @@ export default function BookingPage() {
         /* Hero */
         .hero {
           position: relative;
-          padding: 56px 24px 32px 24px;
+          padding: 56px 12px 32px 12px;
           margin-top: 96px; /* push below navbar */
           background: radial-gradient(1400px 340px at 50% -50px, rgba(254, 190, 82, 0.32), rgba(254, 190, 82, 0) 62%),
                       linear-gradient(180deg, rgba(255,255,255,0.85), rgba(255,255,255,0.1));
           overflow: hidden;
+          width: 100%;
+          max-width: 100%;
+          box-sizing: border-box;
         }
         .hero-inner {
           max-width: 1200px;
+          width: 100%;
           margin: 0 auto;
           text-align: center;
+          box-sizing: border-box;
+          padding: 0 12px;
         }
         .hero-title {
           font-size: clamp(2rem, 2.5vw + 1rem, 3.2rem);
@@ -2269,25 +2462,30 @@ export default function BookingPage() {
 
         /* Layout */
         .layout {
-          max-width: 1240px;
+          max-width: 100%;
           width: 100%;
           margin: 0 auto;
-          padding: 32px 20px 60px 20px;
+          padding: 32px 12px 60px 12px;
           display: grid;
           grid-template-columns: 1fr;
-          gap: 32px;
+          gap: 24px;
           box-sizing: border-box;
+          position: relative;
         }
         @media (min-width: 768px) {
           .layout {
-            padding: 40px 28px 80px 28px;
+            padding: 40px 20px 80px 20px;
+            gap: 28px;
           }
         }
         @media (min-width: 980px) {
           .layout {
-            grid-template-columns: 1.4fr 0.6fr;
+            grid-template-columns: 1fr;
             align-items: start;
-            gap: 40px;
+            gap: 28px;
+            padding: 40px 24px 80px 24px;
+            max-width: 1200px;
+            min-height: 100vh;
           }
         }
         .main {
@@ -2297,6 +2495,7 @@ export default function BookingPage() {
           min-width: 0;
           width: 100%;
           box-sizing: border-box;
+          padding-bottom: 40px;
         }
 
         /* Stepper */
@@ -2406,6 +2605,9 @@ export default function BookingPage() {
           box-shadow: var(--shadow-lg); 
           overflow: hidden;
           transition: box-shadow 0.3s ease;
+          width: 100%;
+          max-width: 100%;
+          box-sizing: border-box;
         }
         .card:hover {
           box-shadow: var(--shadow-xl);
@@ -2445,10 +2647,15 @@ export default function BookingPage() {
         /* === NEW: Enhanced Section Styles === */
         .calendar-section {
           margin-bottom: 3rem;
+          width: 100%;
+          max-width: 100%;
+          box-sizing: border-box;
         }
         
         .section-header {
           margin-bottom: 1.5rem;
+          width: 100%;
+          max-width: 100%;
         }
         
         .section-title {
@@ -2470,26 +2677,12 @@ export default function BookingPage() {
         
         /* Calendar Layout */
         .calendar-wrapper {
-          display: grid;
-          grid-template-columns: 1fr;
+          display: flex;
+          flex-direction: column;
           gap: 1.5rem;
           width: 100%;
           max-width: 100%;
           box-sizing: border-box;
-        }
-        
-        @media (min-width: 768px) {
-          .calendar-wrapper {
-            grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
-            gap: 2rem;
-          }
-        }
-        
-        @media (min-width: 1024px) {
-          .calendar-wrapper {
-            grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
-            gap: 2.5rem;
-          }
         }
         
         .calendar-container {
@@ -2556,6 +2749,9 @@ export default function BookingPage() {
           grid-template-columns: 1fr auto 1fr;
           gap: 1rem;
           align-items: center;
+          width: 100%;
+          max-width: 100%;
+          box-sizing: border-box;
         }
         
         @media (max-width: 640px) {
@@ -2673,6 +2869,46 @@ export default function BookingPage() {
           content: '⚠';
           font-size: 1.5rem;
           flex-shrink: 0;
+        }
+
+        /* One Week Warning */
+        .one-week-warning {
+          background: linear-gradient(135deg, #fffbeb, #fef3c7);
+          border: 2px solid #fbbf24;
+          border-radius: 14px;
+          padding: 1rem;
+          margin-top: 1rem;
+          margin-bottom: 0;
+          display: flex;
+          gap: 0.875rem;
+          box-shadow: 0 4px 12px rgba(251, 191, 36, 0.15);
+        }
+        
+        .warning-icon {
+          font-size: 1.5rem;
+          flex-shrink: 0;
+          line-height: 1;
+        }
+        
+        .warning-content {
+          flex: 1;
+        }
+        
+        .warning-content strong {
+          display: block;
+          color: #92400e;
+          font-size: 1rem;
+          font-weight: 700;
+          margin-bottom: 0.375rem;
+          letter-spacing: -0.01em;
+        }
+        
+        .warning-content p {
+          color: #78350f;
+          font-size: 0.875rem;
+          line-height: 1.5;
+          margin: 0;
+          font-weight: 500;
         }
 
         /* Form basics */
@@ -2913,6 +3149,9 @@ export default function BookingPage() {
           background: #fff; 
           overflow: hidden;
           box-shadow: var(--shadow-md);
+          width: 100%;
+          max-width: 100%;
+          box-sizing: border-box;
         }
         .room-option:focus-visible { 
           outline: 3px solid rgba(254, 190, 82, 0.8); 
@@ -2971,6 +3210,62 @@ export default function BookingPage() {
           border: 2px solid rgba(255, 255, 255, 0.9);
           text-transform: uppercase;
         }
+        
+        /* Fully Booked Overlay */
+        .room-option.fully-booked::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(107, 114, 128, 0.5);
+          backdrop-filter: blur(3px);
+          z-index: 1;
+        }
+        .room-option.fully-booked img {
+          filter: grayscale(0.6) brightness(0.75);
+        }
+        .fully-booked-overlay {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          z-index: 10;
+          text-align: center;
+          pointer-events: none;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.5rem;
+        }
+        .fully-booked-badge {
+          background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+          color: white;
+          padding: 12px 24px;
+          border-radius: 8px;
+          font-size: 15px;
+          font-weight: 800;
+          letter-spacing: 0.05em;
+          box-shadow: 0 4px 16px rgba(107, 114, 128, 0.4);
+          border: 2px solid rgba(255, 255, 255, 0.9);
+          text-transform: uppercase;
+        }
+        .unavailable-message {
+          color: #374151;
+          font-size: 13px;
+          font-weight: 600;
+          background: rgba(255, 255, 255, 0.95);
+          padding: 6px 12px;
+          border-radius: 6px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          margin: 0;
+        }
+        .available-count.fully-booked-tag {
+          background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+          opacity: 0.9;
+        }
+        
         .available-count.unavailable-tag {
           background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
           animation: pulse-purple 2s ease-in-out infinite;
@@ -2985,6 +3280,7 @@ export default function BookingPage() {
         }
         .room-option img { 
           width: 100%; 
+          max-width: 100%;
           height: 180px; 
           object-fit: cover; 
           display: block;
@@ -3148,12 +3444,17 @@ export default function BookingPage() {
           margin-top: 3rem;
           padding-top: 2rem;
           border-top: 2px dashed rgba(254, 190, 82, 0.3);
+          width: 100%;
+          max-width: 100%;
+          box-sizing: border-box;
         }
         
         .selected-rooms-list {
           display: flex;
           flex-direction: column;
           gap: 1.25rem;
+          width: 100%;
+          max-width: 100%;
         }
         
         .selected-room-card {
@@ -3163,6 +3464,9 @@ export default function BookingPage() {
           background: #fff;
           box-shadow: var(--shadow-md);
           transition: all 0.3s ease;
+          width: 100%;
+          max-width: 100%;
+          box-sizing: border-box;
         }
         
         .selected-room-card:hover {
@@ -3558,14 +3862,7 @@ export default function BookingPage() {
 
         /* Summary */
         .summary { 
-          position: sticky; 
-          top: 96px; 
-          height: fit-content; 
-        }
-        @media (max-width: 979px) { 
-          .summary { 
-            position: static; 
-          } 
+          display: none;
         }
         .summary-card { 
           background: linear-gradient(135deg, var(--panel), var(--bg-soft)); 
@@ -3574,6 +3871,9 @@ export default function BookingPage() {
           box-shadow: var(--shadow-lg); 
           padding: 24px;
           transition: box-shadow 0.3s ease;
+          width: 100%;
+          max-width: 100%;
+          box-sizing: border-box;
         }
         .summary-card:hover {
           box-shadow: var(--shadow-xl);
@@ -3654,7 +3954,10 @@ export default function BookingPage() {
         .review-grid { 
           display: grid; 
           grid-template-columns: 1fr; 
-          gap: 24px; 
+          gap: 24px;
+          width: 100%;
+          max-width: 100%;
+          box-sizing: border-box;
         }
         @media (min-width: 760px) { 
           .review-grid { 
@@ -3666,6 +3969,10 @@ export default function BookingPage() {
           padding: 16px;
           border-radius: 14px;
           border: 1px solid rgba(254, 190, 82, 0.15);
+          width: 100%;
+          max-width: 100%;
+          box-sizing: border-box;
+          min-width: 0;
         }
         .section-title { 
           margin: 0 0 12px 0; 
@@ -4871,6 +5178,74 @@ export default function BookingPage() {
           outline-offset: 3px;
         }
 
+        /* === COMPREHENSIVE OVERFLOW PREVENTION === */
+        /* Prevent horizontal overflow on all major containers */
+        .hero,
+        .hero-inner,
+        .layout,
+        .main,
+        .card,
+        .card-body,
+        .calendar-section,
+        .calendar-wrapper,
+        .calendar-container,
+        .date-summary-card,
+        .rooms-section-header,
+        .room-selector,
+        .room-skeletons,
+        .selected-rooms-section,
+        .selected-rooms-list,
+        .review-grid,
+        .review-section,
+        form,
+        .navigation-buttons {
+          max-width: 100%;
+          box-sizing: border-box;
+        }
+
+        /* Ensure all images don't overflow */
+        img {
+          max-width: 100%;
+          height: auto;
+        }
+
+        /* Prevent text overflow */
+        .section-title,
+        .section-subtitle,
+        .card-title,
+        .card-subtitle,
+        .room-name,
+        .date-value,
+        h1, h2, h3, h4, h5, h6,
+        p, span, div {
+          word-wrap: break-word;
+          overflow-wrap: break-word;
+        }
+
+        /* Ensure modals don't cause overflow */
+        .modal-overlay,
+        .modal-content,
+        .pending-prompt,
+        .submit-modal {
+          max-width: 100vw;
+          box-sizing: border-box;
+        }
+
+        /* Fix for mobile CTA */
+        .mobile-cta {
+          max-width: 100vw;
+          box-sizing: border-box;
+          left: 0;
+          right: 0;
+        }
+
+        /* Ensure summary sidebar fits properly */
+        @media (min-width: 980px) {
+          .summary {
+            min-width: 0;
+          }
+        }
+
       `}</style>
 
       {/* Navigation Confirmation Modal */}
@@ -4909,6 +5284,213 @@ export default function BookingPage() {
         show={showMidnightAlert}
         onReload={() => window.location.reload()}
       />
+
+      {/* Room Unit Reassignment Modal */}
+      {showReassignmentModal && reassignmentInfo && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            padding: '1rem'
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              // Clicking backdrop - prevent close, user must acknowledge
+            }
+          }}
+        >
+          <div 
+            style={{
+              background: 'white',
+              borderRadius: '1rem',
+              maxWidth: '600px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              animation: 'slideIn 0.3s ease-out'
+            }}
+          >
+            {/* Header */}
+            <div style={{
+              padding: '1.5rem',
+              borderBottom: '1px solid #e5e7eb',
+              background: reassignmentInfo.warning.type === 'AUTO_REASSIGNED' 
+                ? 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)'
+                : 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <span style={{ fontSize: '2rem' }}>
+                  {reassignmentInfo.warning.type === 'AUTO_REASSIGNED' ? '⚠️' : 'ℹ️'}
+                </span>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '700', color: '#111827' }}>
+                    {reassignmentInfo.warning.type === 'AUTO_REASSIGNED' 
+                      ? 'Room Unit Reassignment' 
+                      : 'Room Assignment Pending'}
+                  </h3>
+                  <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.875rem', color: '#4b5563' }}>
+                    Booking #{reassignmentInfo.bookingId}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div style={{ padding: '1.5rem' }}>
+              <div style={{
+                padding: '1rem',
+                background: '#f9fafb',
+                borderRadius: '0.5rem',
+                border: '1px solid #e5e7eb',
+                marginBottom: '1.5rem'
+              }}>
+                <p style={{ 
+                  margin: 0, 
+                  fontSize: '0.9375rem', 
+                  lineHeight: '1.6',
+                  color: '#374151',
+                  fontWeight: '500'
+                }}>
+                  {reassignmentInfo.warning.message}
+                </p>
+              </div>
+
+              {/* Show reassignment details if available */}
+              {reassignmentInfo.warning.type === 'AUTO_REASSIGNED' && reassignmentInfo.warning.reassignedUnits && (
+                <div style={{ marginBottom: '1.5rem' }}>
+                  <h4 style={{ 
+                    margin: '0 0 0.75rem 0', 
+                    fontSize: '1rem', 
+                    fontWeight: '600', 
+                    color: '#111827' 
+                  }}>
+                    Your New Room Assignments:
+                  </h4>
+                  <div style={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    gap: '0.5rem' 
+                  }}>
+                    {reassignmentInfo.warning.reassignedUnits.map((unit, idx) => (
+                      <div 
+                        key={idx}
+                        style={{
+                          padding: '0.75rem',
+                          background: 'white',
+                          border: '2px solid #10b981',
+                          borderRadius: '0.5rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem'
+                        }}
+                      >
+                        <span style={{ fontSize: '1.25rem' }}>✅</span>
+                        <span style={{ fontSize: '0.9375rem', color: '#374151', fontWeight: '600' }}>
+                          {unit.roomName} <span style={{ color: '#10b981' }}>#{unit.assignedUnit}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Important notice */}
+              <div style={{
+                padding: '1rem',
+                background: '#eff6ff',
+                border: '1px solid #93c5fd',
+                borderRadius: '0.5rem',
+                marginBottom: '1.5rem'
+              }}>
+                <p style={{ 
+                  margin: 0, 
+                  fontSize: '0.8125rem', 
+                  lineHeight: '1.5',
+                  color: '#1e3a8a'
+                }}>
+                  <strong>Important:</strong> {reassignmentInfo.warning.type === 'AUTO_REASSIGNED' 
+                    ? 'Your room type and pricing remain the same. Only the unit number has changed.'
+                    : 'This does not affect your reservation. Our team will contact you with your assigned room units.'}
+                </p>
+              </div>
+
+              {/* Action buttons */}
+              <div style={{ display: 'flex', gap: '0.75rem', flexDirection: 'column' }}>
+                <button
+                  onClick={() => {
+                    localStorage.setItem('bookingId', reassignmentInfo.bookingId);
+                    localStorage.setItem('bookingAmount', reassignmentInfo.totalPrice);
+                    router.push('/checkout');
+                  }}
+                  style={{
+                    padding: '0.875rem 1.5rem',
+                    background: 'linear-gradient(135deg, #c89f65 0%, #a67c52 100%)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '0.5rem',
+                    fontSize: '1rem',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1)';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)';
+                  }}
+                >
+                  Continue to Payment
+                </button>
+                
+                {reassignmentInfo.warning.type === 'ASSIGNMENT_FAILED' && (
+                  <button
+                    onClick={() => {
+                      setShowReassignmentModal(false);
+                      setReassignmentInfo(null);
+                      // Optionally refresh the page to try again
+                      window.location.reload();
+                    }}
+                    style={{
+                      padding: '0.875rem 1.5rem',
+                      background: 'white',
+                      color: '#6b7280',
+                      border: '2px solid #e5e7eb',
+                      borderRadius: '0.5rem',
+                      fontSize: '1rem',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.borderColor = '#9ca3af';
+                      e.currentTarget.style.color = '#374151';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.borderColor = '#e5e7eb';
+                      e.currentTarget.style.color = '#6b7280';
+                    }}
+                  >
+                    Start New Booking
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -41,21 +41,21 @@ Added `autoApproved` field to track one-time auto-approved reschedules after can
 
 ### 2. API Endpoints
 
-#### Direct Cancellation (≥7 days before check-in)
+#### Direct Cancellation (DISABLED)
 **Endpoint**: `POST /api/bookings/[id]/cancel`
-- Validates booking ownership
-- Calculates 50% refund (rooms × ₱2,000 × 0.5)
-- Updates booking status to `Cancelled`
-- Updates payment status to `Refunded`
-- Creates notification for guest
+- **This endpoint is now disabled**
+- All cancellations require admin approval
+- Returns error directing users to submit a cancellation request instead
 
-#### Cancellation Request (<7 days before check-in)
+#### Cancellation Request (ALL cancellations)
 **Endpoint**: `POST /api/bookings/[id]/cancel-request`
 - Validates booking ownership
 - Checks for existing pending requests
 - Creates cancellation request with reason
 - Updates booking status to `CancellationPending`
 - Creates notification for admin
+- **Policy Change**: Now accepts all cancellation requests (not just <7 days)
+- Only restriction: Cannot cancel within 24 hours of check-in
 
 #### Batch Fetch Cancellation Requests
 **Endpoint**: `GET /api/cancellation-requests/batch?bookingIds=1,2,3`
@@ -79,27 +79,22 @@ Added `autoApproved` field to track one-time auto-approved reschedules after can
 
 #### Modal Components (`components/CustomModals.js`)
 
-**CancelConfirmModal**
-- Shows booking details
-- Displays refund amount (50% of reservation fee)
-- Confirms direct cancellation action
-- Used for bookings ≥7 days before check-in
+**CancelConfirmModal** (DEPRECATED)
+- No longer used - direct cancellation is disabled
+- All cancellations now go through CancelRequestModal
 
 **CancelRequestModal**
 - Collects cancellation reason
-- Shows no-refund policy notice
-- Submits cancellation request
-- Used for bookings <7 days before check-in
+- Submits cancellation request for admin approval
+- Used for ALL cancellations (1+ days before check-in)
 
 #### Guest Dashboard (`app/guest/dashboard/page.js`)
 
 **Features Added**:
 - Cancel button on eligible bookings (Created/Pending/Confirmed status)
 - Button disabled 24 hours before check-in
-- Days calculation to determine direct cancel vs. request
 - Pending badge display for CancellationPending status
-- Handlers for both cancellation types
-- Integration with modal components
+- All cancellations use CancelRequestModal
 
 **Cancel Button Logic**:
 ```javascript
@@ -109,10 +104,9 @@ Added `autoApproved` field to track one-time auto-approved reschedules after can
 - Show pending badge if: CancellationPending status
 ```
 
-**Cancellation Flow**:
-1. ≥7 days: Direct cancel → CancelConfirmModal → API call → Refresh
-2. 1-7 days: Request → CancelRequestModal → API call → Status updates
-3. <24 hours: Button disabled
+**Cancellation Flow (UPDATED)**:
+1. 1+ days before check-in: CancelRequestModal → API call → Awaits admin approval
+2. <24 hours: Button disabled
 
 #### Super Admin Page (`app/super-admin/reschedule-cancellation/page.js`)
 
@@ -135,15 +129,14 @@ Added `autoApproved` field to track one-time auto-approved reschedules after can
 
 ### 4. Policies & Rules
 
-#### Cancellation Policy
-- **≥7 days before check-in**: Direct cancellation with 50% refund
-- **1-7 days before check-in**: Request requiring admin approval, no refund
+#### Cancellation Policy (UPDATED - March 2026)
+- **ALL cancellations require admin approval** - No more direct/automatic cancellations
+- **1+ days before check-in**: Submit cancellation request for admin review
 - **<24 hours before check-in**: Cancellation disabled
 
-#### Refund Calculation
-```javascript
-refundAmount = rooms × 2000 × 0.5
-```
+#### Refund Policy
+- Refunds are determined by admin during approval process
+- No automatic refund calculations
 
 #### Reschedule Policy Changes
 - Changed from 14 days to **1 day before check-in**

@@ -46,7 +46,7 @@ export async function POST(request) {
       await recordAudit({
         actorId: session?.user?.id || null,
         actorName: session?.user?.name || session?.user?.email || 'Unknown',
-        actorRole: session?.user?.role || 'ADMIN',
+        actorRole: session?.user?.role || 'SUPERADMIN',
         action: 'CREATE',
         entity: 'Policy',
         entityId: String(policy.id),

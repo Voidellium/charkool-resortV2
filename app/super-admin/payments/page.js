@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import SuperAdminLayout from '@/components/SuperAdminLayout';
 import Loading, { TableLoading, ButtonLoading } from '@/components/Loading';
@@ -26,7 +26,9 @@ import {
   Shield,
   RotateCcw,
   CalendarDays,
-  BookOpen
+  BookOpen,
+  AlertCircle,
+  Info
 } from 'lucide-react';
 
 // Helper: last 7 days YYYY-MM-DD
@@ -71,13 +73,22 @@ export default function Payments() {
   // Checkouts and Reservations state
   const [checkoutTransactions, setCheckoutTransactions] = useState([]);
   const [upcomingReservations, setUpcomingReservations] = useState([]);
+  const [pendingPaymentBookings, setPendingPaymentBookings] = useState([]);
   const [checkoutsLoading, setCheckoutsLoading] = useState(false);
   const [reservationsLoading, setReservationsLoading] = useState(false);
+  const [pendingPaymentsLoading, setPendingPaymentsLoading] = useState(false);
+
+  // Alert Modal state (replaces browser alert())
+  const [alertModal, setAlertModal] = useState({ show: false, title: '', message: '', type: 'info' });
+  const showAlert = useCallback((title, message, type = 'info') => {
+    setAlertModal({ show: true, title, message, type });
+  }, []);
 
   useEffect(() => {
     fetchPayments();
     fetchCheckoutTransactions();
     fetchUpcomingReservations();
+    fetchPendingPaymentBookings();
     // Remove report fetching since we calculate everything from payments data
   }, []);
 
@@ -146,6 +157,42 @@ export default function Payments() {
       setUpcomingReservations([]);
     } finally {
       setReservationsLoading(false);
+    }
+  }
+
+  async function fetchPendingPaymentBookings() {
+    setPendingPaymentsLoading(true);
+    try {
+      // Fetch all bookings with Confirmed status and Pending payment
+      const res = await fetch('/api/bookings');
+      if (res.ok) {
+        const data = await res.json();
+        const bookings = Array.isArray(data) ? data : data.bookings || [];
+        
+        // Filter for Confirmed bookings with Pending payments
+        const pending = bookings.filter(booking => {
+          const isConfirmed = booking.status === 'Confirmed';
+          const isPendingPayment = booking.paymentStatus === 'Pending';
+          return isConfirmed && isPendingPayment;
+        });
+        
+        // Sort by check-in date (most recent first)
+        pending.sort((a, b) => {
+          const dateA = new Date(a.checkInDate || a.checkIn || a.startDate || a.createdAt);
+          const dateB = new Date(b.checkInDate || b.checkIn || b.startDate || b.createdAt);
+          return dateB - dateA;
+        });
+        
+        setPendingPaymentBookings(pending);
+        console.log('Fetched pending payment bookings:', pending.length);
+      } else {
+        setPendingPaymentBookings([]);
+      }
+    } catch (e) {
+      console.error('Failed to fetch pending payment bookings:', e);
+      setPendingPaymentBookings([]);
+    } finally {
+      setPendingPaymentsLoading(false);
     }
   }
 
@@ -292,6 +339,9 @@ export default function Payments() {
           setSelectedPayment(updated || null);
         }
       }
+      // Also refresh checkout transactions and pending payment bookings
+      await fetchCheckoutTransactions();
+      await fetchPendingPaymentBookings();
     } catch (error) {
       console.error('Error refreshing payments:', error);
     } finally {
@@ -489,10 +539,10 @@ export default function Payments() {
       closeProcessModal();
       await refreshPayments();
       
-      alert('Payment processed successfully! E-receipt ready to view.');
+      showAlert('Payment Processed', 'Payment processed successfully! E-receipt ready to view.', 'success');
     } catch (e) {
       console.error('Process payment error', e);
-      alert('Failed to process payment');
+      showAlert('Process Failed', 'Failed to process payment', 'error');
     } finally {
       setActionLoading(prev => ({...prev, process: false}));
     }
@@ -541,7 +591,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
     window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
 
-    alert('Receipt downloaded successfully!');
+    showAlert('Download Complete', 'Receipt downloaded successfully!', 'success');
   }
 
   // Batch operations
@@ -570,11 +620,11 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
       for (const paymentId of selectedRows) {
         await verifyPayment(paymentId, 'Batch verified by Super Admin');
       }
-      alert(`${selectedRows.size} payment(s) verified successfully!`);
+      showAlert('Batch Verified', `${selectedRows.size} payment(s) verified successfully!`, 'success');
       setSelectedRows(new Set());
       await refreshPayments();
     } catch (e) {
-      alert('Batch verification failed');
+      showAlert('Verification Failed', 'Batch verification failed', 'error');
     } finally {
       setActionLoading(prev => ({...prev, batch: false}));
     }
@@ -590,11 +640,11 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
       for (const paymentId of selectedRows) {
         await flagPayment(paymentId, reason);
       }
-      alert(`${selectedRows.size} payment(s) flagged successfully!`);
+      showAlert('Batch Flagged', `${selectedRows.size} payment(s) flagged successfully!`, 'success');
       setSelectedRows(new Set());
       await refreshPayments();
     } catch (e) {
-      alert('Batch flagging failed');
+      showAlert('Flagging Failed', 'Batch flagging failed', 'error');
     } finally {
       setActionLoading(prev => ({...prev, batch: false}));
     }
@@ -627,16 +677,16 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
       a.download = `superadmin-payments-${new Date().toISOString().slice(0,10)}.csv`;
       a.click();
       URL.revokeObjectURL(url);
-      alert('Payment data exported successfully!');
+      showAlert('Export Complete', 'Payment data exported successfully!', 'success');
     } catch (e) {
-      alert('Failed to export CSV');
+      showAlert('Export Failed', 'Failed to export CSV', 'error');
     }
   }
 
   // Higher Authority Override Functions
   async function overridePaymentStatus(paymentId, newStatus, reason) {
     if (!reason || !reason.trim()) {
-      alert('Please provide a reason for overriding the payment status');
+      showAlert('Reason Required', 'Please provide a reason for overriding the payment status', 'warning');
       return;
     }
     
@@ -664,14 +714,14 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
           timestamp: new Date().toISOString()
         });
         await refreshPayments();
-        alert(`Payment status overridden to ${newStatus} successfully!`);
+        showAlert('Status Overridden', `Payment status overridden to ${newStatus} successfully!`, 'success');
       } else {
-        alert(data?.error || 'Failed to override payment status');
+        showAlert('Override Failed', data?.error || 'Failed to override payment status', 'error');
       }
       return data;
     } catch (e) {
       console.error('Override status error', e);
-      alert('Failed to override payment status');
+      showAlert('Override Failed', 'Failed to override payment status', 'error');
       return { error: 'Network error' };
     } finally {
       setActionLoading(prev => ({...prev, [`override_${paymentId}`]: false}));
@@ -680,7 +730,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
 
   async function unverifyPayment(paymentId, reason) {
     if (!reason || !reason.trim()) {
-      alert('Please provide a reason for unverifying this payment');
+      showAlert('Reason Required', 'Please provide a reason for unverifying this payment', 'warning');
       return;
     }
     
@@ -705,14 +755,14 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
           timestamp: new Date().toISOString()
         });
         await refreshPayments();
-        alert('Payment unverified successfully!');
+        showAlert('Payment Unverified', 'Payment unverified successfully!', 'success');
       } else {
-        alert(data?.error || 'Failed to unverify payment');
+        showAlert('Unverify Failed', data?.error || 'Failed to unverify payment', 'error');
       }
       return data;
     } catch (e) {
       console.error('Unverify error', e);
-      alert('Failed to unverify payment');
+      showAlert('Unverify Failed', 'Failed to unverify payment', 'error');
       return { error: 'Network error' };
     } finally {
       setActionLoading(prev => ({...prev, [`unverify_${paymentId}`]: false}));
@@ -721,7 +771,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
 
   async function editPaymentMetadata(paymentId, updates) {
     if (!updates || Object.keys(updates).length === 0) {
-      alert('No changes to save');
+      showAlert('No Changes', 'No changes to save', 'info');
       return;
     }
     
@@ -746,14 +796,14 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
           timestamp: new Date().toISOString()
         });
         await refreshPayments();
-        alert('Payment metadata updated successfully!');
+        showAlert('Metadata Updated', 'Payment metadata updated successfully!', 'success');
       } else {
-        alert(data?.error || 'Failed to update payment metadata');
+        showAlert('Update Failed', data?.error || 'Failed to update payment metadata', 'error');
       }
       return data;
     } catch (e) {
       console.error('Edit metadata error', e);
-      alert('Failed to update payment metadata');
+      showAlert('Update Failed', 'Failed to update payment metadata', 'error');
       return { error: 'Network error' };
     } finally {
       setActionLoading(prev => ({...prev, [`edit_${paymentId}`]: false}));
@@ -762,7 +812,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
 
   async function reassignCashier(paymentId, newCashierId, newCashierName, reason) {
     if (!newCashierId || !reason || !reason.trim()) {
-      alert('Please provide both a cashier and reason for reassignment');
+      showAlert('Missing Information', 'Please provide both a cashier and reason for reassignment', 'warning');
       return;
     }
     
@@ -791,14 +841,14 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
           timestamp: new Date().toISOString()
         });
         await refreshPayments();
-        alert(`Payment reassigned to ${newCashierName} successfully!`);
+        showAlert('Reassigned', `Payment reassigned to ${newCashierName} successfully!`, 'success');
       } else {
-        alert(data?.error || 'Failed to reassign cashier');
+        showAlert('Reassign Failed', data?.error || 'Failed to reassign cashier', 'error');
       }
       return data;
     } catch (e) {
       console.error('Reassign cashier error', e);
-      alert('Failed to reassign cashier');
+      showAlert('Reassign Failed', 'Failed to reassign cashier', 'error');
       return { error: 'Network error' };
     } finally {
       setActionLoading(prev => ({...prev, [`reassign_${paymentId}`]: false}));
@@ -1152,6 +1202,119 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                   <div style={{ textAlign: 'center', padding: '1rem', borderTop: '1px solid #e2e8f0', marginTop: '1rem' }}>
                     <span style={{ color: '#64748b', fontSize: '0.875rem' }}>
                       Showing 5 of {checkoutTransactions.length} checkouts
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Confirmed Bookings Awaiting Payment (Walk-ins) */}
+        <div style={{ marginBottom: '2rem', background: 'white', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+          <div style={{ padding: '1.5rem', background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)', color: 'white' }}>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <AlertTriangle size={28} /> Walk-in Bookings - Payment Required
+            </h2>
+            <p style={{ margin: '0.5rem 0 0 0', opacity: 0.9 }}>Process payments for confirmed walk-in bookings ({pendingPaymentBookings.length} bookings)</p>
+          </div>
+          <div style={{ padding: '1.5rem' }}>
+            {pendingPaymentsLoading ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Loading pending payments...</div>
+            ) : pendingPaymentBookings.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>
+                <CheckCircle size={48} style={{ marginBottom: '1rem', opacity: 0.5 }} />
+                <p>No confirmed bookings with pending payments</p>
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                      <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600, fontSize: '0.875rem' }}>Booking ID</th>
+                      <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600, fontSize: '0.875rem' }}>Guest</th>
+                      <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600, fontSize: '0.875rem' }}>Check-in</th>
+                      <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600, fontSize: '0.875rem' }}>Check-out</th>
+                      <th style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 600, fontSize: '0.875rem' }}>Total Amount</th>
+                      <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, fontSize: '0.875rem' }}>Status</th>
+                      <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, fontSize: '0.875rem' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pendingPaymentBookings.slice(0, 10).map((booking) => {
+                      const totalAmount = booking.totalPrice || 0;
+                      
+                      return (
+                        <tr key={booking.id} style={{ borderBottom: '1px solid #f1f5f9', background: '#fef2f2' }}>
+                          <td style={{ padding: '0.75rem' }}>
+                            <span style={{ fontFamily: 'monospace', fontSize: '0.875rem', color: '#2563eb', fontWeight: 600 }}>
+                              #{booking.id.toString().slice(-8)}
+                            </span>
+                          </td>
+                          <td style={{ padding: '0.75rem' }}>
+                            <div style={{ fontWeight: 600, color: '#1e293b' }}>{booking.user?.name || booking.guestName || 'Guest'}</div>
+                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{booking.user?.email || ''}</div>
+                          </td>
+                          <td style={{ padding: '0.75rem', fontSize: '0.875rem' }}>
+                            {new Date(booking.checkIn || booking.checkInDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </td>
+                          <td style={{ padding: '0.75rem', fontSize: '0.875rem' }}>
+                            {new Date(booking.checkOut || booking.checkOutDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 700, color: '#dc2626' }}>
+                            ₱{(totalAmount / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                            <span style={{ 
+                              padding: '0.375rem 0.75rem', 
+                              background: '#fef3c7', 
+                              color: '#92400e', 
+                              borderRadius: '9999px', 
+                              fontSize: '0.75rem', 
+                              fontWeight: 600 
+                            }}>
+                              Payment Pending
+                            </span>
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                            <button
+                              onClick={() => {
+                                const walkInPayment = {
+                                  ...booking,
+                                  amount: totalAmount,
+                                  type: 'walkin',
+                                  isCheckout: true
+                                };
+                                openProcessPaymentModal(walkInPayment);
+                              }}
+                              style={{
+                                padding: '0.5rem 1rem',
+                                background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '8px',
+                                fontSize: '0.875rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                margin: '0 auto'
+                              }}
+                            >
+                              <CreditCard size={14} />
+                              Process Payment
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {pendingPaymentBookings.length > 10 && (
+                  <div style={{ textAlign: 'center', padding: '1rem', borderTop: '1px solid #e2e8f0', marginTop: '1rem' }}>
+                    <span style={{ color: '#64748b', fontSize: '0.875rem' }}>
+                      Showing 10 of {pendingPaymentBookings.length} bookings
                     </span>
                   </div>
                 )}
@@ -1712,7 +1875,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                               await overridePaymentStatus(selectedPayment.id, newStatus, reason.trim());
                             }
                           } else if (newStatus !== null) {
-                            alert('Invalid status. Must be: Paid, Pending, or Failed');
+                            showAlert('Invalid Status', 'Invalid status. Must be: Paid, Pending, or Failed', 'warning');
                           }
                         }}
                         disabled={actionLoading[`override_${selectedPayment.id}`]}
@@ -1765,7 +1928,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                               await editPaymentMetadata(selectedPayment.id, updates);
                             }
                           } else if (field !== null) {
-                            alert('Invalid field. Must be: method, reference, or provider');
+                            showAlert('Invalid Field', 'Invalid field. Must be: method, reference, or provider', 'warning');
                           }
                         }}
                         disabled={actionLoading[`edit_${selectedPayment.id}`]}
@@ -2169,6 +2332,89 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                     Close
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Alert Modal */}
+        {alertModal.show && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 9999,
+          }}>
+            <div style={{
+              background: 'linear-gradient(135deg, #febe52 0%, #fcd34d 50%, #f6e27a 100%)',
+              borderRadius: '16px',
+              padding: '24px',
+              maxWidth: '400px',
+              width: '90%',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+              animation: 'modalSlideIn 0.3s ease-out',
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                marginBottom: '16px',
+              }}>
+                {alertModal.type === 'error' ? (
+                  <div style={{ backgroundColor: '#fee2e2', borderRadius: '50%', padding: '8px' }}>
+                    <XCircle size={24} color="#dc2626" />
+                  </div>
+                ) : alertModal.type === 'warning' ? (
+                  <div style={{ backgroundColor: '#fef3c7', borderRadius: '50%', padding: '8px' }}>
+                    <AlertCircle size={24} color="#d97706" />
+                  </div>
+                ) : alertModal.type === 'success' ? (
+                  <div style={{ backgroundColor: '#dcfce7', borderRadius: '50%', padding: '8px' }}>
+                    <CheckCircle size={24} color="#16a34a" />
+                  </div>
+                ) : (
+                  <div style={{ backgroundColor: '#dbeafe', borderRadius: '50%', padding: '8px' }}>
+                    <Info size={24} color="#2563eb" />
+                  </div>
+                )}
+                <h3 style={{
+                  margin: 0,
+                  fontSize: '18px',
+                  fontWeight: '700',
+                  color: '#5a3e00',
+                }}>{alertModal.title}</h3>
+              </div>
+              <p style={{
+                margin: '0 0 24px 0',
+                fontSize: '15px',
+                color: '#6b4700',
+                lineHeight: '1.5',
+              }}>{alertModal.message}</p>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => setAlertModal({ show: false, title: '', message: '', type: 'info' })}
+                  style={{
+                    backgroundColor: '#56A86B',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '12px 32px',
+                    fontSize: '15px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 2px 8px rgba(86, 168, 107, 0.4)',
+                  }}
+                >
+                  Okay
+                </button>
               </div>
             </div>
           </div>

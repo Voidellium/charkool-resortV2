@@ -47,7 +47,7 @@ export async function POST(req) {
       await recordAudit({
         actorId: session?.user?.id || null,
         actorName: session?.user?.name || 'System',
-        actorRole: session?.user?.role || 'ADMIN',
+        actorRole: session?.user?.role || 'SUPERADMIN',
         action: 'CREATE',
         entity: 'Amenity Inventory',
         entityId: created.id.toString(),

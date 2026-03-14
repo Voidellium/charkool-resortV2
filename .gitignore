@@ -44,3 +44,5 @@ next-env.d.ts
 
 # Ignore installers or large files
 *.exe
+
+.vercel

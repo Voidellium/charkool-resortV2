@@ -1,15 +1,18 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { signOut, useSession } from 'next-auth/react';
-import { RefreshCw, User, Clock } from 'lucide-react';
+import { RefreshCw, User, Clock, Lock, ChevronDown, LogOut } from 'lucide-react';
 import { useNavigationGuard } from '../../hooks/useNavigationGuard.simple';
 import { NavigationConfirmationModal } from '../../components/CustomModals';
+import ChangePasswordModal from '@/components/ChangePasswordModal';
 
 export default function AmenityInventoryDashboard() {
   const { data: session } = useSession();
   const [amenities, setAmenities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   // Navigation Guard Setup for admin forms
   const navigationGuard = useNavigationGuard({
@@ -98,7 +101,7 @@ export default function AmenityInventoryDashboard() {
       {/* Animated Gradient Overlay */}
       <div className="gradient-overlay"></div>
 
-      {/* Welcome Section */}
+      {/* Welcome Section with User Menu */}
       <div className="welcome-section" style={styles.welcomeSection}>
         <div className="welcome-content" style={styles.welcomeContent}>
           <div className="welcome-text" style={styles.welcomeText}>
@@ -118,8 +121,88 @@ export default function AmenityInventoryDashboard() {
               </p>
             </div>
           </div>
-          <div style={styles.welcomeBadge}>
-            Amenity Manager
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={styles.welcomeBadge}>
+              Amenity Manager
+            </div>
+            {/* User Menu Dropdown */}
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '8px 16px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  color: 'white',
+                  fontWeight: '500',
+                }}
+              >
+                <User size={20} />
+                <ChevronDown size={16} style={{ transform: userMenuOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }} />
+              </button>
+              {userMenuOpen && (
+                <>
+                  <div onClick={() => setUserMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 140 }} />
+                  <div style={{
+                    position: 'absolute',
+                    right: 0,
+                    top: '100%',
+                    marginTop: '8px',
+                    backgroundColor: 'white',
+                    borderRadius: '8px',
+                    boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
+                    minWidth: '180px',
+                    zIndex: 141,
+                    overflow: 'hidden',
+                  }}>
+                    <button
+                      onClick={() => { setUserMenuOpen(false); setShowChangePassword(true); }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        width: '100%',
+                        padding: '12px 16px',
+                        backgroundColor: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: '#374151',
+                        textAlign: 'left',
+                        fontSize: '14px',
+                      }}
+                    >
+                      <Lock size={16} />
+                      <span>Change Password</span>
+                    </button>
+                    <button
+                      onClick={() => { setUserMenuOpen(false); signOut({ callbackUrl: '/login' }); }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        width: '100%',
+                        padding: '12px 16px',
+                        backgroundColor: 'transparent',
+                        border: 'none',
+                        borderTop: '1px solid #e5e7eb',
+                        cursor: 'pointer',
+                        color: '#dc2626',
+                        textAlign: 'left',
+                        fontSize: '14px',
+                      }}
+                    >
+                      <LogOut size={16} />
+                      <span>Sign Out</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -223,6 +306,15 @@ export default function AmenityInventoryDashboard() {
         onLeave={logoutGuard.handleLeave}
         context="logout"
         message={logoutGuard.message}
+      />
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={showChangePassword}
+        onClose={() => setShowChangePassword(false)}
+        onSuccess={() => {
+          console.log('Amenity Manager password changed successfully');
+        }}
       />
 
       {/* CSS Animations and Responsive Styles */}

@@ -17,7 +17,19 @@ const poppins = Poppins({
 export const metadata = {
   title: 'Charkool Resort',
   description: 'A resort for all your needs',
-  viewport: 'width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes',
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 5,
+    userScalable: true,
+    viewportFit: 'cover'
+  },
+  themeColor: '#FBD669',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Charkool Resort'
+  }
 };
 
 export default async function RootLayout({ children }) {
@@ -26,7 +38,13 @@ export default async function RootLayout({ children }) {
 
   return (
     <html lang="en">
-      <body className={poppins.className} style={{ margin: 0, padding: 0 }}>
+      <head>
+        <meta name="format-detection" content="telephone=yes" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+      </head>
+      <body className={poppins.className} style={{ margin: 0, padding: 0, overflowX: 'hidden' }}>
         <SessionWrapper
           session={session}
           refetchInterval={5 * 60} // Refetch session every 5 minutes to check validity
@@ -39,7 +57,7 @@ export default async function RootLayout({ children }) {
               <ClientNavbarWrapper />
 
               {/* Page content */}
-              <main>{children}</main>
+              <main style={{ overflowX: 'hidden', width: '100%', maxWidth: '100vw' }}>{children}</main>
               <Chatbot /> {/* Add the new Chatbot component here */}
             </BrowserFingerprintProvider>
           </NavigationProvider>

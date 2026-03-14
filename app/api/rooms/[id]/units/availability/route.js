@@ -25,6 +25,14 @@ export async function GET(request, { params }) {
       );
     }
 
+    const roomId = parseInt(id);
+    if (isNaN(roomId)) {
+      return NextResponse.json(
+        { error: 'Invalid room ID' },
+        { status: 400 }
+      );
+    }
+
     const checkInDate = new Date(checkIn);
     const checkOutDate = new Date(checkOut);
 
@@ -45,14 +53,14 @@ export async function GET(request, { params }) {
 
     // Get available units with metadata
     const availableUnits = await getAvailableUnitsWithMetadata(
-      parseInt(id),
+      roomId,
       checkInDate,
       checkOutDate
     );
 
     return NextResponse.json({
       success: true,
-      roomId: parseInt(id),
+      roomId,
       checkIn,
       checkOut,
       availableUnits,
@@ -61,9 +69,13 @@ export async function GET(request, { params }) {
 
   } catch (error) {
     console.error('Error fetching available units:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch available units', details: error.message },
-      { status: 500 }
-    );
+    // Return empty array instead of error for graceful degradation
+    // This allows the booking flow to continue even if unit selection isn't available
+    return NextResponse.json({
+      success: true,
+      availableUnits: [],
+      totalAvailable: 0,
+      warning: 'Unable to fetch unit data'
+    });
   }
 }

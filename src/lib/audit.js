@@ -35,7 +35,7 @@ export async function recordAudit(data) {
   const entry = {
     actorId: data.actorId ?? null,
     actorName: data.actorName ?? 'Unknown',
-    actorRole: data.actorRole ?? 'ADMIN',
+    actorRole: data.actorRole ?? 'SUPERADMIN',
     action: data.action,
     entity: data.entity,
     entityId: data.entityId ?? null,

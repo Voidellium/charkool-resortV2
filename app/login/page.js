@@ -108,10 +108,9 @@ function LoginForm() {
     if (!role) return router.push('/');
     switch (role.toLowerCase()) {
       case 'superadmin': return router.push('/super-admin/dashboard');
-      case 'admin': return router.push('/admin/dashboard');
       case 'receptionist': return router.push('/receptionist');
       case 'amenityinventorymanager': return router.push('/amenityinventorymanager');
-      case 'developer': return router.push('/developer/dashboard');
+      case 'cashier': return router.push('/cashier');
       case 'customer': return router.push('/guest/dashboard');
       default: return router.push('/');
     }

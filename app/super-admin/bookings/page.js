@@ -1,11 +1,11 @@
 "use client";
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { 
   Plus, Search, Filter, Calendar, Users, DollarSign, 
   TrendingUp, Eye, Edit, Trash2, CheckCircle, XCircle, 
   Clock, MapPin, Phone, Mail, Star, MoreHorizontal,
-  Download, RefreshCw, Settings, ArrowUpDown, ChevronDown, Circle
+  Download, RefreshCw, Settings, ArrowUpDown, ChevronDown, Circle, AlertCircle, Info
 } from 'lucide-react';
 import SuperAdminLayout from '@/components/SuperAdminLayout';
 import Loading, { TableLoading, ButtonLoading } from '@/components/Loading';
@@ -13,8 +13,10 @@ import RoomAmenitiesSelector from '@/components/RoomAmenitiesSelector';
 import RentalAmenitiesSelector from '@/components/RentalAmenitiesSelector';
 import OptionalAmenitiesSelector from '@/components/OptionalAmenitiesSelector';
 import BookingCalendar from '@/components/BookingCalendar';
+import RoomUnitSelector from '@/components/RoomUnitSelector';
 import { useToast } from '@/components/Toast';
 import { useOverrideModal, OverrideModal, useEditBookingDateModal, EditBookingDateModal } from '@/components/CustomModals';
+import { useBookingUpdates } from '@/hooks/usePusher';
 
 // Timezone-safe date formatting utility
 function formatDate(date) {
@@ -26,6 +28,20 @@ function formatDate(date) {
 }
 
 export default function BookingsPage() {
+  // Helper function to get room capacity details
+  const getRoomCapacityDetails = (type) => {
+    switch (type) {
+      case 'TEPEE':
+        return { base: 5, additionalPaxMax: 2, max: 7, childrenMax: 2 };
+      case 'LOFT':
+        return { base: 2, additionalPaxMax: 2, max: 4, childrenMax: 2 };
+      case 'VILLA':
+        return { base: 8, additionalPaxMax: 2, max: 10, childrenMax: 2 };
+      default:
+        return { base: 1, additionalPaxMax: 0, max: 1, childrenMax: 2 };
+    }
+  };
+
   // Add modal animation styles on component mount
   useEffect(() => {
     const styleId = 'modal-animations';
@@ -98,10 +114,10 @@ export default function BookingsPage() {
     checkOut: '',
     numberOfGuests: 1,
     paymentMode: 'cash', // Default to cash
-    selectedRooms: {}, // { roomId: quantity } - OLD FORMAT (kept for backward compatibility)
-    selectedRoomDetails: {}, // { roomId: { name, type, price, image } }
+    selectedRooms: {}, // DEPRECATED - keep for backward compatibility during migration
+    selectedRoomDetails: {}, // DEPRECATED - keep for backward compatibility
     selectedAmenities: { optional: {}, rental: {}, cottage: null },
-    rooms: [], // NEW FORMAT: [{ roomId, quantity, adults, additionalPax, children, additionalPaxFee, amenities }]
+    rooms: [], // NEW FORMAT: [{ roomId, quantity, adults, additionalPax, children, unitNumber, optionalAmenities, rentalAmenities, instanceNumber }]
   });
   const [availableRooms, setAvailableRooms] = useState([]);
   const [loadingRooms, setLoadingRooms] = useState(false);
@@ -131,6 +147,14 @@ export default function BookingsPage() {
   const [sortOrder, setSortOrder] = useState('desc');
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'cards'
   const [showBulkActions, setShowBulkActions] = useState(false);
+
+  // Alert Modal state (replaces browser alert())
+  const [alertModal, setAlertModal] = useState({ show: false, title: '', message: '', type: 'info' });
+  
+  // Helper function to show alert modal
+  const showAlert = useCallback((title, message, type = 'info') => {
+    setAlertModal({ show: true, title, message, type });
+  }, []);
 
   // Fetch initial availability data
   useEffect(() => {
@@ -208,11 +232,7 @@ export default function BookingsPage() {
   // Live total calculation for create modal
   useEffect(() => {
     async function calculateCreateTotal() {
-      // Check both old and new room formats
-      const hasOldFormatRooms = Object.keys(createBookingForm.selectedRooms).length > 0;
-      const hasNewFormatRooms = createBookingForm.rooms && createBookingForm.rooms.length > 0;
-      
-      if (!createBookingForm.checkIn || !createBookingForm.checkOut || (!hasOldFormatRooms && !hasNewFormatRooms)) {
+      if (!createBookingForm.checkIn || !createBookingForm.checkOut || !createBookingForm.rooms || createBookingForm.rooms.length === 0) {
         setCreateTotalPrice(0);
         return;
       }
@@ -232,7 +252,7 @@ export default function BookingsPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            selectedRooms: createBookingForm.selectedRooms,
+            rooms: createBookingForm.rooms,
             nights,
             optionalAmenities: createBookingForm.selectedAmenities.optional || {},
             rentalAmenities: rentalAmenitiesFormatted,
@@ -250,7 +270,7 @@ export default function BookingsPage() {
     }
 
     calculateCreateTotal();
-  }, [createBookingForm.selectedRooms, createBookingForm.selectedAmenities, createBookingForm.checkIn, createBookingForm.checkOut]);
+  }, [createBookingForm.rooms, createBookingForm.selectedAmenities, createBookingForm.checkIn, createBookingForm.checkOut]);
 
   // Date validation
   useEffect(() => {
@@ -358,24 +378,6 @@ export default function BookingsPage() {
     }
   };
 
-  // compute total capacity from selectedRooms
-  const computeTotalCapacity = () => {
-    return Object.entries(createBookingForm.selectedRooms).reduce((sum, [roomId, qty]) => {
-      const r = availableRooms.find(room => room.id == roomId);
-      if (r) {
-        const cap = getRoomCapacity(r.type);
-        return sum + (cap.max * qty);
-      }
-      return sum;
-    }, 0);
-  };
-
-  // is room lock active (other rooms locked when true)
-  const isRoomLockActive = () => {
-    const totalCap = computeTotalCapacity();
-    return totalCap >= createBookingForm.numberOfGuests && Object.keys(createBookingForm.selectedRooms).length > 0;
-  };
-
   // date selection validity: we treat single-date selection (checkOut empty OR checkOut === checkIn) as invalid
   const isDateSelectionValid = () => {
     if (!createBookingForm.checkIn) return false;
@@ -384,50 +386,54 @@ export default function BookingsPage() {
     return true;
   };
 
-  // Update room lock warning when selection changes
-  useEffect(() => {
-    if (isRoomLockActive()) {
-      const totalCap = computeTotalCapacity();
-      setRoomLockWarning(`Selected rooms now accommodate ${totalCap} guest(s). Other room options are locked to prevent over-selection.`);
-    } else {
-      setRoomLockWarning('');
+  // NEW: Handle adding a room instance
+  const handleAddRoom = (roomId) => {
+    const room = availableRooms.find(r => r.id === roomId);
+    if (!room) return;
+    
+    const capacity = getRoomCapacityDetails(room.type);
+    const roomInstances = (createBookingForm.rooms || []).filter(r => r.roomId === roomId);
+    
+    if (roomInstances.length >= room.remaining) {
+      error(`No more ${room.type} rooms available for these dates.`);
+      return;
     }
-  }, [createBookingForm.selectedRooms, createBookingForm.numberOfGuests, availableRooms]);
-
-  const handleRoomSelect = (room) => {
-    const locked = isRoomLockActive();
-    const alreadySelected = !!createBookingForm.selectedRooms[room.id];
-    if (locked && !alreadySelected) return;
-    setCreateBookingForm(prev => {
-      const selectedRooms = { ...prev.selectedRooms };
-      if (selectedRooms[room.id]) {
-        delete selectedRooms[room.id];
-      } else {
-        selectedRooms[room.id] = 1;
-      }
-      return { ...prev, selectedRooms };
-    });
+    
+    const newInstance = {
+      roomId,
+      instanceNumber: roomInstances.length + 1,
+      adults: capacity.base,
+      additionalPax: 0,
+      children: 0,
+      unitNumber: null,
+      optionalAmenities: {},
+      rentalAmenities: {}
+    };
+    
+    setCreateBookingForm(prev => ({
+      ...prev,
+      rooms: [...prev.rooms, newInstance]
+    }));
   };
 
-  const handleRoomQuantityChange = (roomId, delta) => {
-    const locked = isRoomLockActive();
-    const isSelected = !!createBookingForm.selectedRooms[roomId];
-    if (locked && !isSelected) return;
-    setCreateBookingForm(prev => {
-      const selectedRooms = { ...prev.selectedRooms };
-      const currentQty = selectedRooms[roomId] || 0;
-      const newQty = Math.max(0, currentQty + delta);
-      const room = availableRooms.find(r => r.id == roomId);
-      if (room && newQty > room.remaining) {
-        return prev;
-      }
-      if (newQty === 0) {
-        delete selectedRooms[roomId];
-      } else {
-        selectedRooms[roomId] = newQty;
-      }
-      return { ...prev, selectedRooms };
-    });
+  // NEW: Handle removing a room instance
+  const handleRemoveRoom = (roomId, instanceNumber) => {
+    setCreateBookingForm(prev => ({
+      ...prev,
+      rooms: prev.rooms.filter(r => !(r.roomId === roomId && r.instanceNumber === instanceNumber))
+    }));
+  };
+
+  // NEW: Handle updating guest count for a room instance
+  const handleRoomGuestChange = (roomId, instanceNumber, field, value) => {
+    setCreateBookingForm(prev => ({
+      ...prev,
+      rooms: prev.rooms.map(r => 
+        r.roomId === roomId && r.instanceNumber === instanceNumber
+          ? { ...r, [field]: value }
+          : r
+      )
+    }));
   };
 
   // Fetch bookings
@@ -471,6 +477,35 @@ export default function BookingsPage() {
 
   useEffect(() => { fetchBookings(); }, []);
 
+  // 🔔 PUSHER: Subscribe to real-time booking updates
+  useBookingUpdates({
+    onBookingCreated: () => {
+      console.log('[Pusher] New booking created - refreshing list');
+      fetchBookings();
+    },
+    onBookingUpdated: (data) => {
+      console.log('[Pusher] Booking updated:', data);
+      // Refresh to get latest payment/balance data
+      fetchBookings();
+    },
+    onBookingCancelled: () => {
+      console.log('[Pusher] Booking cancelled - refreshing list');
+      fetchBookings();
+    },
+    onCheckedIn: () => {
+      console.log('[Pusher] Guest checked in - refreshing list');
+      fetchBookings();
+    },
+    onCheckedOut: () => {
+      console.log('[Pusher] Guest checked out - refreshing list');
+      fetchBookings();
+    },
+    onPaymentReceived: (data) => {
+      console.log('[Pusher] Payment received:', data);
+      fetchBookings();
+    },
+  });
+
   // Handle booking edit
   const handleEdit = (booking) => {
     setCurrentBooking(booking);
@@ -486,7 +521,7 @@ export default function BookingsPage() {
   // Handle bulk actions
   const handleBulkAction = (action) => {
     if (selectedBookings.length === 0) {
-      alert('Please select bookings first');
+      showAlert('Selection Required', 'Please select bookings first', 'warning');
       return;
     }
     setShowBulkActionsModal(true);
@@ -524,7 +559,7 @@ export default function BookingsPage() {
     }));
     
     if (csvData.length === 0) {
-      alert('No bookings to export');
+      showAlert('No Data', 'No bookings to export', 'warning');
       return;
     }
     
@@ -572,6 +607,7 @@ export default function BookingsPage() {
     // Add null check for booking object
     if (!booking) return false;
     
+    // Show all bookings (both staff-created walk-ins and guest-created bookings)
     const matchesStatus = !filterStatus || booking.status === filterStatus;
     const matchesPaymentOption = !filterPaymentOption || booking.paymentOption === filterPaymentOption;
     const matchesPaymentMethod = !filterPaymentMethod || (booking.paymentMethods && booking.paymentMethods.includes(filterPaymentMethod));
@@ -1069,18 +1105,19 @@ export default function BookingsPage() {
                     return;
                   }
 
-                  // Validation: selected rooms exist (check both old and new formats)
-                  const hasOldFormatRooms = Object.keys(createBookingForm.selectedRooms).length > 0;
-                  const hasNewFormatRooms = createBookingForm.rooms && createBookingForm.rooms.length > 0;
-                  if (!hasOldFormatRooms && !hasNewFormatRooms) {
+                  // Validation: selected rooms exist (use new format)
+                  if (!createBookingForm.rooms || createBookingForm.rooms.length === 0) {
                     error('❌ Please select at least one room.');
                     return;
                   }
 
-                  // Validation: capacity meets guests
-                  const totalCapacity = computeTotalCapacity();
-                  if (totalCapacity < createBookingForm.numberOfGuests) {
-                    error(`❌ Selected rooms can accommodate ${totalCapacity} guest(s), but you have ${createBookingForm.numberOfGuests} guests. Add more rooms or decrease guest count.`);
+                  // NEW: Validation - all rooms configured
+                  const totalGuests = createBookingForm.rooms.reduce((sum, r) => 
+                    sum + r.adults + r.additionalPax + r.children, 0
+                  );
+                  
+                  if (totalGuests < 1) {
+                    error('❌ Please configure guest count for all rooms.');
                     return;
                   }
 
@@ -1104,7 +1141,7 @@ export default function BookingsPage() {
                     // Combine the name fields for submission
                     const guestName = `${createBookingForm.firstName}${createBookingForm.middleName ? ' ' + createBookingForm.middleName : ''} ${createBookingForm.lastName}`.trim();
 
-                    // Prepare payload - use new format if available, otherwise fall back to old format
+                    // Prepare payload with new rooms format
                     const payload = {
                       guestName,
                       checkIn: createBookingForm.checkIn,
@@ -1116,15 +1153,9 @@ export default function BookingsPage() {
                       cottage,
                       nights,
                       status: 'Confirmed', // Super Admin creates confirmed bookings
-                      paymentStatus: 'Pending'
+                      paymentStatus: 'Pending',
+                      rooms: createBookingForm.rooms
                     };
-
-                    // Add room data - prefer new format if available
-                    if (createBookingForm.rooms && createBookingForm.rooms.length > 0) {
-                      payload.rooms = createBookingForm.rooms;
-                    } else {
-                      payload.selectedRooms = createBookingForm.selectedRooms;
-                    }
 
                     const response = await fetch('/api/bookings', {
                       method: 'POST',
@@ -1301,29 +1332,9 @@ export default function BookingsPage() {
                               </div>
                             </div>
 
-                            <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-                              <div style={{ flex: '1' }}>
-                                <label style={{ display: 'block', fontSize: '14px', marginBottom: '4px' }}>
-                                  Number of Guests <span style={{ color: 'red' }}>*</span>
-                                </label>
-                                <input
-                                  type="number"
-                                  name="numberOfGuests"
-                                  min="1"
-                                  value={createBookingForm.numberOfGuests}
-                                  onChange={(e) => setCreateBookingForm(prev => ({ ...prev, numberOfGuests: parseInt(e.target.value) || 1 }))}
-                                  required
-                                  style={{
-                                    width: '100%',
-                                    padding: '8px',
-                                    borderRadius: '4px',
-                                    border: '1px solid #ccc',
-                                  }}
-                                />
-                              </div>
-                              
+                            <div style={{ marginBottom: '15px' }}>
                               {/* Payment Mode */}
-                              <div style={{ flex: '1' }}>
+                              <div>
                                 <label style={{ display: 'block', fontSize: '14px', marginBottom: '4px' }}>
                                   Payment Mode <span style={{ color: 'red' }}>*</span>
                                 </label>
@@ -1391,10 +1402,10 @@ export default function BookingsPage() {
                         </div>
                       </div>
 
-                      {/* Room Selection Below Calendar */}
+                      {/* Room Selection Below Calendar - NEW FORMAT */}
                       {!dateWarning && createBookingForm.checkIn && createBookingForm.checkOut && (
                         <div style={{ marginTop: '20px' }}>
-                          <h3 style={{ marginBottom: '15px', color: '#5a3e00' }}>Available Rooms</h3>
+                          <h3 style={{ marginBottom: '15px', color: '#5a3e00' }}>Select Rooms for Walk-in Guest</h3>
                           {loadingRooms ? (
                             <div style={{ position: 'relative', height: '100px' }}>
                               <Loading size="medium" text="Loading rooms..." />
@@ -1404,29 +1415,17 @@ export default function BookingsPage() {
                           ) : (
                             <div style={{ 
                               display: 'grid', 
-                              gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', 
+                              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', 
                               gap: '20px' 
                             }}>
                               {availableRooms
                                 .filter(room => room.type !== 'FAMILY_LODGE')
                                 .map((room) => {
-                                const selectedQty = createBookingForm.selectedRooms[room.id] || 0;
+                                // Count how many instances of this room are already added
+                                const roomInstances = (createBookingForm.rooms || []).filter(r => r.roomId === room.id);
                                 const isFull = room.remaining <= 0;
-                                const isSelected = selectedQty > 0;
-
-                                // Calculate total capacity of all selected rooms
-                                const totalCapacity = Object.entries(createBookingForm.selectedRooms).reduce((acc, [roomId, qty]) => {
-                                  const r = availableRooms.find(r => r.id === roomId);
-                                  if (!r) return acc;
-                                  let capacity = 0;
-                                  if (r.type === 'TEPEE') capacity = 5;
-                                  else if (r.type === 'LOFT') capacity = 3;
-                                  else if (r.type === 'VILLA') capacity = 10;
-                                  return acc + (capacity * qty);
-                                }, 0);
-
-                                const isCapacitySatisfied = totalCapacity >= createBookingForm.numberOfGuests;
-                                const isDisabled = (isFull || (isCapacitySatisfied && !isSelected));
+                                const hasInstances = roomInstances.length > 0;
+                                const allInstancesAdded = roomInstances.length >= room.remaining;
                                 
                                 const roomCapacity = room.type === 'TEPEE' ? 5 : room.type === 'LOFT' ? 3 : room.type === 'VILLA' ? 10 : 1;
 
@@ -1434,48 +1433,15 @@ export default function BookingsPage() {
                                   <div
                                     key={room.id}
                                     style={{
-                                      border: isSelected ? '2px solid #FEBE52' : '1px solid #d1d5db',
+                                      border: hasInstances ? '2px solid #FEBE52' : '1px solid #d1d5db',
                                       borderRadius: '12px',
                                       padding: '0',
                                       backgroundColor: 'white',
-                                      cursor: (isFull || isDisabled) ? 'not-allowed' : 'pointer',
-                                      opacity: (isFull || (isDisabled && !isSelected)) ? 0.5 : 1,
+                                      cursor: isFull ? 'not-allowed' : 'pointer',
+                                      opacity: isFull ? 0.5 : 1,
                                       transition: 'all 0.2s ease',
                                       overflow: 'hidden',
                                       position: 'relative'
-                                    }}
-                                    onClick={() => {
-                                      if (isDisabled && !isSelected) return;
-                                      setCreateBookingForm(prev => {
-                                        const selectedRooms = { ...prev.selectedRooms };
-                                        const selectedRoomDetails = { ...prev.selectedRoomDetails };
-                                        const currentCapacity = Object.entries(selectedRooms).reduce((acc, [rId, qty]) => {
-                                          const r = availableRooms.find(r => r.id === rId);
-                                          if (!r) return acc;
-                                          let cap = 0;
-                                          if (r.type === 'TEPEE') cap = 5;
-                                          else if (r.type === 'LOFT') cap = 3;
-                                          else if (r.type === 'VILLA') cap = 10;
-                                          return acc + (cap * qty);
-                                        }, 0);
-
-                                        if (!selectedRooms[room.id]) {
-                                          // Adding a room
-                                          selectedRooms[room.id] = 1;
-                                          selectedRoomDetails[room.id] = {
-                                            name: room.name,
-                                            type: room.type,
-                                            price: room.price,
-                                            image: room.image,
-                                            remaining: room.remaining
-                                          };
-                                        } else {
-                                          // Removing a room
-                                          delete selectedRooms[room.id];
-                                          delete selectedRoomDetails[room.id];
-                                        }
-                                        return { ...prev, selectedRooms, selectedRoomDetails };
-                                      });
                                     }}
                                   >
                                     <div style={{ position: 'relative' }}>
@@ -1501,18 +1467,18 @@ export default function BookingsPage() {
                                         fontWeight: '600',
                                         boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
                                       }}>
-                                        {isFull ? 'Full' : `${room.remaining} left`}
+                                        {isFull ? 'Full' : `${room.remaining - roomInstances.length} left`}
                                       </span>
-                                      {/* Selected Indicator */}
-                                      {isSelected && (
+                                      {/* Selected Count Indicator */}
+                                      {hasInstances && (
                                         <div style={{
                                           position: 'absolute',
                                           top: '8px',
                                           left: '8px',
                                           backgroundColor: '#FEBE52',
                                           color: 'white',
-                                          width: '28px',
-                                          height: '28px',
+                                          width: '32px',
+                                          height: '32px',
                                           borderRadius: '50%',
                                           display: 'flex',
                                           alignItems: 'center',
@@ -1521,7 +1487,7 @@ export default function BookingsPage() {
                                           fontWeight: 'bold',
                                           boxShadow: '0 2px 6px rgba(0,0,0,0.3)'
                                         }}>
-                                          ✓
+                                          {roomInstances.length}
                                         </div>
                                       )}
                                     </div>
@@ -1561,93 +1527,331 @@ export default function BookingsPage() {
                                       <p style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: 'bold', color: '#FEBE52' }}>
                                         ₱{(room.price / 100).toLocaleString()}<span style={{ fontSize: '12px', fontWeight: 'normal', color: '#6b7280' }}>/night</span>
                                       </p>
-                                    </div>
-                                    {isSelected && (
-                                      <div style={{ 
-                                        display: 'flex', 
-                                        alignItems: 'center', 
-                                        justifyContent: 'center',
-                                        gap: '12px',
-                                        padding: '12px',
-                                        borderTop: '1px solid #e5e7eb',
-                                        backgroundColor: '#fef3c7'
-                                      }}>
+                                      
+                                      {/* Add Room Button */}
+                                      {!isFull && !allInstancesAdded && (
                                         <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setCreateBookingForm(prev => {
-                                              const selectedRooms = { ...prev.selectedRooms };
-                                              const selectedRoomDetails = { ...prev.selectedRoomDetails };
-                                              if (selectedRooms[room.id] > 1) {
-                                                selectedRooms[room.id] = selectedRooms[room.id] - 1;
-                                              }
-                                              return { ...prev, selectedRooms, selectedRoomDetails };
-                                            });
+                                          type="button"
+                                          onClick={() => {
+                                            const capacity = getRoomCapacityDetails(room.type);
+                                            const instanceNumber = roomInstances.length + 1;
+                                            setCreateBookingForm(prev => ({
+                                              ...prev,
+                                              rooms: [...prev.rooms, {
+                                                roomId: room.id,
+                                                instanceNumber,
+                                                unitNumber: null,
+                                                adults: 1,
+                                                additionalPax: 0,
+                                                children: 0,
+                                                optionalAmenities: {},
+                                                rentalAmenities: {}
+                                              }]
+                                            }));
                                           }}
-                                          disabled={selectedQty <= 1}
                                           style={{
-                                            width: '32px',
-                                            height: '32px',
-                                            borderRadius: '50%',
-                                            border: '2px solid #FEBE52',
-                                            backgroundColor: 'white',
-                                            color: '#FEBE52',
-                                            cursor: selectedQty <= 1 ? 'not-allowed' : 'pointer',
-                                            fontWeight: 'bold',
-                                            fontSize: '18px',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            opacity: selectedQty <= 1 ? 0.5 : 1
-                                          }}
-                                        >
-                                          −
-                                        </button>
-                                        <span style={{ 
-                                          fontWeight: 'bold', 
-                                          fontSize: '16px',
-                                          minWidth: '30px',
-                                          textAlign: 'center',
-                                          color: '#92400e'
-                                        }}>
-                                          {selectedQty}
-                                        </span>
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setCreateBookingForm(prev => {
-                                              const selectedRooms = { ...prev.selectedRooms };
-                                              const selectedRoomDetails = { ...prev.selectedRoomDetails };
-                                              if ((selectedRooms[room.id] || 0) < room.remaining) {
-                                                selectedRooms[room.id] = (selectedRooms[room.id] || 0) + 1;
-                                              }
-                                              return { ...prev, selectedRooms, selectedRoomDetails };
-                                            });
-                                          }}
-                                          disabled={selectedQty >= room.remaining}
-                                          style={{
-                                            width: '32px',
-                                            height: '32px',
-                                            borderRadius: '50%',
-                                            border: 'none',
+                                            width: '100%',
+                                            padding: '8px',
                                             backgroundColor: '#FEBE52',
                                             color: 'white',
-                                            cursor: selectedQty >= room.remaining ? 'not-allowed' : 'pointer',
-                                            fontWeight: 'bold',
-                                            fontSize: '18px',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            opacity: selectedQty >= room.remaining ? 0.5 : 1
+                                            border: 'none',
+                                            borderRadius: '6px',
+                                            fontWeight: '600',
+                                            cursor: 'pointer',
+                                            fontSize: '14px'
                                           }}
                                         >
-                                          +
+                                          + Add Room
                                         </button>
-                                      </div>
-                                    )}
+                                      )}
+                                    </div>
                                   </div>
                                 );
                               })}
+                            </div>
+                          )}
+                          
+                          {/* Room Configuration Panel - NEW */}
+                          {createBookingForm.rooms && createBookingForm.rooms.length > 0 && (
+                            <div style={{ marginTop: '30px' }}>
+                              <h3 style={{ marginBottom: '15px', color: '#5a3e00' }}>Configure Room Details</h3>
+                              <div style={{ display: 'grid', gap: '15px' }}>
+                                {createBookingForm.rooms.map((roomData, idx) => {
+                                  const room = availableRooms.find(r => r.id === roomData.roomId);
+                                  if (!room) return null;
+                                  
+                                  const capacity = getRoomCapacityDetails(room.type);
+                                  const roomTypeName = room.type === 'LOFT' ? 'Loft' : room.type === 'TEPEE' ? 'Tepee' : room.type === 'VILLA' ? 'Villa' : room.name;
+                                  const additionalPaxFee = 400; // ₱400 per additional pax
+                                  
+                                  return (
+                                    <div
+                                      key={`${roomData.roomId}-${roomData.instanceNumber}`}
+                                      style={{
+                                        backgroundColor: 'white',
+                                        border: '2px solid #FEBE52',
+                                        borderRadius: '12px',
+                                        padding: '15px',
+                                        position: 'relative'
+                                      }}
+                                    >
+                                      {/* Header */}
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                                        <h4 style={{ margin: 0, color: '#5a3e00' }}>
+                                          {roomTypeName} #{roomData.instanceNumber}
+                                        </h4>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setCreateBookingForm(prev => ({
+                                              ...prev,
+                                              rooms: prev.rooms.filter(r => !(r.roomId === roomData.roomId && r.instanceNumber === roomData.instanceNumber))
+                                            }));
+                                          }}
+                                          style={{
+                                            padding: '4px 8px',
+                                            backgroundColor: '#ef4444',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '4px',
+                                            cursor: 'pointer',
+                                            fontSize: '12px'
+                                          }}
+                                        >
+                                          Remove
+                                        </button>
+                                      </div>
+                                      
+                                      {/* Room Unit Selector */}
+                                      <div style={{ marginBottom: '15px' }}>
+                                        <RoomUnitSelector
+                                          roomId={room.id}
+                                          roomType={room.type}
+                                          checkIn={createBookingForm.checkIn}
+                                          checkOut={createBookingForm.checkOut}
+                                          selectedUnit={roomData.unitNumber}
+                                          onUnitSelect={(unitNumber) => {
+                                            setCreateBookingForm(prev => ({
+                                              ...prev,
+                                              rooms: prev.rooms.map(r => 
+                                                r.roomId === roomData.roomId && r.instanceNumber === roomData.instanceNumber
+                                                  ? { ...r, unitNumber }
+                                                  : r
+                                              )
+                                            }));
+                                          }}
+                                        />
+                                      </div>
+                                      
+                                      {/* Guest Configuration */}
+                                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '15px' }}>
+                                        {/* Adults */}
+                                        <div>
+                                          <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px', fontWeight: '600' }}>
+                                            Adults (max {capacity.base})
+                                          </label>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setCreateBookingForm(prev => ({
+                                                  ...prev,
+                                                  rooms: prev.rooms.map(r => 
+                                                    r.roomId === roomData.roomId && r.instanceNumber === roomData.instanceNumber
+                                                      ? { ...r, adults: Math.max(1, r.adults - 1) }
+                                                      : r
+                                                  )
+                                                }));
+                                              }}
+                                              disabled={roomData.adults <= 1}
+                                              style={{
+                                                padding: '4px 8px',
+                                                backgroundColor: '#FEBE52',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '4px',
+                                                cursor: roomData.adults <= 1 ? 'not-allowed' : 'pointer',
+                                                opacity: roomData.adults <= 1 ? 0.5 : 1
+                                              }}
+                                            >
+                                              −
+                                            </button>
+                                            <span style={{ fontWeight: 'bold', minWidth: '20px', textAlign: 'center' }}>
+                                              {roomData.adults}
+                                            </span>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setCreateBookingForm(prev => ({
+                                                  ...prev,
+                                                  rooms: prev.rooms.map(r => 
+                                                    r.roomId === roomData.roomId && r.instanceNumber === roomData.instanceNumber
+                                                      ? { ...r, adults: Math.min(capacity.base, r.adults + 1) }
+                                                      : r
+                                                  )
+                                                }));
+                                              }}
+                                              disabled={roomData.adults >= capacity.base}
+                                              style={{
+                                                padding: '4px 8px',
+                                                backgroundColor: '#FEBE52',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '4px',
+                                                cursor: roomData.adults >= capacity.base ? 'not-allowed' : 'pointer',
+                                                opacity: roomData.adults >= capacity.base ? 0.5 : 1
+                                              }}
+                                            >
+                                              +
+                                            </button>
+                                          </div>
+                                        </div>
+                                        
+                                        {/* Additional Pax */}
+                                        <div>
+                                          <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px', fontWeight: '600' }}>
+                                            Extra Pax (max {capacity.additionalPaxMax})
+                                          </label>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setCreateBookingForm(prev => ({
+                                                  ...prev,
+                                                  rooms: prev.rooms.map(r => 
+                                                    r.roomId === roomData.roomId && r.instanceNumber === roomData.instanceNumber
+                                                      ? { ...r, additionalPax: Math.max(0, r.additionalPax - 1) }
+                                                      : r
+                                                  )
+                                                }));
+                                              }}
+                                              disabled={roomData.additionalPax <= 0}
+                                              style={{
+                                                padding: '4px 8px',
+                                                backgroundColor: '#FEBE52',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '4px',
+                                                cursor: roomData.additionalPax <= 0 ? 'not-allowed' : 'pointer',
+                                                opacity: roomData.additionalPax <= 0 ? 0.5 : 1
+                                              }}
+                                            >
+                                              −
+                                            </button>
+                                            <span style={{ fontWeight: 'bold', minWidth: '20px', textAlign: 'center' }}>
+                                              {roomData.additionalPax}
+                                            </span>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setCreateBookingForm(prev => ({
+                                                  ...prev,
+                                                  rooms: prev.rooms.map(r => 
+                                                    r.roomId === roomData.roomId && r.instanceNumber === roomData.instanceNumber
+                                                      ? { ...r, additionalPax: Math.min(capacity.additionalPaxMax, r.additionalPax + 1) }
+                                                      : r
+                                                  )
+                                                }));
+                                              }}
+                                              disabled={roomData.additionalPax >= capacity.additionalPaxMax}
+                                              style={{
+                                                padding: '4px 8px',
+                                                backgroundColor: '#FEBE52',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '4px',
+                                                cursor: roomData.additionalPax >= capacity.additionalPaxMax ? 'not-allowed' : 'pointer',
+                                                opacity: roomData.additionalPax >= capacity.additionalPaxMax ? 0.5 : 1
+                                              }}
+                                            >
+                                              +
+                                            </button>
+                                          </div>
+                                          {roomData.additionalPax > 0 && (
+                                            <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '2px' }}>
+                                              +₱{(additionalPaxFee * roomData.additionalPax).toLocaleString()}/night
+                                            </div>
+                                          )}
+                                        </div>
+                                        
+                                        {/* Children */}
+                                        <div>
+                                          <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px', fontWeight: '600' }}>
+                                            Children (max {capacity.childrenMax || 2})
+                                          </label>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setCreateBookingForm(prev => ({
+                                                  ...prev,
+                                                  rooms: prev.rooms.map(r => 
+                                                    r.roomId === roomData.roomId && r.instanceNumber === roomData.instanceNumber
+                                                      ? { ...r, children: Math.max(0, r.children - 1) }
+                                                      : r
+                                                  )
+                                                }));
+                                              }}
+                                              disabled={roomData.children <= 0}
+                                              style={{
+                                                padding: '4px 8px',
+                                                backgroundColor: '#FEBE52',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '4px',
+                                                cursor: roomData.children <= 0 ? 'not-allowed' : 'pointer',
+                                                opacity: roomData.children <= 0 ? 0.5 : 1
+                                              }}
+                                            >
+                                              −
+                                            </button>
+                                            <span style={{ fontWeight: 'bold', minWidth: '20px', textAlign: 'center' }}>
+                                              {roomData.children}
+                                            </span>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setCreateBookingForm(prev => ({
+                                                  ...prev,
+                                                  rooms: prev.rooms.map(r => 
+                                                    r.roomId === roomData.roomId && r.instanceNumber === roomData.instanceNumber
+                                                      ? { ...r, children: Math.min(capacity.childrenMax || 2, r.children + 1) }
+                                                      : r
+                                                  )
+                                                }));
+                                              }}
+                                              disabled={roomData.children >= (capacity.childrenMax || 2)}
+                                              style={{
+                                                padding: '4px 8px',
+                                                backgroundColor: '#FEBE52',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '4px',
+                                                cursor: roomData.children >= capacity.max ? 'not-allowed' : 'pointer',
+                                                opacity: roomData.children >= capacity.max ? 0.5 : 1
+                                              }}
+                                            >
+                                              +
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Summary */}
+                                      <div style={{ padding: '8px', backgroundColor: '#FFF7ED', borderRadius: '6px', fontSize: '12px' }}>
+                                        <strong>Room Summary:</strong> {roomData.adults} Adult{roomData.adults !== 1 ? 's' : ''}
+                                        {roomData.additionalPax > 0 && ` + ${roomData.additionalPax} Extra`}
+                                        {roomData.children > 0 && `, ${roomData.children} ${roomData.children === 1 ? 'Child' : 'Children'}`}
+                                        {roomData.additionalPax > 0 && (
+                                          <div style={{ marginTop: '4px', color: '#059669', fontWeight: '600' }}>
+                                            ✓ {roomData.additionalPax} extra bed{roomData.additionalPax !== 1 ? 's' : ''} included
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
                             </div>
                           )}
                         </div>
@@ -1658,7 +1862,7 @@ export default function BookingsPage() {
 
                 {createBookingStep === 2 && (
                   <>
-                    <h3 style={{ color: '#5a3e00', marginBottom: '20px' }}>Room Amenities</h3>
+                    <h3 style={{ color: '#5a3e00', marginBottom: '20px' }}>Optional & Rental Amenities</h3>
                     <div style={{ 
                       backgroundColor: '#FFF8E1',
                       padding: '20px',
@@ -1668,39 +1872,33 @@ export default function BookingsPage() {
                       <div style={{ marginBottom: '20px' }}>
                         <h4 style={{ color: '#5a3e00', marginBottom: '15px' }}>Selected Rooms:</h4>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                          {Object.entries(createBookingForm.selectedRooms).map(([roomId, quantity]) => {
-                          const room = availableRooms.find(r => r.id === roomId);
-                          if (!room) return null;
-                          return (
-                            <div key={`selected-room-${roomId}`}>
-                              {room.name} x{quantity}
-                            </div>
-                          );
-                        })}
+                          {(createBookingForm.rooms || []).map((roomData) => {
+                            const room = availableRooms.find(r => r.id === roomData.roomId);
+                            if (!room) return null;
+                            const roomTypeName = room.type === 'LOFT' ? 'Loft' : room.type === 'TEPEE' ? 'Tepee' : room.type === 'VILLA' ? 'Villa' : room.name;
+                            return (
+                              <div key={`selected-room-${roomData.roomId}-${roomData.instanceNumber}`} style={{
+                                padding: '8px 12px',
+                                backgroundColor: 'rgba(251, 190, 82, 0.1)',
+                                borderRadius: '6px',
+                                border: '1px solid rgba(251, 190, 82, 0.3)',
+                                fontSize: '14px'
+                              }}>
+                                {roomTypeName} #{roomData.instanceNumber} ({roomData.adults} adults
+                                {roomData.additionalPax > 0 && ` +${roomData.additionalPax} extra`}
+                                {roomData.children > 0 && `, ${roomData.children} ${roomData.children === 1 ? 'child' : 'children'}`})
+                                {roomData.additionalPax > 0 && (
+                                  <div style={{ fontSize: '11px', color: '#059669', marginTop: '2px' }}>
+                                    ✓ {roomData.additionalPax} extra bed{roomData.additionalPax !== 1 ? 's' : ''}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
 
                       <div style={{ display: 'grid', gap: '20px' }}>
-                        {/* Room Type Based Amenities */}
-                        {Object.entries(createBookingForm.selectedRooms).map(([roomId, quantity]) => {
-                          const room = availableRooms.find(r => r.id === roomId);
-                          if (!room) return null;
-                          return (
-                            <div key={roomId}>
-                              <h4 style={{ color: '#5a3e00', marginBottom: '10px' }}>{room.name} Included Amenities:</h4>
-                              <RoomAmenitiesSelector
-                                roomTypes={[room.type]}
-                                selectedAmenities={createBookingForm.selectedAmenities}
-                                onAmenitiesChange={(newAmenities) => setCreateBookingForm(prev => ({ 
-                                  ...prev, 
-                                  selectedAmenities: newAmenities 
-                                }))}
-                                showIncludedOnly={true}
-                              />
-                            </div>
-                          );
-                        })}
-
                         {/* Optional Amenities */}
                         <div>
                           <h4 style={{ color: '#5a3e00', marginBottom: '10px' }}>Optional Amenities:</h4>
@@ -1752,7 +1950,7 @@ export default function BookingsPage() {
                             <strong>Guest Name:</strong> {createBookingForm.firstName} {createBookingForm.middleName && createBookingForm.middleName + ' '}{createBookingForm.lastName}
                           </div>
                           <div>
-                            <strong>Number of Guests:</strong> {createBookingForm.numberOfGuests}
+                            <strong>Total Guests:</strong> {(createBookingForm.rooms || []).reduce((sum, r) => sum + r.adults + r.additionalPax + r.children, 0)}
                           </div>
                           <div>
                             <strong>Payment Mode:</strong> {createBookingForm.paymentMode.charAt(0).toUpperCase() + createBookingForm.paymentMode.slice(1).replace('_', ' ')}
@@ -1772,19 +1970,24 @@ export default function BookingsPage() {
                       {/* Selected Rooms */}
                       <div style={{ marginBottom: '20px' }}>
                         <h4 style={{ color: '#5a3e00', marginBottom: '10px' }}>Selected Rooms</h4>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                          {Object.entries(createBookingForm.selectedRooms).map(([roomId, quantity]) => {
-                            const roomDetails = createBookingForm.selectedRoomDetails[roomId];
-                            if (!roomDetails) return null;
+                        <div style={{ display: 'grid', gap: '10px' }}>
+                          {(createBookingForm.rooms || []).map((roomData) => {
+                            const room = availableRooms.find(r => r.id === roomData.roomId);
+                            if (!room) return null;
+                            const roomTypeName = room.type === 'LOFT' ? 'Loft' : room.type === 'TEPEE' ? 'Tepee' : room.type === 'VILLA' ? 'Villa' : room.name;
                             return (
-                              <div key={roomId} style={{
-                                padding: '8px 12px',
-                                backgroundColor: 'rgba(251, 190, 82, 0.1)',
+                              <div key={`summary-room-${roomData.roomId}-${roomData.instanceNumber}`} style={{
+                                padding: '12px',
+                                backgroundColor: 'white',
                                 borderRadius: '6px',
-                                border: '1px solid rgba(251, 190, 82, 0.3)',
-                                fontSize: '14px'
+                                border: '1px solid rgba(251, 190, 82, 0.3)'
                               }}>
-                                {roomDetails.name} x{quantity}
+                                <strong>{roomTypeName} #{roomData.instanceNumber}</strong>
+                                <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>
+                                  • {roomData.adults} Adult{roomData.adults !== 1 ? 's' : ''}
+                                  {roomData.additionalPax > 0 && ` + ${roomData.additionalPax} Additional Pax (₱${(400 * roomData.additionalPax).toLocaleString()}/night)`}
+                                  {roomData.children > 0 && `\n• ${roomData.children} ${roomData.children === 1 ? 'Child' : 'Children'}`}
+                                </div>
                               </div>
                             );
                           })}
@@ -3370,12 +3573,9 @@ ${currentBooking.id},${currentBooking.guestName},${currentBooking.checkInDate},$
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 <button
                   onClick={() => {
-                    if (confirm(`Cancel ${selectedBookings.length} selected booking(s)?`)) {
-                      // Bulk cancel logic would go here
-                      alert('Bulk cancel functionality coming soon...');
-                      setShowBulkActionsModal(false);
-                      setSelectedBookings([]);
-                    }
+                    showAlert('Coming Soon', 'Bulk cancel functionality coming soon...', 'info');
+                    setShowBulkActionsModal(false);
+                    setSelectedBookings([]);
                   }}
                   style={{
                     padding: '0.75rem 1rem',
@@ -3454,6 +3654,91 @@ ${currentBooking.id},${currentBooking.guestName},${currentBooking.checkInDate},$
                   }}
                 >
                   Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Alert Modal */}
+        {alertModal.show && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 9999,
+          }}>
+            <div style={{
+              background: 'linear-gradient(135deg, #febe52 0%, #fcd34d 50%, #f6e27a 100%)',
+              borderRadius: '16px',
+              padding: '24px',
+              maxWidth: '400px',
+              width: '90%',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+              animation: 'modalSlideIn 0.3s ease-out',
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                marginBottom: '16px',
+              }}>
+                {alertModal.type === 'error' ? (
+                  <div style={{ backgroundColor: '#fee2e2', borderRadius: '50%', padding: '8px' }}>
+                    <XCircle size={24} color="#dc2626" />
+                  </div>
+                ) : alertModal.type === 'warning' ? (
+                  <div style={{ backgroundColor: '#fef3c7', borderRadius: '50%', padding: '8px' }}>
+                    <AlertCircle size={24} color="#d97706" />
+                  </div>
+                ) : alertModal.type === 'success' ? (
+                  <div style={{ backgroundColor: '#dcfce7', borderRadius: '50%', padding: '8px' }}>
+                    <CheckCircle size={24} color="#16a34a" />
+                  </div>
+                ) : (
+                  <div style={{ backgroundColor: '#dbeafe', borderRadius: '50%', padding: '8px' }}>
+                    <Info size={24} color="#2563eb" />
+                  </div>
+                )}
+                <h3 style={{
+                  margin: 0,
+                  fontSize: '18px',
+                  fontWeight: '700',
+                  color: '#5a3e00',
+                }}>{alertModal.title}</h3>
+              </div>
+              <p style={{
+                margin: '0 0 24px 0',
+                fontSize: '15px',
+                color: '#6b4700',
+                lineHeight: '1.5',
+              }}>{alertModal.message}</p>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => setAlertModal({ show: false, title: '', message: '', type: 'info' })}
+                  style={{
+                    backgroundColor: '#56A86B',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '12px 32px',
+                    fontSize: '15px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 2px 8px rgba(86, 168, 107, 0.4)',
+                  }}
+                  onMouseOver={(e) => e.target.style.backgroundColor = '#4a9660'}
+                  onMouseOut={(e) => e.target.style.backgroundColor = '#56A86B'}
+                >
+                  Okay
                 </button>
               </div>
             </div>
@@ -4283,7 +4568,7 @@ const styles = {
   paginationButtonActive: {
     backgroundColor: '#3b82f6',
     color: '#ffffff',
-    borderColor: '#3b82f6',
+    border: '1px solid #3b82f6',
   },
   
   // Bulk Actions Styles

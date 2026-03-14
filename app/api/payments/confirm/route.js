@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { recordAudit } from '@/src/lib/audit';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/auth';
+import { triggerEvent, notifyStaff, CHANNELS, EVENTS } from '@/lib/pusher-server';
 
 export async function POST(req) {
   try {
@@ -37,6 +38,41 @@ export async function POST(req) {
         heldUntil: null,
       },
     });
+
+    // 🔔 PUSHER: Notify dashboards about payment and booking update
+    try {
+      const pusherData = {
+        bookingId: payment.bookingId,
+        paymentId: payment.id,
+        guestName: payment.booking?.guestName || 'Guest',
+        amount: payment.amount,
+        status: updatedBooking.status,
+        paymentStatus: updatedBooking.paymentStatus
+      };
+      
+      // Notify booking channel (staff dashboards will refresh)
+      await triggerEvent(CHANNELS.BOOKINGS, EVENTS.BOOKING_UPDATED, pusherData);
+      await triggerEvent(CHANNELS.BOOKINGS, EVENTS.PAYMENT_RECEIVED, pusherData);
+      
+      // Notify staff
+      await notifyStaff('SUPERADMIN', { 
+        type: 'payment_received', 
+        message: `Payment confirmed for ${pusherData.guestName}`, 
+        ...pusherData 
+      });
+      await notifyStaff('RECEPTIONIST', { 
+        type: 'payment_received', 
+        message: `Payment confirmed for ${pusherData.guestName}`, 
+        ...pusherData 
+      });
+      await notifyStaff('CASHIER', { 
+        type: 'payment_received', 
+        message: `Payment confirmed for ${pusherData.guestName}`, 
+        ...pusherData 
+      });
+    } catch (pusherErr) {
+      console.warn('[Pusher] Failed to send payment notification:', pusherErr);
+    }
 
     // Record audit for payment confirmation
     try {

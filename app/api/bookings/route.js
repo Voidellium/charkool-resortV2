@@ -4,6 +4,7 @@ import { recordAudit } from '@/src/lib/audit';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/auth';
 import { withSecurity, validateNumber, validateObject } from '@/lib/security';
+import { broadcastNewBooking, triggerEvent, CHANNELS, EVENTS } from '@/lib/pusher-server';
 
 // Helper function to serialize BigInt values
 function serializeBigInt(obj) {
@@ -93,7 +94,8 @@ async function getBookingsHandler(request) {
             amt = Math.floor(amt / 100);
           }
           const status = (p.status || '').toLowerCase();
-          return (status === 'paid' || status === 'partial' || status === 'reservation') ? sum + amt : sum;
+          // Include all successful payment statuses: paid, partial, reservation, and completed
+          return (status === 'paid' || status === 'partial' || status === 'reservation' || status === 'completed') ? sum + amt : sum;
         }, 0) : 0;
 
         const totalPrice = typeof booking.totalCostWithAddons === 'bigint'
@@ -311,16 +313,18 @@ async function postBookingHandler(request) {
     let calculatedTotalPrice = 0;
     for (const room of rooms) {
       const qty = hasNewFormat
-        ? roomsArray.find(r => parseInt(r.roomId) === room.id)?.quantity || 0
+        ? roomsArray.filter(r => parseInt(r.roomId) === room.id).length
         : selectedRooms[room.id] || 0;
       const price = typeof room.price === 'bigint' ? Number(room.price) : room.price;
       calculatedTotalPrice += price * qty * nights;
       
-      // Add additional pax fee for new format (one-time fee, not per night)
+      // Add additional pax fee for new format (per night)
       if (hasNewFormat) {
-        const roomData = roomsArray.find(r => parseInt(r.roomId) === room.id);
-        if (roomData && roomData.additionalPax) {
-          calculatedTotalPrice += roomData.additionalPax * 40000; // ₱400 in cents per additional pax
+        const roomInstances = roomsArray.filter(r => parseInt(r.roomId) === room.id);
+        for (const roomData of roomInstances) {
+          if (roomData.additionalPax) {
+            calculatedTotalPrice += roomData.additionalPax * 40000 * nights; // ₱400 per night per additional pax
+          }
         }
       }
     }
@@ -339,6 +343,18 @@ async function postBookingHandler(request) {
         if (roomData.optionalAmenities) {
           for (const [amenityId, quantity] of Object.entries(roomData.optionalAmenities)) {
             optionalAmenitiesToUse[amenityId] = (optionalAmenitiesToUse[amenityId] || 0) + quantity;
+          }
+        }
+        
+        // AUTOMATIC EXTRA BED: Add extra bed for each additional pax
+        if (roomData.additionalPax && roomData.additionalPax > 0) {
+          // Find the "Extra Bed" amenity
+          const extraBedAmenity = await prisma.optionalAmenity.findFirst({
+            where: { name: { contains: 'Extra Bed', mode: 'insensitive' } }
+          });
+          
+          if (extraBedAmenity) {
+            optionalAmenitiesToUse[extraBedAmenity.id] = (optionalAmenitiesToUse[extraBedAmenity.id] || 0) + roomData.additionalPax;
           }
         }
         
@@ -533,22 +549,104 @@ async function postBookingHandler(request) {
 
     // NEW: Auto-assign room units after booking creation
     try {
-      const { autoAssignRoomUnits } = await import('@/lib/roomUnitAvailability');
+      const { autoAssignRoomUnits, assignRoomUnit } = await import('@/lib/roomUnitAvailability');
       
-      // Extract unique room IDs from the booking
-      const roomIdsForAssignment = booking.rooms.map(br => br.roomId);
+      // Check if user provided specific unit numbers (new format)
+      const hasUserSelectedUnits = hasNewFormat && roomsArray.every(r => r.unitNumber);
       
-      // Auto-assign units
-      const assignments = await autoAssignRoomUnits(booking.id, roomIdsForAssignment);
+      let unitAssignmentWarning = null;
       
-      console.log(`✅ Auto-assigned ${assignments.length} room unit(s) for booking ${booking.id}`);
+      if (hasUserSelectedUnits) {
+        // User selected specific units - create assignments for each room instance
+        const assignments = [];
+        const failedAssignments = [];
+        
+        for (const roomInstance of roomsArray) {
+          try {
+            const assignment = await assignRoomUnit(
+              booking.id,
+              parseInt(roomInstance.roomId),
+              roomInstance.unitNumber,
+              null // null = customer selected (not manually assigned by staff)
+            );
+            assignments.push(assignment);
+          } catch (unitError) {
+            console.error(`⚠️ Failed to assign unit ${roomInstance.unitNumber} for room ${roomInstance.roomId}:`, unitError);
+            failedAssignments.push({
+              roomId: roomInstance.roomId,
+              requestedUnit: roomInstance.unitNumber,
+              error: unitError.message
+            });
+          }
+        }
+        
+        // If some assignments failed, try auto-assignment for failed ones
+        if (failedAssignments.length > 0) {
+          console.log(`⚠️ ${failedAssignments.length} unit assignment(s) failed. Attempting auto-assignment...`);
+          
+          const roomIdsToAutoAssign = failedAssignments.map(f => parseInt(f.roomId));
+          try {
+            const autoAssignments = await autoAssignRoomUnits(booking.id, roomIdsToAutoAssign);
+            assignments.push(...autoAssignments);
+            
+            // Create warning message for frontend
+            const roomDetails = failedAssignments.map(f => {
+              const room = rooms.find(r => r.id === parseInt(f.roomId));
+              return `${room?.name || 'Room'} #${f.requestedUnit}`;
+            }).join(', ');
+            
+            unitAssignmentWarning = {
+              type: 'AUTO_REASSIGNED',
+              message: `Your selected unit(s) (${roomDetails}) became unavailable and were automatically reassigned to other available units.`,
+              failedUnits: failedAssignments,
+              reassignedUnits: autoAssignments.map(a => ({
+                roomId: a.roomId,
+                assignedUnit: a.unitNumber,
+                roomName: a.room?.name
+              }))
+            };
+            
+            console.log(`✅ Auto-assigned ${autoAssignments.length} replacement unit(s) for booking ${booking.id}`);
+          } catch (autoError) {
+            console.error('⚠️ Auto-assignment also failed:', autoError);
+            unitAssignmentWarning = {
+              type: 'ASSIGNMENT_FAILED',
+              message: 'Room units could not be assigned automatically. Our staff will assign your rooms and contact you shortly.',
+              failedUnits: failedAssignments
+            };
+          }
+        }
+        
+        console.log(`✅ Assigned ${assignments.length} room unit(s) for booking ${booking.id}`);
+        booking.unitAssignments = assignments;
+      } else {
+        // No specific units selected - auto-assign based on availability
+        // For new format: create one assignment per room instance
+        // For old format: create assignments based on quantity
+        const roomIdsForAssignment = booking.rooms.flatMap(br => {
+          // Repeat roomId for each quantity
+          return Array(br.quantity).fill(br.roomId);
+        });
+        
+        // Auto-assign units (will assign first available for each)
+        const assignments = await autoAssignRoomUnits(booking.id, roomIdsForAssignment);
+        
+        console.log(`✅ Auto-assigned ${assignments.length} room unit(s) for booking ${booking.id}`);
+        booking.unitAssignments = assignments;
+      }
       
-      // Attach assignments to booking response
-      booking.unitAssignments = assignments;
+      // Include warning in response if reassignment occurred
+      if (unitAssignmentWarning) {
+        booking.unitAssignmentWarning = unitAssignmentWarning;
+      }
     } catch (assignmentError) {
-      console.error('⚠️ Failed to auto-assign room units:', assignmentError);
+      console.error('⚠️ Failed to assign room units:', assignmentError);
       // Non-critical error - booking is still valid, units can be assigned later by receptionist
       console.log('Booking created successfully but units not assigned. Receptionist can assign manually.');
+      booking.unitAssignmentWarning = {
+        type: 'ASSIGNMENT_FAILED',
+        message: 'Room units could not be assigned automatically. Our staff will assign your rooms and contact you shortly.'
+      };
     }
 
     // Create notification for superadmin
@@ -575,7 +673,7 @@ async function postBookingHandler(request) {
       await recordAudit({
         actorId: session?.user?.id || null,
         actorName: session?.user?.name || session?.user?.email || booking.guestName,
-        actorRole: session?.user?.role || 'GUEST',
+        actorRole: session?.user?.role || 'CUSTOMER',
         action: 'CREATE',
         entity: 'Booking',
         entityId: String(booking.id),
@@ -583,6 +681,26 @@ async function postBookingHandler(request) {
       });
     } catch (auditErr) {
       console.error('Failed to record audit for booking creation:', auditErr);
+    }
+
+    // 🔔 PUSHER: Broadcast new booking to all connected clients
+    try {
+      await broadcastNewBooking({
+        id: booking.id,
+        guestName: booking.guestName,
+        firstName: booking.guestName?.split(' ')[0],
+        lastName: booking.guestName?.split(' ').slice(1).join(' '),
+        checkIn: booking.checkIn,
+        checkOut: booking.checkOut,
+        status: booking.status,
+        paymentStatus: booking.paymentStatus,
+        rooms: booking.rooms,
+        totalPrice: booking.totalPrice,
+      });
+      console.log('[Pusher] Broadcasted new booking event');
+    } catch (pusherErr) {
+      console.error('[Pusher] Failed to broadcast new booking:', pusherErr);
+      // Non-critical: don't fail the request if Pusher fails
     }
 
     return NextResponse.json({ booking: serializeBigInt(booking) }, { status: 201 });

@@ -51,7 +51,7 @@ export async function PATCH(request, { params }) {
       await recordAudit({
         actorId: session?.user?.id || null,
         actorName: session?.user?.name || session?.user?.email || 'Unknown',
-        actorRole: session?.user?.role || 'ADMIN',
+        actorRole: session?.user?.role || 'SUPERADMIN',
         action: 'UPDATE',
         entity: 'Policy',
         entityId: String(policy.id),
@@ -87,7 +87,7 @@ export async function DELETE(request, { params }) {
       await recordAudit({
         actorId: session?.user?.id || null,
         actorName: session?.user?.name || session?.user?.email || 'Unknown',
-        actorRole: session?.user?.role || 'ADMIN',
+        actorRole: session?.user?.role || 'SUPERADMIN',
         action: 'DELETE',
         entity: 'Policy',
         entityId: String(id),

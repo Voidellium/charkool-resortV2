@@ -19,12 +19,12 @@ export async function POST(req, { params }) {
       return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
     }
 
-    // Policy: Allow reschedule until 1 day before check-in (updated from 2 weeks)
+    // Policy: Allow reschedule until 1 week (7 days) before check-in
     const now = new Date();
     const checkIn = new Date(booking.checkIn);
     const diffDays = (checkIn - now) / (1000 * 60 * 60 * 24);
-    if (diffDays < 1) {
-      return NextResponse.json({ error: 'Reschedule only allowed until 1 day before check-in.' }, { status: 400 });
+    if (diffDays < 7) {
+      return NextResponse.json({ error: 'Reschedule only allowed until 1 week (7 days) before check-in.' }, { status: 400 });
     }
 
     // Check for recent denied cancellation request (for one-time auto-approve)

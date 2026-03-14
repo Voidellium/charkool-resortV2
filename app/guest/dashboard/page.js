@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import { useNavigationGuard } from '../../../hooks/useNavigationGuard.simple';
@@ -12,6 +12,7 @@ import {
 } from '../../../components/CustomModals';
 import BookingCalendar from '../../../components/BookingCalendar';
 import PromotionPopup from '../../../components/PromotionPopup';
+import { useUserUpdates } from '../../../hooks/usePusher';
 
 // Modal Component
 const Modal = ({ show, onClose, children }) => {
@@ -218,7 +219,7 @@ function RescheduleModalContent({ booking, guest }) {
         color: '#6b4700',
         fontWeight: 500
       }}>
-        <span>Policy: Reschedule is allowed 2 weeks prior of the check-in date. No-shows are considered forfeited.</span>
+        <span>Policy: Reschedule is allowed 1 week (7 days) prior of the check-in date. No-shows are considered forfeited.</span>
       </div>
       <div style={{ marginBottom: '1.5rem' }}>
         <BookingCalendar onDateChange={setSelectedDates} />
@@ -408,7 +409,7 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
             <h3>📋 Reschedule Policy</h3>
             <div className="policy-note">
               <p>
-                <strong>Reschedule Policy:</strong> Bookings can only be rescheduled up to 2 weeks before the check-in date.
+                <strong>Reschedule Policy:</strong> Bookings can only be rescheduled up to 1 week (7 days) before the check-in date.
               </p>
             </div>
           </div>
@@ -556,14 +557,20 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
                       const roomTotal = roomPricePerNight * (Number(roomBooking.quantity) || 0) * nights;
                       const reservationFee = (Number(roomBooking.quantity) || 0) * 2000;
                       const roomBalance = roomTotal - reservationFee;
+                      const additionalPaxFee = (roomBooking.additionalPax || 0) * 400 * nights;
                       
-                      return roomBalance > 0 ? (
+                      return (roomBalance > 0 || additionalPaxFee > 0) ? (
                         <div key={idx} className="breakdown-item">
                           <span className="breakdown-label">
                             {roomBooking.room?.name} ({roomBooking.quantity} room{roomBooking.quantity > 1 ? 's' : ''} × {nights} night{nights > 1 ? 's' : ''} × ₱{roomPricePerNight.toLocaleString()})
+                            {additionalPaxFee > 0 && (
+                              <div style={{ fontSize: '0.85em', color: '#6b7280', marginTop: '0.25rem' }}>
+                                + {roomBooking.additionalPax} additional pax × {nights} night{nights > 1 ? 's' : ''} × ₱400
+                              </div>
+                            )}
                           </span>
                           <span className="breakdown-value">
-                            ₱{roomBalance.toLocaleString()}
+                            ₱{(roomBalance + additionalPaxFee).toLocaleString()}
                           </span>
                         </div>
                       ) : null;
@@ -636,7 +643,8 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
                       const roomPricePerNight = (Number(roomBooking.room?.price) || 0) / 100;
                       const roomTotal = roomPricePerNight * (Number(roomBooking.quantity) || 0) * nights;
                       const roomReservationFee = (Number(roomBooking.quantity) || 0) * 2000;
-                      return sum + (roomTotal - roomReservationFee);
+                      const additionalPaxFee = (roomBooking.additionalPax || 0) * 400 * nights;
+                      return sum + (roomTotal - roomReservationFee + additionalPaxFee);
                     }, 0);
                     const rentalTotal = (details.rentalAmenities || []).reduce((sum, rental) => sum + ((Number(rental.totalPrice) || 0) / 100), 0);
                     const optionalTotal = (details.optionalAmenities || []).reduce((sum, optional) => {
@@ -668,7 +676,8 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
                           const roomPricePerNight = (Number(roomBooking.room?.price) || 0) / 100;
                           const roomTotal = roomPricePerNight * (Number(roomBooking.quantity) || 0) * nights;
                           const roomReservationFee = (Number(roomBooking.quantity) || 0) * 2000;
-                          return sum + (roomTotal - roomReservationFee);
+                          const additionalPaxFee = (roomBooking.additionalPax || 0) * 400 * nights;
+                          return sum + (roomTotal - roomReservationFee + additionalPaxFee);
                         }, 0);
                         const rentalTotal = (details.rentalAmenities || []).reduce((sum, rental) => sum + ((Number(rental.totalPrice) || 0) / 100), 0);
                         const optionalTotal = (details.optionalAmenities || []).reduce((sum, optional) => {
@@ -1230,21 +1239,21 @@ const BookingHistoryCard = ({ booking, guest, onViewDetails, onReschedule, resch
     const now = new Date();
     const checkInDate = new Date(booking.checkIn);
     const checkOutDate = new Date(booking.checkOut);
-    // Updated: Allow if booking is confirmed (not completed), no request or last was denied, and not cancelled, and at least 1 day before check-in
+    // Updated: Allow if booking is confirmed (not completed), no request or last was denied, and not cancelled, and at least 7 days before check-in
     return (
       booking.status === 'Confirmed' &&
       booking.status !== 'Cancelled' &&
       booking.status !== 'Completed' &&
       now <= checkOutDate &&
-      (checkInDate - now) / (1000 * 60 * 60 * 24) >= 1 &&
+      (checkInDate - now) / (1000 * 60 * 60 * 24) >= 7 &&
       (!rescheduleStatus || rescheduleStatus === 'DENIED')
     );
   };
 
-  const isWithinOneDay = () => {
+  const isWithinOneWeek = () => {
     const now = new Date();
     const checkInDate = new Date(booking.checkIn);
-    return (checkInDate - now) / (1000 * 60 * 60 * 24) < 1;
+    return (checkInDate - now) / (1000 * 60 * 60 * 24) < 7;
   };
 
   const shouldShowRescheduleButton = () => {
@@ -1495,9 +1504,11 @@ const HistoryCard = ({
   onViewDetails, 
   onReschedule, 
   onCancel,
+  onDismiss,
   rescheduleRequests = {}, 
   cancellationRequests = {},
-  unitAssignments = [] 
+  unitAssignments = [],
+  dismissing = false
 }) => {
   const [showDeniedModal, setShowDeniedModal] = useState(false);
   
@@ -1583,17 +1594,50 @@ const HistoryCard = ({
     <div className="history-card">
       <div className="card-header">
         <div className="room-info">
-          <h3>
-            {firstRoom ? firstRoom.room.name : 'N/A'}
-            {unitAssignment && ` #${unitAssignment.unitNumber}`}
-          </h3>
-          <span className="room-type">{firstRoom ? firstRoom.room.type : ''}</span>
-          {unitAssignment?.metadata && (
-            <span className="unit-details">
-              {unitAssignment.metadata.description && `${unitAssignment.metadata.description}`}
-              {unitAssignment.metadata.location && ` • ${unitAssignment.metadata.location}`}
-            </span>
-          )}
+          <div className="rooms-list">
+            {booking.rooms && booking.rooms.length > 0 ? (
+              (() => {
+                // Group rooms by room name
+                const groupedRooms = booking.rooms.reduce((acc, roomBooking) => {
+                  const roomName = roomBooking.room.name;
+                  if (!acc[roomName]) {
+                    acc[roomName] = [];
+                  }
+                  
+                  // Find unit assignments for this room
+                  const roomUnits = unitAssignments.filter(
+                    u => u.roomId === roomBooking.roomId
+                  );
+                  
+                  if (roomUnits.length > 0) {
+                    roomUnits.forEach(unit => {
+                      if (unit.unitNumber) {
+                        acc[roomName].push(unit.unitNumber);
+                      }
+                    });
+                  } else if (roomBooking.quantity > 1) {
+                    // If no unit assignments but quantity > 1, show count
+                    acc[roomName].push(`${roomBooking.quantity}x`);
+                  }
+                  
+                  return acc;
+                }, {});
+                
+                return Object.entries(groupedRooms).map(([roomName, units], index) => (
+                  <div key={index} className="room-item">
+                    {roomName}
+                    {units.length > 0 && (
+                      units[0].includes('x') 
+                        ? ` (${units[0]})` 
+                        : ` #${units.join(',')}`
+                    )}
+                  </div>
+                ));
+              })()
+            ) : (
+              <div className="room-item">N/A</div>
+            )}
+          </div>
         </div>
         <div className="status-badges">
           <span className="status-badge booking-status" style={{ backgroundColor: getStatusColor(booking.status) }}>
@@ -1729,6 +1773,18 @@ const HistoryCard = ({
             </button>
           );
         })()}
+
+        {/* Dismiss button for expired bookings */}
+        {booking.status === 'Expired' && onDismiss && (
+          <button 
+            className="action-btn dismiss" 
+            onClick={() => onDismiss(booking.id)}
+            disabled={dismissing}
+            title="Remove this expired booking from your history"
+          >
+            {dismissing ? 'Dismissing...' : '🗑️ Dismiss'}
+          </button>
+        )}
       </div>
 
       {/* Denial Details Modal */}
@@ -1782,11 +1838,32 @@ const HistoryCard = ({
           margin-bottom: 1.2rem;
         }
         
-        .room-info h3 {
-          margin: 0 0 0.25rem 0;
-          font-size: 1.3rem;
-          font-weight: 700;
+        .room-info {
+          flex: 1;
+        }
+        
+        .rooms-list {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(150px, max-content));
+          gap: 0.75rem 1rem;
+          row-gap: 0.25rem;
+        }
+        
+        .room-item {
+          font-size: 1.05rem;
           color: #8B4513;
+          font-weight: 600;
+          padding: 0.15rem 0;
+          display: flex;
+          align-items: flex-start;
+          white-space: nowrap;
+        }
+        
+        .room-item::before {
+          content: '•';
+          margin-right: 0.5rem;
+          color: #D4AF37;
+          font-weight: bold;
         }
         
         .room-type {
@@ -2022,7 +2099,167 @@ export default function GuestDashboard() {
     dateFrom: '',
     dateTo: ''
   });
+  const [activeTab, setActiveTab] = useState('upcoming'); // NEW: Tab state
+  const [dismissing, setDismissing] = useState(false); // NEW: Loading state for dismissal
   const router = useRouter();
+
+  // NEW: Helper function to categorize bookings
+  const categorizeBookings = (bookingsList) => {
+    const now = new Date();
+    
+    return {
+      upcoming: bookingsList.filter(b => 
+        (b.status === 'Confirmed' || b.status === 'Pending') && 
+        new Date(b.checkIn) > now &&
+        !b.isDeleted
+      ),
+      expiredPending: bookingsList.filter(b => 
+        b.status === 'Expired' &&
+        !b.isDeleted
+      ),
+      past: bookingsList.filter(b => 
+        (b.status === 'Completed' || (new Date(b.checkOut) < now && b.status === 'Confirmed')) &&
+        !b.isDeleted
+      ),
+      cancelled: bookingsList.filter(b => 
+        b.status === 'Cancelled' &&
+        !b.isDeleted
+      ),
+    };
+  };
+
+  // NEW: Calculate dashboard statistics
+  const calculateStats = (bookingsList) => {
+    const now = new Date();
+    const categorized = categorizeBookings(bookingsList);
+    
+    const confirmedCount = bookingsList.filter(b => 
+      b.status === 'Confirmed' && new Date(b.checkIn) > now
+    ).length;
+    
+    const totalBalance = bookingsList.reduce((sum, booking) => {
+      if (booking.status === 'Cancelled' || booking.status === 'Expired') return sum;
+      
+      const totalPaid = (booking.payments || []).reduce((pSum, p) => {
+        const status = (p.status || '').toLowerCase();
+        return (status === 'paid' || status === 'partial' || status === 'reservation') 
+          ? pSum + Number(p.amount || 0) 
+          : pSum;
+      }, 0);
+      
+      // Calculate total price from booking components
+      const basePrice = Number(booking.totalPrice || 0);
+      const rentalTotal = (booking.rentalAmenities || []).reduce((sum, ra) => 
+        sum + Number(ra.totalPrice || 0), 0
+      );
+      const cottageTotal = (booking.cottage || []).reduce((sum, c) => 
+        sum + Number(c.totalPrice || 0), 0
+      );
+      const total = basePrice + rentalTotal + cottageTotal;
+      
+      return sum + Math.max(0, total - totalPaid);
+    }, 0);
+    
+    const totalStays = bookingsList.filter(b => 
+      b.status === 'Completed'
+    ).length;
+    
+    return {
+      upcomingCount: categorized.upcoming.length,
+      confirmedCount,
+      totalBalance: totalBalance / 100, // Convert from cents
+      totalStays,
+      expiredCount: categorized.expiredPending.length,
+    };
+  };
+
+  // NEW: Get next upcoming booking
+  const getNextBooking = (bookingsList) => {
+    const now = new Date();
+    const upcoming = bookingsList
+      .filter(b => 
+        (b.status === 'Confirmed' || b.status === 'Pending') && 
+        new Date(b.checkIn) > now &&
+        !b.isDeleted
+      )
+      .sort((a, b) => new Date(a.checkIn) - new Date(b.checkIn));
+    
+    return upcoming[0] || null;
+  };
+
+  // NEW: Calculate days until check-in
+  const getDaysUntilCheckIn = (checkInDate) => {
+    const now = new Date();
+    const checkIn = new Date(checkInDate);
+    const diff = checkIn - now;
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  };
+
+  // NEW: Handle dismiss expired booking
+  const handleDismissExpired = async (bookingId) => {
+    setDismissing(true);
+    try {
+      const res = await fetch(`/api/bookings/${bookingId}/dismiss`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (res.ok) {
+        // Refresh bookings
+        const refreshRes = await fetch('/api/guest/me');
+        if (refreshRes.ok) {
+          const refreshData = await refreshRes.json();
+          setBookings(refreshData.bookings);
+          applyFilters(refreshData.bookings);
+        }
+      } else {
+        const error = await res.json();
+        alert(`Error: ${error.error || 'Failed to dismiss booking'}`);
+      }
+    } catch (err) {
+      console.error('Dismiss error:', err);
+      alert('Failed to dismiss booking');
+    } finally {
+      setDismissing(false);
+    }
+  };
+
+  // NEW: Dismiss all expired bookings
+  const handleDismissAllExpired = async () => {
+    const categorized = categorizeBookings(bookings);
+    const expiredIds = categorized.expiredPending.map(b => b.id);
+    
+    if (expiredIds.length === 0) return;
+    
+    if (!confirm(`Are you sure you want to dismiss ${expiredIds.length} expired booking(s)?`)) {
+      return;
+    }
+
+    setDismissing(true);
+    try {
+      await Promise.all(
+        expiredIds.map(id => 
+          fetch(`/api/bookings/${id}/dismiss`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+          })
+        )
+      );
+      
+      // Refresh bookings
+      const refreshRes = await fetch('/api/guest/me');
+      if (refreshRes.ok) {
+        const refreshData = await refreshRes.json();
+        setBookings(refreshData.bookings);
+        applyFilters(refreshData.bookings);
+      }
+    } catch (err) {
+      console.error('Dismiss all error:', err);
+      alert('Failed to dismiss some bookings');
+    } finally {
+      setDismissing(false);
+    }
+  };
 
   // NEW: Fetch cancellation requests for all bookings (moved outside useEffect)
   const fetchCancellationRequests = async (bookingsList) => {
@@ -2039,13 +2276,18 @@ export default function GuestDashboard() {
     }
   };
 
+  // Memoized callbacks for navigation guard to prevent re-render spam
+  const shouldPreventNav = useCallback(() => true, []);
+  const onNavAttempt = useCallback(() => {
+    console.log('Guest Dashboard: Navigation attempt detected, showing logout confirmation');
+  }, []);
+  const customLogout = useCallback(() => signOut({ callbackUrl: '/login' }), []);
+
   // Logout Navigation Guard - prevents accidental logout via back button
   const navigationGuard = useNavigationGuard({
-    shouldPreventNavigation: () => true,
-    onNavigationAttempt: () => {
-      console.log('Guest Dashboard: Navigation attempt detected, showing logout confirmation');
-    },
-    customAction: () => signOut({ callbackUrl: '/login' }),
+    shouldPreventNavigation: shouldPreventNav,
+    onNavigationAttempt: onNavAttempt,
+    customAction: customLogout,
     context: 'logout',
     message: 'Are you sure you want to log out? You will need to sign in again to access your account.'
   });
@@ -2153,6 +2395,43 @@ export default function GuestDashboard() {
     fetchPromotions();
   }, [router]);
 
+  // 🔔 PUSHER: Real-time updates for guest bookings
+  // Callback to refresh guest data
+  const refetchGuestData = useCallback(async () => {
+    console.log('[Pusher] Received booking update, refreshing guest data...');
+    try {
+      const res = await fetch('/api/guest/me');
+      if (res.ok) {
+        const data = await res.json();
+        setGuest(data.guest);
+        setBookings(data.bookings);
+        applyFilters(data.bookings);
+      }
+    } catch (err) {
+      console.error('[Pusher] Refresh error:', err);
+    }
+  }, []);
+
+  // Subscribe to user-specific updates (uses guest?.id)
+  useUserUpdates(guest?.id, {
+    onBookingStatusChanged: (data) => {
+      console.log('[Pusher] Booking status changed:', data.status);
+      // Show a notification to the user
+      if (data.message) {
+        alert(data.message); // You can replace this with a toast notification
+      }
+      refetchGuestData();
+    },
+    onNotification: (notification) => {
+      console.log('[Pusher] New notification:', notification.message);
+      // Refresh notifications
+      fetch('/api/notifications?role=CUSTOMER')
+        .then(res => res.ok ? res.json() : [])
+        .then(data => setNotifications(data || []))
+        .catch(err => console.error('Error refreshing notifications:', err));
+    },
+  });
+
   // Handle direct cancellation (>= 7 days)
   const handleDirectCancel = async (booking) => {
     setCancelLoading(true);
@@ -2170,7 +2449,7 @@ export default function GuestDashboard() {
         if (refreshRes.ok) {
           const refreshData = await refreshRes.json();
           setBookings(refreshData.bookings);
-          setFilteredBookings(refreshData.bookings);
+          applyFilters(refreshData.bookings);
           if (refreshData.bookings && refreshData.bookings.length > 0) {
             await fetchCancellationRequests(refreshData.bookings);
           }
@@ -2187,6 +2466,56 @@ export default function GuestDashboard() {
       setCancelConfirmModal({ show: false, booking: null });
     }
   };
+
+  // NEW: Apply filters with tab consideration
+  const applyFilters = (bookingsList = bookings) => {
+    const categorized = categorizeBookings(bookingsList);
+    
+    // Get bookings for active tab
+    let tabFilteredBookings = [];
+    switch (activeTab) {
+      case 'upcoming':
+        tabFilteredBookings = categorized.upcoming;
+        break;
+      case 'past':
+        tabFilteredBookings = categorized.past;
+        break;
+      case 'cancelled':
+        tabFilteredBookings = categorized.cancelled;
+        break;
+      case 'expired':
+        tabFilteredBookings = categorized.expiredPending;
+        break;
+      default:
+        tabFilteredBookings = bookingsList;
+    }
+    
+    // Apply additional filters
+    let filtered = tabFilteredBookings.filter(booking => {
+      const roomMatch = !filters.roomName || 
+        booking.rooms?.some(r => 
+          r.room?.name?.toLowerCase().includes(filters.roomName.toLowerCase())
+        );
+      
+      const paymentMatch = !filters.paymentStatus || 
+        booking.paymentStatus === filters.paymentStatus;
+      
+      const dateFromMatch = !filters.dateFrom || 
+        new Date(booking.checkIn) >= new Date(filters.dateFrom);
+      
+      const dateToMatch = !filters.dateTo || 
+        new Date(booking.checkOut) <= new Date(filters.dateTo);
+      
+      return roomMatch && paymentMatch && dateFromMatch && dateToMatch;
+    });
+    
+    setFilteredBookings(filtered);
+  };
+
+  // Update filtered bookings when filters or active tab changes
+  useEffect(() => {
+    applyFilters();
+  }, [filters, activeTab, bookings]);
 
   // Handle cancellation request (< 7 days)
   const handleCancelRequest = async (booking, reason) => {
@@ -2222,17 +2551,14 @@ export default function GuestDashboard() {
     }
   };
 
-  // Handle cancel button click - determine which modal to show
+  // Handle cancel button click - all cancellations now require admin approval
   const handleCancelClick = (booking) => {
     const now = new Date();
     const checkInDate = new Date(booking.checkIn);
     const daysUntilCheckIn = Math.ceil((checkInDate - now) / (1000 * 60 * 60 * 24));
 
-    if (daysUntilCheckIn >= 7) {
-      // Direct cancellation with 50% refund
-      setCancelConfirmModal({ show: true, booking });
-    } else if (daysUntilCheckIn >= 1) {
-      // Request cancellation (no refund, requires admin approval)
+    if (daysUntilCheckIn >= 1) {
+      // All cancellations require admin approval
       setCancelRequestModal({ show: true, booking });
     } else {
       alert('Cancellation not available within 24 hours of check-in');
@@ -2304,8 +2630,113 @@ export default function GuestDashboard() {
       <main className="main-content">
         {/* Header Section */}
         <div className="dashboard-header">
-          <h1>Your Booking History</h1>
-          <p>Manage your bookings and view payment details</p>
+          <h1>Welcome Back, {guest?.firstName || 'Guest'}!</h1>
+          <p>Manage your stays at Charkool Resort</p>
+        </div>
+
+        {/* Dashboard Summary Statistics */}
+        {(() => {
+          const stats = calculateStats(bookings);
+          return (
+            <div className="dashboard-summary">
+              <div className="stat-card">
+                <div className="stat-content">
+                  <div className="stat-value">{stats.upcomingCount}</div>
+                  <div className="stat-label">Upcoming Stays</div>
+                </div>
+              </div>
+              
+              <div className="stat-card">
+                <div className="stat-content">
+                  <div className="stat-value">{stats.confirmedCount}</div>
+                  <div className="stat-label">Confirmed</div>
+                </div>
+              </div>
+              
+              <div className="stat-card">
+                <div className="stat-content">
+                  <div className="stat-value">{stats.totalStays}</div>
+                  <div className="stat-label">Completed Stays</div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Next Booking Highlight */}
+        {(() => {
+          const nextBooking = getNextBooking(bookings);
+          if (!nextBooking) return null;
+          
+          const daysUntil = getDaysUntilCheckIn(nextBooking.checkIn);
+          const remainingBalance = (() => {
+            const totalPaid = (nextBooking.payments || []).reduce((sum, p) => {
+              const status = (p.status || '').toLowerCase();
+              return (status === 'paid' || status === 'partial' || status === 'reservation') 
+                ? sum + Number(p.amount || 0) 
+                : sum;
+            }, 0);
+            const basePrice = Number(nextBooking.totalPrice || 0);
+            const rentalTotal = (nextBooking.rentalAmenities || []).reduce((sum, ra) => 
+              sum + Number(ra.totalPrice || 0), 0
+            );
+            const cottageTotal = (nextBooking.cottage || []).reduce((sum, c) => 
+              sum + Number(c.totalPrice || 0), 0
+            );
+            const total = basePrice + rentalTotal + cottageTotal;
+            return Math.max(0, (total - totalPaid) / 100);
+          })();
+          
+          return (
+            <div className="next-booking-highlight">
+              <h3>Your Next Stay</h3>
+              <div className="highlight-content">
+                <div className="countdown">
+                  <span className="days-until">{daysUntil}</span>
+                  <span className="countdown-label">day{daysUntil !== 1 ? 's' : ''} until check-in</span>
+                </div>
+                <div className="booking-quick-info">
+                  <p className="room-name"><strong>{nextBooking.rooms?.[0]?.room?.name || 'Room'}</strong></p>
+                  <p className="dates">
+                    {new Date(nextBooking.checkIn).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(nextBooking.checkOut).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </p>
+                  <span className={`status-badge status-${nextBooking.status.toLowerCase()}`}>
+                    {nextBooking.status}
+                  </span>
+                </div>
+                <div className="highlight-actions">
+                  <button className="next-stay-view-details-btn" onClick={() => setSelectedDetailsBooking(nextBooking)}>
+                    <span className="btn-text">View Details</span>
+                    <span className="btn-arrow">→</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Quick Actions Grid */}
+        <div className="quick-actions-section">
+          <h3>Quick Actions</h3>
+          <div className="quick-actions-grid">
+            <button className="quick-action-btn" onClick={() => router.push('/booking')}>
+              <span className="action-icon">🏨</span>
+              <span className="action-label">New Booking</span>
+            </button>
+            
+            <button className="quick-action-btn" onClick={() => {
+              // Trigger the floating chatbot to open
+              window.dispatchEvent(new Event('openChatbot'));
+            }}>
+              <span className="action-icon">💬</span>
+              <span className="action-label">Chat Support</span>
+            </button>
+            
+            <button className="quick-action-btn" onClick={() => router.push('/guest/3dview')}>
+              <span className="action-icon">📱</span>
+              <span className="action-label">Virtual Tour</span>
+            </button>
+          </div>
         </div>
 
         {/* Filters Section */}
@@ -2318,7 +2749,7 @@ export default function GuestDashboard() {
                 type="text"
                 placeholder="Search by room name..."
                 value={filters.roomName}
-                onChange={(e) => handleFilterChange('roomName', e.target.value)}
+                onChange={(e) => setFilters({ ...filters, roomName: e.target.value })}
               />
             </div>
             
@@ -2327,13 +2758,13 @@ export default function GuestDashboard() {
               <select
                 id="paymentStatus"
                 value={filters.paymentStatus}
-                onChange={(e) => handleFilterChange('paymentStatus', e.target.value)}
+                onChange={(e) => setFilters({ ...filters, paymentStatus: e.target.value })}
               >
                 <option value="">All Payments</option>
-                <option value="paid">Paid</option>
-                <option value="pending">Pending</option>
-                <option value="failed">Failed</option>
-                <option value="refunded">Refunded</option>
+                <option value="Paid">Paid</option>
+                <option value="Pending">Pending</option>
+                <option value="Partial">Partial</option>
+                <option value="Reservation">Reservation</option>
               </select>
             </div>
             
@@ -2343,7 +2774,7 @@ export default function GuestDashboard() {
                 id="dateFrom"
                 type="date"
                 value={filters.dateFrom}
-                onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
+                onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
               />
             </div>
             
@@ -2353,20 +2784,63 @@ export default function GuestDashboard() {
                 id="dateTo"
                 type="date"
                 value={filters.dateTo}
-                onChange={(e) => handleFilterChange('dateTo', e.target.value)}
+                onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
               />
             </div>
             
-            <button className="clear-filters-btn" onClick={clearFilters}>
+            <button 
+              className="clear-filters-btn" 
+              onClick={() => setFilters({ roomName: '', paymentStatus: '', dateFrom: '', dateTo: '' })}
+            >
               Clear Filters
             </button>
           </div>
         </div>
 
+        {/* Booking Tabs */}
+        {(() => {
+          const categorized = categorizeBookings(bookings);
+          return (
+            <div className="booking-tabs">
+              <button 
+                className={activeTab === 'upcoming' ? 'tab active' : 'tab'}
+                onClick={() => setActiveTab('upcoming')}
+              >
+                Upcoming ({categorized.upcoming.length})
+              </button>
+              <button 
+                className={activeTab === 'past' ? 'tab active' : 'tab'}
+                onClick={() => setActiveTab('past')}
+              >
+                Past Stays ({categorized.past.length})
+              </button>
+              <button 
+                className={activeTab === 'cancelled' ? 'tab active' : 'tab'}
+                onClick={() => setActiveTab('cancelled')}
+              >
+                Cancelled ({categorized.cancelled.length})
+              </button>
+              {categorized.expiredPending.length > 0 && (
+                <button 
+                  className={activeTab === 'expired' ? 'tab active expired-tab' : 'tab expired-tab'}
+                  onClick={() => setActiveTab('expired')}
+                >
+                  Expired ({categorized.expiredPending.length}) ⚠️
+                </button>
+              )}
+            </div>
+          );
+        })()}
+
         {/* History Section */}
         <section className="section-history">
           <div className="section-header">
-            <h2>Booking & Payment History</h2>
+            <h2>
+              {activeTab === 'upcoming' && 'Upcoming Bookings'}
+              {activeTab === 'past' && 'Past Stays'}
+              {activeTab === 'cancelled' && 'Cancelled Bookings'}
+              {activeTab === 'expired' && 'Expired Bookings'}
+            </h2>
             <span className="results-count">
               {filteredBookings.length} {filteredBookings.length === 1 ? 'booking' : 'bookings'} found
             </span>
@@ -2382,14 +2856,15 @@ export default function GuestDashboard() {
                   onViewDetails={setSelectedDetailsBooking}
                   onReschedule={setSelectedRescheduleBooking}
                   onCancel={handleCancelClick}
+                  onDismiss={handleDismissExpired}
                   rescheduleRequests={rescheduleRequests}
                   cancellationRequests={cancellationRequests}
                   unitAssignments={unitAssignments[booking.id] || []}
+                  dismissing={dismissing}
                 />
               ))
             ) : (
               <div className="no-data">
-                <div className="no-data-icon">📋</div>
                 <h3>No bookings found</h3>
                 <p>{bookings.length === 0 ? 'You haven\'t made any bookings yet.' : 'Try adjusting your filters to see more results.'}</p>
               </div>
@@ -2447,6 +2922,426 @@ export default function GuestDashboard() {
           color: #A0826D;
           margin: 0;
           font-weight: 500;
+        }
+        
+        /* Dashboard Summary Stats */
+        .dashboard-summary {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+          gap: 1.5rem;
+          margin-bottom: 2rem;
+        }
+        
+        .stat-card {
+          background: linear-gradient(135deg, #ffffff 0%, #fefefe 100%);
+          border: 2px solid #E5D5A3;
+          border-radius: 16px;
+          padding: 1.5rem;
+          display: flex;
+          align-items: center;
+          gap: 1.5rem;
+          box-shadow: 0 4px 12px rgba(254, 190, 82, 0.15);
+          transition: all 0.3s ease;
+        }
+        
+        .stat-card:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 8px 24px rgba(254, 190, 82, 0.25);
+          border-color: #FEBE52;
+        }
+        
+        .stat-icon {
+          font-size: 3rem;
+          min-width: 60px;
+          text-align: center;
+        }
+        
+        .stat-content {
+          flex: 1;
+        }
+        
+        .stat-value {
+          font-size: 2rem;
+          font-weight: 700;
+          color: #8B4513;
+          margin: 0 0 0.25rem 0;
+        }
+        
+        .stat-label {
+          font-size: 0.9rem;
+          color: #A0826D;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          font-weight: 600;
+        }
+        
+        /* Next Booking Highlight */
+        .next-booking-highlight {
+          background: linear-gradient(135deg, #FEBE52 0%, #F4E4BC 100%);
+          border: 2px solid #D4AF37;
+          border-radius: 16px;
+          padding: 2rem;
+          margin-bottom: 2rem;
+          box-shadow: 0 8px 24px rgba(254, 190, 82, 0.3);
+        }
+        
+        .next-booking-highlight h3 {
+          margin: 0 0 1.5rem 0;
+          font-size: 1.5rem;
+          color: #8B4513;
+          font-weight: 700;
+        }
+        
+        .highlight-content {
+          display: grid;
+          grid-template-columns: auto 1fr auto;
+          gap: 2rem;
+          align-items: center;
+        }
+        
+        .countdown {
+          text-align: center;
+          background: rgba(255, 255, 255, 0.8);
+          padding: 1rem 1.5rem;
+          border-radius: 12px;
+          border: 2px solid #D4AF37;
+        }
+        
+        .days-until {
+          display: block;
+          font-size: 3rem;
+          font-weight: 800;
+          color: #8B4513;
+          line-height: 1;
+        }
+        
+        .countdown-label {
+          display: block;
+          font-size: 0.9rem;
+          color: #A0826D;
+          margin-top: 0.5rem;
+          font-weight: 600;
+        }
+        
+        .booking-quick-info {
+          flex: 1;
+        }
+        
+        .booking-quick-info .room-name {
+          font-size: 1.3rem;
+          margin: 0 0 0.5rem 0;
+          color: #8B4513;
+        }
+        
+        .booking-quick-info .dates {
+          color: #654321;
+          margin: 0 0 0.5rem 0;
+        }
+        
+        .booking-quick-info .balance-due {
+          color: #dc2626;
+          font-weight: 600;
+          margin: 0.5rem 0;
+        }
+        
+        .booking-quick-info .status-badge {
+          display: inline-block;
+          padding: 0.25rem 0.75rem;
+          border-radius: 20px;
+          font-size: 0.85rem;
+          font-weight: 600;
+          margin-top: 0.5rem;
+        }
+        
+        .status-badge.status-confirmed {
+          background: #dcfce7;
+          color: #166534;
+        }
+        
+        .status-badge.status-pending {
+          background: #fef3c7;
+          color: #92400e;
+        }
+        
+        .status-badge.status-expired {
+          background: #fee2e2;
+          color: #991b1b;
+        }
+        
+        .highlight-actions {
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+        }
+
+        /* Enhanced Next Stay View Details Button */
+        .next-stay-view-details-btn {
+          position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.75rem;
+          padding: 1rem 2rem;
+          background: linear-gradient(135deg, #FFFFFF 0%, #F8F9FA 100%);
+          border: 2px solid #8B4513;
+          border-radius: 12px;
+          font-size: 1rem;
+          font-weight: 700;
+          color: #8B4513;
+          cursor: pointer;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          box-shadow: 0 4px 12px rgba(139, 69, 19, 0.15);
+          overflow: hidden;
+        }
+
+        .next-stay-view-details-btn::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: -100%;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+          transition: left 0.5s ease;
+        }
+
+        .next-stay-view-details-btn:hover::before {
+          left: 100%;
+        }
+
+        .next-stay-view-details-btn:hover {
+          background: linear-gradient(135deg, #8B4513 0%, #654321 100%);
+          color: #FFFFFF;
+          border-color: #654321;
+          transform: translateY(-2px) scale(1.02);
+          box-shadow: 0 8px 24px rgba(139, 69, 19, 0.3);
+        }
+
+        .next-stay-view-details-btn:active {
+          transform: translateY(0) scale(0.98);
+          box-shadow: 0 2px 8px rgba(139, 69, 19, 0.2);
+        }
+
+        .next-stay-view-details-btn .btn-icon {
+          font-size: 1.25rem;
+          transition: transform 0.3s ease;
+        }
+
+        .next-stay-view-details-btn:hover .btn-icon {
+          transform: scale(1.1) rotate(5deg);
+        }
+
+        .next-stay-view-details-btn .btn-text {
+          font-size: 1rem;
+          letter-spacing: 0.5px;
+          text-transform: uppercase;
+        }
+
+        .next-stay-view-details-btn .btn-arrow {
+          font-size: 1.25rem;
+          transition: transform 0.3s ease;
+          font-weight: bold;
+        }
+
+        .next-stay-view-details-btn:hover .btn-arrow {
+          transform: translateX(4px);
+        }
+        
+        /* Pending Actions Section */
+        .pending-actions-section {
+          background: linear-gradient(135deg, #ffffff 0%, #fefefe 100%);
+          border: 2px solid #fbbf24;
+          border-radius: 16px;
+          padding: 1.5rem;
+          margin-bottom: 2rem;
+          box-shadow: 0 4px 12px rgba(251, 191, 36, 0.15);
+        }
+        
+        .pending-actions-section h3 {
+          margin: 0 0 1rem 0;
+          font-size: 1.3rem;
+          color: #92400e;
+          font-weight: 700;
+        }
+        
+        .alerts-container {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+        }
+        
+        .alert-item {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+          padding: 1rem 1.5rem;
+          border-radius: 12px;
+          transition: all 0.3s ease;
+        }
+        
+        .alert-item.warning {
+          background: #fef3c7;
+          border: 2px solid #fbbf24;
+        }
+        
+        .alert-item.error {
+          background: #fee2e2;
+          border: 2px solid #ef4444;
+        }
+        
+        .alert-item.info {
+          background: #dbeafe;
+          border: 2px solid #3b82f6;
+        }
+        
+        .alert-icon {
+          font-size: 1.5rem;
+          min-width: 30px;
+        }
+        
+        .alert-text {
+          flex: 1;
+          color: #4b5563;
+          font-weight: 500;
+        }
+        
+        .alert-btn {
+          padding: 0.5rem 1rem;
+          border-radius: 8px;
+          border: none;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          white-space: nowrap;
+        }
+        
+        .alert-item.warning .alert-btn {
+          background: #fbbf24;
+          color: #92400e;
+        }
+        
+        .alert-item.error .alert-btn {
+          background: #ef4444;
+          color: white;
+        }
+        
+        .alert-item.info .alert-btn {
+          background: #3b82f6;
+          color: white;
+        }
+        
+        .alert-btn:hover {
+          opacity: 0.9;
+          transform: translateY(-1px);
+        }
+        
+        .alert-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+        
+        /* Quick Actions Section */
+        .quick-actions-section {
+          margin-bottom: 2rem;
+        }
+        
+        .quick-actions-section h3 {
+          margin: 0 0 1rem 0;
+          font-size: 1.3rem;
+          color: #8B4513;
+          font-weight: 700;
+        }
+        
+        .quick-actions-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 1rem;
+        }
+        
+        .quick-action-btn {
+          background: linear-gradient(135deg, #ffffff 0%, #fefefe 100%);
+          border: 2px solid #E5D5A3;
+          border-radius: 12px;
+          padding: 1.5rem 1rem;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.75rem;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          box-shadow: 0 4px 12px rgba(254, 190, 82, 0.15);
+        }
+        
+        .quick-action-btn:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 8px 24px rgba(254, 190, 82, 0.25);
+          border-color: #FEBE52;
+        }
+        
+        .quick-action-btn .action-icon {
+          font-size: 2.5rem;
+        }
+        
+        .quick-action-btn .action-label {
+          font-size: 1rem;
+          font-weight: 600;
+          color: #8B4513;
+        }
+        
+        /* Booking Tabs */
+        .booking-tabs {
+          display: flex;
+          gap: 0.5rem;
+          margin-bottom: 2rem;
+          flex-wrap: wrap;
+        }
+        
+        .booking-tabs .tab {
+          padding: 0.75rem 1.5rem;
+          border: 2px solid #E5D5A3;
+          background: linear-gradient(135deg, #ffffff 0%, #fefefe 100%);
+          border-radius: 8px;
+          font-size: 1rem;
+          font-weight: 600;
+          color: #8B4513;
+          cursor: pointer;
+          transition: all 0.3s ease;
+        }
+        
+        .booking-tabs .tab:hover {
+          border-color: #FEBE52;
+          background: linear-gradient(135deg, #F4E4BC 0%, #FFF8DC 100%);
+        }
+        
+        .booking-tabs .tab.active {
+          background: linear-gradient(135deg, #FEBE52 0%, #F4E4BC 100%);
+          border-color: #D4AF37;
+          color: #654321;
+        }
+        
+        .booking-tabs .tab.expired-tab {
+          border-color: #fbbf24;
+        }
+        
+        .booking-tabs .tab.expired-tab.active {
+          background: linear-gradient(135deg, #fbbf24 0%, #fef3c7 100%);
+          border-color: #f59e0b;
+        }
+        
+        /* Dismiss Button Style */
+        .action-btn.dismiss {
+          background: linear-gradient(135deg, #9ca3af 0%, #6b7280 100%);
+          color: white;
+          border: none;
+        }
+        
+        .action-btn.dismiss:hover {
+          background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+        }
+        
+        .action-btn.dismiss:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
         }
         
         .filters-section {

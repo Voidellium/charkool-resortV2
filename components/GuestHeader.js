@@ -67,9 +67,6 @@ function GuestHeader({ sessionUser }) {
         case 'SUPERADMIN':
           router.push('/super-admin/dashboard');
           break;
-        case 'ADMIN':
-          router.push('/admin/dashboard');
-          break;
         case 'RECEPTIONIST':
           router.push('/receptionist');
           break;
@@ -87,7 +84,7 @@ function GuestHeader({ sessionUser }) {
   }, [user, router]);
 
   // Don't render header for non-customers - but still call all hooks
-  const shouldRender = user && user.role === 'CUSTOMER';
+  const shouldRender = user && (user.role === 'CUSTOMER');
 
   // Ensure component is mounted before rendering dynamic content
   useEffect(() => {
@@ -419,14 +416,6 @@ function GuestHeader({ sessionUser }) {
       <div className="guest-header-container">
         {/* Left Section - Brand */}
         <div className="logo-container">
-          <button
-            className="mobile-menu-toggle"
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
-          >
-            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
-          
           <GuardedLink href="/guest/dashboard" className="logo-link">
             <div className="brand-text-container">
               <span className="brand-title">
@@ -448,9 +437,11 @@ function GuestHeader({ sessionUser }) {
             <GuardedLink href="/guest/3dview" className={pathname === '/guest/3dview' ? 'active' : ''}>
               <span>Virtual Tour</span>
             </GuardedLink>
-            <GuardedLink href="/guest/chat" className={pathname === '/guest/chat' ? 'active' : ''}>
-              <span>Chat</span>
-            </GuardedLink>
+            
+            {/* Book Now button - Mobile only */}
+            <button className="mobile-book-now-link" onClick={() => { setIsMobileMenuOpen(false); handleBookNow(); }}>
+              <span>Book Now</span>
+            </button>
             
             {/* Mobile-only sections in drawer */}
             <div className="mobile-actions-container">
@@ -739,6 +730,15 @@ function GuestHeader({ sessionUser }) {
               </div>
             )}
           </div>
+
+          {/* Mobile Menu Toggle - Moved to Right */}
+          <button
+            className="mobile-menu-toggle"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
+          >
+            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
         </div>
       </div>
 
@@ -878,6 +878,8 @@ function GuestHeader({ sessionUser }) {
           cursor: pointer;
           transition: all 0.3s ease;
           backdrop-filter: blur(12px);
+          position: relative;
+          z-index: 1003;
         }
 
         .mobile-menu-toggle:hover {
@@ -919,6 +921,10 @@ function GuestHeader({ sessionUser }) {
         }
 
         .mobile-book-container {
+          display: none;
+        }
+
+        .mobile-book-now-link {
           display: none;
         }
 
@@ -1665,6 +1671,30 @@ function GuestHeader({ sessionUser }) {
           }
 
           .nav-links :global(a):hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateX(8px);
+          }
+
+          /* Show mobile book now link */
+          .mobile-book-now-link {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            text-align: left;
+            padding: 1rem 1.2rem;
+            margin-bottom: 0.5rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            justify-content: flex-start;
+            color: rgba(255, 255, 255, 0.95);
+            font-size: 1rem;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+          }
+
+          .mobile-book-now-link:hover {
             background: rgba(255, 255, 255, 0.2);
             transform: translateX(8px);
           }

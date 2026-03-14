@@ -10,6 +10,8 @@ function ConfirmationPageInner() {
 
   const [booking, setBooking] = useState(null);
   const [unitAssignments, setUnitAssignments] = useState([]);
+  const [resendingReceipt, setResendingReceipt] = useState(false);
+  const [receiptMessage, setReceiptMessage] = useState(null);
 
   useEffect(() => {
     async function fetchBooking() {
@@ -46,6 +48,43 @@ function ConfirmationPageInner() {
 
   const goToDashboard = () => {
     router.push('/guest/dashboard');
+  };
+
+  // Open receipt in new tab for viewing/printing/downloading as PDF
+  const handleViewReceipt = () => {
+    if (bookingId) {
+      window.open(`/api/receipts/view/${bookingId}`, '_blank');
+    }
+  };
+
+  // Resend receipt to email
+  const handleResendReceipt = async () => {
+    if (!bookingId) return;
+    
+    setResendingReceipt(true);
+    setReceiptMessage(null);
+    
+    try {
+      const res = await fetch('/api/receipts/resend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId: parseInt(bookingId) })
+      });
+      
+      const data = await res.json();
+      
+      if (res.ok) {
+        setReceiptMessage({ type: 'success', text: `Receipt sent to ${data.sentTo}` });
+      } else {
+        setReceiptMessage({ type: 'error', text: data.error || 'Failed to send receipt' });
+      }
+    } catch (error) {
+      setReceiptMessage({ type: 'error', text: 'Failed to send receipt. Please try again.' });
+    } finally {
+      setResendingReceipt(false);
+      // Clear message after 5 seconds
+      setTimeout(() => setReceiptMessage(null), 5000);
+    }
   };
 
   return (
@@ -391,6 +430,48 @@ function ConfirmationPageInner() {
                       <strong>Important Notice</strong>
                       <p>Your reservation is confirmed, but amenities will be activated once payment is completed.</p>
                     </div>
+                  </div>
+                )}
+
+                {/* Receipt Actions - Show only if payment was made */}
+                {(booking.paymentStatus === 'Reservation' || booking.paymentStatus === 'Paid' || booking.paymentStatus === 'Partial') && (
+                  <div className="receipt-actions">
+                    <p className="receipt-info">
+                      📧 A receipt has been sent to your email. You can also:
+                    </p>
+                    <div className="receipt-buttons">
+                      <button 
+                        className="receipt-btn view-btn" 
+                        onClick={handleViewReceipt}
+                        title="View and print/save as PDF"
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                          <polyline points="14 2 14 8 20 8"></polyline>
+                          <line x1="16" y1="13" x2="8" y2="13"></line>
+                          <line x1="16" y1="17" x2="8" y2="17"></line>
+                          <polyline points="10 9 9 9 8 9"></polyline>
+                        </svg>
+                        View / Download Receipt
+                      </button>
+                      <button 
+                        className="receipt-btn resend-btn" 
+                        onClick={handleResendReceipt}
+                        disabled={resendingReceipt}
+                        title="Resend receipt to your email"
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                          <polyline points="22,6 12,13 2,6"></polyline>
+                        </svg>
+                        {resendingReceipt ? 'Sending...' : 'Resend to Email'}
+                      </button>
+                    </div>
+                    {receiptMessage && (
+                      <div className={`receipt-message ${receiptMessage.type}`}>
+                        {receiptMessage.type === 'success' ? '✓' : '✕'} {receiptMessage.text}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -901,6 +982,102 @@ function ConfirmationPageInner() {
           line-height: 1.5;
         }
 
+        /* Receipt Actions Styles */
+        .receipt-actions {
+          background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+          border: 1px solid #93c5fd;
+          border-radius: 12px;
+          padding: 1.25rem;
+          margin-top: 1.5rem;
+          margin-bottom: 0.5rem;
+        }
+
+        .receipt-info {
+          margin: 0 0 1rem 0;
+          color: #1e40af;
+          font-size: 0.95rem;
+          font-weight: 500;
+        }
+
+        .receipt-buttons {
+          display: flex;
+          gap: 0.75rem;
+          flex-wrap: wrap;
+        }
+
+        .receipt-btn {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.75rem 1.25rem;
+          border-radius: 8px;
+          font-size: 0.9rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          border: none;
+          flex: 1;
+          min-width: 180px;
+          justify-content: center;
+        }
+
+        .receipt-btn svg {
+          flex-shrink: 0;
+        }
+
+        .view-btn {
+          background: #2563eb;
+          color: white;
+        }
+
+        .view-btn:hover {
+          background: #1d4ed8;
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+
+        .resend-btn {
+          background: #16a34a;
+          color: white;
+        }
+
+        .resend-btn:hover:not(:disabled) {
+          background: #15803d;
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+        }
+
+        .resend-btn:disabled {
+          background: #9ca3af;
+          cursor: not-allowed;
+        }
+
+        .receipt-message {
+          margin-top: 0.75rem;
+          padding: 0.5rem 1rem;
+          border-radius: 6px;
+          font-size: 0.9rem;
+          font-weight: 500;
+          animation: fadeIn 0.3s ease;
+        }
+
+        .receipt-message.success {
+          background: #d1fae5;
+          color: #065f46;
+          border: 1px solid #6ee7b7;
+        }
+
+        .receipt-message.error {
+          background: #fee2e2;
+          color: #991b1b;
+          border: 1px solid #fca5a5;
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-5px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
         .primary-btn {
           width: 100%;
           padding: 1.1rem 1.5rem;
@@ -1012,6 +1189,14 @@ function ConfirmationPageInner() {
 
           .status-section {
             grid-template-columns: 1fr;
+          }
+
+          .receipt-buttons {
+            flex-direction: column;
+          }
+
+          .receipt-btn {
+            min-width: 100%;
           }
         }
 

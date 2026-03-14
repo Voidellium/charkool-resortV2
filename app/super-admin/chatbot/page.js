@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import SuperAdminLayout from '../../../components/SuperAdminLayout';
+import { Trash2 } from 'lucide-react';
 
 export default function ChatbotManagementPage() {
   const [questions, setQuestions] = useState([]);
@@ -17,6 +18,9 @@ export default function ChatbotManagementPage() {
     category: 'Rooms & Rates',
     showBookNowButton: false,
   });
+  
+  // Delete confirmation modal state
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState({ show: false, id: null });
 
   const fetchQuestions = async () => {
     try {
@@ -84,14 +88,18 @@ export default function ChatbotManagementPage() {
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this question?')) {
-      try {
-        const res = await fetch(`/api/chatbot/${id}`, { method: 'DELETE' });
-        if (!res.ok) throw new Error('Failed to delete question');
-        await fetchQuestions();
-      } catch (err) {
-        setError(err.message);
-      }
+    setDeleteConfirmModal({ show: true, id });
+  };
+
+  const confirmDelete = async () => {
+    const id = deleteConfirmModal.id;
+    setDeleteConfirmModal({ show: false, id: null });
+    try {
+      const res = await fetch(`/api/chatbot/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete question');
+      await fetchQuestions();
+    } catch (err) {
+      setError(err.message);
     }
   };
 
@@ -489,6 +497,86 @@ export default function ChatbotManagementPage() {
           margin-top: 20px;
         }
       `}</style>
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmModal.show && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 99999,
+        }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #febe52 0%, #fcd34d 50%, #f6e27a 100%)',
+            borderRadius: '16px',
+            padding: '24px',
+            maxWidth: '400px',
+            width: '90%',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+            textAlign: 'center',
+          }}>
+            <div style={{ marginBottom: '16px' }}>
+              <Trash2 size={48} color="#dc2626" />
+            </div>
+            <h3 style={{
+              margin: '0 0 12px 0',
+              color: '#5a3e00',
+              fontSize: '20px',
+              fontWeight: 'bold',
+            }}>Delete Question?</h3>
+            <p style={{
+              margin: '0 0 20px 0',
+              color: '#6b4a00',
+              fontSize: '14px',
+              lineHeight: '1.5',
+            }}>Are you sure you want to delete this question? This action cannot be undone.</p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <button
+                onClick={() => setDeleteConfirmModal({ show: false, id: null })}
+                style={{
+                  backgroundColor: '#9ca3af',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '12px 24px',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s',
+                }}
+                onMouseOver={(e) => e.target.style.backgroundColor = '#6b7280'}
+                onMouseOut={(e) => e.target.style.backgroundColor = '#9ca3af'}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                style={{
+                  backgroundColor: '#dc2626',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '12px 24px',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s',
+                }}
+                onMouseOver={(e) => e.target.style.backgroundColor = '#b91c1c'}
+                onMouseOut={(e) => e.target.style.backgroundColor = '#dc2626'}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </SuperAdminLayout>
   );
 }

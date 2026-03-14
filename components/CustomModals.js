@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, X, Check, AlertCircle, Info, CalendarCheck2, CreditCard, Printer } from 'lucide-react';
 import dynamic from 'next/dynamic';
+import { useModelPaths } from '@/hooks/useModelPaths';
 
 // Dynamically import 3D viewer to avoid SSR issues
 const EnhancedThreeDModelViewer = dynamic(
@@ -1798,24 +1799,39 @@ export function MidnightAlertModal({ show, onReload }) {
 
 // 3D Room Viewer Modal for interior views
 export function ThreeDRoomViewerModal({ show, onClose, roomType }) {
+  const { modelPaths } = useModelPaths();
+  const [viewMode, setViewMode] = useState('interior'); // Start with interior view
+  const [modelPath, setModelPath] = useState(null);
+
+  // Update model path when roomType or viewMode changes
+  useEffect(() => {
+    if (!roomType) return;
+    
+    if (viewMode === 'interior') {
+      // Map room types to their interior model paths using dynamic config
+      const interiorModelMap = {
+        'LOFT': modelPaths.interiors.Loft,
+        'TEPEE': modelPaths.interiors.Teepee,
+        'VILLA': modelPaths.interiors.Villa
+      };
+      setModelPath(interiorModelMap[roomType] || null);
+    } else {
+      // Exterior view shows the whole map
+      setModelPath(modelPaths.resortMap);
+    }
+  }, [roomType, viewMode, modelPaths]);
+
   if (!show) return null;
 
-  // Map room types to their interior model paths
-  const getModelPath = (type) => {
-    switch (type) {
-      case 'LOFT':
-        return '/models/Interior_Loft.glb';
-      case 'TEPEE':
-        return '/models/Interior_Teepee.glb';
-      case 'VILLA':
-        return '/models/Interior_Villa.glb';
-      default:
-        return null;
-    }
-  };
-
-  const modelPath = getModelPath(roomType);
   const roomName = roomType ? roomType.charAt(0) + roomType.slice(1).toLowerCase() : 'Room';
+  
+  // Map room types to their object names in the exterior model
+  const roomObjectMap = {
+    'LOFT': 'Loft',
+    'TEPEE': 'Teepee',
+    'VILLA': 'Villa'
+  };
+  const selectedObject = viewMode === 'exterior' ? roomObjectMap[roomType] : null;
 
   return (
     <div 
@@ -1884,8 +1900,79 @@ export function ThreeDRoomViewerModal({ show, onClose, roomType }) {
           fontSize: 24,
           textAlign: 'center'
         }}>
-          {roomName} Interior - 3D View
+          {roomName} - 3D View
         </h2>
+
+        {/* View Toggle Buttons */}
+        <div style={{
+          display: 'flex',
+          gap: '8px',
+          marginBottom: '12px',
+          justifyContent: 'center'
+        }}>
+          <button
+            onClick={() => setViewMode('exterior')}
+            style={{
+              padding: '8px 20px',
+              background: viewMode === 'exterior' 
+                ? 'linear-gradient(135deg, #d97706, #f59e0b)' 
+                : 'rgba(255, 255, 255, 0.8)',
+              color: viewMode === 'exterior' ? 'white' : '#6b4700',
+              border: viewMode === 'exterior' ? 'none' : '2px solid #d97706',
+              borderRadius: '8px',
+              fontSize: '0.9rem',
+              fontWeight: '600',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              boxShadow: viewMode === 'exterior' 
+                ? '0 4px 12px rgba(217, 119, 6, 0.3)' 
+                : 'none'
+            }}
+            onMouseEnter={(e) => {
+              if (viewMode !== 'exterior') {
+                e.target.style.background = 'rgba(255, 255, 255, 1)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (viewMode !== 'exterior') {
+                e.target.style.background = 'rgba(255, 255, 255, 0.8)';
+              }
+            }}
+          >
+            🏖️ Exterior View
+          </button>
+          <button
+            onClick={() => setViewMode('interior')}
+            style={{
+              padding: '8px 20px',
+              background: viewMode === 'interior' 
+                ? 'linear-gradient(135deg, #d97706, #f59e0b)' 
+                : 'rgba(255, 255, 255, 0.8)',
+              color: viewMode === 'interior' ? 'white' : '#6b4700',
+              border: viewMode === 'interior' ? 'none' : '2px solid #d97706',
+              borderRadius: '8px',
+              fontSize: '0.9rem',
+              fontWeight: '600',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              boxShadow: viewMode === 'interior' 
+                ? '0 4px 12px rgba(217, 119, 6, 0.3)' 
+                : 'none'
+            }}
+            onMouseEnter={(e) => {
+              if (viewMode !== 'interior') {
+                e.target.style.background = 'rgba(255, 255, 255, 1)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (viewMode !== 'interior') {
+                e.target.style.background = 'rgba(255, 255, 255, 0.8)';
+              }
+            }}
+          >
+            🏠 Interior View
+          </button>
+        </div>
 
         <div style={{
           flex: 1,
@@ -1898,8 +1985,9 @@ export function ThreeDRoomViewerModal({ show, onClose, roomType }) {
           {modelPath ? (
             <EnhancedThreeDModelViewer 
               modelPath={modelPath}
-              viewMode="interior"
-              autoRotate={true}
+              viewMode={viewMode}
+              selectedObject={selectedObject}
+              autoRotate={false}
               showControls={true}
             />
           ) : (
@@ -1924,7 +2012,8 @@ export function ThreeDRoomViewerModal({ show, onClose, roomType }) {
           fontSize: 13,
           fontWeight: 500
         }}>
-          Use mouse to rotate � Scroll to zoom � Drag to pan
+          <span className="desktop-controls">Use mouse to rotate • Scroll to zoom • Drag to pan</span>
+          <span className="mobile-controls">Touch to rotate • Pinch to zoom • Two fingers to pan</span>
         </div>
 
         <style jsx>{`
@@ -1936,6 +2025,19 @@ export function ThreeDRoomViewerModal({ show, onClose, roomType }) {
             to {
               opacity: 1;
               transform: scale(1) translateY(0);
+            }
+          }
+          
+          .mobile-controls {
+            display: none;
+          }
+          
+          @media (max-width: 768px) {
+            .desktop-controls {
+              display: none;
+            }
+            .mobile-controls {
+              display: inline;
             }
           }
         `}</style>
@@ -2342,7 +2444,7 @@ export function CancelConfirmModal({ modal, setModal, onConfirm, loading }) {
   const booking = modal.booking;
   const totalRooms = booking.rooms?.reduce((sum, r) => sum + (r.quantity || 1), 0) || 0;
   const reservationFee = totalRooms * 2000;
-  const refundAmount = Math.floor(reservationFee * 0.5); // 50% refund
+  const refundAmount = reservationFee; // 100% full refund
 
   return (
     <div className="modal-overlay fade-in">
@@ -2410,8 +2512,8 @@ export function CancelConfirmModal({ modal, setModal, onConfirm, loading }) {
           </div>
           <div style={{ fontSize: 14, lineHeight: 1.6 }}>
             • You are cancelling <strong>7 or more days</strong> before check-in<br/>
-            • You will receive a <strong>50% refund</strong> of your reservation fee<br/>
-            • Refund amount: <strong style={{ fontSize: 18, color: '#15803d' }}>₱{refundAmount.toLocaleString()}</strong> (50% of ₱{reservationFee.toLocaleString()})<br/>
+            • You will receive a <strong>full 100% refund</strong> of your reservation fee<br/>
+            • Refund amount: <strong style={{ fontSize: 18, color: '#15803d' }}>₱{refundAmount.toLocaleString()}</strong><br/>
             • This action cannot be undone
           </div>
         </div>

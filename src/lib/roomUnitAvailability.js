@@ -214,9 +214,10 @@ export async function assignRoomUnit(bookingId, roomId, unitNumber, assignedBy =
 /**
  * Auto-assign room units for a booking
  * Assigns the first available unit for each room in the booking
+ * Handles multiple instances of the same room type correctly
  * 
  * @param {number} bookingId - The booking ID
- * @param {Array} roomIds - Array of room IDs to assign
+ * @param {Array} roomIds - Array of room IDs to assign (can contain duplicates)
  * @returns {Promise<Array>} Array of created assignments
  */
 export async function autoAssignRoomUnits(bookingId, roomIds) {
@@ -232,9 +233,17 @@ export async function autoAssignRoomUnits(bookingId, roomIds) {
     }
 
     const assignments = [];
+    
+    // Track which units have been assigned in this booking to avoid duplicates
+    const assignedUnitsPerRoom = {};
 
     for (const roomId of roomIds) {
-      // Get first available unit
+      // Initialize tracking for this room if not exists
+      if (!assignedUnitsPerRoom[roomId]) {
+        assignedUnitsPerRoom[roomId] = [];
+      }
+
+      // Get available units
       const availableUnits = await getAvailableRoomUnits(
         roomId,
         booking.checkIn,
@@ -245,14 +254,25 @@ export async function autoAssignRoomUnits(bookingId, roomIds) {
         throw new Error(`No units available for room ID ${roomId}`);
       }
 
-      // Assign first available unit
+      // Find first available unit that hasn't been assigned in this booking yet
+      const unitToAssign = availableUnits.find(
+        unit => !assignedUnitsPerRoom[roomId].includes(unit)
+      );
+
+      if (!unitToAssign) {
+        throw new Error(`No more units available for room ID ${roomId} after assigning ${assignedUnitsPerRoom[roomId].length} unit(s)`);
+      }
+
+      // Assign the unit
       const assignment = await assignRoomUnit(
         bookingId,
         roomId,
-        availableUnits[0],
+        unitToAssign,
         null // null = auto-assigned
       );
 
+      // Track this assignment
+      assignedUnitsPerRoom[roomId].push(unitToAssign);
       assignments.push(assignment);
     }
 
@@ -302,32 +322,35 @@ export async function getBookingUnitAssignments(bookingId) {
 /**
  * Update/reassign a room unit for a booking
  * 
- * @param {number} bookingId - The booking ID
- * @param {number} roomId - The room ID
+ * @param {number} assignmentId - The assignment ID to update
  * @param {string|number} newUnitNumber - The new unit number
  * @param {number} assignedBy - User ID who made the reassignment
  * @returns {Promise<Object>} The updated assignment
  */
-export async function reassignRoomUnit(bookingId, roomId, newUnitNumber, assignedBy) {
+export async function reassignRoomUnit(assignmentId, newUnitNumber, assignedBy) {
   try {
     const unitNumberStr = String(newUnitNumber);
 
-    // Get booking to verify dates
-    const booking = await prisma.booking.findUnique({
-      where: { id: bookingId },
-      select: { checkIn: true, checkOut: true }
+    // Get existing assignment
+    const existingAssignment = await prisma.roomUnitAssignment.findUnique({
+      where: { id: assignmentId },
+      include: {
+        booking: {
+          select: { checkIn: true, checkOut: true }
+        }
+      }
     });
 
-    if (!booking) {
-      throw new Error(`Booking with ID ${bookingId} not found`);
+    if (!existingAssignment) {
+      throw new Error(`Assignment with ID ${assignmentId} not found`);
     }
 
     // Check if new unit is available
     const isAvailable = await isRoomUnitAvailable(
-      roomId,
+      existingAssignment.roomId,
       unitNumberStr,
-      booking.checkIn,
-      booking.checkOut
+      existingAssignment.booking.checkIn,
+      existingAssignment.booking.checkOut
     );
 
     if (!isAvailable) {
@@ -336,12 +359,7 @@ export async function reassignRoomUnit(bookingId, roomId, newUnitNumber, assigne
 
     // Update the assignment
     const assignment = await prisma.roomUnitAssignment.update({
-      where: {
-        bookingId_roomId: {
-          bookingId,
-          roomId
-        }
-      },
+      where: { id: assignmentId },
       data: {
         unitNumber: unitNumberStr,
         assignedBy,

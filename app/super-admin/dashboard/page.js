@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { signOut, useSession } from 'next-auth/react';
 import SuperAdminLayout from "@/components/SuperAdminLayout";
 import Loading, { ButtonLoading } from '@/components/Loading';
@@ -55,7 +56,7 @@ function CustomTooltip({ active, payload, label }) {
   );
 }
 
-function StatCard({ title, value, icon: Icon, color, trend, trendValue }) {
+function StatCard({ title, value, icon: Icon, color, trend, trendValue, onClick, disabled = false }) {
   return (
     <div style={{
       backgroundColor: 'rgba(255,255,255,0.95)',
@@ -63,7 +64,7 @@ function StatCard({ title, value, icon: Icon, color, trend, trendValue }) {
       padding: '1rem',
       boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
       transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s',
-      cursor: 'pointer',
+      cursor: disabled ? 'default' : 'pointer',
       display: 'flex',
       flexDirection: 'column',
       position: 'relative',
@@ -72,13 +73,18 @@ function StatCard({ title, value, icon: Icon, color, trend, trendValue }) {
       border: '1px solid rgba(255,255,255,0.2)',
       minHeight: '120px',
     }}
+    onClick={disabled ? undefined : onClick}
     onMouseEnter={(e) => {
-      e.currentTarget.style.transform = 'translateY(-4px) scale(1.02)';
-      e.currentTarget.style.boxShadow = '0 8px 25px rgba(0, 0, 0, 0.12)';
+      if (!disabled) {
+        e.currentTarget.style.transform = 'translateY(-4px) scale(1.02)';
+        e.currentTarget.style.boxShadow = '0 8px 25px rgba(0, 0, 0, 0.12)';
+      }
     }}
     onMouseLeave={(e) => {
-      e.currentTarget.style.transform = 'translateY(0) scale(1)';
-      e.currentTarget.style.boxShadow = '0 4px 16px rgba(0, 0, 0, 0.08)';
+      if (!disabled) {
+        e.currentTarget.style.transform = 'translateY(0) scale(1)';
+        e.currentTarget.style.boxShadow = '0 4px 16px rgba(0, 0, 0, 0.08)';
+      }
     }}
     >
       <div style={{
@@ -149,6 +155,7 @@ function StatCard({ title, value, icon: Icon, color, trend, trendValue }) {
 
 export default function SuperAdminDashboard() {
   const { data: session } = useSession();
+  const router = useRouter();
   const [stats, setStats] = useState({
     total: 0,
     confirmed: 0,
@@ -170,9 +177,9 @@ export default function SuperAdminDashboard() {
   const [isTablet, setIsTablet] = useState(false);
   const [amenityView, setAmenityView] = useState('optional');
 
-  // Logout Navigation Guard
+  // Logout Navigation Guard - only prevent navigation that leaves super-admin section
   const navigationGuard = useNavigationGuard({
-    shouldPreventNavigation: () => true,
+    shouldPreventNavigation: () => false, // Disable guard to allow internal navigation
     onNavigationAttempt: () => {
       console.log('Super Admin Dashboard: Navigation attempt detected, showing logout confirmation');
     },
@@ -229,7 +236,22 @@ export default function SuperAdminDashboard() {
         .reduce((sum, booking) => sum + (parseFloat(booking.totalPrice) || 0), 0);
       
       const occupancyRate = total > 0 ? (confirmed / total) * 100 : 0;
-      const availableRooms = 25 - Math.floor(occupancyRate / 4); // Simulated available rooms
+      
+      // Fetch rooms to get total available units
+      let availableRooms = 0;
+      try {
+        const roomsRes = await fetch('/api/rooms');
+        const roomsData = await roomsRes.json();
+        
+        if (Array.isArray(roomsData)) {
+          // Sum up all room quantities to get total available units
+          availableRooms = roomsData.reduce((sum, room) => sum + (room.quantity || 0), 0);
+          console.log('Dashboard: Available rooms from API:', availableRooms);
+        }
+      } catch (roomError) {
+        console.error('Failed to fetch rooms for available count:', roomError);
+        availableRooms = 0;
+      }
       
       console.log('Dashboard: Calculated stats:', { total, confirmed, pending, cancelled, totalRevenue, occupancyRate, availableRooms });
       setStats({ total, confirmed, pending, cancelled, totalRevenue, occupancyRate, availableRooms });
@@ -506,17 +528,42 @@ export default function SuperAdminDashboard() {
           gap: isMobile ? '1rem' : '1.5rem',
           marginBottom: isMobile ? '1rem' : '2rem',
         }}>
-          <StatCard title="Total Bookings" value={stats.total} color="#4A90E2" icon={BarChart3} />
-          <StatCard title="Confirmed" value={stats.confirmed} color="#7ED321" icon={CheckCircle} />
-          <StatCard title="Pending" value={stats.pending} color="#FEBE52" icon={Clock} />
-          <StatCard title="Cancelled" value={stats.cancelled} color="#D0021B" icon={XCircle} />
+          <StatCard 
+            title="Total Bookings" 
+            value={stats.total} 
+            color="#4A90E2" 
+            icon={BarChart3}
+            onClick={() => router.push('/super-admin/bookings')}
+          />
+          <StatCard 
+            title="Confirmed" 
+            value={stats.confirmed} 
+            color="#7ED321" 
+            icon={CheckCircle}
+            onClick={() => router.push('/super-admin/bookings?status=Confirmed')}
+          />
+          <StatCard 
+            title="Pending" 
+            value={stats.pending} 
+            color="#FEBE52" 
+            icon={Clock}
+            onClick={() => router.push('/super-admin/bookings?status=Pending')}
+          />
+          <StatCard 
+            title="Cancelled" 
+            value={stats.cancelled} 
+            color="#D0021B" 
+            icon={XCircle}
+            onClick={() => router.push('/super-admin/bookings?status=Cancelled')}
+          />
           <StatCard 
             title="Total Revenue" 
             value={formatCurrency(stats.totalRevenue)} 
             color="#10b981" 
-            icon={() => <span style={{fontSize: '24px', fontWeight: 'bold'}}>₱</span>}
+            icon={() => <span style={{fontSize: '24px', fontWeight: 'bold'}}>₱</span>}  
             trend="up"
             trendValue="+8%"
+            onClick={() => router.push('/super-admin/reports')}
           />
           <StatCard 
             title="Occupancy Rate" 
@@ -525,6 +572,7 @@ export default function SuperAdminDashboard() {
             icon={TrendingUp}
             trend="up"
             trendValue="+5%"
+            onClick={() => router.push('/super-admin/reports')}
           />
           <StatCard 
             title="Available Rooms" 
@@ -533,6 +581,7 @@ export default function SuperAdminDashboard() {
             icon={Building2}
             trend="neutral"
             trendValue="Updated"
+            onClick={() => router.push('/super-admin/rooms')}
           />
         </div>
 

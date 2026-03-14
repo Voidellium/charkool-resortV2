@@ -166,7 +166,7 @@ export const POST = async (req) => {
       await recordAudit({
         actorId: token?.sub ? parseInt(token.sub) : null,
         actorName: token?.name || token?.email || 'Unknown',
-        actorRole: token?.role || 'ADMIN',
+        actorRole: token?.role || 'SUPERADMIN',
         action: 'CREATE',
         entity: 'Room',
         entityId: String(newRoom.id),

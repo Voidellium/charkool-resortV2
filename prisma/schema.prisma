@@ -45,7 +45,7 @@ model CancellationRequest {
   adminContext    String? // admin response/notes
   decidedAt       DateTime?
   decidedById     Int? // superadmin who decided
-  refundAmount    Int? // calculated refund (50% of reservation fee if >=7 days)
+  refundAmount    Int? // calculated refund (100% of reservation fee if >=7 days)
   booking         Booking  @relation(fields: [bookingId], references: [id])
   user            User?    @relation("CancellationRequestedBy", fields: [userId], references: [id])
   decidedBy       User?    @relation("CancellationDecidedBy", fields: [decidedById], references: [id])
@@ -104,6 +104,9 @@ model User {
   
   // NEW: Room unit assignments
   roomUnitAssignments     RoomUnitAssignment[]       @relation("RoomUnitAssignedBy")
+  
+  // NEW: 3D Model configuration updates
+  modelConfigUpdates      ThreeDModelConfig[]        @relation("ModelConfigUpdater")
 }
 
 model OTP {
@@ -397,6 +400,7 @@ enum BookingStatus {
   Cancelled
   Held
   Completed
+  Expired
   CancellationPending
   ReschedulePending
 }
@@ -419,13 +423,10 @@ enum PaymentVerificationStatus {
 
 enum Role {
   CUSTOMER
-  GUEST
-  ADMIN
   SUPERADMIN
   RECEPTIONIST
   CASHIER
   AMENITYINVENTORYMANAGER
-  DEVELOPER
 }
 
 enum RoomType {
@@ -613,8 +614,9 @@ model RoomUnitAssignment {
   room        Room     @relation(fields: [roomId], references: [id])
   assignedByUser User? @relation("RoomUnitAssignedBy", fields: [assignedBy], references: [id])
   
-  @@unique([bookingId, roomId]) // One unit assignment per room per booking
+  @@unique([bookingId, roomId, unitNumber]) // Prevent assigning same unit twice to same booking
   @@index([roomId, unitNumber]) // For availability queries
+  @@index([bookingId]) // For booking queries
 }
 
 // Metadata for individual room units (descriptions, features, etc.)
@@ -633,4 +635,27 @@ model RoomUnitMetadata {
   
   @@unique([roomId, unitNumber]) // One metadata per unit
   @@index([roomId])
+}
+
+// ==========================================
+// 3D Model Configuration
+// ==========================================
+
+// Tracks active 3D model paths for resort map and room interiors
+model ThreeDModelConfig {
+  id          Int      @id @default(autoincrement())
+  modelType   ModelType @unique // RESORT_MAP, INTERIOR_TEEPEE, INTERIOR_VILLA, INTERIOR_LOFT
+  modelPath   String   // Path to the model file (e.g., "/models/WholeMap_12.glb")
+  updatedAt   DateTime @updatedAt
+  updatedBy   Int?     // Developer who last updated this config
+  updatedByUser User?  @relation("ModelConfigUpdater", fields: [updatedBy], references: [id])
+  
+  @@index([modelType])
+}
+
+enum ModelType {
+  RESORT_MAP
+  INTERIOR_TEEPEE
+  INTERIOR_VILLA
+  INTERIOR_LOFT
 }

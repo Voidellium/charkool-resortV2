@@ -4,6 +4,14 @@ import { NextResponse } from 'next/server';
 
 const prisma = new PrismaClient();
 
+// List of test/example email domains that bypass OTP verification
+const TEST_EMAIL_DOMAINS = ['@example.com'];
+const TEST_ACCOUNT_BYPASS_OTP = '123456'; // Fixed OTP for test accounts
+
+function isTestAccount(email) {
+  return TEST_EMAIL_DOMAINS.some(domain => email.toLowerCase().endsWith(domain));
+}
+
 export async function POST(req) {
   try {
     const { otp, browserFingerprint, userAgent } = await req.json();
@@ -18,17 +26,17 @@ export async function POST(req) {
       });
     }
 
-    // Developer bypass: Check if user has DEVELOPER role and OTP is special bypass code
-    if (token.role === 'DEVELOPER' && otp === 'DEV-BYPASS-2025') {
+    // Test account bypass: Check if email is from test domain and OTP matches bypass code
+    if (isTestAccount(token.email) && otp === TEST_ACCOUNT_BYPASS_OTP) {
       const response = NextResponse.json({
-        message: 'Developer bypass activated - OTP verified successfully',
+        message: 'Test account bypass - OTP verified successfully',
         user: {
           id: token.id,
           name: token.name,
           email: token.email,
           role: token.role
         },
-        developerBypass: true
+        testAccountBypass: true
       }, { status: 200 });
 
       // Set cookie to indicate browser is trusted for this session

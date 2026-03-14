@@ -1,11 +1,13 @@
                 'use client';
                 import { useSession, signOut } from 'next-auth/react';
-                import { useEffect, useRef, useState, useMemo } from 'react';
+                import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
                 import { useChangeModal, ChangeModal, useReceiptModal, ReceiptModal, NavigationConfirmationModal } from '@/components/CustomModals';
                 import { useToast } from '@/components/Toast';
                 import { useNavigationGuard } from '../../hooks/useNavigationGuard.simple';
-                import { Bell, Search, ChevronDown, User, LogOut, CheckCircle2, AlertTriangle, XCircle, Flag, CreditCard, CalendarDays, BookOpen, Clock, Calculator, Hotel, X, Eye, Calendar, Users, MoreVertical, Download } from 'lucide-react';
+                import { Bell, Search, ChevronDown, User, LogOut, CheckCircle2, AlertTriangle, XCircle, Flag, CreditCard, CalendarDays, BookOpen, Clock, Calculator, Hotel, X, Eye, Calendar, Users, MoreVertical, Download, Lock } from 'lucide-react';
                 import styles from './Cashier.module.css';
+                import { useBookingUpdates, usePaymentUpdates, useStaffNotifications } from '@/hooks/usePusher';
+                import ChangePasswordModal from '@/components/ChangePasswordModal';
 
                 /**
                  * CASHIER API ENDPOINTS DOCUMENTATION
@@ -60,6 +62,7 @@ function formatPaymentId(id) {
   // If it's a number, format as CHK-XXXX
   if (typeof id === 'number' || !isNaN(id)) {
     return `CHK-${String(id).padStart(4, '0')}`;
+                                  
   }
   
   return `CHK-${String(id).toUpperCase()}`;
@@ -76,19 +79,25 @@ export default function CashierDashboard() {
                 // Debug toggle (set NEXT_PUBLIC_DEBUG_CASHIER=1 to enable)
                 const debug = process.env.NEXT_PUBLIC_DEBUG_CASHIER === '1';
 
+                // Memoized callbacks for navigation guard to prevent re-renders
+                const shouldPreventNav = useCallback(() => true, []);
+                const onNavAttempt = useCallback(() => {
+                  console.log('Cashier Dashboard: Navigation attempt detected, showing logout confirmation');
+                }, []);
+                const customLogout = useCallback(() => signOut({ callbackUrl: '/login' }), []);
+
                 // Navigation guard for logout/back
                 const navigationGuard = useNavigationGuard({
-                  shouldPreventNavigation: () => true,
-                  onNavigationAttempt: () => {
-                    console.log('Cashier Dashboard: Navigation attempt detected, showing logout confirmation');
-                  },
-                  customAction: () => signOut({ callbackUrl: '/login' }),
+                  shouldPreventNavigation: shouldPreventNav,
+                  onNavigationAttempt: onNavAttempt,
+                  customAction: customLogout,
                   context: 'logout',
                   message: 'Are you sure you want to log out of your Cashier dashboard?'
                 });
 
                 // UI state
                 const [userMenuOpen, setUserMenuOpen] = useState(false);
+                const [showChangePassword, setShowChangePassword] = useState(false);
                 const [loading, setLoading] = useState(true);
                 const [isLoading, setIsLoading] = useState(false);
 
@@ -156,6 +165,8 @@ export default function CashierDashboard() {
                 const [decisionModal, setDecisionModal] = useState({ show: false, payment: null });
                 const [eReceiptModal, setEReceiptModal] = useState({ show: false, receiptData: null });
                 const [cancellationModal, setCancellationModal] = useState({ show: false, transaction: null });
+                const [cancelDetailsModal, setCancelDetailsModal] = useState({ show: false, transaction: null });
+                const [viewDetailsModal, setViewDetailsModal] = useState({ show: false, data: null });
                 const [cancellationReason, setCancellationReason] = useState("");
                 const modalRef = useRef(null);
                 const [backConfirm, setBackConfirm] = useState(false);
@@ -173,11 +184,20 @@ export default function CashierDashboard() {
                 const [bookingType, setBookingType] = useState("Walk-in");
                 const [noteText, setNoteText] = useState("");
                 const [actionLoading, setActionLoading] = useState(false);
+                // Track existing payments for detection of down payments
+                const [previousPaid, setPreviousPaid] = useState(0);
+                const [isDownPaymentExisting, setIsDownPaymentExisting] = useState(false);
 
                 // Helpers
                 const formatCurrency = (cents) => {
                   const n = Number(cents || 0) / 100;
                   return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(n);
+                };
+
+                // No-decimal formatter (displays whole pesos, rounded)
+                const formatCurrencyNoDecimal = (cents) => {
+                  const n = Number(cents || 0) / 100;
+                  return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
                 };
 
                 // Reusable badge class helper (used across multiple tables)
@@ -226,7 +246,14 @@ export default function CashierDashboard() {
                   try {
                     const res = await fetch("/api/bookings");
                     const data = res.ok ? await res.json() : [];
-                    setBookings(Array.isArray(data) ? data : data.bookings || []);
+                    const newBookings = Array.isArray(data) ? data : data.bookings || [];
+                    // Avoid clobbering local state with an empty response due to pagination or transient API issues
+                    if (Array.isArray(newBookings) && newBookings.length > 0) {
+                      setBookings(newBookings);
+                    } else {
+                      // keep existing bookings if API returned empty
+                      console.warn('fetchBookings returned empty; keeping previous bookings state');
+                    }
                   } catch (e) {
                     setBookings([]);
                   }
@@ -329,44 +356,9 @@ export default function CashierDashboard() {
                   }
                 }
 
-                async function fetchUpcomingReservations() {
-                  setUpcomingLoading(true);
-                  try {
-                    // Fetch reservations within next 15 days (including online bookings)
-                    const today = new Date().toISOString().split('T')[0];
-                    const fifteenDaysLater = new Date();
-                    fifteenDaysLater.setDate(fifteenDaysLater.getDate() + 15);
-                    const endDate = fifteenDaysLater.toISOString().split('T')[0];
-                    
-                    const res = await fetch(`/api/bookings/upcoming?startDate=${today}&endDate=${endDate}`);
-                    if (res.ok) {
-                      const data = await res.json();
-                      setUpcomingTransactionsList(Array.isArray(data) ? data : data.reservations || []);
-                    } else {
-                      // Fallback: filter bookings locally
-                      const upcoming = bookings.filter(booking => {
-                        const checkInDate = new Date(booking.checkIn);
-                        const todayDate = new Date(today);
-                        const endDateObj = new Date(endDate);
-                        return checkInDate >= todayDate && checkInDate <= endDateObj;
-                      });
-                      setUpcomingTransactionsList(upcoming);
-                    }
-                  } catch (e) {
-                    // Fallback to local filtering
-                    const today = new Date();
-                    const fifteenDaysLater = new Date();
-                    fifteenDaysLater.setDate(fifteenDaysLater.getDate() + 15);
-                    
-                    const upcoming = bookings.filter(booking => {
-                      const checkInDate = new Date(booking.checkIn);
-                      return checkInDate >= today && checkInDate <= fifteenDaysLater;
-                    });
-                    setUpcomingTransactionsList(upcoming);
-                  } finally {
-                    setUpcomingLoading(false);
-                  }
-                }
+                // NOTE: consolidated two-window `fetchUpcomingReservations()` is implemented
+                // later in this file (handles Today->+15 and Tomorrow->+15). The earlier
+                // single-window implementation was removed to avoid duplicate definitions.
 
                 async function fetchCompletedTransactions() {
                   try {
@@ -411,28 +403,9 @@ export default function CashierDashboard() {
                       const data = await checkoutRes.json();
                       checkouts = Array.isArray(data) ? data : data.checkouts || [];
                     }
-                    
-                    // Also fetch bookings created today (both walk-in and online) with unpaid status
-                    const todayBookingsRes = await fetch(`/api/bookings?createdDate=${today}`);
-                    let todayBookings = [];
-                    if (todayBookingsRes.ok) {
-                      const data = await todayBookingsRes.json();
-                      const allBookings = Array.isArray(data) ? data : data.bookings || [];
-                      // Filter for unpaid bookings created today
-                      todayBookings = allBookings.filter(booking => {
-                        const createdDate = new Date(booking.createdAt).toISOString().split('T')[0];
-                        return createdDate === today && booking.paymentStatus !== 'Paid';
-                      });
-                    }
-                    
-                    // Combine both lists and remove duplicates
-                    const combinedTransactions = [...checkouts, ...todayBookings];
-                    const uniqueTransactions = combinedTransactions.filter((booking, index, self) =>
-                      index === self.findIndex(b => b.id === booking.id)
-                    );
-                    
-                    // Filter out bookings with completed payment status
-                    const unpaidCheckouts = uniqueTransactions.filter(booking => booking.paymentStatus !== 'Paid');
+
+                    // Only use bookings that are scheduled to checkout today (do NOT mix bookings created today)
+                    const unpaidCheckouts = (checkouts || []).filter(b => (b.paymentStatus || '').toLowerCase() !== 'paid');
                     setCheckoutTransactions(unpaidCheckouts);
                   } catch (e) {
                     // Fallback to local filtering
@@ -440,9 +413,7 @@ export default function CashierDashboard() {
                     const todayCheckouts = bookings.filter(booking => {
                       const checkoutDate = new Date(booking.checkOut).toISOString().split('T')[0];
                       const createdDate = new Date(booking.createdAt).toISOString().split('T')[0];
-                      return ((checkoutDate === today || createdDate === today) 
-                        && (booking.status || '').toLowerCase() === 'confirmed'
-                        && booking.paymentStatus !== 'Paid');
+                      return (checkoutDate === today && (booking.status || '').toLowerCase() === 'confirmed' && booking.paymentStatus !== 'Paid');
                     });
                     setCheckoutTransactions(todayCheckouts);
                   } finally {
@@ -457,11 +428,22 @@ export default function CashierDashboard() {
                     if (mounted) setLoading(false);
                   })();
                   
-                  // Auto-refresh every 30 seconds
+                  // Auto-refresh every 30 seconds. Use a lightweight summary check for upcoming
+                  // reservations so we only fetch the full upcoming list when something changed.
                   const intervalId = setInterval(async () => {
-                    if (mounted) {
-                      console.log('Auto-refreshing data...');
-                      await Promise.all([fetchPaidPayments(), fetchBookings(), fetchNotifications(), fetchTotalTransactions(), fetchPendingTransactions(), fetchUpcomingReservations(), fetchCheckoutTransactions(), fetchCompletedTransactions(), fetchCancelledTransactions()]);
+                    if (!mounted) return;
+                    try {
+                      console.log('Auto-refreshing data (summary-first)...');
+                      // Trigger other refreshes in parallel, but use summary check for upcoming
+                      await Promise.all([fetchPaidPayments(), fetchBookings(), fetchNotifications(), fetchTotalTransactions(), fetchPendingTransactions(), fetchCheckoutTransactions(), fetchCompletedTransactions(), fetchCancelledTransactions()]);
+                      // Check upcoming summary and conditionally refresh full upcoming lists
+                      if (typeof fetchUpcomingSummary === 'function') {
+                        await fetchUpcomingSummary();
+                      } else {
+                        await fetchUpcomingReservations();
+                      }
+                    } catch (err) {
+                      console.warn('Auto-refresh error', err);
                     }
                   }, 30000); // 30 seconds
                   
@@ -470,6 +452,67 @@ export default function CashierDashboard() {
                     clearInterval(intervalId);
                   };
                 }, []);
+
+                // 🔔 PUSHER: Real-time updates for cashier dashboard
+                // Callback to refresh all cashier data
+                const refetchCashierData = useCallback(() => {
+                  console.log('[Pusher] Received update, refreshing cashier data...');
+                  Promise.all([
+                    fetchPaidPayments(),
+                    fetchBookings(),
+                    fetchTotalTransactions(),
+                    fetchPendingTransactions(),
+                    fetchUpcomingReservations(),
+                    fetchCheckoutTransactions(),
+                    fetchCompletedTransactions(),
+                  ]).catch(err => console.warn('[Pusher] Refresh error:', err));
+                }, []);
+
+                // Subscribe to booking events
+                useBookingUpdates({
+                  onBookingCreated: (data) => {
+                    console.log('[Pusher] New booking:', data.guestName);
+                    toastSuccess(`New booking from ${data.guestName}`);
+                    refetchCashierData();
+                  },
+                  onBookingUpdated: (data) => {
+                    console.log('[Pusher] Booking updated:', data.bookingId);
+                    refetchCashierData();
+                  },
+                  onBookingCancelled: (data) => {
+                    console.log('[Pusher] Booking cancelled:', data.bookingId);
+                    refetchCashierData();
+                  },
+                  onCheckedIn: (data) => {
+                    console.log('[Pusher] Guest checked in:', data.guestName);
+                    toastSuccess(`${data.guestName} has checked in`);
+                    refetchCashierData();
+                  },
+                  onPaymentReceived: (data) => {
+                    console.log('[Pusher] Payment received:', data.guestName);
+                    toastSuccess(`Payment received from ${data.guestName}`);
+                    refetchCashierData();
+                  },
+                });
+
+                // Subscribe to payment events
+                usePaymentUpdates({
+                  onPaymentReceived: (data) => {
+                    console.log('[Pusher] Payment received:', data);
+                    refetchCashierData();
+                  },
+                  onPaymentVerified: (data) => {
+                    console.log('[Pusher] Payment verified:', data);
+                    refetchCashierData();
+                  },
+                });
+
+                // Subscribe to cashier-specific notifications
+                useStaffNotifications('CASHIER', (notification) => {
+                  console.log('[Pusher] New notification:', notification.message);
+                  toastSuccess(notification.message);
+                  fetchNotifications();
+                });
 
                 // Filters
                 const filteredBookings = useMemo(() => {
@@ -573,73 +616,324 @@ export default function CashierDashboard() {
 
                 // Upcoming reservations: show bookings/reservations for the next 15 days
                 const [upcomingReservations, setUpcomingReservations] = useState([]);
+                const [upcomingReservationsTomorrow, setUpcomingReservationsTomorrow] = useState([]);
                 const [upcomingLoading, setUpcomingLoading] = useState(false);
 
-                // Fetch upcoming reservations from dedicated API
+                // Fetch upcoming reservations for two 15-day windows:
+                // 1) Today -> +15 days
+                // 2) Tomorrow -> +15 days from tomorrow
+                // Sets `upcomingReservations` (today-window) and `upcomingReservationsTomorrow`.
                 async function fetchUpcomingReservations() {
                   setUpcomingLoading(true);
                   try {
-                    const res = await fetch('/api/cashier/upcoming-reservations');
-                    if (res.ok) {
-                      const data = await res.json();
-                      setUpcomingReservations(Array.isArray(data) ? data : data.reservations || []);
-                    } else {
-                      // Fallback: filter from local bookings
-                      const now = new Date();
-                      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                      const fifteenDaysFromNow = new Date(today);
-                      fifteenDaysFromNow.setDate(today.getDate() + 15);
-                      
-                      const filtered = (bookings || []).filter(booking => {
+                    const todayObj = new Date();
+                    const today = new Date(todayObj.getFullYear(), todayObj.getMonth(), todayObj.getDate());
+                    const todayISO = today.toISOString().split('T')[0];
+
+                    const tomorrowObj = new Date(today);
+                    tomorrowObj.setDate(tomorrowObj.getDate() + 1);
+                    const tomorrowISO = tomorrowObj.toISOString().split('T')[0];
+
+                    const fifteenFromToday = new Date(today);
+                    fifteenFromToday.setDate(fifteenFromToday.getDate() + 15);
+                    const endTodayISO = fifteenFromToday.toISOString().split('T')[0];
+
+                    const fifteenFromTomorrow = new Date(tomorrowObj);
+                    fifteenFromTomorrow.setDate(fifteenFromTomorrow.getDate() + 15);
+                    const endTomorrowISO = fifteenFromTomorrow.toISOString().split('T')[0];
+
+                    // Try dedicated endpoint for ranges (preferred)
+                    const resToday = await fetch(`/api/bookings/upcoming?startDate=${todayISO}&endDate=${endTodayISO}`);
+                    const resTomorrow = await fetch(`/api/bookings/upcoming?startDate=${tomorrowISO}&endDate=${endTomorrowISO}`);
+
+                    let listToday = [];
+                    let listTomorrow = [];
+
+                    if (resToday.ok) {
+                      const data = await resToday.json();
+                      listToday = Array.isArray(data) ? data : data.reservations || data.bookings || [];
+                    }
+
+                    if (resTomorrow.ok) {
+                      const data = await resTomorrow.json();
+                      listTomorrow = Array.isArray(data) ? data : data.reservations || data.bookings || [];
+                    }
+
+                    // If endpoints didn't return data, fallback to local filtering
+                    if (!resToday.ok || !Array.isArray(listToday) || listToday.length === 0) {
+                      listToday = (bookings || []).filter(booking => {
                         const checkIn = booking.checkInDate || booking.checkIn || booking.startDate;
                         if (!checkIn) return false;
-                        
-                        const checkInDate = new Date(checkIn);
-                        const checkInDateOnly = new Date(checkInDate.getFullYear(), checkInDate.getMonth(), checkInDate.getDate());
-                        
-                        const isInRange = checkInDateOnly >= today && checkInDateOnly <= fifteenDaysFromNow;
-                        const isValidStatus = !booking.status || 
-                                            (booking.status.toLowerCase() !== 'cancelled' && 
-                                             booking.status.toLowerCase() !== 'completed');
-                        
-                        return isInRange && isValidStatus;
+                        const d = new Date(checkIn);
+                        const dOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+                        return dOnly >= today && dOnly <= fifteenFromToday && (booking.status || '').toLowerCase() !== 'cancelled';
                       });
-                      
-                      setUpcomingReservations(filtered);
                     }
-                  } catch (error) {
-                    console.error('Failed to fetch upcoming reservations:', error);
-                    setUpcomingReservations([]);
+
+                    if (!resTomorrow.ok || !Array.isArray(listTomorrow) || listTomorrow.length === 0) {
+                      listTomorrow = (bookings || []).filter(booking => {
+                        const checkIn = booking.checkInDate || booking.checkIn || booking.startDate;
+                        if (!checkIn) return false;
+                        const d = new Date(checkIn);
+                        const dOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+                        return dOnly >= tomorrowObj && dOnly <= fifteenFromTomorrow && (booking.status || '').toLowerCase() !== 'cancelled';
+                      });
+                    }
+
+                    // Normalize bookings: ensure totalPrice/totalAmount present and compute daysUntilCheckIn
+                    const normalizeList = (list, windowStart) => {
+                      const nowDay = new Date(windowStart.getFullYear(), windowStart.getMonth(), windowStart.getDate());
+
+                      const computeLocalTotal = (booking) => {
+                        try {
+                          let total = 0;
+                          // rooms
+                          if (booking.rooms && Array.isArray(booking.rooms)) {
+                            const checkIn = booking.checkInDate || booking.checkIn || booking.startDate;
+                            const checkOut = booking.checkOutDate || booking.checkOut || booking.endDate;
+                            let nights = 1;
+                            if (checkIn && checkOut) {
+                              const ci = new Date(checkIn);
+                              const co = new Date(checkOut);
+                              const diff = Math.max(0, co.getTime() - ci.getTime());
+                              nights = Math.max(1, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+                            }
+                            for (const r of booking.rooms) {
+                              const qty = Number(r.quantity || 1);
+                              const price = Number(r.room?.price || r.price || 0);
+                              total += (price * qty * nights);
+                            }
+                          }
+
+                          // rental amenities
+                          if (booking.rentalAmenities && Array.isArray(booking.rentalAmenities)) {
+                            for (const ra of booking.rentalAmenities) {
+                              const rp = Number(ra.totalPrice || ra.price || 0);
+                              total += rp;
+                            }
+                          }
+
+                          // cottages
+                          if (booking.cottage && Array.isArray(booking.cottage)) {
+                            for (const c of booking.cottage) {
+                              const cp = Number(c.totalPrice || c.price || 0);
+                              total += cp;
+                            }
+                          }
+
+                          return total || 0;
+                        } catch (err) {
+                          return 0;
+                        }
+                      };
+
+                      const computePaid = (booking) => {
+                        try {
+                          const paid = (booking.payments || []).reduce((s, p) => {
+                            if (!p) return s;
+                            let amt = Number(p.amount || 0);
+                            if (amt > 1000000) amt = Math.floor(amt / 100);
+                            const status = (p.status || '').toLowerCase();
+                            return (status === 'paid' || status === 'partial' || status === 'reservation' || status === 'completed') ? s + amt : s;
+                          }, 0);
+                          return paid;
+                        } catch (err) {
+                          return 0;
+                        }
+                      };
+
+                      return (list || []).map(b => {
+                        const checkInRaw = b.checkInDate || b.checkIn || b.startDate;
+                        const checkInDate = checkInRaw ? new Date(checkInRaw) : null;
+                        const checkInOnly = checkInDate ? new Date(checkInDate.getFullYear(), checkInDate.getMonth(), checkInDate.getDate()) : null;
+                        let daysUntil = null;
+                        if (checkInOnly) {
+                          const msPerDay = 1000 * 60 * 60 * 24;
+                          daysUntil = Math.ceil((checkInOnly.getTime() - nowDay.getTime()) / msPerDay);
+                          if (daysUntil < 0) daysUntil = 0;
+                        }
+
+                        // Prefer server-computed totals if present
+                        const serverTotal = Number(b.totalCostWithAddons || b.totalPrice || b.totalAmount || b.total || b.amount || 0);
+                        const localTotal = computeLocalTotal(b);
+                        const totalPrice = (!isNaN(serverTotal) && serverTotal > 0) ? serverTotal : (localTotal > 0 ? localTotal : 0);
+
+                        const totalPaid = computePaid(b);
+
+                        if (!totalPrice || Number(totalPrice) === 0) {
+                          console.warn('Upcoming booking has total 0', { id: b.id, guestName: b.guestName, checkIn: checkInRaw, localTotal, serverTotal });
+                        }
+
+                        return {
+                          ...b,
+                          totalPrice,
+                          totalPaid,
+                          totalAmount: b.totalAmount || b.totalPrice || b.totalCostWithAddons || b.total || b.amount || 0,
+                          daysUntilCheckIn: daysUntil
+                        };
+                      });
+                    };
+                    const normToday = normalizeList(listToday, today);
+                    const normTomorrow = normalizeList(listTomorrow, tomorrowObj);
+
+                    // Only replace state if we have results; otherwise keep existing to avoid disappearing UI on intermittent failures
+                    if (Array.isArray(normToday) && normToday.length > 0) setUpcomingReservations(normToday);
+                    else console.warn('fetchUpcomingReservations: today window returned no items; retaining previous upcomingReservations');
+
+                    if (Array.isArray(normTomorrow) && normTomorrow.length > 0) setUpcomingReservationsTomorrow(normTomorrow);
+                    else console.warn('fetchUpcomingReservations: tomorrow window returned no items; retaining previous upcomingReservationsTomorrow');
+                  } catch (e) {
+                    console.error('Failed to fetch upcoming reservations (two-window):', e);
+                    // Fallback: use local bookings and compute windows
+                    try {
+                      const now = new Date();
+                      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                      const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+                      const fifteenFromToday = new Date(today); fifteenFromToday.setDate(today.getDate() + 15);
+                      const fifteenFromTomorrow = new Date(tomorrow); fifteenFromTomorrow.setDate(tomorrow.getDate() + 15);
+
+                      const listToday = (bookings || []).filter(booking => {
+                        const checkIn = booking.checkInDate || booking.checkIn || booking.startDate;
+                        if (!checkIn) return false;
+                        const d = new Date(checkIn);
+                        const dOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+                        return dOnly >= today && dOnly <= fifteenFromToday && (booking.status || '').toLowerCase() !== 'cancelled';
+                      });
+
+                      const listTomorrow = (bookings || []).filter(booking => {
+                        const checkIn = booking.checkInDate || booking.checkIn || booking.startDate;
+                        if (!checkIn) return false;
+                        const d = new Date(checkIn);
+                        const dOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+                        return dOnly >= tomorrow && dOnly <= fifteenFromTomorrow && (booking.status || '').toLowerCase() !== 'cancelled';
+                      });
+
+                      setUpcomingReservations(listToday);
+                      setUpcomingReservationsTomorrow(listTomorrow);
+                    } catch (inner) {
+                      setUpcomingReservations([]);
+                      setUpcomingReservationsTomorrow([]);
+                    }
                   } finally {
                     setUpcomingLoading(false);
                   }
                 }
 
+                // Lightweight summary key to avoid fetching the full upcoming list unless something changed.
+                const [upcomingSummaryKey, setUpcomingSummaryKey] = useState(null);
+
+                async function fetchUpcomingSummary() {
+                  try {
+                    const todayObj = new Date();
+                    const today = new Date(todayObj.getFullYear(), todayObj.getMonth(), todayObj.getDate());
+                    const todayISO = today.toISOString().split('T')[0];
+
+                    const tomorrowObj = new Date(today);
+                    tomorrowObj.setDate(tomorrowObj.getDate() + 1);
+                    const tomorrowISO = tomorrowObj.toISOString().split('T')[0];
+
+                    const fifteenFromToday = new Date(today);
+                    fifteenFromToday.setDate(fifteenFromToday.getDate() + 15);
+                    const endTodayISO = fifteenFromToday.toISOString().split('T')[0];
+
+                    const fifteenFromTomorrow = new Date(tomorrowObj);
+                    fifteenFromTomorrow.setDate(fifteenFromTomorrow.getDate() + 15);
+                    const endTomorrowISO = fifteenFromTomorrow.toISOString().split('T')[0];
+
+                    const [resToday, resTomorrow] = await Promise.all([
+                      fetch(`/api/bookings/upcoming/summary?startDate=${todayISO}&endDate=${endTodayISO}`),
+                      fetch(`/api/bookings/upcoming/summary?startDate=${tomorrowISO}&endDate=${endTomorrowISO}`)
+                    ]);
+
+                    let t1 = null;
+                    let t2 = null;
+                    if (resToday.ok) t1 = await resToday.json();
+                    if (resTomorrow.ok) t2 = await resTomorrow.json();
+
+                    const key = `${t1?.latestUpdatedAt||''}:${t1?.count||0}|${t2?.latestUpdatedAt||''}:${t2?.count||0}`;
+                    if (key !== upcomingSummaryKey) {
+                      setUpcomingSummaryKey(key);
+                      // Something changed — refresh the full upcoming lists
+                      await fetchUpcomingReservations();
+                    }
+                    return key;
+                  } catch (err) {
+                    console.warn('fetchUpcomingSummary error', err);
+                    return null;
+                  }
+                }
+
                 const upcomingTransactionsList = useMemo(() => {
-                  if (!dateFrom && !dateTo) return upcomingReservations;
-                  
-                  return (upcomingReservations || []).filter(reservation => {
-                    const checkInDate = reservation.checkInDate || reservation.checkIn;
-                    if (!checkInDate) return false;
-                    
-                    const reservationDate = new Date(checkInDate);
+                  // Start with normalized upcoming reservations
+                  let list = (upcomingReservations || []);
+
+                  // Apply global search filter if present
+                  const q = (searchDebounced || '').toLowerCase();
+                  if (q) {
+                    list = list.filter(r => {
+                      return (
+                        (r.guestName || '').toString().toLowerCase().includes(q) ||
+                        (r.user?.name || '').toString().toLowerCase().includes(q) ||
+                        (r.user?.email || '').toString().toLowerCase().includes(q) ||
+                        (r.id || '').toString().includes(q)
+                      );
+                    });
+                  }
+
+                  // Exclude reservations whose check-in date is before today (date-only comparison)
+                  try {
+                    const now = new Date();
+                    const todayOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                    list = list.filter(r => {
+                      const checkInRaw = r.checkInDate || r.checkIn || r.startDate;
+                      if (!checkInRaw) return false;
+                      const d = new Date(checkInRaw);
+                      if (isNaN(d.getTime())) return false;
+                      const dOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+                      return dOnly.getTime() >= todayOnly.getTime();
+                    });
+                  } catch (e) {
+                    // if anything fails, proceed without dropping items
+                    console.warn('upcoming filter: date-only exclusion failed', e);
+                  }
+
+                  // Filter by status if set
+                  if (filterStatus) {
+                    list = list.filter(r => (r.status || '').toLowerCase() === filterStatus.toLowerCase());
+                  }
+
+                  // Filter by payment method if set
+                  if (filterPaymentMethod) {
+                    list = list.filter(r => {
+                      const methods = r.paymentMethods || [];
+                      // Also consider booking.paymentMethod legacy field
+                      return methods.includes(filterPaymentMethod) || (r.paymentMethod === filterPaymentMethod);
+                    });
+                  }
+
+                  // Apply dateFrom/dateTo filtering if provided
+                  if (!dateFrom && !dateTo) return list;
+
+                  return list.filter(reservation => {
+                    const checkInDateRaw = reservation.checkInDate || reservation.checkIn;
+                    if (!checkInDateRaw) return false;
+                    const reservationDate = new Date(checkInDateRaw);
                     if (isNaN(reservationDate.getTime())) return false;
-                    
-                    // Apply date filtering
+
                     if (dateFrom) {
                       const fromDate = new Date(dateFrom);
                       if (reservationDate < fromDate) return false;
                     }
-                    
+
                     if (dateTo) {
                       const toDate = new Date(dateTo);
-                      toDate.setHours(23, 59, 59, 999); // End of the day
+                      toDate.setHours(23, 59, 59, 999);
                       if (reservationDate > toDate) return false;
                     }
-                    
+
                     return true;
                   });
-                }, [upcomingReservations, dateFrom, dateTo]);
+                }, [upcomingReservations, searchDebounced, filterStatus, filterPaymentMethod, dateFrom, dateTo]);
 
                 // Pagination for upcoming reservations
                 const upcomingTotalPages = Math.max(1, Math.ceil((upcomingTransactionsList?.length || 0) / upcomingPageSize));
@@ -768,6 +1062,41 @@ export default function CashierDashboard() {
                 const cardTotal = completedCardTotal;
                 const totalNotifications = notifications.length;
 
+                // Totals for upcoming windows (amounts are expected in cents)
+                const upcomingTodayTotalAmount = useMemo(() => {
+                  try {
+                    return (upcomingReservations || []).reduce((sum, r) => {
+                      const a = Number(r.totalPrice || r.totalAmount || r.total || r.amount || 0);
+                      return sum + (isNaN(a) ? 0 : a);
+                    }, 0);
+                  } catch (e) {
+                    return 0;
+                  }
+                }, [upcomingReservations]);
+
+                const upcomingTomorrowTotalAmount = useMemo(() => {
+                  try {
+                    return (upcomingReservationsTomorrow || []).reduce((sum, r) => {
+                      const a = Number(r.totalPrice || r.totalAmount || r.total || r.amount || 0);
+                      return sum + (isNaN(a) ? 0 : a);
+                    }, 0);
+                  } catch (e) {
+                    return 0;
+                  }
+                }, [upcomingReservationsTomorrow]);
+
+                // System-wide quick total: upcoming windows + checkout remaining + completed processed amounts + paidPayments
+                const systemTotalAmount = useMemo(() => {
+                  try {
+                    const checkoutTotal = (checkoutTransactions || []).reduce((s, c) => s + Number(c.totalPrice || c.totalAmount || c.amount || 0), 0);
+                    const completedTotal = (completedTransactions || []).reduce((s, t) => s + Number(t.amountPaid || t.paidAmount || 0), 0);
+                    const paidPaymentsTotal = (paidPayments || []).reduce((s, p) => s + Number(p.amount || 0), 0);
+                    return upcomingTodayTotalAmount + upcomingTomorrowTotalAmount + checkoutTotal + completedTotal + paidPaymentsTotal;
+                  } catch (e) {
+                    return 0;
+                  }
+                }, [upcomingTodayTotalAmount, upcomingTomorrowTotalAmount, checkoutTransactions, completedTransactions, paidPayments]);
+
                 // Actions: refresh + export
                 async function refreshAll() {
                   setIsLoading(true);
@@ -865,8 +1194,28 @@ export default function CashierDashboard() {
                   setDecisionModal({ show: true, payment });
                   const cents = Number(payment?.amount || payment?.totalPrice || 0);
                   const requiredAmount = (cents / 100).toFixed(2);
-                  setAmountTendered(requiredAmount);
-                  setAmountCustomerPaid(requiredAmount); // Pre-fill with required amount
+                  // Detect any existing payments associated with this booking/payment
+                  let alreadyPaid = 0;
+                  try {
+                    if (payment?.payments && Array.isArray(payment.payments)) {
+                      alreadyPaid = payment.payments.reduce((s, p) => s + Number(p.amount || 0), 0);
+                    } else if (payment?.booking && Array.isArray(payment.booking.payments)) {
+                      alreadyPaid = payment.booking.payments.reduce((s, p) => s + Number(p.amount || 0), 0);
+                    } else if (payment?.booking?.paidAmount) {
+                      alreadyPaid = Number(payment.booking.paidAmount || 0);
+                    }
+                  } catch (e) {
+                    alreadyPaid = 0;
+                  }
+
+                  setPreviousPaid(alreadyPaid);
+                  setIsDownPaymentExisting(alreadyPaid > 0 && alreadyPaid < cents);
+
+                  // Pre-fill amount fields: default to remaining balance (or full required amount)
+                  const remaining = Math.max(0, cents - alreadyPaid);
+                  const remainingDisplay = (remaining / 100).toFixed(2);
+                  setAmountTendered(remainingDisplay);
+                  setAmountCustomerPaid(remainingDisplay); // Pre-fill with remaining amount
                   setPaymentMethod((payment?.method || payment?.provider || "").toLowerCase());
                   setReferenceNo(payment?.referenceNumber || payment?.reference || `REF-${Date.now()}`);
                   
@@ -891,6 +1240,14 @@ export default function CashierDashboard() {
                     const customerPaidInput = document.querySelector('input[placeholder="0.00"]:not([readonly])');
                     if (customerPaidInput) customerPaidInput.focus();
                   }, 100);
+                }
+
+                // Generic view details modal opener (handles bookings/payments from PC and phone sources)
+                function openViewDetails(item) {
+                  if (!item) return;
+                  // Normalize object: booking objects may be passed directly, payments may include booking
+                  const data = item.booking ? { ...item.booking, payment: item } : item;
+                  setViewDetailsModal({ show: true, data });
                 }
 
                 // Ensure totalTransactionsList and pendingTransactionsList are populated from
@@ -998,74 +1355,171 @@ export default function CashierDashboard() {
                       notes: noteText,
                       transactionDate: datePaid || new Date().toISOString().split('T')[0]
                     };
+                    // Determine if this is a full payment, partial (down payment), or overpay
+                    const isFullPayment = customerPaidInCents >= requiredAmount;
+                    const isPartial = customerPaidInCents > 0 && customerPaidInCents < requiredAmount;
 
-                    // Handle different transaction types
-                    if (payment?.isCheckout || payment?.type === 'checkout') {
-                      // For checkout transactions, update the booking directly
+                    // Common helper to notify super admin and create audit trail
+                    async function notifySuperAdmin(actionDetail) {
                       try {
-                        const response = await fetch("/api/bookings/update-payment-status", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
+                        await fetch('/api/notifications', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
-                            bookingId: payment.id,
-                            paymentStatus: "Paid",
+                            title: actionDetail.title,
+                            message: actionDetail.message,
+                            type: actionDetail.type || 'payment',
+                            bookingId: actionDetail.bookingId || payment.booking?.id || payment.id,
+                            priority: actionDetail.priority || (isPartial ? 'high' : 'normal'),
+                            targetRoles: ['SUPERADMIN'],
+                            metadata: actionDetail.metadata || {}
+                          })
+                        });
+                      } catch (e) {
+                        console.error('Failed to notify super admin:', e);
+                      }
+                    }
+
+                    // Handle checkout transactions (bookings) and regular payments
+                    if (payment?.isCheckout || payment?.type === 'checkout' || payment.booking || payment.type === 'booking') {
+                      // For bookings: update booking payment records and booking.paymentStatus
+                      try {
+                        // Create or update a payment record first
+                        const paymentPayload = {
+                          bookingId: payment.id || payment.booking?.id,
+                          amountPaid: customerPaidInCents,
+                          amountRequired: requiredAmount,
+                          method: paymentMethod,
+                          referenceNo,
+                          status: isFullPayment ? 'Paid' : (isPartial ? 'Partial' : 'Pending'),
+                          processedBy: session?.user?.id,
+                          processedByName: session?.user?.name,
+                          receipt: receiptData,
+                          downPayment: isPartial
+                        };
+
+                        const payRes = await fetch('/api/payments/create-or-update', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify(paymentPayload)
+                        });
+
+                        if (!payRes.ok) {
+                          // Try update endpoint as fallback
+                          await fetch('/api/payments/update', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ paymentId: payment.id, ...paymentPayload })
+                          });
+                        }
+
+                        // Update booking status depending on payment
+                        const newBookingPaymentStatus = isFullPayment ? 'Paid' : (isPartial ? 'Partial' : (requiredAmount === 0 ? 'Paid' : 'Pending'));
+
+                        const bookingRes = await fetch('/api/bookings/update-payment-status', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            bookingId: payment.id || payment.booking?.id,
+                            paymentStatus: newBookingPaymentStatus,
                             paymentMethod,
                             referenceNo,
                             amountPaid: customerPaidInCents,
                             receiptData
-                          }),
+                          })
                         });
-                        
-                        if (!response.ok) {
-                          throw new Error('Failed to update booking');
+
+                        if (!bookingRes.ok) {
+                          console.warn('Booking update returned non-ok');
                         }
                       } catch (error) {
-                        console.error('Error updating checkout booking:', error);
-                        toastError("Failed to update checkout status");
+                        console.error('Error updating booking/payment for checkout:', error);
+                        toastError('Failed to update booking/payment');
                         setActionLoading(false);
                         return;
                       }
-                      
-                      // Remove from checkoutTransactions
-                      setCheckoutTransactions(prev => prev.filter(c => c.id !== payment.id));
-                      
-                      // Update the booking to completed with paid status
+
+                      // Update local UI state conservatively
+                      setCheckoutTransactions(prev => prev.filter(c => {
+                        // if full payment, remove; if partial keep but update amounts
+                        if (isFullPayment) return c.id !== (payment.id || payment.booking?.id);
+                        if (isPartial && c.id === (payment.id || payment.booking?.id)) {
+                          // update remaining balance locally
+                          const paidAmount = (c.payments || []).reduce((s, p) => s + Number(p.amount || 0), 0) + customerPaidInCents;
+                          const newRemaining = (c.totalPrice || 0) - paidAmount;
+                          c.totalPrice = c.totalPrice; // keep
+                          c._localRemaining = newRemaining;
+                        }
+                        return true;
+                      }));
+
                       setBookings(prev => prev.map(booking => 
-                        booking.id === payment.id 
-                          ? { ...booking, status: 'Completed', paymentStatus: 'Paid' }
+                        booking.id === (payment.id || payment.booking?.id) 
+                          ? { ...booking, paymentStatus: isFullPayment ? 'Paid' : (isPartial ? 'Partial' : booking.paymentStatus || 'Pending'), status: isFullPayment ? 'Completed' : booking.status }
                           : booking
                       ));
+
+                      // Notify super admin with summary
+                      await notifySuperAdmin({
+                        title: isPartial ? 'Down Payment Received' : 'Payment Processed',
+                        message: `${session?.user?.name || 'Cashier'} processed ${isPartial ? 'a down payment' : 'a payment'} for booking #${payment.id || payment.booking?.id}. Amount: ₱${(customerPaidInCents/100).toLocaleString()}`,
+                        bookingId: payment.id || payment.booking?.id,
+                        type: 'booking',
+                        priority: isPartial ? 'high' : 'normal',
+                        metadata: { receiptId: receiptData.id, amountPaid: customerPaidInCents }
+                      });
+
                     } else {
-                      // For regular payments with payment IDs
+                      // Regular standalone payment (not linked to a booking)
                       try {
-                        await fetch("/api/payments/update", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            paymentId: payment.id,
-                            amount: customerPaidInCents,
-                            customerPaid: customerPaidInCents,
-                            status: "Paid",
-                            paymentMethod,
-                            referenceNo,
-                            receiptData
-                          }),
+                        const payload = {
+                          paymentId: payment.id,
+                          amount: customerPaidInCents,
+                          customerPaid: customerPaidInCents,
+                          status: isFullPayment ? 'Paid' : (isPartial ? 'Partial' : 'Pending'),
+                          paymentMethod,
+                          referenceNo,
+                          receiptData,
+                          downPayment: isPartial
+                        };
+
+                        const resp = await fetch('/api/payments/update', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify(payload)
                         });
+
+                        if (!resp.ok) {
+                          console.warn('payments/update failed, trying create');
+                          await fetch('/api/payments/create', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                          });
+                        }
                       } catch (error) {
                         console.error('Error updating payment:', error);
                       }
-                      
-                      // Remove from paidPayments
-                      setPaidPayments(prev => prev.filter(p => p.id !== payment.id));
 
-                      // Update bookings to remove from pending if it was a booking
+                      // Update local payments and bookings if linked
+                      setPaidPayments(prev => prev.filter(p => p.id !== payment.id));
                       if (payment.booking || payment.type === 'booking') {
                         setBookings(prev => prev.map(booking => 
                           booking.id === payment.id || booking.id === payment.bookingId
-                            ? { ...booking, status: 'Completed', paymentStatus: 'Paid' }
+                            ? { ...booking, status: isFullPayment ? 'Completed' : booking.status, paymentStatus: isPartial ? 'Partial' : (isFullPayment ? 'Paid' : booking.paymentStatus) }
                             : booking
                         ));
                       }
+
+                      // Notify super admin
+                      await notifySuperAdmin({
+                        title: isPartial ? 'Down Payment Recorded' : 'Payment Recorded',
+                        message: `${session?.user?.name || 'Cashier'} recorded ${isPartial ? 'a down payment' : 'a payment'} (${(customerPaidInCents/100).toLocaleString()})${payment.booking ? ` for booking #${payment.booking.id}` : ''}`,
+                        bookingId: payment.booking?.id || null,
+                        type: 'payment',
+                        priority: isPartial ? 'high' : 'normal',
+                        metadata: { receiptId: receiptData.id, paymentId: payment.id }
+                      });
                     }
 
                     // 2. Add to completed transactions list with unique data
@@ -1358,16 +1812,228 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                       </div>
                       <div className={styles.headerRight}>
                         {/* Notifications */}
-                        <button
-                          onClick={() => setShowNotifications(!showNotifications)}
-                          className={styles.notificationBtn}
-                          aria-label="Notifications"
-                        >
-                          <Bell className="h-5 w-5" />
-                          {totalNotifications > 0 && (
-                            <span className={styles.badge}>{totalNotifications}</span>
+                        <div style={{ position: 'relative' }}>
+                          <button
+                            onClick={() => setShowNotifications(!showNotifications)}
+                            className={styles.notificationBtn}
+                            aria-label="Notifications"
+                            title={`${totalNotifications} new notification${totalNotifications !== 1 ? 's' : ''}`}
+                          >
+                            <Bell className="h-5 w-5" />
+                            {totalNotifications > 0 && (
+                              <span className={styles.badge}>{totalNotifications > 9 ? '9+' : totalNotifications}</span>
+                            )}
+                          </button>
+                          
+                          {/* Notifications Panel */}
+                          {showNotifications && (
+                            <>
+                              <div
+                                onClick={() => setShowNotifications(false)}
+                                style={{ position: 'fixed', inset: 0, zIndex: 140 }}
+                                aria-hidden
+                              />
+                              <div style={{
+                                position: 'absolute',
+                                top: 'calc(100% + 8px)',
+                                right: 0,
+                                width: 'min(95vw, 420px)',
+                                maxHeight: '70vh',
+                                overflowY: 'auto',
+                                background: '#fff',
+                                borderRadius: '12px',
+                                boxShadow: '0 12px 48px rgba(0, 0, 0, 0.15)',
+                                zIndex: 150,
+                                border: '1px solid #e5e7eb',
+                                padding: 0
+                              }}>
+                                {/* Header */}
+                                <div style={{
+                                  padding: '16px',
+                                  borderBottom: '1px solid #e5e7eb',
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  position: 'sticky',
+                                  top: 0,
+                                  background: '#f8fafc',
+                                  zIndex: 10
+                                }}>
+                                  <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '600', color: '#1f2937' }}>
+                                    Notifications
+                                  </h3>
+                                  <span style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    minWidth: '28px',
+                                    height: '28px',
+                                    background: '#febe52',
+                                    color: 'white',
+                                    borderRadius: '999px',
+                                    fontSize: '0.8rem',
+                                    fontWeight: '700'
+                                  }}>
+                                    {totalNotifications > 9 ? '9+' : totalNotifications}
+                                  </span>
+                                </div>
+                                
+                                {/* Notifications List */}
+                                <div style={{ maxHeight: 'calc(70vh - 60px)', overflowY: 'auto' }}>
+                                  {notifications.length === 0 ? (
+                                    <div style={{
+                                      padding: '32px 16px',
+                                      textAlign: 'center',
+                                      color: '#94a3b8'
+                                    }}>
+                                      <Bell className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                                      <p style={{ margin: 0, fontSize: '0.9rem' }}>No notifications yet</p>
+                                    </div>
+                                  ) : (
+                                    notifications.map((notif, idx) => (
+                                      <div key={idx} style={{
+                                        padding: '16px',
+                                        borderBottom: idx < notifications.length - 1 ? '1px solid #f1f5f9' : 'none',
+                                        transition: 'background-color 0.2s ease',
+                                        cursor: 'pointer'
+                                      }}
+                                      onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
+                                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                      >
+                                        {/* Notification Icon and Header */}
+                                        <div style={{
+                                          display: 'flex',
+                                          alignItems: 'flex-start',
+                                          gap: '12px',
+                                          marginBottom: '8px'
+                                        }}>
+                                          <div style={{
+                                            width: '32px',
+                                            height: '32px',
+                                            borderRadius: '8px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            flexShrink: 0,
+                                            background: notif.type === 'payment' ? '#dbeafe' : notif.type === 'booking' ? '#fef3c7' : '#f0fdf4',
+                                            color: notif.type === 'payment' ? '#0369a1' : notif.type === 'booking' ? '#b45309' : '#16a34a'
+                                          }}>
+                                            {notif.type === 'payment' ? (
+                                              <CreditCard className="h-4 w-4" />
+                                            ) : notif.type === 'booking' ? (
+                                              <Hotel className="h-4 w-4" />
+                                            ) : (
+                                              <CheckCircle2 className="h-4 w-4" />
+                                            )}
+                                          </div>
+                                          <div style={{ flex: 1 }}>
+                                            <div style={{
+                                              fontSize: '0.95rem',
+                                              fontWeight: '600',
+                                              color: '#1f2937',
+                                              marginBottom: '2px'
+                                            }}>
+                                              {notif.title || notif.message?.split('\n')[0] || 'Notification'}
+                                            </div>
+                                            <div style={{
+                                              fontSize: '0.8rem',
+                                              color: '#9ca3af',
+                                              fontWeight: '500'
+                                            }}>
+                                              {notif.timestamp ? new Date(notif.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) :
+                                               notif.createdAt ? new Date(notif.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Now'}
+                                            </div>
+                                          </div>
+                                        </div>
+                                        
+                                        {/* Message */}
+                                        <p style={{
+                                          fontSize: '0.9rem',
+                                          color: '#475569',
+                                          lineHeight: '1.5',
+                                          margin: '0 0 12px 0'
+                                        }}>
+                                          {notif.message || notif.description}
+                                        </p>
+                                        
+                                        {/* Actions and Metadata */}
+                                        <div className="flex items-center justify-between">
+                                          <div style={{
+                                            fontSize: '0.8rem',
+                                            color: '#94a3b8',
+                                            fontWeight: '500'
+                                          }}>
+                                            {notif.timestamp ? new Date(notif.timestamp).toLocaleDateString() :
+                                             notif.createdAt ? new Date(notif.createdAt).toLocaleDateString() : 'Today'}
+                                          </div>
+                                          
+                                          {notif.type === 'booking' && notif.bookingId && (
+                                            <button
+                                              style={{
+                                                background: 'linear-gradient(135deg, #febe52, #f59e0b)',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                padding: '6px 12px',
+                                                fontSize: '0.8rem',
+                                                fontWeight: '600',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.2s ease',
+                                                boxShadow: '0 2px 4px rgba(245, 158, 11, 0.3)'
+                                              }}
+                                              onMouseEnter={(e) => {
+                                                e.target.style.transform = 'scale(1.05)';
+                                                e.target.style.boxShadow = '0 4px 8px rgba(245, 158, 11, 0.4)';
+                                              }}
+                                              onMouseLeave={(e) => {
+                                                e.target.style.transform = 'scale(1)';
+                                                e.target.style.boxShadow = '0 2px 4px rgba(245, 158, 11, 0.3)';
+                                              }}
+                                            >
+                                              View Booking
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                                
+                                {/* Footer */}
+                                {notifications.length > 0 && (
+                                  <div style={{
+                                    padding: '12px 16px',
+                                    borderTop: '1px solid #e5e7eb',
+                                    background: '#f8fafc',
+                                    textAlign: 'center'
+                                  }}>
+                                    <button
+                                      onClick={() => {
+                                        setShowNotifications(false);
+                                        // Optional: Add action to view all notifications
+                                        toastSuccess('Viewing all notifications');
+                                      }}
+                                      style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        color: '#3b82f6',
+                                        cursor: 'pointer',
+                                        fontSize: '0.9rem',
+                                        fontWeight: '600',
+                                        textDecoration: 'none',
+                                        transition: 'color 0.2s ease'
+                                      }}
+                                      onMouseEnter={(e) => e.target.style.color = '#1d4ed8'}
+                                      onMouseLeave={(e) => e.target.style.color = '#3b82f6'}
+                                    >
+                                      View All Notifications
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </>
                           )}
-                        </button>
+                        </div>
 
                         {/* User Menu */}
                         <div style={{ position: 'relative' }}>
@@ -1404,6 +2070,14 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                   <span>View Profile</span>
                                 </button>
                                 <button
+                                  onClick={() => { setUserMenuOpen(false); setShowChangePassword(true); }}
+                                  className={styles.menuItem}
+                                  role="menuitem"
+                                >
+                                  <Lock className="h-4 w-4" />
+                                  <span>Change Password</span>
+                                </button>
+                                <button
                                   onClick={() => { setUserMenuOpen(false); signOut({ callbackUrl: '/login' }); }}
                                   className={`${styles.menuItem} ${styles.menuItemLogout}`}
                                   role="menuitem"
@@ -1422,11 +2096,11 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                     <div style={{
                       background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 50%, #e2e8f0 100%)',
                       borderRadius: '16px',
-                      padding: '24px',
+                      padding: '16px',
                       border: '2px solid transparent',
                       backgroundClip: 'padding-box',
                       boxShadow: '0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(254, 190, 82, 0.2)',
-                      margin: '16px 16px 20px 16px',
+                      margin: '12px',
                       position: 'relative',
                       overflow: 'hidden',
                     }}>
@@ -1434,61 +2108,74 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '16px',
                       }}>
                         <div style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '16px',
+                          gap: '12px',
+                          minWidth: 0,
+                          flex: '1 1 auto',
                         }}>
                           <User size={24} style={{
                             color: '#ffffff',
                             background: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 50%, #f59e0b 100%)',
-                            padding: '16px',
+                            padding: '12px',
                             borderRadius: '50%',
-                            width: '56px',
-                            height: '56px',
+                            width: '48px',
+                            height: '48px',
                             boxShadow: '0 8px 24px rgba(245, 158, 11, 0.4), 0 4px 12px rgba(245, 158, 11, 0.2)',
                             border: '3px solid rgba(255, 255, 255, 0.3)',
+                            flexShrink: 0,
                           }} />
-                          <div>
+                          <div style={{ minWidth: 0 }}>
                             <h2 style={{
-                              margin: '0 0 6px 0',
-                              fontSize: '1.8rem',
+                              margin: '0 0 4px 0',
+                              fontSize: 'clamp(1.2rem, 3vw, 1.6rem)',
                               fontWeight: '700',
                               color: '#1f2937',
                               textShadow: '0 2px 4px rgba(0,0,0,0.1)',
                               letterSpacing: '-0.3px',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
                             }}>
-                              Welcome Cashier, {session?.user?.name || session?.user?.email || 'Staff'}!
+                              Welcome, {(session?.user?.name || session?.user?.email || 'Cashier').split(' ')[0]}!
                             </h2>
                             <p style={{
                               margin: '0',
-                              fontSize: '1rem',
+                              fontSize: 'clamp(0.8rem, 2vw, 0.95rem)',
                               color: '#6b7280',
                               display: 'flex',
                               alignItems: 'center',
                               fontWeight: '500',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
                             }}>
-                              <Clock size={16} style={{ marginRight: '8px' }} />
-                              {new Date().toLocaleDateString('en-US', { 
-                                weekday: 'long', 
-                                year: 'numeric', 
-                                month: 'long', 
-                                day: 'numeric' 
-                              })}
+                              <Clock size={14} style={{ marginRight: '6px', flexShrink: 0 }} />
+                              <span style={{ whiteSpace: 'nowrap' }}>
+                                {new Date().toLocaleDateString('en-US', { 
+                                  weekday: 'short', 
+                                  month: 'short', 
+                                  day: 'numeric' 
+                                })}
+                              </span>
                             </p>
                           </div>
                         </div>
                         <div style={{
                           background: '#f59e0b',
                           color: 'white',
-                          padding: '8px 20px',
+                          padding: '6px 16px',
                           borderRadius: '20px',
-                          fontSize: '0.9rem',
+                          fontSize: 'clamp(0.7rem, 1.5vw, 0.85rem)',
                           fontWeight: '600',
                           textTransform: 'uppercase',
                           letterSpacing: '0.5px',
                           boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)',
+                          whiteSpace: 'nowrap',
                         }}>
                           Cashier
                         </div>
@@ -1649,7 +2336,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                               </div>
                                             </div>
                                           </td>
-                                          <td className={styles.td}>
+                                          <td className={`${styles.td} ${styles.actionsCell}`}>
                                             <div className="flex items-center gap-2">
                                               <Calendar className="h-4 w-4 text-gray-400" />
                                               <span className="text-sm">
@@ -1682,7 +2369,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                               </div>
                                             )}
                                           </td>
-                                          <td className={styles.td}>
+                                          <td className={`${styles.td} ${styles.actionsCell}`}>
                                             <div className="flex items-center gap-2">
                                               {isUnpaid ? (
                                                 <button
@@ -1704,14 +2391,9 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                                 </button>
                                               ) : (
                                                 <button
-                                                  onClick={() => {
-                                                    // Show receipt or details for paid checkout
-                                                    console.log('View paid checkout details:', checkout.id);
-                                                  }}
-                                                  className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r text-white text-xs font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
-                                                  style={{
-                                                    background: 'linear-gradient(135deg, #febe52 0%, #f59e0b 100%)',
-                                                  }}
+                                                  onClick={() => openViewDetails(checkout)}
+                                                  className={`${styles.actionButton} ${styles.actionButtonSmall}`}
+                                                  aria-label={`View details for ${checkout.id}`}
                                                 >
                                                   <Eye className="h-3 w-3" />
                                                   View Details
@@ -1835,7 +2517,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                             <div className={styles.sectionTitleBar}>
                               <div className={`${styles.sectionTitle} text-white`} style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
                                 <Hotel className="h-5 w-5" />
-                                Upcoming Reservations (Next 15 Days)
+                                Upcoming Reservations
                               </div>
                               <div className="flex items-center gap-2">
                                 <div className={styles.sectionBadge}>{upcomingTransactionsList.length}</div>
@@ -1963,8 +2645,13 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                           </div>
                                         </td>
                                         <td className={styles.td}>
-                                          <div className="font-semibold text-green-600">
-                                            ₱{((reservation.totalAmount || reservation.totalPrice || 0) / 100).toLocaleString()}
+                                          <div>
+                                            <div className="font-semibold text-green-600">
+                                              {formatCurrencyNoDecimal(reservation.totalPrice || reservation.totalAmount || reservation.total || reservation.amount || 0)}
+                                            </div>
+                                            <div className="text-xs text-slate-500 mt-1">
+                                              DP: {formatCurrencyNoDecimal(reservation.totalPaid || reservation.balancePaid || 0)}
+                                            </div>
                                           </div>
                                         </td>
                                         <td className={styles.td}>
@@ -1981,19 +2668,26 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                           </div>
                                         </td>
                                         <td className={styles.td}>
-                                          <button
-                                            type="button"
-                                            onClick={(e) => { 
-                                              e.stopPropagation(); 
-                                              // Open view-only modal for reservations
-                                              console.log('View reservation details:', reservation.id);
-                                              // You can create a separate view modal here
-                                            }}
-                                            className={`${styles.button} ${styles.btnReview}`}
-                                            aria-label={`View reservation ${reservation.id}`}
-                                          >
-                                            Review
-                                          </button>
+                                          {(() => {
+                                            const state = (reservation.status || '').toLowerCase();
+                                            const needsSuper = state.includes('super') || state.includes('requires_superadmin') || state.includes('awaiting_superadmin');
+                                            const isDisabled = needsSuper && session?.user?.role !== 'SUPERADMIN';
+                                            return (
+                                              <button
+                                                type="button"
+                                                onClick={(e) => { 
+                                                  e.stopPropagation(); 
+                                                  if (isDisabled) return;
+                                                  openViewDetails(reservation);
+                                                }}
+                                                className={`${styles.button} ${styles.btnReview}`}
+                                                aria-label={`View reservation ${reservation.id}`}
+                                                disabled={isDisabled}
+                                              >
+                                                {isDisabled ? 'Awaiting Approval' : 'Review'}
+                                              </button>
+                                            );
+                                          })()}
                                         </td>
                                       </tr>
                                     );
@@ -2181,14 +2875,9 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                                 </button>
                                               ) : (
                                                 <button
-                                                  onClick={() => {
-                                                    // Show receipt or details for paid checkout
-                                                    console.log('View paid checkout details:', checkout.id);
-                                                  }}
-                                                  className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r text-white text-xs font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
-                                                  style={{
-                                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                                                  }}
+                                                  onClick={() => openViewDetails(checkout)}
+                                                  className={`${styles.actionButton} ${styles.actionButtonSmall}`}
+                                                  aria-label={`View details for ${checkout.id}`}
                                                 >
                                                   <Eye className="h-3 w-3" />
                                                   View Details
@@ -2492,11 +3181,11 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                               {cancelled.cancellationRemarks || 'No reason provided'}
                                             </div>
                                           </td>
-                                          <td className={styles.td}>
+                                          <td className={`${styles.td} ${styles.actionsCell}`}>
                                             <button
                                               onClick={() => {
-                                                // Show cancellation details
-                                                alert(`Cancelled Transaction Details:\n\nBooking ID: ${cancelled.id}\nGuest: ${cancelled.user?.name || cancelled.guestName}\nReason: ${cancelled.cancellationRemarks || 'N/A'}`);
+                                                // Open cancellation details modal
+                                                setCancelDetailsModal({ show: true, transaction: cancelled });
                                               }}
                                               className={`${styles.button} ${styles.btnReview}`}
                                             >
@@ -2752,6 +3441,9 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                 <Calculator className="h-5 w-5 text-blue-600" />
                                 Payment Entry
                               </h4>
+                              <div style={{marginBottom: '12px', color: '#475569'}}>
+                                You may accept a full payment or a partial (down) payment. Previous payments are shown in the summary above.
+                              </div>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div style={{marginBottom: '16px'}}>
                                   <label className={styles.label} style={{marginBottom: '8px', display: 'block', fontWeight: '600'}}>Amount Tendered *</label>
@@ -2819,30 +3511,43 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                   const payment = decisionModal.payment;
                                   const required = Number(payment?.totalPrice || payment?.amount || 0);
                                   const paid = Math.round((parseFloat(amountCustomerPaid) || 0) * 100);
-                                  const change = Math.max(0, paid - required);
-                                  const isInsufficient = paid < required;
-                                  
+                                  const alreadyPaid = Number(previousPaid || 0);
+                                  const totalPaid = alreadyPaid + paid;
+                                  const remainingAfter = Math.max(0, required - totalPaid);
+                                  const change = Math.max(0, totalPaid - required);
+                                  const isInsufficient = totalPaid < required;
+
                                   return (
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                       <div className="bg-white rounded-lg p-4 border">
                                         <div className="text-sm text-gray-600 mb-1">Required Amount</div>
                                         <div className="text-lg font-bold text-gray-800">
                                           ₱{(required/100).toLocaleString()}
                                         </div>
                                       </div>
+
                                       <div className="bg-white rounded-lg p-4 border">
-                                        <div className="text-sm text-gray-600 mb-1">Amount Paid</div>
-                                        <div className={`text-lg font-bold ${isInsufficient ? 'text-red-600' : 'text-blue-600'}`}>
+                                        <div className="text-sm text-gray-600 mb-1">Previous Payments</div>
+                                        <div className={`text-lg font-bold ${alreadyPaid > 0 ? 'text-amber-600' : 'text-gray-700'}`}>
+                                          ₱{(alreadyPaid/100).toLocaleString()}
+                                          {alreadyPaid > 0 && <span style={{marginLeft:8, fontSize:12, color:'#92400e'}}> (downpayment)</span>}
+                                        </div>
+                                      </div>
+
+                                      <div className="bg-white rounded-lg p-4 border">
+                                        <div className="text-sm text-gray-600 mb-1">Current Payment</div>
+                                        <div className={`text-lg font-bold ${paid <= 0 ? 'text-red-600' : 'text-blue-600'}`}>
                                           ₱{(paid/100).toLocaleString()}
                                         </div>
                                       </div>
+
                                       <div className="bg-white rounded-lg p-4 border">
-                                        <div className="text-sm text-gray-600 mb-1">Change Due</div>
+                                        <div className="text-sm text-gray-600 mb-1">Remaining / Change</div>
                                         <div className={`text-lg font-bold ${isInsufficient ? 'text-red-600' : 'text-green-600'}`}>
                                           {isInsufficient ? 
-                                              `Insufficient (₱${((required - paid)/100).toLocaleString()} short)` :
-                                              `₱${(change/100).toLocaleString()}`
-                                            }
+                                            `Remaining: ₱${(remainingAfter/100).toLocaleString()}` :
+                                            `Change: ₱${(change/100).toLocaleString()}`
+                                          }
                                         </div>
                                       </div>
                                     </div>
@@ -2984,7 +3689,8 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                               const payment = decisionModal.payment;
                               const required = Number(payment?.totalPrice || payment?.amount || 0);
                               const paid = Math.round((parseFloat(amountCustomerPaid || amountTendered || '0') || 0) * 100);
-                              const canConfirm = !actionLoading && paymentMethod && paid >= required && required > 0;
+                              // Allow confirming partial / down payments: require a payment method and some positive paid amount
+                              const canConfirm = !actionLoading && paymentMethod && paid > 0;
                               return (
                                 <>
                                   <button
@@ -3511,6 +4217,237 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                       </div>
                     )}
 
+                    {/* Cancelled Transaction Details Modal */}
+                    {cancelDetailsModal.show && (
+                      <div
+                        className={styles.modalOverlay}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="cancel-details-title"
+                        onClick={(e) => {
+                          if (e.target === e.currentTarget) setCancelDetailsModal({ show: false, transaction: null });
+                        }}
+                      >
+                        <div className={styles.modal} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 640, width: '92%', padding: 28 }}>
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 id="cancel-details-title" className={styles.modalHeader} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <AlertTriangle className="h-5 w-5" style={{ color: '#f59e0b' }} />
+                              Cancelled Transaction Details
+                            </h3>
+                            <button
+                              onClick={() => setCancelDetailsModal({ show: false, transaction: null })}
+                              className="p-2 hover:bg-gray-100 rounded"
+                              aria-label="Close cancelled details modal"
+                            >
+                              <X className="h-5 w-5" />
+                            </button>
+                          </div>
+
+                          {cancelDetailsModal.transaction && (
+                            <div className="space-y-4">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                  <div className="text-sm text-gray-600">Booking / Transaction ID</div>
+                                  <div className="font-medium">{cancelDetailsModal.transaction.id}</div>
+                                </div>
+                                <div>
+                                  <div className="text-sm text-gray-600">Guest</div>
+                                  <div className="font-medium">{cancelDetailsModal.transaction.user?.name || cancelDetailsModal.transaction.guestName || 'Guest'}</div>
+                                </div>
+                                <div>
+                                  <div className="text-sm text-gray-600">Email</div>
+                                  <div className="font-medium">{cancelDetailsModal.transaction.user?.email || 'N/A'}</div>
+                                </div>
+                                <div>
+                                  <div className="text-sm text-gray-600">Contact</div>
+                                  <div className="font-medium">{cancelDetailsModal.transaction.user?.contact || 'N/A'}</div>
+                                </div>
+                              </div>
+
+                              <div className="bg-red-50 rounded-xl p-4 border border-red-100">
+                                <div className="text-sm text-gray-700 mb-2">Cancellation Reason</div>
+                                <div className="font-medium text-red-700">{cancelDetailsModal.transaction.cancellationRemarks || 'No reason provided'}</div>
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                  <div className="text-sm text-gray-600">Cancelled By</div>
+                                  <div className="font-medium">{cancelDetailsModal.transaction.cancelledBy || 'System'}</div>
+                                </div>
+                                <div>
+                                  <div className="text-sm text-gray-600">Cancelled At</div>
+                                  <div className="font-medium">{cancelDetailsModal.transaction.cancelledAt ? new Date(cancelDetailsModal.transaction.cancelledAt).toLocaleString() : 'N/A'}</div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-end gap-3 pt-2">
+                                <button
+                                  onClick={() => setCancelDetailsModal({ show: false, transaction: null })}
+                                  className="px-4 py-2 bg-gray-200 rounded font-medium hover:bg-gray-300"
+                                >
+                                  Close
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Generic View Details Modal (booking/payment) */}
+                    {viewDetailsModal.show && (
+                      <div
+                        className={styles.modalOverlay}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="view-details-title"
+                        onClick={(e) => { if (e.target === e.currentTarget) setViewDetailsModal({ show: false, data: null }); }}
+                      >
+                        <div className={styles.modal} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 920, width: '94%', padding: 20 }}>
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 id="view-details-title" className={styles.modalHeader} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <BookOpen className="h-5 w-5" style={{ color: '#2563eb' }} />
+                              Details
+                            </h3>
+                              <button onClick={() => setViewDetailsModal({ show: false, data: null })} className={`${styles.modalCloseBtn}`} aria-label="Close details modal"><X className="h-5 w-5" /></button>
+                          </div>
+
+                          {viewDetailsModal.data && (
+                            (() => {
+                              const md = viewDetailsModal.data || {};
+                              // Helper: format date if present and not already passed (compare date-only to avoid timezone issues)
+                              const formatDateIfFuture = (raw) => {
+                                if (!raw) return null;
+                                const d = new Date(raw);
+                                if (isNaN(d.getTime())) return null;
+                                const now = new Date();
+                                // Build date-only values in local time for robust comparison
+                                const dateOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+                                const todayOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                                // If dateOnly is before todayOnly, it's passed
+                                if (dateOnly.getTime() < todayOnly.getTime()) return null;
+                                return dateOnly.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                              };
+                              const formattedCheckIn = formatDateIfFuture(md.checkInDate || md.checkIn || md.startDate);
+                              const formattedCheckOut = formatDateIfFuture(md.checkOut || md.checkOutDate || md.endDate);
+                              const total = Number(md.totalPrice || md.totalCostWithAddons || md.totalAmount || md.total || md.amount || 0);
+                              const paid = Number(md.totalPaid || md.paidAmount || (md.payments || []).reduce((s,p)=>s+Number(p.amount||0),0) || 0);
+                              const balance = Math.max(0, total - paid);
+                              const status = (md.paymentStatus || md.status || '').toLowerCase();
+                              const statusClass = status.includes('cancel') ? 'bg-red-100 text-red-700' : status.includes('paid') ? 'bg-green-100 text-green-700' : status.includes('pending') || status.includes('reservation') ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-700';
+                              return (
+                                <div className="space-y-4">
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+                                    <div className="md:col-span-2 bg-white p-4 rounded-lg shadow-sm border">
+                                      <div className="flex items-start gap-4">
+                                        <div className="w-12 h-12 bg-gradient-to-br from-blue-50 to-white rounded-lg flex items-center justify-center">
+                                          <Users className="h-6 w-6 text-blue-600" />
+                                        </div>
+                                        <div className="flex-1">
+                                          <div className="flex items-center justify-between gap-4">
+                                            <div>
+                                              <div className="text-sm text-gray-500">Booking / Transaction</div>
+                                              <div className="text-lg font-semibold">#{md.id || md.paymentId || 'N/A'}</div>
+                                            </div>
+                                            <div className="text-right">
+                                              <div className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold ${statusClass}`}>{(md.paymentStatus || md.status || 'N/A')}</div>
+                                            </div>
+                                          </div>
+
+                                          <div className={`${styles.modalDetailsGrid} mt-3`}>
+                                            <div className={styles.detailLabel}>Guest</div>
+                                            <div className={styles.detailValue}>{md.user?.name || md.guestName || 'Guest'}</div>
+
+                                            <div className={styles.detailLabel}>Source</div>
+                                            <div className={styles.detailValue}>{md.user ? 'PC / Account' : (md.source || 'Phone / Walk-in')}</div>
+
+                                            <div className={styles.detailLabel}>Contact</div>
+                                            <div className={styles.detailValue}>{md.user?.contact || md.contact || 'N/A'}</div>
+
+                                            <div className={styles.detailLabel}>Email</div>
+                                            <div className={styles.detailValue}>{md.user?.email || md.email || 'N/A'}</div>
+
+                                            {formattedCheckIn && (
+                                              <>
+                                                <div className={styles.detailLabel}>Check-in</div>
+                                                <div className={styles.detailValue}>{formattedCheckIn}</div>
+                                              </>
+                                            )}
+
+                                            {formattedCheckOut && (
+                                              <>
+                                                <div className={styles.detailLabel}>Check-out</div>
+                                                <div className={styles.detailValue}>{formattedCheckOut}</div>
+                                              </>
+                                            )}
+
+                                            {formattedCheckIn && (
+                                              <>
+                                                <div className={styles.detailLabel}>Days Until</div>
+                                                <div className={styles.detailValue}>{md.daysUntilCheckIn ?? 'N/A'}</div>
+                                              </>
+                                            )}
+                                          </div>
+
+                                          {md.notes && (
+                                            <div className="mt-4 bg-white border rounded p-3">
+                                              <div className="text-xs text-gray-500">Notes</div>
+                                              <div className="text-sm text-gray-800">{md.notes}</div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div className={`${styles.amountCard} md:col-span-1`}>
+                                      <div className={styles.amountRow}>
+                                        <div className={styles.amountLabel}>Total</div>
+                                        <div className={styles.amountValue}>{formatCurrencyNoDecimal(total)}</div>
+                                      </div>
+                                      <div className={styles.amountRow}>
+                                        <div className={styles.amountLabel}>Paid</div>
+                                        <div className={styles.amountPaid}>{formatCurrencyNoDecimal(paid)}</div>
+                                      </div>
+                                      <div className={styles.amountRow}>
+                                        <div className={styles.amountLabel}>Balance</div>
+                                        <div className={styles.amountBalance}>{formatCurrencyNoDecimal(balance)}</div>
+                                      </div>
+
+                                      <div>
+                                        <button onClick={() => { setViewDetailsModal({ show: false, data: null }); if (md) openPaymentModal(md); }} className={`${styles.openPaymentBtn} w-full`}>Open Payment</button>
+                                      </div>
+
+                                      <div className={styles.paymentsSection}>
+                                        <div className={styles.paymentsTitle}>Payments</div>
+                                        <div className={styles.paymentsList}>
+                                          {(md.payments || []).length === 0 ? (
+                                            <div className={styles.smallMuted}>No payments recorded</div>
+                                          ) : (
+                                            (md.payments || []).map((p, i) => (
+                                              <div key={i} className={styles.paymentsListItem}>
+                                                <div>
+                                                  <div className={styles.paymentMethod}>{p.method || p.provider || 'Method'}</div>
+                                                  <div className={styles.paymentTime}>{p.createdAt ? new Date(p.createdAt).toLocaleString() : ''}</div>
+                                                </div>
+                                                <div className={styles.paymentRight}>
+                                                  <div className={styles.paymentAmount}>{formatCurrencyNoDecimal(Number(p.amount || 0))}</div>
+                                                  {p.status && <div className={styles.statusPill}>{p.status}</div>}
+                                                </div>
+                                              </div>
+                                            ))
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })()
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Footer */}
                     <footer className={styles.footer}>
                       <p className={styles.footerText}>
@@ -3521,6 +4458,15 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                         {' '}or email support@hotel.com
                       </p>
                     </footer>
+                    
+                    {/* Change Password Modal */}
+                    <ChangePasswordModal
+                      isOpen={showChangePassword}
+                      onClose={() => setShowChangePassword(false)}
+                      onSuccess={() => {
+                        console.log('Cashier password changed successfully');
+                      }}
+                    />
                   </div>
                 );
               }

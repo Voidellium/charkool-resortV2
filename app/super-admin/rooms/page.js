@@ -1,7 +1,7 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import SuperAdminLayout from '@/components/SuperAdminLayout';
-import { DoorOpen, Plus, Edit2, Trash2, Search, Upload, Eye, RefreshCw, BedDouble, Users } from 'lucide-react';
+import { DoorOpen, Plus, Edit2, Trash2, Search, Upload, Eye, RefreshCw, BedDouble, Users, CheckCircle, XCircle, AlertCircle, Info } from 'lucide-react';
 
 export default function SuperAdminRoomsPage() {
   const [rooms, setRooms] = useState([]);
@@ -20,6 +20,12 @@ export default function SuperAdminRoomsPage() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
+
+  // Alert Modal state (replaces browser alert())
+  const [alertModal, setAlertModal] = useState({ show: false, title: '', message: '', type: 'info' });
+  const showAlert = useCallback((title, message, type = 'info') => {
+    setAlertModal({ show: true, title, message, type });
+  }, []);
 
   useEffect(() => {
     fetchRooms();
@@ -69,7 +75,7 @@ export default function SuperAdminRoomsPage() {
   const handleAddRoom = async (e) => {
     e.preventDefault();
     if (!newRoom.name || !newRoom.type) {
-      alert('Please fill in all fields');
+      showAlert('Missing Fields', 'Please fill in all fields', 'warning');
       return;
     }
 
@@ -88,10 +94,10 @@ export default function SuperAdminRoomsPage() {
       setRooms((prev) => [...prev, addedRoom]);
       setNewRoom({ name: '', type: '', price: 0, quantity: 1, image: null });
       setShowAddForm(false);
-      alert('Room added successfully!');
+      showAlert('Room Added', 'Room added successfully!', 'success');
     } catch (err) {
       console.error('Error adding room:', err);
-      alert('Failed to add room. Please try again.');
+      showAlert('Add Failed', 'Failed to add room. Please try again.', 'error');
     }
   };
 
@@ -99,7 +105,7 @@ export default function SuperAdminRoomsPage() {
     e.preventDefault();
     
     if (!editingRoom?.name || !editingRoom?.type) {
-      alert('Please fill in all fields');
+      showAlert('Missing Fields', 'Please fill in all fields', 'warning');
       return;
     }
 
@@ -124,10 +130,10 @@ export default function SuperAdminRoomsPage() {
       setRooms((prev) => prev.map((room) => (room.id === id ? updatedRoom : room)));
       setEditingRoom(null);
       setShowAddForm(false);
-      alert('Room updated successfully!');
+      showAlert('Room Updated', 'Room updated successfully!', 'success');
     } catch (err) {
       console.error('Error updating room:', err);
-      alert('Failed to update room. Please try again.');
+      showAlert('Update Failed', 'Failed to update room. Please try again.', 'error');
     }
   };
 
@@ -635,6 +641,87 @@ export default function SuperAdminRoomsPage() {
           }
         }
       `}</style>
+
+      {/* Alert Modal */}
+      {alertModal.show && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999,
+        }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #febe52 0%, #fcd34d 50%, #f6e27a 100%)',
+            borderRadius: '16px',
+            padding: '24px',
+            maxWidth: '400px',
+            width: '90%',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              marginBottom: '16px',
+            }}>
+              {alertModal.type === 'error' ? (
+                <div style={{ backgroundColor: '#fee2e2', borderRadius: '50%', padding: '8px' }}>
+                  <XCircle size={24} color="#dc2626" />
+                </div>
+              ) : alertModal.type === 'warning' ? (
+                <div style={{ backgroundColor: '#fef3c7', borderRadius: '50%', padding: '8px' }}>
+                  <AlertCircle size={24} color="#d97706" />
+                </div>
+              ) : alertModal.type === 'success' ? (
+                <div style={{ backgroundColor: '#dcfce7', borderRadius: '50%', padding: '8px' }}>
+                  <CheckCircle size={24} color="#16a34a" />
+                </div>
+              ) : (
+                <div style={{ backgroundColor: '#dbeafe', borderRadius: '50%', padding: '8px' }}>
+                  <Info size={24} color="#2563eb" />
+                </div>
+              )}
+              <h3 style={{
+                margin: 0,
+                fontSize: '18px',
+                fontWeight: '700',
+                color: '#5a3e00',
+              }}>{alertModal.title}</h3>
+            </div>
+            <p style={{
+              margin: '0 0 24px 0',
+              fontSize: '15px',
+              color: '#6b4700',
+              lineHeight: '1.5',
+            }}>{alertModal.message}</p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setAlertModal({ show: false, title: '', message: '', type: 'info' })}
+                style={{
+                  backgroundColor: '#56A86B',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '12px 32px',
+                  fontSize: '15px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(86, 168, 107, 0.4)',
+                }}
+              >
+                Okay
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </SuperAdminLayout>
   );
 }

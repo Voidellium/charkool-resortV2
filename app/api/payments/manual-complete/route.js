@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { triggerEvent, notifyStaff, CHANNELS, EVENTS } from '@/lib/pusher-server';
 
 // This endpoint is for testing purposes in local development
 // when webhooks don't work on localhost
@@ -95,6 +96,27 @@ export async function POST(req) {
               where: { id: payment.booking.userId },
               data: { failedPaymentAttempts: 0, paymentCooldownUntil: null },
             });
+          }
+
+          // 🔔 PUSHER: Notify dashboards about payment received
+          try {
+            const pusherData = {
+              bookingId: payment.bookingId,
+              paymentId: payment.id,
+              guestName: payment.booking?.guestName || 'Guest',
+              amount: payment.amount,
+              status: 'Pending',
+              paymentStatus: 'Reservation'
+            };
+            
+            await triggerEvent(CHANNELS.BOOKINGS, EVENTS.BOOKING_UPDATED, pusherData);
+            await triggerEvent(CHANNELS.BOOKINGS, EVENTS.PAYMENT_RECEIVED, pusherData);
+            
+            await notifyStaff('SUPERADMIN', { type: 'payment_received', message: `Payment received from ${pusherData.guestName}`, ...pusherData });
+            await notifyStaff('RECEPTIONIST', { type: 'payment_received', message: `Payment received from ${pusherData.guestName}`, ...pusherData });
+            await notifyStaff('CASHIER', { type: 'payment_received', message: `Payment received from ${pusherData.guestName}`, ...pusherData });
+          } catch (pusherErr) {
+            console.warn('[Pusher] Failed to send payment notification:', pusherErr);
           }
 
           console.log(`✅ Payment completed successfully for booking ${bookingId}`);

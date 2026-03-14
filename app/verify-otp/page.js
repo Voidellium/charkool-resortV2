@@ -258,12 +258,6 @@ function VerifyOTPContent() {
             {otpSent ? 'OTP sent to your email. Please enter the code below.' : 'For security purposes, please enter the OTP sent to your email to access this section.'}
           </p>
 
-          {session?.user?.role === 'DEVELOPER' && (
-            <div className="developer-hint">
-              <strong>🔧 Developer Mode:</strong> Use bypass code <code>DEV-BYPASS-2025</code> to skip OTP verification
-            </div>
-          )}
-
           <form onSubmit={handleSubmit} className="form">
             <div className="input-group">
               <label htmlFor="otp">Enter OTP</label>

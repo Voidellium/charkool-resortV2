@@ -13,10 +13,18 @@ export async function GET(req) {
             lastName: true,
             email: true
           }
+        },
+        booking: {
+          select: {
+            id: true,
+            checkIn: true,
+            checkOut: true,
+            guestName: true
+          }
         }
       },
       orderBy: {
-        createdAt: 'desc' // Most recent first
+        requestedAt: 'desc' // Most recent first - correct field name
       }
     });
 

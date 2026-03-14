@@ -3,7 +3,7 @@ import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/auth';
 
-// POST - Request cancellation (< 7 days before check-in, requires admin approval)
+// POST - Request cancellation (ALL cancellations require admin approval)
 export async function POST(req, context) {
   try {
     const session = await getServerSession(authOptions);
@@ -36,7 +36,7 @@ export async function POST(req, context) {
     }
 
     // Verify user owns this booking
-    if (booking.userId !== session.user.id && !['SUPERADMIN', 'ADMIN'].includes(session.user.role)) {
+    if (booking.userId !== session.user.id && !['SUPERADMIN'].includes(session.user.role)) {
       return NextResponse.json({ error: 'Unauthorized to cancel this booking' }, { status: 403 });
     }
 
@@ -64,18 +64,14 @@ export async function POST(req, context) {
     const checkInDate = new Date(booking.checkIn);
     const daysUntilCheckIn = Math.ceil((checkInDate - now) / (1000 * 60 * 60 * 24));
 
-    // Must be less than 7 days and at least 1 day before check-in
+    // Must be at least 1 day before check-in
     if (daysUntilCheckIn < 1) {
       return NextResponse.json({ 
         error: 'Cancellation not allowed within 24 hours of check-in' 
       }, { status: 400 });
     }
 
-    if (daysUntilCheckIn >= 7) {
-      return NextResponse.json({ 
-        error: 'You can cancel directly without admin approval (7+ days before check-in)' 
-      }, { status: 400 });
-    }
+    // All cancellations now require admin approval - no more direct cancellation
 
     // Create cancellation request
     const cancellationRequest = await prisma.cancellationRequest.create({

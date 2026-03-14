@@ -101,7 +101,7 @@ export async function PATCH(request, { params }) {
       await recordAudit({
         actorId: token?.sub ? parseInt(token.sub) : null,
         actorName: token?.name || token?.email || 'Unknown',
-        actorRole: token?.role || 'ADMIN',
+        actorRole: token?.role || 'SUPERADMIN',
         action: 'UPDATE',
         entity: 'Promotion',
         entityId: String(promotion.id),
@@ -112,7 +112,7 @@ export async function PATCH(request, { params }) {
         await recordAudit({
           actorId: token?.sub ? parseInt(token.sub) : null,
           actorName: token?.name || token?.email || 'Unknown',
-          actorRole: token?.role || 'ADMIN',
+          actorRole: token?.role || 'SUPERADMIN',
           action: 'PUBLISH',
           entity: 'Promotion',
           entityId: String(promotion.id),
@@ -158,7 +158,7 @@ export async function DELETE(request, { params }) {
       await recordAudit({
         actorId: token?.sub ? parseInt(token.sub) : null,
         actorName: token?.name || token?.email || 'Unknown',
-        actorRole: token?.role || 'ADMIN',
+        actorRole: token?.role || 'SUPERADMIN',
         action: 'DELETE',
         entity: 'Promotion',
         entityId: String(id),

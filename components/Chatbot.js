@@ -2,15 +2,61 @@
 
 import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import ChatInterface from './ChatInterface';
 
 const Chatbot = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const { data: session } = useSession();
 
   const pathname = usePathname();
 
-  const visibleRoutes = ['/about-us', '/rooms', '/room', '/virtual-tour', '/'];
-  const shouldShowIcon = visibleRoutes.includes(pathname);
+  // Pages where chatbot should be visible (all guest-accessible pages)
+  const visibleRoutes = [
+    '/',
+    '/about-us',
+    '/rooms',
+    '/room',
+    '/virtual-tour',
+    '/booking',
+    '/guest',
+    '/guest/dashboard',
+    '/guest/bookings',
+    '/guest/profile',
+    '/guest/3dview',
+    '/confirmation',
+    '/amenities'
+  ];
+  
+  // Pages where chatbot should be hidden
+  const hiddenRoutes = [
+    '/checkout',
+    '/payment'
+  ];
+
+  // Roles that should NOT see the chatbot
+  const adminRoles = ['SUPER_ADMIN', 'RECEPTIONIST', 'CASHIER', 'AMENITY_INVENTORY_MANAGER'];
+
+  // Check if current path should show chatbot
+  const shouldShowIcon = (() => {
+    // Hide for admin roles
+    if (session?.user?.role && adminRoles.includes(session.user.role)) {
+      return false;
+    }
+    
+    // Explicitly hidden routes
+    if (hiddenRoutes.some(route => pathname?.startsWith(route))) {
+      return false;
+    }
+    
+    // Explicitly visible routes
+    if (visibleRoutes.some(route => pathname === route || pathname?.startsWith(route))) {
+      return true;
+    }
+    
+    // Default to false for unknown routes
+    return false;
+  })();
 
   useEffect(() => {
     if (isOpen) {
@@ -22,6 +68,19 @@ const Chatbot = () => {
       document.body.style.overflow = 'auto';
     };
   }, [isOpen]);
+
+  // Listen for custom event to open chatbot from anywhere
+  useEffect(() => {
+    const handleOpenChatbot = () => {
+      setIsOpen(true);
+    };
+
+    window.addEventListener('openChatbot', handleOpenChatbot);
+    
+    return () => {
+      window.removeEventListener('openChatbot', handleOpenChatbot);
+    };
+  }, []);
 
   if (!shouldShowIcon) {
     return null;
