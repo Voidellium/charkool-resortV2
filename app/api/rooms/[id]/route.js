@@ -47,7 +47,7 @@ export async function PUT(req, { params }) {
       const safeName = imageFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       try {
         const key = `rooms/${Date.now()}-${safeName}`;
-        const options = { access: 'private', contentType: imageFile.type };
+        const options = { access: 'public', contentType: imageFile.type };
         console.debug('Uploading room image (update) to blob store', { key, options });
         const blob = await put(key, buffer, options);
         data.image = blob.url;

@@ -36,7 +36,7 @@ export async function POST(req) {
     const buffer = Buffer.from(arrayBuffer);
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const blob = await put(`profiles/${session.user.id}-${Date.now()}-${safeName}`, buffer, {
-      access: 'private',
+      access: 'public',
       contentType: file.type,
     });
     const fileUrl = blob.url;

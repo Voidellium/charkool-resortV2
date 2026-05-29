@@ -56,7 +56,7 @@ export async function POST(request) {
       const bytes = await imageFile.arrayBuffer();
       const safeName = imageFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       const blob = await put(`promotions/${Date.now()}-${safeName}`, Buffer.from(bytes), {
-        access: 'private',
+        access: 'public',
         contentType: imageFile.type,
       });
       imagePath = blob.url;
