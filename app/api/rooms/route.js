@@ -144,10 +144,13 @@ export const POST = async (req) => {
     const price = Number(formData.get('price')) || 0;
     const quantity = Number(formData.get('quantity')) || 1;
     const description = formData.get('description');
+    const imageUrlFromClient = formData.get('imageUrl')?.toString() || null;
 
     let imageUrl = null;
     const image = formData.get('image');
-    if (image && image.name) {
+    if (imageUrlFromClient) {
+      imageUrl = imageUrlFromClient;
+    } else if (image && image.name) {
       const MAX_SIZE = 25 * 1024 * 1024;
       const ALLOWED_TYPES = ['image/jpeg', 'image/pjpeg', 'image/png'];
 

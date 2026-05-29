@@ -16,6 +16,7 @@ export async function PUT(req, { params }) {
     const price = Number(formData.get('price')) || 0;
     const quantity = Number(formData.get('quantity')) || 0;
     const description = formData.get('description')?.toString() || '';
+    const imageUrlFromClient = formData.get('imageUrl')?.toString() || null;
     const imageFile = formData.get('image');
 
     const data = { name, type, price, quantity };
@@ -24,8 +25,18 @@ export async function PUT(req, { params }) {
       select: { image: true },
     });
 
-    // Only update image if a new file was uploaded
-    if (imageFile && imageFile instanceof File && imageFile.size > 0) {
+    // Prefer a direct client-uploaded URL, but keep the server upload fallback.
+    if (imageUrlFromClient) {
+      data.image = imageUrlFromClient;
+
+      if (existingRoom?.image && existingRoom.image.startsWith('https://')) {
+        try {
+          await del(existingRoom.image);
+        } catch (deleteErr) {
+          console.warn('Failed to delete previous room image blob:', deleteErr);
+        }
+      }
+    } else if (imageFile && imageFile instanceof File && imageFile.size > 0) {
       const MAX_SIZE = 25 * 1024 * 1024;
       const ALLOWED_TYPES = ['image/jpeg', 'image/pjpeg', 'image/png'];
 
