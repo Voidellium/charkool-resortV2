@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/auth';
 import { notifyStaff, notifyUser, EVENTS } from '@/lib/pusher-server';
+import { sendBookingDecisionEmail } from '@/src/lib/bookingDecisionEmailService';
 
 // PATCH - Approve or deny cancellation request
 export async function PATCH(req, context) {
@@ -21,8 +22,9 @@ export async function PATCH(req, context) {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
 
-    if (action === 'DENY' && !adminContext?.trim()) {
-      return NextResponse.json({ error: 'Admin context/reason is required for denial' }, { status: 400 });
+    const decisionReason = adminContext?.trim();
+    if (!decisionReason) {
+      return NextResponse.json({ error: 'Admin context/reason is required' }, { status: 400 });
     }
 
     // Fetch the cancellation request
@@ -58,7 +60,7 @@ export async function PATCH(req, context) {
             status: 'APPROVED',
             decidedAt: new Date(),
             decidedById: session.user.id,
-            adminContext: adminContext || 'Approved',
+            adminContext: decisionReason,
           },
         });
 
@@ -117,6 +119,23 @@ export async function PATCH(req, context) {
         console.warn('[Pusher] Failed to notify about cancellation approval:', pusherErr);
       }
 
+      if (request.booking?.user?.email) {
+        const guestName = [request.booking.user?.firstName, request.booking.user?.lastName].filter(Boolean).join(' ').trim();
+        const emailResult = await sendBookingDecisionEmail({
+          to: request.booking.user.email,
+          guestName,
+          bookingId: request.bookingId,
+          requestType: 'cancellation',
+          action: 'APPROVE',
+          reason: decisionReason,
+          oldCheckIn: request.booking.checkIn,
+          oldCheckOut: request.booking.checkOut,
+        });
+        if (!emailResult.success) {
+          console.warn('Failed to send cancellation approval email:', emailResult.error);
+        }
+      }
+
       return NextResponse.json({
         success: true,
         message: 'Cancellation request approved',
@@ -132,7 +151,7 @@ export async function PATCH(req, context) {
             status: 'DENIED',
             decidedAt: new Date(),
             decidedById: session.user.id,
-            adminContext: adminContext.trim(),
+            adminContext: decisionReason,
           },
         });
 
@@ -148,7 +167,7 @@ export async function PATCH(req, context) {
         // Create notification for guest with reschedule option
         await tx.notification.create({
           data: {
-            message: `Your cancellation request for booking on ${new Date(request.booking.checkIn).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} to ${new Date(request.booking.checkOut).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} has been denied. Reason: ${adminContext.trim()}. You may reschedule your booking instead.`,
+            message: `Your cancellation request for booking on ${new Date(request.booking.checkIn).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} to ${new Date(request.booking.checkOut).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} has been denied. Reason: ${decisionReason}. You may reschedule your booking instead.`,
             type: 'cancellation_denied',
             role: 'CUSTOMER',
             bookingId: request.bookingId,
@@ -173,7 +192,7 @@ export async function PATCH(req, context) {
           // Send notification
           await notifyUser(request.userId, EVENTS.NEW_NOTIFICATION, {
             type: 'cancellation_denied',
-            message: `Your cancellation request has been denied. Reason: ${adminContext.trim()}. You may reschedule instead.`,
+            message: `Your cancellation request has been denied. Reason: ${decisionReason}. You may reschedule instead.`,
             bookingId: request.bookingId,
           });
           
@@ -181,12 +200,29 @@ export async function PATCH(req, context) {
           await notifyUser(request.userId, EVENTS.BOOKING_STATUS_CHANGED, {
             bookingId: request.bookingId,
             status: 'Confirmed',
-            message: `Your cancellation request was denied. Reason: ${adminContext.trim()}. You may reschedule instead.`,
+            message: `Your cancellation request was denied. Reason: ${decisionReason}. You may reschedule instead.`,
           });
         }
         console.log(`[Pusher] Notified about cancellation denial for request #${requestId}`);
       } catch (pusherErr) {
         console.warn('[Pusher] Failed to notify about cancellation denial:', pusherErr);
+      }
+
+      if (request.booking?.user?.email) {
+        const guestName = [request.booking.user?.firstName, request.booking.user?.lastName].filter(Boolean).join(' ').trim();
+        const emailResult = await sendBookingDecisionEmail({
+          to: request.booking.user.email,
+          guestName,
+          bookingId: request.bookingId,
+          requestType: 'cancellation',
+          action: 'DENY',
+          reason: decisionReason,
+          oldCheckIn: request.booking.checkIn,
+          oldCheckOut: request.booking.checkOut,
+        });
+        if (!emailResult.success) {
+          console.warn('Failed to send cancellation denial email:', emailResult.error);
+        }
       }
 
       return NextResponse.json({

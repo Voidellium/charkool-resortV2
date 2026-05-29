@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/auth';
 import { notifyStaff, notifyUser, EVENTS } from '@/lib/pusher-server';
+import { sendBookingDecisionEmail } from '@/src/lib/bookingDecisionEmailService';
 
 // POST: Guest submits a reschedule request
 export async function POST(req, { params }) {
@@ -149,7 +150,15 @@ export async function PATCH(req, { params }) {
     const session = await getServerSession(authOptions);
     const adminId = session?.user?.id;
     const action = data.action; // 'APPROVE' or 'DENY'
-    const context = data.context || null;
+    const decisionReason = (data.adminContext || data.context || '').trim();
+
+    if (!['APPROVE', 'DENY'].includes(action)) {
+      return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+    }
+
+    if (!decisionReason) {
+      return NextResponse.json({ error: 'Admin reason is required for this decision' }, { status: 400 });
+    }
 
     const request = await prisma.rescheduleRequest.findUnique({
       where: { id: parseInt(id) },
@@ -176,6 +185,7 @@ export async function PATCH(req, { params }) {
         where: { id: request.id },
         data: {
           status: 'APPROVED',
+          adminContext: decisionReason,
           decidedAt: new Date(),
           decidedById: adminId,
         },
@@ -207,7 +217,7 @@ export async function PATCH(req, { params }) {
           // Send notification
           await notifyUser(request.userId, EVENTS.NEW_NOTIFICATION, {
             type: 'reschedule_approved',
-            message: `Your reschedule request has been approved. New dates: ${new Date(request.newCheckIn).toLocaleDateString()} to ${new Date(request.newCheckOut).toLocaleDateString()}`,
+            message: `Your reschedule request has been approved. Reason: ${decisionReason}. New dates: ${new Date(request.newCheckIn).toLocaleDateString()} to ${new Date(request.newCheckOut).toLocaleDateString()}`,
             bookingId: request.bookingId,
           });
           
@@ -217,19 +227,38 @@ export async function PATCH(req, { params }) {
             status: 'Confirmed',
             checkIn: request.newCheckIn,
             checkOut: request.newCheckOut,
-            message: 'Your reschedule request has been approved',
+            message: `Your reschedule request has been approved. Reason: ${decisionReason}`,
           });
         }
         console.log(`[Pusher] Notified about reschedule approval for request #${request.id}`);
       } catch (pusherErr) {
         console.warn('[Pusher] Failed to notify about reschedule approval:', pusherErr);
       }
+
+      if (request.user?.email) {
+        const guestName = [request.user?.firstName, request.user?.lastName].filter(Boolean).join(' ').trim();
+        const emailResult = await sendBookingDecisionEmail({
+          to: request.user.email,
+          guestName,
+          bookingId: request.bookingId,
+          requestType: 'reschedule',
+          action: 'APPROVE',
+          reason: decisionReason,
+          oldCheckIn: request.oldCheckIn,
+          oldCheckOut: request.oldCheckOut,
+          newCheckIn: request.newCheckIn,
+          newCheckOut: request.newCheckOut,
+        });
+        if (!emailResult.success) {
+          console.warn('Failed to send reschedule approval email:', emailResult.error);
+        }
+      }
     } else if (action === 'DENY') {
       updated = await prisma.rescheduleRequest.update({
         where: { id: request.id },
         data: {
           status: 'DENIED',
-          adminContext: context,
+          adminContext: decisionReason,
           decidedAt: new Date(),
           decidedById: adminId,
         },
@@ -237,7 +266,7 @@ export async function PATCH(req, { params }) {
       // Notify guest
       await prisma.notification.create({
         data: {
-          message: `Your reschedule request for booking #${request.bookingId} was denied. Reason: ${context}`,
+          message: `Your reschedule request for booking #${request.bookingId} was denied. Reason: ${decisionReason}`,
           type: 'reschedule_denied',
           role: 'CUSTOMER',
           bookingId: request.bookingId,
@@ -261,7 +290,7 @@ export async function PATCH(req, { params }) {
           // Send notification
           await notifyUser(request.userId, EVENTS.NEW_NOTIFICATION, {
             type: 'reschedule_denied',
-            message: `Your reschedule request has been denied. Reason: ${context}`,
+            message: `Your reschedule request has been denied. Reason: ${decisionReason}`,
             bookingId: request.bookingId,
           });
           
@@ -269,15 +298,32 @@ export async function PATCH(req, { params }) {
           await notifyUser(request.userId, EVENTS.BOOKING_STATUS_CHANGED, {
             bookingId: request.bookingId,
             status: 'Confirmed',
-            message: `Your reschedule request was denied. Reason: ${context}`,
+            message: `Your reschedule request was denied. Reason: ${decisionReason}`,
           });
         }
         console.log(`[Pusher] Notified about reschedule denial for request #${request.id}`);
       } catch (pusherErr) {
         console.warn('[Pusher] Failed to notify about reschedule denial:', pusherErr);
       }
-    } else {
-      return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+
+      if (request.user?.email) {
+        const guestName = [request.user?.firstName, request.user?.lastName].filter(Boolean).join(' ').trim();
+        const emailResult = await sendBookingDecisionEmail({
+          to: request.user.email,
+          guestName,
+          bookingId: request.bookingId,
+          requestType: 'reschedule',
+          action: 'DENY',
+          reason: decisionReason,
+          oldCheckIn: request.oldCheckIn,
+          oldCheckOut: request.oldCheckOut,
+          newCheckIn: request.newCheckIn,
+          newCheckOut: request.newCheckOut,
+        });
+        if (!emailResult.success) {
+          console.warn('Failed to send reschedule denial email:', emailResult.error);
+        }
+      }
     }
 
     return NextResponse.json({ success: true, request: updated });

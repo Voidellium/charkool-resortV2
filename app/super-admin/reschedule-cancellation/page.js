@@ -39,7 +39,7 @@ export default function RescheduleCancellationPage() {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [showDenyModal, setShowDenyModal] = useState(false);
-  const [denyReason, setDenyReason] = useState('');
+  const [decisionReason, setDecisionReason] = useState('');
   const ITEMS_PER_PAGE = 10;
 
   // Fetch reschedule requests
@@ -132,23 +132,30 @@ export default function RescheduleCancellationPage() {
   // Approve reschedule request
   const handleApprove = async (request) => {
     setSelectedRequest(request);
+    setDecisionReason('');
     setShowApproveModal(true);
   };
 
   const confirmApprove = async () => {
     if (!selectedRequest) return;
+    if (!decisionReason.trim()) {
+      if (toast && toast.warning) {
+        toast.warning('Please provide a reason before approval');
+      }
+      return;
+    }
     
     try {
       // Determine if this is a reschedule or cancellation request
       const isCancellation = currentTab === 'cancellation';
       const endpoint = isCancellation 
         ? `/api/cancellation-requests/${selectedRequest.id}`
-        : `/api/bookings/${selectedRequest.bookingId}/reschedule`;
+        : `/api/bookings/${selectedRequest.id}/reschedule`;
       
       const res = await fetch(endpoint, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'APPROVE' })
+        body: JSON.stringify({ action: 'APPROVE', adminContext: decisionReason.trim() })
       });
 
       if (res.ok) {
@@ -177,19 +184,20 @@ export default function RescheduleCancellationPage() {
     } finally {
       setShowApproveModal(false);
       setSelectedRequest(null);
+      setDecisionReason('');
     }
   };
 
   // Deny reschedule request
   const handleDeny = async (request) => {
     setSelectedRequest(request);
-    setDenyReason('');
+    setDecisionReason('');
     setShowDenyModal(true);
   };
 
   const confirmDeny = async () => {
     if (!selectedRequest) return;
-    if (!denyReason.trim()) {
+    if (!decisionReason.trim()) {
       if (toast && toast.warning) {
         toast.warning('Please provide a reason for denial');
       }
@@ -201,12 +209,12 @@ export default function RescheduleCancellationPage() {
       const isCancellation = currentTab === 'cancellation';
       const endpoint = isCancellation 
         ? `/api/cancellation-requests/${selectedRequest.id}`
-        : `/api/bookings/${selectedRequest.bookingId}/reschedule`;
+        : `/api/bookings/${selectedRequest.id}/reschedule`;
       
       const res = await fetch(endpoint, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'DENY', adminContext: denyReason })
+        body: JSON.stringify({ action: 'DENY', adminContext: decisionReason.trim() })
       });
 
       if (res.ok) {
@@ -235,7 +243,7 @@ export default function RescheduleCancellationPage() {
     } finally {
       setShowDenyModal(false);
       setSelectedRequest(null);
-      setDenyReason('');
+      setDecisionReason('');
     }
   };
 
@@ -556,6 +564,13 @@ export default function RescheduleCancellationPage() {
                   )}
                 </div>
               )}
+              <textarea
+                value={decisionReason}
+                onChange={(e) => setDecisionReason(e.target.value)}
+                placeholder="Enter reason for approval..."
+                style={styles.modalTextarea}
+                rows={4}
+              />
               <div style={styles.modalActions}>
                 <button onClick={confirmApprove} style={styles.modalConfirmButton}>
                   Approve
@@ -594,8 +609,8 @@ export default function RescheduleCancellationPage() {
                 </div>
               )}
               <textarea
-                value={denyReason}
-                onChange={(e) => setDenyReason(e.target.value)}
+                value={decisionReason}
+                onChange={(e) => setDecisionReason(e.target.value)}
                 placeholder="Enter reason for denial..."
                 style={styles.modalTextarea}
                 rows={4}

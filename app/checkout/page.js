@@ -493,6 +493,18 @@ export default function CheckoutPage() {
                 <p style={{ color: '#065f46' }}>Example: 2 rooms → ₱4,000 reservation fee.</p>
               </div>
 
+              <div style={{ marginTop: '12px', padding: '10px', backgroundColor: '#fffbeb', borderRadius: '8px', border: '1px solid #f59e0b' }}>
+                <p style={{ marginBottom: '8px' }}>
+                  <strong>Cancellation Policy:</strong> A flat-rate fee of <strong>2,000 PHP</strong> is required to secure your booking and is strictly non-refundable.
+                </p>
+                <p style={{ marginBottom: '8px' }}>
+                  Instead of canceling and forfeiting your fee, we highly encourage you to request a reschedule.
+                </p>
+                <p style={{ marginBottom: 0 }}>
+                  In cases of extreme emergencies or typhoons, booking adjustments are subject to the resort owner's approval.
+                </p>
+              </div>
+
               <div className="section">
                 <label>
                   Payment Method
