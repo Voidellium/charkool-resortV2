@@ -4,7 +4,6 @@ import SuperAdminLayout from '@/components/SuperAdminLayout';
 import { DoorOpen, Plus, Edit2, Trash2, Search, Upload, Eye, RefreshCw, BedDouble, Users, CheckCircle, XCircle, AlertCircle, Info } from 'lucide-react';
 import { useToast } from '@/components/Toast';
 import { toBlobProxyUrl } from '@/lib/blobUrl';
-import { upload } from '@vercel/blob/client';
 
 export default function SuperAdminRoomsPage() {
   const { success, error, warning, info } = useToast();
@@ -93,14 +92,6 @@ export default function SuperAdminRoomsPage() {
     return { valid: true };
   };
 
-  const uploadRoomImage = async (file) => {
-    const blob = await upload(file.name, file, {
-      access: 'public',
-      handleUploadUrl: '/api/rooms/upload',
-    });
-    return blob.url;
-  };
-
   const handleAddRoom = async (e) => {
     e.preventDefault();
     if (!newRoom.name || !newRoom.type) {
@@ -115,21 +106,12 @@ export default function SuperAdminRoomsPage() {
       }
     }
     try {
-      let uploadedImageUrl = null;
-      if (newRoom.image instanceof File) {
-        uploadedImageUrl = await uploadRoomImage(newRoom.image);
-      }
-
       const formData = new FormData();
       formData.append('name', newRoom.name);
       formData.append('type', newRoom.type);
       formData.append('price', newRoom.price * 100);
       formData.append('quantity', newRoom.quantity);
-      if (uploadedImageUrl) {
-        formData.append('imageUrl', uploadedImageUrl);
-      } else if (newRoom.image) {
-        formData.append('image', newRoom.image);
-      }
+      if (newRoom.image) formData.append('image', newRoom.image);
 
       const res = await fetch('/api/rooms', { method: 'POST', body: formData });
       if (!res.ok) {
@@ -165,20 +147,13 @@ export default function SuperAdminRoomsPage() {
     }
 
     try {
-      let uploadedImageUrl = null;
-      if (editingRoom.image instanceof File) {
-        uploadedImageUrl = await uploadRoomImage(editingRoom.image);
-      }
-
       const formData = new FormData();
       formData.append('name', editingRoom.name);
       formData.append('type', editingRoom.type);
       formData.append('price', editingRoom.price * 100);
       formData.append('quantity', editingRoom.quantity);
-      // Only append the file as a fallback; direct uploads use imageUrl.
-      if (uploadedImageUrl) {
-        formData.append('imageUrl', uploadedImageUrl);
-      } else if (editingRoom.image && editingRoom.image instanceof File) {
+      // Only append image if it's a File object (new upload), not a string (existing path)
+      if (editingRoom.image && editingRoom.image instanceof File) {
         formData.append('image', editingRoom.image);
       }
 
