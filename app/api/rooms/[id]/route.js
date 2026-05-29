@@ -23,6 +23,23 @@ export async function PUT(req, { params }) {
 
     // Only update image if a new file was uploaded
     if (imageFile && imageFile instanceof File && imageFile.size > 0) {
+      const MAX_SIZE = 25 * 1024 * 1024;
+      const ALLOWED_TYPES = ['image/jpeg', 'image/pjpeg', 'image/png'];
+
+      if (imageFile.size > MAX_SIZE) {
+        return NextResponse.json(
+          { error: 'File size exceeds 25MB limit' },
+          { status: 400 }
+        );
+      }
+
+      if (!ALLOWED_TYPES.includes(imageFile.type)) {
+        return NextResponse.json(
+          { error: 'Only JPG, JPEG, JFIF, and PNG image files are allowed' },
+          { status: 400 }
+        );
+      }
+
       const uploadDir = path.join(process.cwd(), 'public/uploads');
       if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 

@@ -59,6 +59,11 @@ export default function CheckoutPage() {
           }
           setBookingId(storedBookingId);
           setHeldUntil(data.heldUntil ? new Date(data.heldUntil) : null);
+          const bookingFinalTotal = Number(data.totalAfterDiscount || data.totalPrice || 0) / 100;
+          if (!Number.isNaN(bookingFinalTotal) && bookingFinalTotal >= 0) {
+            setAmount(bookingFinalTotal.toFixed(0));
+            localStorage.setItem('bookingAmount', bookingFinalTotal.toFixed(0));
+          }
           // Compute total rooms from booking details
           try {
             // Sum up the quantity field from all room entries
@@ -80,7 +85,7 @@ export default function CheckoutPage() {
           window.location.href = '/booking';
         });
     }
-    if (storedAmount) {
+    if (!storedBookingId && storedAmount) {
       const amountInPesos = parseFloat(storedAmount).toFixed(0);
       setAmount(amountInPesos);
       // Keep full booking amount for display only; enteredAmount will be set from booking rooms

@@ -7,15 +7,7 @@ import {
   Trash2,
   X,
   Plus,
-  Users,
-  UserCog,
-  Eye,
-  Shield,
-  Calendar,
-  Mail,
-  Phone,
-  CheckCircle,
-  XCircle
+  UserCog
 } from 'lucide-react';
 import SuperAdminLayout from '@/components/SuperAdminLayout';
 import { useToast, ConfirmModal } from '@/components/Toast';
@@ -43,20 +35,23 @@ const getRoleLabel = (role) => {
 };
 
 export default function UsersPage() {
-  // Tab state
-  const [activeTab, setActiveTab] = useState('staff'); // 'staff' or 'customers'
-  
   // Data state
   const [staff, setStaff] = useState([]);
-  const [customers, setCustomers] = useState([]);
   
   // UI state
   const [showStaffForm, setShowStaffForm] = useState(false);
   const [editingStaff, setEditingStaff] = useState(null);
-  const [viewingCustomer, setViewingCustomer] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterRole, setFilterRole] = useState('');
-  const [confirmModal, setConfirmModal] = useState({ isOpen: false, userId: null, userType: null });
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, userId: null });
+  const [promotionModal, setPromotionModal] = useState({
+    isOpen: false,
+    staffMember: null,
+    pendingFormData: null,
+    justification: '',
+    acknowledged: false,
+    adminPassword: '',
+  });
   const [loading, setLoading] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -85,32 +80,18 @@ export default function UsersPage() {
       }
     } catch (err) {
       console.error('Failed to fetch staff:', err);
-      error('Failed to load staff');
-    }
-  };
-
-  const fetchCustomers = async () => {
-    try {
-      const res = await fetch('/api/customers');
-      if (res.ok) {
-        const data = await res.json();
-        setCustomers(data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch customers:', err);
-      error('Failed to load customers');
     }
   };
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([fetchStaff(), fetchCustomers()]).finally(() => setLoading(false));
+    fetchStaff().finally(() => setLoading(false));
   }, []);
 
-  // Reset page when changing tabs or filters
+  // Reset page when changing filters
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, filterRole, searchQuery]);
+  }, [filterRole, searchQuery]);
 
   // Filter logic
   const filteredStaff = staff
@@ -122,16 +103,10 @@ export default function UsersPage() {
              email.toLowerCase().includes(searchQuery.toLowerCase());
     });
 
-  const filteredCustomers = customers
-    .filter(c => {
-      const name = c.name || `${c.firstName || ''} ${c.lastName || ''}`;
-      const email = c.email || '';
-      return name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-             email.toLowerCase().includes(searchQuery.toLowerCase());
-    });
+
 
   // Pagination
-  const currentItems = activeTab === 'staff' ? filteredStaff : filteredCustomers;
+  const currentItems = filteredStaff;
   const totalPages = Math.ceil(currentItems.length / ITEMS_PER_PAGE);
   const paginatedItems = currentItems.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
@@ -149,26 +124,18 @@ export default function UsersPage() {
     setShowStaffForm(true);
   };
 
-  const handleViewCustomer = (customer) => {
-    setViewingCustomer(customer);
-  };
-
-  const handleDelete = (id, userType) => {
-    setConfirmModal({ isOpen: true, userId: id, userType });
+  const handleDelete = (id) => {
+    setConfirmModal({ isOpen: true, userId: id });
   };
 
   const confirmDelete = async () => {
-    const { userId, userType } = confirmModal;
+    const { userId } = confirmModal;
     setFormLoading(true);
     try {
       const res = await fetch(`/api/user/${userId}`, { method: 'DELETE' });
       if (res.ok) {
-        if (userType === 'staff') {
-          setStaff(staff.filter(s => s.id !== userId));
-        } else {
-          setCustomers(customers.filter(c => c.id !== userId));
-        }
-        success(`${userType === 'staff' ? 'Staff' : 'Customer'} deleted successfully`);
+        setStaff(staff.filter(s => s.id !== userId));
+        success('Staff deleted successfully');
       } else {
         const data = await res.json();
         throw new Error(data.error || 'Delete failed');
@@ -178,7 +145,7 @@ export default function UsersPage() {
       error(err.message || 'Failed to delete');
     } finally {
       setFormLoading(false);
-      setConfirmModal({ isOpen: false, userId: null, userType: null });
+      setConfirmModal({ isOpen: false, userId: null });
     }
   };
 
@@ -221,6 +188,46 @@ export default function UsersPage() {
     } finally {
       setFormLoading(false);
     }
+  };
+
+  const handleRequestPromotion = (staffMember, formData) => {
+    setPromotionModal({
+      isOpen: true,
+      staffMember,
+      pendingFormData: formData,
+      justification: '',
+      acknowledged: false,
+      adminPassword: '',
+    });
+  };
+
+  const confirmPromotion = async () => {
+    if (!promotionModal.pendingFormData) return;
+
+    if (!promotionModal.justification.trim()) {
+      error('Please provide a short justification for this promotion');
+      return;
+    }
+
+    if (!promotionModal.acknowledged) {
+      error('Please acknowledge the family-business promotion warning');
+      return;
+    }
+
+    if (!promotionModal.adminPassword.trim()) {
+      error('Please enter your current password to confirm this promotion');
+      return;
+    }
+
+    const submitData = {
+      ...promotionModal.pendingFormData,
+      promotionJustification: promotionModal.justification.trim(),
+      promotionAcknowledged: true,
+      adminPassword: promotionModal.adminPassword,
+    };
+
+    setPromotionModal(prev => ({ ...prev, isOpen: false }));
+    await handleSaveStaff(submitData);
   };
 
   // Styles
@@ -275,7 +282,7 @@ export default function UsersPage() {
               User Management
             </h1>
             <p style={{ fontSize: '1rem', color: '#666', margin: '0.5rem 0 0 0' }}>
-              Manage staff accounts and view customer information
+              Manage staff accounts
             </p>
           </div>
           <div style={{ display: 'flex', gap: '1rem' }}>
@@ -290,37 +297,10 @@ export default function UsersPage() {
               <UserCog size={16} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
               Staff: {staff.length}
             </div>
-            <div style={{ 
-              background: '#6b7280',
-              padding: '0.75rem 1rem',
-              borderRadius: '8px',
-              color: 'white',
-              fontWeight: '600',
-              fontSize: '0.9rem'
-            }}>
-              <Users size={16} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-              Customers: {customers.length}
-            </div>
           </div>
         </div>
 
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: '4px', marginBottom: '-2px', position: 'relative', zIndex: 1 }}>
-          <button
-            onClick={() => setActiveTab('staff')}
-            style={tabStyle(activeTab === 'staff')}
-          >
-            <UserCog size={20} />
-            Staff Accounts
-          </button>
-          <button
-            onClick={() => setActiveTab('customers')}
-            style={tabStyle(activeTab === 'customers')}
-          >
-            <Users size={20} />
-            Customers
-          </button>
-        </div>
+
 
         {/* Main Content Card */}
         <div style={cardStyle}>
@@ -328,23 +308,25 @@ export default function UsersPage() {
           <div style={{
             display: 'flex',
             flexDirection: isMobile ? 'column' : 'row',
+            flexWrap: 'wrap',
             gap: '1rem',
             marginBottom: '1.5rem',
             alignItems: isMobile ? 'stretch' : 'center'
           }}>
             {/* Search */}
-            <div style={{ position: 'relative', flex: 1 }}>
+            <div style={{ position: 'relative', flex: '1 1 360px', minWidth: isMobile ? '100%' : '280px' }}>
               <Search size={20} style={{ 
                 position: 'absolute', left: '12px', top: '50%', 
                 transform: 'translateY(-50%)', color: '#6b7280' 
               }} />
               <input
                 type="text"
-                placeholder={`Search ${activeTab}...`}
+                placeholder="Search staff..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{
                   width: '100%',
+                  boxSizing: 'border-box',
                   padding: '12px 12px 12px 44px',
                   borderRadius: '8px',
                   border: '2px solid #e5e7eb',
@@ -353,69 +335,48 @@ export default function UsersPage() {
               />
             </div>
 
-            {/* Filter (staff only) */}
-            {activeTab === 'staff' && (
-              <select
-                value={filterRole}
-                onChange={(e) => setFilterRole(e.target.value)}
-                style={{
-                  padding: '12px 16px',
-                  borderRadius: '8px',
-                  border: '2px solid #e5e7eb',
-                  fontSize: '1rem',
-                  minWidth: '180px',
-                }}
-              >
-                <option value="">All Roles</option>
-                {STAFF_ROLES.map(role => (
-                  <option key={role.value} value={role.value}>{role.label}</option>
-                ))}
-              </select>
-            )}
+            <select
+              value={filterRole}
+              onChange={(e) => setFilterRole(e.target.value)}
+              style={{
+                flex: '0 0 180px',
+                padding: '12px 16px',
+                borderRadius: '8px',
+                border: '2px solid #e5e7eb',
+                fontSize: '1rem',
+                minWidth: '180px',
+                boxSizing: 'border-box',
+              }}
+            >
+              <option value="">All Roles</option>
+              {STAFF_ROLES.map(role => (
+                <option key={role.value} value={role.value}>{role.label}</option>
+              ))}
+            </select>
 
-            {/* Add Staff Button (staff tab only) */}
-            {activeTab === 'staff' && (
-              <button
-                onClick={handleAddStaff}
-                style={{
-                  padding: '12px 20px',
-                  background: 'linear-gradient(135deg, #febe52 0%, #EBD591 100%)',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  fontSize: '1rem',
-                  fontWeight: '600',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                <Plus size={20} /> Add Staff
-              </button>
-            )}
+            <button
+              onClick={handleAddStaff}
+              style={{
+                flex: '0 0 auto',
+                padding: '12px 20px',
+                background: 'linear-gradient(135deg, #febe52 0%, #EBD591 100%)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '1rem',
+                fontWeight: '600',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <Plus size={20} /> Add Staff
+            </button>
           </div>
 
-          {/* Info Banner for Customers */}
-          {activeTab === 'customers' && (
-            <div style={{
-              background: '#f0f9ff',
-              border: '1px solid #bae6fd',
-              borderRadius: '8px',
-              padding: '12px 16px',
-              marginBottom: '1rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              color: '#0369a1'
-            }}>
-              <Shield size={20} />
-              <span>
-                <strong>Customer accounts are created through registration.</strong> You can view their information and booking history here.
-              </span>
-            </div>
-          )}
+
 
           {/* Table */}
           <div style={{ overflowX: 'auto' }}>
@@ -424,26 +385,27 @@ export default function UsersPage() {
                 <tr style={{ background: 'linear-gradient(135deg, #febe52 0%, #EBD591 100%)' }}>
                   <th style={{ padding: '14px', textAlign: 'left', color: 'white', fontWeight: '600' }}>Name</th>
                   <th style={{ padding: '14px', textAlign: 'left', color: 'white', fontWeight: '600' }}>Email</th>
-                  {activeTab === 'staff' ? (
-                    <th style={{ padding: '14px', textAlign: 'left', color: 'white', fontWeight: '600' }}>Role</th>
-                  ) : (
-                    <>
-                      <th style={{ padding: '14px', textAlign: 'center', color: 'white', fontWeight: '600' }}>Verified</th>
-                      <th style={{ padding: '14px', textAlign: 'center', color: 'white', fontWeight: '600' }}>Bookings</th>
-                    </>
-                  )}
+                  <th style={{ padding: '14px', textAlign: 'left', color: 'white', fontWeight: '600' }}>Role</th>
                   <th style={{ padding: '14px', textAlign: 'center', color: 'white', fontWeight: '600' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <TableLoading colSpan={activeTab === 'staff' ? 4 : 5} />
+                  <TableLoading colSpan={4} />
                 ) : paginatedItems.length === 0 ? (
                     <tr>
-                      <td colSpan={activeTab === 'staff' ? 4 : 5} style={{ 
+                      <td colSpan={4} style={{ 
                         padding: '2rem', textAlign: 'center', color: '#6b7280' 
                       }}>
-                        No {activeTab} found
+                        <div style={{ display: 'grid', gap: '0.35rem', justifyItems: 'center' }}>
+                          <div style={{ fontWeight: 600, color: '#374151' }}>No staff found</div>
+                          <div style={{ maxWidth: '520px', lineHeight: 1.5 }}>
+                            This table shows staff-role accounts only, including example accounts such as Super Admin, Receptionist, Cashier, and Inventory Manager when they exist in the database.
+                          </div>
+                          <div style={{ fontSize: '0.9rem', color: '#9a3412' }}>
+                            If you expected names here, refresh the page or verify that the sample accounts were seeded.
+                          </div>
+                        </div>
                       </td>
                     </tr>
                   ) : (
@@ -456,110 +418,54 @@ export default function UsersPage() {
                           {item.name || `${item.firstName || ''} ${item.lastName || ''}`.trim() || 'N/A'}
                         </td>
                         <td style={{ padding: '14px', color: '#6b7280' }}>{item.email}</td>
-                        {activeTab === 'staff' ? (
-                          <td style={{ padding: '14px' }}>
-                            <span style={{
-                              background: getRoleBadgeColor(item.role),
-                              color: 'white',
-                              padding: '6px 12px',
-                              borderRadius: '20px',
-                              fontSize: '0.85rem',
-                              fontWeight: '500'
-                            }}>
-                              {getRoleLabel(item.role)}
-                            </span>
-                          </td>
-                        ) : (
-                          <>
-                            <td style={{ padding: '14px', textAlign: 'center' }}>
-                              {item.isVerified ? (
-                                <CheckCircle size={20} color="#16a34a" />
-                              ) : (
-                                <XCircle size={20} color="#dc2626" />
-                              )}
-                            </td>
-                            <td style={{ padding: '14px', textAlign: 'center', fontWeight: '600' }}>
-                              {item.bookingCount || 0}
-                            </td>
-                          </>
-                        )}
+                        <td style={{ padding: '14px' }}>
+                          <span style={{
+                            background: getRoleBadgeColor(item.role),
+                            color: 'white',
+                            padding: '6px 12px',
+                            borderRadius: '20px',
+                            fontSize: '0.85rem',
+                            fontWeight: '500'
+                          }}>
+                            {getRoleLabel(item.role)}
+                          </span>
+                        </td>
                         <td style={{ padding: '14px', textAlign: 'center' }}>
                           <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
-                            {activeTab === 'staff' ? (
-                              <>
-                                <button
-                                  onClick={() => handleEditStaff(item)}
-                                  style={{
-                                    padding: '8px 12px',
-                                    background: '#2563eb',
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '6px',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '4px',
-                                    fontSize: '0.85rem'
-                                  }}
-                                >
-                                  <Edit size={14} /> Edit
-                                </button>
-                                <button
-                                  onClick={() => handleDelete(item.id, 'staff')}
-                                  style={{
-                                    padding: '8px 12px',
-                                    background: '#dc2626',
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '6px',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '4px',
-                                    fontSize: '0.85rem'
-                                  }}
-                                >
-                                  <Trash2 size={14} /> Delete
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button
-                                  onClick={() => handleViewCustomer(item)}
-                                  style={{
-                                    padding: '8px 12px',
-                                    background: '#6b7280',
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '6px',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '4px',
-                                    fontSize: '0.85rem'
-                                  }}
-                                >
-                                  <Eye size={14} /> View
-                                </button>
-                                <button
-                                  onClick={() => handleDelete(item.id, 'customer')}
-                                  style={{
-                                    padding: '8px 12px',
-                                    background: '#dc2626',
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '6px',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '4px',
-                                    fontSize: '0.85rem'
-                                  }}
-                                >
-                                  <Trash2 size={14} /> Delete
-                                </button>
-                              </>
-                            )}
+                            <button
+                              onClick={() => handleEditStaff(item)}
+                              style={{
+                                padding: '8px 12px',
+                                background: '#2563eb',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                fontSize: '0.85rem'
+                              }}
+                            >
+                              <Edit size={14} /> Edit
+                            </button>
+                            <button
+                              onClick={() => handleDelete(item.id)}
+                              style={{
+                                padding: '8px 12px',
+                                background: '#dc2626',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                fontSize: '0.85rem'
+                              }}
+                            >
+                              <Trash2 size={14} /> Delete
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -630,17 +536,9 @@ export default function UsersPage() {
           <StaffFormModal
             staff={editingStaff}
             onSave={handleSaveStaff}
+            onRequestPromotion={handleRequestPromotion}
             onClose={() => setShowStaffForm(false)}
             loading={formLoading}
-            isMobile={isMobile}
-          />
-        )}
-
-        {/* Customer View Modal */}
-        {viewingCustomer && (
-          <CustomerViewModal
-            customer={viewingCustomer}
-            onClose={() => setViewingCustomer(null)}
             isMobile={isMobile}
           />
         )}
@@ -648,21 +546,199 @@ export default function UsersPage() {
         {/* Confirm Delete Modal */}
         <ConfirmModal
           isOpen={confirmModal.isOpen}
-          onClose={() => setConfirmModal({ isOpen: false, userId: null, userType: null })}
+          onClose={() => setConfirmModal({ isOpen: false, userId: null })}
           onConfirm={confirmDelete}
-          title={`Delete ${confirmModal.userType === 'staff' ? 'Staff' : 'Customer'}`}
-          message={`Are you sure you want to delete this ${confirmModal.userType}? This action cannot be undone.`}
+          title="Delete Staff"
+          message="Are you sure you want to delete this staff member? This action cannot be undone."
           confirmText="Delete"
           cancelText="Cancel"
           variant="danger"
         />
+
+        {promotionModal.isOpen && promotionModal.staffMember && (
+          <div style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.55)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            alignItems: 'flex-start',
+            zIndex: 1100,
+            padding: isMobile ? '0.5rem' : '1rem',
+            overflowY: 'auto'
+          }}>
+            <div style={{
+              width: '100%',
+              maxWidth: isMobile ? '100%' : '560px',
+              maxHeight: isMobile ? 'calc(100vh - 1rem)' : 'calc(100vh - 2rem)',
+              background: 'white',
+              borderRadius: isMobile ? '14px' : '18px',
+              boxShadow: '0 24px 60px rgba(0,0,0,0.25)',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              marginTop: isMobile ? '0.5rem' : '0'
+            }}>
+              <div style={{
+                padding: isMobile ? '1rem 1rem' : '1.25rem 1.5rem',
+                background: 'linear-gradient(135deg, #dc2626 0%, #f59e0b 100%)',
+                color: 'white'
+              }}>
+                <h2 style={{ margin: 0, fontSize: '1.35rem' }}>
+                  {promotionModal.staffMember ? 'Confirm Super Admin Promotion' : 'Confirm Super Admin Creation'}
+                </h2>
+                <p style={{ margin: '0.35rem 0 0 0', opacity: 0.95 }}>
+                  This action is reserved for owners or direct family managers only.
+                </p>
+              </div>
+              <div style={{
+                padding: isMobile ? '1rem' : '1.5rem',
+                overflowY: 'auto'
+              }}>
+                <div style={{
+                  background: '#fff7ed',
+                  border: '1px solid #fdba74',
+                  borderRadius: '12px',
+                  padding: isMobile ? '0.85rem' : '1rem',
+                  marginBottom: '1rem',
+                  color: '#9a3412',
+                  lineHeight: 1.55
+                }}>
+                  Superadmin promotion is reserved for owners or direct family managers only, so it supports succession, emergency access, and daily continuity without depending on one person. This is not meant for ordinary staff; it is a trust-based admin transfer within the family governance structure of the business.
+                </div>
+
+                <div style={{ marginBottom: '1rem' }}>
+                  <div style={{ fontWeight: 600, marginBottom: '0.35rem', color: '#374151' }}>
+                    {promotionModal.staffMember ? 'Promoting' : 'Creating'}
+                  </div>
+                  <div style={{ color: '#111827' }}>
+                    {promotionModal.staffMember
+                      ? (promotionModal.staffMember.name || promotionModal.staffMember.email || `Staff #${promotionModal.staffMember.id}`)
+                      : (promotionModal.pendingFormData?.name || promotionModal.pendingFormData?.email || 'New Super Admin account')}
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: '1rem' }}>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, color: '#374151' }}>
+                    Short justification
+                  </label>
+                  <textarea
+                    value={promotionModal.justification}
+                    onChange={(e) => setPromotionModal(prev => ({ ...prev, justification: e.target.value }))}
+                    rows={3}
+                    placeholder="Explain why this staff member should be promoted to Super Admin..."
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      borderRadius: '10px',
+                      border: '2px solid #e5e7eb',
+                      fontSize: '0.98rem',
+                      resize: 'vertical',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '10px',
+                  padding: '12px 14px',
+                  borderRadius: '10px',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  marginBottom: '1rem',
+                  cursor: 'pointer'
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={promotionModal.acknowledged}
+                    onChange={(e) => setPromotionModal(prev => ({ ...prev, acknowledged: e.target.checked }))}
+                    style={{ marginTop: '4px' }}
+                  />
+                  <span style={{ color: '#374151', lineHeight: 1.5 }}>
+                    I understand this promotion is for family ownership, succession, or emergency continuity only.
+                  </span>
+                </label>
+
+                <div style={{ marginBottom: '1rem' }}>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, color: '#374151' }}>
+                    Current superadmin password
+                  </label>
+                  <input
+                    type="password"
+                    value={promotionModal.adminPassword}
+                    onChange={(e) => setPromotionModal(prev => ({ ...prev, adminPassword: e.target.value }))}
+                    placeholder="Enter your password to confirm"
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      borderRadius: '10px',
+                      border: '2px solid #e5e7eb',
+                      fontSize: '0.98rem',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: '0.75rem',
+                  flexDirection: isMobile ? 'column-reverse' : 'row'
+                }}>
+                  <button
+                    type="button"
+                    onClick={() => setPromotionModal({
+                      isOpen: false,
+                      staffMember: null,
+                      pendingFormData: null,
+                      justification: '',
+                      acknowledged: false,
+                      adminPassword: '',
+                    })}
+                    style={{
+                      padding: '10px 18px',
+                      borderRadius: '8px',
+                      border: '1px solid #d1d5db',
+                      background: '#fff',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      color: '#374151'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmPromotion}
+                    disabled={formLoading}
+                    style={{
+                      padding: '10px 18px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: 'linear-gradient(135deg, #dc2626 0%, #f59e0b 100%)',
+                      color: '#fff',
+                      cursor: formLoading ? 'not-allowed' : 'pointer',
+                      fontWeight: 700,
+                      opacity: formLoading ? 0.7 : 1
+                    }}
+                  >
+                    {formLoading ? 'Confirming...' : 'Confirm Promotion'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </SuperAdminLayout>
   );
 }
 
 // Staff Form Modal Component
-function StaffFormModal({ staff, onSave, onClose, loading, isMobile }) {
+function StaffFormModal({ staff, onSave, onRequestPromotion, onClose, loading, isMobile }) {
   const [formData, setFormData] = useState({
     name: staff?.name || '',
     email: staff?.email || '',
@@ -688,6 +764,13 @@ function StaffFormModal({ staff, onSave, onClose, loading, isMobile }) {
     if (validate()) {
       const submitData = { ...formData };
       if (!submitData.password) delete submitData.password;
+
+      const isPromotionToSuperAdmin = submitData.role === 'SUPERADMIN' && (!staff || staff.role !== 'SUPERADMIN');
+      if (isPromotionToSuperAdmin) {
+        onRequestPromotion(staff, submitData);
+        return;
+      }
+
       onSave(submitData);
     }
   };
@@ -802,6 +885,21 @@ function StaffFormModal({ staff, onSave, onClose, loading, isMobile }) {
             </select>
           </div>
 
+          {formData.role === 'SUPERADMIN' && (!staff || staff.role !== 'SUPERADMIN') && (
+            <div style={{
+              background: '#fff7ed',
+              border: '1px solid #fdba74',
+              borderRadius: '8px',
+              padding: '12px',
+              marginBottom: '20px',
+              fontSize: '0.9rem',
+              color: '#9a3412',
+              lineHeight: 1.5
+            }}>
+              Assigning Super Admin access will require a warning confirmation, a short justification, an acknowledgment, and your current password.
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
             <button
               type="button"
@@ -845,157 +943,4 @@ function StaffFormModal({ staff, onSave, onClose, loading, isMobile }) {
   );
 }
 
-// Customer View Modal Component
-function CustomerViewModal({ customer, onClose, isMobile }) {
-  const formatDate = (date) => {
-    if (!date) return 'N/A';
-    return new Date(date).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-  };
 
-  return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      background: 'rgba(0,0,0,0.5)',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 1000,
-    }}>
-      <div style={{
-        background: 'white',
-        borderRadius: '16px',
-        padding: '24px',
-        width: isMobile ? '95%' : '500px',
-        maxHeight: '90vh',
-        overflowY: 'auto',
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h2 style={{ margin: 0, fontSize: '1.5rem', color: '#1f2937' }}>
-            Customer Details
-          </h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-            <X size={24} color="#6b7280" />
-          </button>
-        </div>
-
-        <div style={{ 
-          background: '#f9fafb', 
-          borderRadius: '12px', 
-          padding: '20px',
-          marginBottom: '20px'
-        }}>
-          <div style={{ 
-            width: '80px', 
-            height: '80px', 
-            background: 'linear-gradient(135deg, #febe52 0%, #EBD591 100%)',
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            margin: '0 auto 16px',
-            color: 'white',
-            fontSize: '2rem',
-            fontWeight: '600'
-          }}>
-            {(customer.name?.[0] || customer.firstName?.[0] || '?').toUpperCase()}
-          </div>
-          <h3 style={{ textAlign: 'center', margin: '0 0 8px', color: '#1f2937' }}>
-            {customer.name || `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'N/A'}
-          </h3>
-          <div style={{ textAlign: 'center' }}>
-            <span style={{
-              background: customer.isVerified ? '#dcfce7' : '#fee2e2',
-              color: customer.isVerified ? '#16a34a' : '#dc2626',
-              padding: '4px 12px',
-              borderRadius: '20px',
-              fontSize: '0.85rem',
-              fontWeight: '500'
-            }}>
-              {customer.isVerified ? '✓ Verified' : '✗ Not Verified'}
-            </span>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <Mail size={20} color="#6b7280" />
-            <div>
-              <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>Email</div>
-              <div style={{ fontWeight: '500' }}>{customer.email}</div>
-            </div>
-          </div>
-
-          {customer.contactNumber && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <Phone size={20} color="#6b7280" />
-              <div>
-                <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>Contact Number</div>
-                <div style={{ fontWeight: '500' }}>{customer.contactNumber}</div>
-              </div>
-            </div>
-          )}
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <Calendar size={20} color="#6b7280" />
-            <div>
-              <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>Member Since</div>
-              <div style={{ fontWeight: '500' }}>{formatDate(customer.createdAt)}</div>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <Calendar size={20} color="#6b7280" />
-            <div>
-              <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>Last Login</div>
-              <div style={{ fontWeight: '500' }}>{formatDate(customer.lastLogin)}</div>
-            </div>
-          </div>
-
-          <div style={{ 
-            background: '#eff6ff', 
-            padding: '16px', 
-            borderRadius: '8px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
-          }}>
-            <span style={{ color: '#1e40af', fontWeight: '500' }}>Total Bookings</span>
-            <span style={{ 
-              background: '#2563eb', 
-              color: 'white', 
-              padding: '4px 16px', 
-              borderRadius: '20px',
-              fontWeight: '600',
-              fontSize: '1.1rem'
-            }}>
-              {customer.bookingCount || 0}
-            </span>
-          </div>
-        </div>
-
-        <button
-          onClick={onClose}
-          style={{
-            width: '100%',
-            marginTop: '24px',
-            padding: '12px',
-            background: '#e5e7eb',
-            color: '#374151',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontWeight: '500',
-            fontSize: '1rem'
-          }}
-        >
-          Close
-        </button>
-      </div>
-    </div>
-  );
-}

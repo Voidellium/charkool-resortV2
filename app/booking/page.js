@@ -14,7 +14,7 @@ import { useNavigationGuard } from '../../hooks/useNavigationGuard.simple';
 import { useNavigationContext } from '../../context/NavigationContext';
 import { NavigationConfirmationModal, ThreeDRoomViewerModal, MaxCapacityModal, MidnightAlertModal } from '../../components/CustomModals';
 import DataPrivacyModal from '../../components/DataPrivacyModal';
-import { useAvailabilityUpdates } from '../../hooks/usePusher';
+import { useAvailabilityUpdates, usePusher, CHANNELS, EVENTS } from '../../hooks/usePusher';
 
 // Timezone-safe date formatting utility
 function formatDate(date) {
@@ -37,6 +37,13 @@ export default function BookingPage() {
   const [disabledDates, setDisabledDates] = useState([]); // Dates disabled by super admin
   const [maxBookingMonths, setMaxBookingMonths] = useState(2); // Max months ahead for booking
   const [totalPrice, setTotalPrice] = useState(0);
+  const [baseTotal, setBaseTotal] = useState(0);
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [promotions, setPromotions] = useState([]);
+  const [selectedPromotionId, setSelectedPromotionId] = useState('');
+  const [appliedPromotionId, setAppliedPromotionId] = useState(null);
+  const [appliedPromotion, setAppliedPromotion] = useState(null);
+  const [promotionError, setPromotionError] = useState('');
   const [showPendingPrompt, setShowPendingPrompt] = useState(false);
   const [pendingBooking, setPendingBooking] = useState(null);
   const submittingRef = useRef(false);
@@ -202,6 +209,31 @@ export default function BookingPage() {
     }
   }, [status, router]);
 
+  useEffect(() => {
+    async function fetchPromotions() {
+      try {
+        const res = await fetch('/api/promotions');
+        if (!res.ok) return;
+        const data = await res.json();
+        const now = new Date();
+        const activePromos = (Array.isArray(data) ? data : []).filter((promo) => {
+          if (!promo?.isActive) return false;
+          if (promo?.targetType !== 'booking') return false;
+          const start = promo.startDate ? new Date(promo.startDate) : null;
+          const end = promo.endDate ? new Date(promo.endDate) : null;
+          if (start && start > now) return false;
+          if (end && end < now) return false;
+          return true;
+        });
+        setPromotions(activePromos);
+      } catch (e) {
+        console.error('Failed to fetch promotions:', e);
+      }
+    }
+
+    fetchPromotions();
+  }, []);
+
   // Poll user cooldown on mount (requires session)
   useEffect(() => {
     async function fetchCooldown() {
@@ -266,6 +298,30 @@ export default function BookingPage() {
     }
   }, [status, session, router]);
 
+  const refetchRentalAmenities = useCallback(async () => {
+    try {
+      const res = await fetch('/api/amenities/rental');
+      if (res.ok) {
+        const data = await res.json();
+        setRentalAmenitiesData(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      console.error('❌ Failed to load rental amenities:', err);
+    }
+  }, []);
+
+  const refetchOptionalAmenities = useCallback(async () => {
+    try {
+      const res = await fetch('/api/amenities/optional');
+      if (res.ok) {
+        const data = await res.json();
+        setOptionalAmenitiesData(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      console.error('❌ Failed to load optional amenities:', err);
+    }
+  }, []);
+
 
   // --- Data Fetching ---
   useEffect(() => {
@@ -328,37 +384,12 @@ export default function BookingPage() {
     fetchDisabledDates();
     fetchBookingConfig();
 
-    // NEW: Fetch rental amenities data for price breakdown
-    async function fetchRentalAmenities() {
-      try {
-        const res = await fetch('/api/amenities/rental');
-        if (res.ok) {
-          const data = await res.json();
-          setRentalAmenitiesData(data);
-        }
-      } catch (err) {
-        console.error('❌ Failed to load rental amenities:', err);
-      }
-    }
-    fetchRentalAmenities();
-
-    // NEW: Fetch optional amenities to resolve names in review
-    async function fetchOptionalAmenities() {
-      try {
-        const res = await fetch('/api/amenities/optional');
-        if (res.ok) {
-          const data = await res.json();
-          setOptionalAmenitiesData(data);
-        }
-      } catch (err) {
-        console.error('❌ Failed to load optional amenities:', err);
-      }
-    }
-    fetchOptionalAmenities();
+    refetchRentalAmenities();
+    refetchOptionalAmenities();
 
     // Store fetchAvailability reference for Pusher hook
     window._refetchAvailability = fetchAvailability;
-  }, []);
+  }, [refetchOptionalAmenities, refetchRentalAmenities]);
 
   // 🔔 PUSHER: Real-time room availability updates
   // Callback to refresh availability when another user books
@@ -401,6 +432,17 @@ export default function BookingPage() {
       }
     },
   });
+
+  usePusher(
+    CHANNELS.AMENITIES,
+    {
+      [EVENTS.AMENITY_STOCK_CHANGED]: () => {
+        refetchOptionalAmenities();
+        refetchRentalAmenities();
+      },
+    },
+    true
+  );
 
   // Midnight polling: Start at 11:55 PM, stop at 12:05 AM
   useEffect(() => {
@@ -596,14 +638,30 @@ export default function BookingPage() {
                 };
             }
 
+              if (appliedPromotionId) {
+                requestBody.promotionId = appliedPromotionId;
+              }
+
             const res = await fetch('/api/bookings/calculate-total', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(requestBody),
             });
-            if(res.ok) {
-                const data = await res.json();
-                setTotalPrice(data.totalPrice || 0);
+            if (res.ok) {
+              const data = await res.json();
+              setPromotionError('');
+              setAppliedPromotion(data.appliedPromotion || null);
+              setBaseTotal(data.baseTotal || data.totalPrice || 0);
+              setDiscountAmount(data.discountAmount || 0);
+              setTotalPrice(data.finalTotal || data.totalPrice || 0);
+            } else {
+              const errorData = await res.json();
+              setPromotionError(errorData?.error || 'Promotion could not be applied.');
+              if (appliedPromotionId) {
+                setAppliedPromotionId(null);
+                setAppliedPromotion(null);
+                setDiscountAmount(0);
+              }
             }
         } catch (error) {
             console.error("Price calculation error:", error);
@@ -611,7 +669,7 @@ export default function BookingPage() {
     }
 
     calculateTotal();
-  }, [formData.selectedRooms, formData.selectedAmenities, formData.rooms, formData.checkIn, formData.checkOut]);
+        }, [formData.selectedRooms, formData.selectedAmenities, formData.rooms, formData.checkIn, formData.checkOut, appliedPromotionId]);
 
 
   // --- Helpers for validation & locking ---
@@ -767,6 +825,19 @@ export default function BookingPage() {
     } else {
       setFormData(prev => ({ ...prev, selectedAmenities: updater }));
     }
+  };
+
+  const handleApplyPromotion = () => {
+    if (!selectedPromotionId) return;
+    setPromotionError('');
+    setAppliedPromotionId(Number(selectedPromotionId));
+  };
+
+  const handleRemovePromotion = () => {
+    setAppliedPromotionId(null);
+    setAppliedPromotion(null);
+    setDiscountAmount(0);
+    setPromotionError('');
   };
 
   // NEW: Handler functions for rooms array format
@@ -1013,6 +1084,10 @@ export default function BookingPage() {
         userId: session.user.id,
       };
 
+      if (appliedPromotionId) {
+        requestBody.promotionId = appliedPromotionId;
+      }
+
       if (formData.rooms.length > 0) {
         // NEW FORMAT: Send rooms array with guest details
         requestBody.rooms = formData.rooms;
@@ -1121,7 +1196,7 @@ export default function BookingPage() {
       </section>
 
       {/* Layout */}
-      <div className="layout">
+      <div className={`layout ${step !== 2 ? 'with-summary' : ''}`}>
         <div className="main">
           {/* Stepper - Updated to 2 steps */}
           <div className="stepper" role="navigation" aria-label="Booking steps">
@@ -1856,6 +1931,7 @@ export default function BookingPage() {
                                           </h5>
                                           <OptionalAmenitiesSelector
                                             selectedAmenities={roomData.optionalAmenities || {}}
+                                            amenities={optionalAmenitiesData}
                                             excludedAmenityNames={['Broom & Dustpan', 'Toiletries Kit']}
                                             onAmenitiesChange={(newOptional) => {
                                               handleRoomAmenityChange(room.id, roomData.instanceNumber, 'optional', null, newOptional);
@@ -1870,26 +1946,13 @@ export default function BookingPage() {
                                           </h5>
                                           <RentalAmenitiesSelector
                                             selectedAmenities={roomData.rentalAmenities || {}}
+                                            amenities={rentalAmenitiesData}
                                             onAmenitiesChange={(newRental) => {
                                               handleRoomAmenityChange(room.id, roomData.instanceNumber, 'rental', null, newRental);
                                             }}
                                           />
                                         </div>
 
-                                        {/* Auto-fill info for Additional Pax */}
-                                        {roomData.additionalPax > 0 && (
-                                          <div style={{ 
-                                            padding: '0.75rem', 
-                                            background: '#dbeafe', 
-                                            border: '1px solid #3b82f6',
-                                            borderRadius: '0.5rem',
-                                            marginTop: '1rem'
-                                          }}>
-                                            <p style={{ margin: 0, color: '#1e40af', fontSize: '0.875rem' }}>
-                                              💡 {roomData.additionalPax} extra bed(s) will be automatically included for your {roomData.additionalPax} additional pax.
-                                            </p>
-                                          </div>
-                                        )}
                                       </div>
                                     </div>
                                   )}
@@ -1937,7 +2000,6 @@ export default function BookingPage() {
                                   <ul style={{ listStyleType: 'none', paddingLeft: '1.5rem', margin: '0.25rem 0' }}>
                                     {roomData.adults > 0 && <li style={{ fontSize: '0.9rem', color: '#4b5563' }}>- {roomData.adults} adult{roomData.adults !== 1 ? 's' : ''}</li>}
                                     {roomData.additionalPax > 0 && <li style={{ fontSize: '0.9rem', color: '#4b5563' }}>- {roomData.additionalPax} additional pax</li>}
-                                    {roomData.additionalPax > 0 && <li style={{ fontSize: '0.9rem', color: '#059669', fontWeight: '500' }}>- {roomData.additionalPax} extra bed{roomData.additionalPax !== 1 ? 's' : ''} (included)</li>}
                                     {roomData.children > 0 && <li style={{ fontSize: '0.9rem', color: '#4b5563' }}>- {roomData.children} {roomData.children === 1 ? 'child' : 'children'}</li>}
                                   </ul>
                                 </li>
@@ -1981,12 +2043,17 @@ export default function BookingPage() {
                                   if (quantity > 0 || hoursUsed > 0) {
                                     const amenity = rentalAmenitiesData.find(a => a.id === parseInt(amenityId));
                                     const amenityName = amenity?.name || `Rental Amenity ${amenityId}`;
+                                    const pricePerHour = amenity?.pricePerHour || 0;
+                                    const pricePerUnit = amenity?.pricePerUnit || 0;
+                                    const lineTotal = hoursUsed > 0 ? hoursUsed * pricePerHour : quantity * pricePerUnit;
                                     const key = `rental-${amenityId}`;
                                     
                                     if (!amenityMap.has(key)) {
-                                      amenityMap.set(key, { name: amenityName, rooms: [], type: 'rental' });
+                                      amenityMap.set(key, { name: amenityName, rooms: [], type: 'rental', totalPrice: 0 });
                                     }
-                                    amenityMap.get(key).rooms.push({ roomLabel, qty: quantity, hours: hoursUsed });
+                                    const current = amenityMap.get(key);
+                                    current.rooms.push({ roomLabel, qty: quantity, hours: hoursUsed, totalPrice: lineTotal });
+                                    current.totalPrice += lineTotal;
                                   }
                                 });
                               }
@@ -2009,13 +2076,74 @@ export default function BookingPage() {
                                   
                                   return (
                                     <li key={key}>
-                                      {totalQty}× {data.name} <span style={{ color: '#6b7280', fontSize: '0.9em' }}>(from {roomsText})</span>
+                                      {totalQty}× {data.name}
+                                      {data.type === 'rental' && (
+                                        <strong style={{ marginLeft: '0.5rem' }}>₱{(data.totalPrice / 100).toLocaleString()}</strong>
+                                      )}
+                                      <span style={{ color: '#6b7280', fontSize: '0.9em' }}>(from {roomsText})</span>
                                     </li>
                                   );
                                 })}
                               </ul>
                             );
                           })()}
+                        </div>
+                        <div className="review-section">
+                          <h3 className="section-title">Promotion</h3>
+                          {promotions.length === 0 ? (
+                            <p style={{ color: '#6b7280', fontStyle: 'italic' }}>No active promotions available right now.</p>
+                          ) : (
+                            <div style={{ display: 'grid', gap: '0.75rem' }}>
+                              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                                <select
+                                  value={selectedPromotionId}
+                                  onChange={(e) => setSelectedPromotionId(e.target.value)}
+                                  style={{
+                                    minWidth: 220,
+                                    padding: '0.5rem 0.75rem',
+                                    borderRadius: 8,
+                                    border: '1px solid #e5e7eb',
+                                    background: 'white'
+                                  }}
+                                >
+                                  <option value="">Select a promotion</option>
+                                  {promotions.map((promo) => (
+                                    <option key={promo.id} value={promo.id}>
+                                      {promo.title} ({promo.discountType === 'percentage' ? `${promo.discountValue / 100}%` : `₱${(promo.discountValue / 100).toLocaleString()}`} off)
+                                    </option>
+                                  ))}
+                                </select>
+                                <button
+                                  type="button"
+                                  onClick={handleApplyPromotion}
+                                  disabled={!selectedPromotionId}
+                                  className="btn-next"
+                                  style={{ opacity: selectedPromotionId ? 1 : 0.6 }}
+                                >
+                                  Apply
+                                </button>
+                                {appliedPromotion && (
+                                  <button
+                                    type="button"
+                                    onClick={handleRemovePromotion}
+                                    className="btn-secondary"
+                                  >
+                                    Remove
+                                  </button>
+                                )}
+                              </div>
+                              {promotionError && (
+                                <div className="info-banner info-orange">
+                                  <p><strong>Promotion:</strong> {promotionError}</p>
+                                </div>
+                              )}
+                              {appliedPromotion && (
+                                <div className="info-banner info-green">
+                                  <p><strong>Applied:</strong> {appliedPromotion.title} (saves ₱{(discountAmount / 100).toLocaleString()})</p>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                         <div className="review-section">
                           <h3 className="section-title">Price breakdown</h3>
@@ -2066,8 +2194,20 @@ export default function BookingPage() {
                               </li>
                             ) : null}
                           </ul>
+                          {discountAmount > 0 && (
+                            <>
+                              <div className="total-line">
+                                <span>Subtotal</span>
+                                <strong>₱{(baseTotal / 100).toLocaleString()}</strong>
+                              </div>
+                              <div className="total-line" style={{ color: '#b45309' }}>
+                                <span>Promotion Discount</span>
+                                <strong>-₱{(discountAmount / 100).toLocaleString()}</strong>
+                              </div>
+                            </>
+                          )}
                           <div className="total-line">
-                            <span>Total</span>
+                            <span>{discountAmount > 0 ? 'Final Total' : 'Total'}</span>
                             <strong>₱{(totalPrice / 100).toLocaleString()}</strong>
                           </div>
                           <div className="info-banner info-blue">
@@ -2198,7 +2338,6 @@ export default function BookingPage() {
                         <ul style={{ listStyleType: 'none', paddingLeft: '0.75rem', margin: 0, fontSize: '0.8rem', color: '#6b7280' }}>
                           {roomData.adults > 0 && <li>- {roomData.adults} adult{roomData.adults !== 1 ? 's' : ''}</li>}
                           {roomData.additionalPax > 0 && <li>- {roomData.additionalPax} additional pax</li>}
-                          {roomData.additionalPax > 0 && <li style={{ color: '#059669' }}>- {roomData.additionalPax} extra bed{roomData.additionalPax !== 1 ? 's' : ''}</li>}
                           {roomData.children > 0 && <li>- {roomData.children} {roomData.children === 1 ? 'child' : 'children'}</li>}
                         </ul>
                       </li>
@@ -2428,7 +2567,7 @@ export default function BookingPage() {
           box-sizing: border-box;
         }
         .hero-inner {
-          max-width: 1200px;
+          max-width: min(1720px, 96vw);
           width: 100%;
           margin: 0 auto;
           text-align: center;
@@ -2436,7 +2575,7 @@ export default function BookingPage() {
           padding: 0 12px;
         }
         .hero-title {
-          font-size: clamp(2rem, 2.5vw + 1rem, 3.2rem);
+          font-size: clamp(1.8rem, 1.5vw + 1rem, 2.9rem);
           line-height: 1.2;
           color: var(--ink);
           margin: 0 0 12px 0;
@@ -2444,7 +2583,7 @@ export default function BookingPage() {
           letter-spacing: -0.02em;
         }
         .hero-subtitle {
-          font-size: clamp(1.05rem, 0.8vw + 0.8rem, 1.25rem);
+          font-size: clamp(0.98rem, 0.5vw + 0.8rem, 1.12rem);
           color: var(--muted);
           margin: 0 auto;
           max-width: 680px;
@@ -2465,7 +2604,7 @@ export default function BookingPage() {
           max-width: 100%;
           width: 100%;
           margin: 0 auto;
-          padding: 32px 12px 60px 12px;
+          padding: 28px 16px 56px 16px;
           display: grid;
           grid-template-columns: 1fr;
           gap: 24px;
@@ -2483,9 +2622,15 @@ export default function BookingPage() {
             grid-template-columns: 1fr;
             align-items: start;
             gap: 28px;
-            padding: 40px 24px 80px 24px;
-            max-width: 1200px;
+            padding: 32px 24px 72px 24px;
+            max-width: min(1720px, 96vw);
             min-height: 100vh;
+          }
+        }
+        @media (min-width: 1280px) {
+          .layout.with-summary {
+            grid-template-columns: minmax(0, 1fr) 360px;
+            gap: 24px;
           }
         }
         .main {
@@ -2613,7 +2758,7 @@ export default function BookingPage() {
           box-shadow: var(--shadow-xl);
         }
         .card-header { 
-          padding: 24px 24px 0 24px; 
+          padding: 20px 20px 0 20px; 
         }
         @media (max-width: 640px) {
           .card-header {
@@ -2636,7 +2781,7 @@ export default function BookingPage() {
           line-height: 1.5;
         }
         .card-body { 
-          padding: 24px; 
+          padding: 20px; 
         }
         @media (max-width: 640px) {
           .card-body {
@@ -3863,6 +4008,14 @@ export default function BookingPage() {
         /* Summary */
         .summary { 
           display: none;
+        }
+        @media (min-width: 1280px) {
+          .summary {
+            display: block;
+            position: sticky;
+            top: 104px;
+            align-self: start;
+          }
         }
         .summary-card { 
           background: linear-gradient(135deg, var(--panel), var(--bg-soft)); 
@@ -5243,6 +5396,109 @@ export default function BookingPage() {
         @media (min-width: 980px) {
           .summary {
             min-width: 0;
+          }
+        }
+
+        /* === FINAL LAYOUT NORMALIZATION (overrides legacy fixed-width rules) === */
+        .container {
+          padding: 0 !important;
+          max-width: 100% !important;
+          margin: 0 !important;
+        }
+
+        @media (min-width: 768px) {
+          .hero {
+            margin-top: 88px !important;
+            padding: 36px 16px 20px 16px !important;
+          }
+
+          .hero-inner {
+            max-width: min(1860px, 99vw) !important;
+          }
+
+          .hero-title {
+            font-size: clamp(2rem, 2.1vw, 3rem) !important;
+          }
+
+          .hero-subtitle {
+            font-size: clamp(1rem, 0.8vw, 1.15rem) !important;
+          }
+
+          .layout {
+            max-width: min(1860px, 99vw) !important;
+            padding: 20px 16px 56px 16px !important;
+            gap: 20px !important;
+          }
+
+          .layout.with-summary {
+            grid-template-columns: 1fr !important;
+          }
+
+          .card-header {
+            padding: 18px 18px 0 18px !important;
+          }
+
+          .card-body {
+            padding: 18px !important;
+          }
+        }
+
+        @media (min-width: 1200px) {
+          .layout.with-summary {
+            grid-template-columns: minmax(0, 1fr) clamp(300px, 23vw, 360px) !important;
+          }
+
+          .summary {
+            display: block !important;
+            position: sticky;
+            top: 102px;
+            align-self: start;
+          }
+        }
+
+        @media (min-width: 1360px) {
+          .calendar-wrapper {
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) 360px;
+            align-items: start;
+            gap: 18px;
+          }
+        }
+
+        @media (min-width: 1440px) {
+          .layout {
+            padding: 22px 20px 64px 20px !important;
+          }
+
+          .layout.with-summary {
+            grid-template-columns: minmax(0, 1fr) clamp(320px, 22vw, 380px) !important;
+          }
+        }
+
+        @media (max-width: 767px) {
+          .hero {
+            margin-top: 82px !important;
+            padding: 26px 10px 16px 10px !important;
+          }
+
+          .layout {
+            padding: 16px 10px 90px 10px !important;
+          }
+
+          .card {
+            border-radius: 16px;
+          }
+
+          .card-header {
+            padding: 16px 14px 0 14px !important;
+          }
+
+          .card-body {
+            padding: 14px !important;
+          }
+
+          .stepper {
+            padding: 10px !important;
           }
         }
 

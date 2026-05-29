@@ -10,7 +10,7 @@ function serializeBigInt(obj) {
   ));
 }
 
-// GET completed transactions for today (processed by cashier)
+// GET completed transactions for a date window (default: last 30 days)
 export const GET = async (req) => {
   try {
     const session = await getServerSession(authOptions);
@@ -24,22 +24,26 @@ export const GET = async (req) => {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Get today's date range
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const { searchParams } = new URL(req.url);
+    const daysParam = parseInt(searchParams.get('days') || '30', 10);
+    const days = Number.isFinite(daysParam) ? Math.min(Math.max(daysParam, 1), 365) : 30;
 
-    // Fetch payments that were verified/processed today by cashier
+    const now = new Date();
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - (days - 1));
+
+    // Fetch payments that were verified/processed in range
     const completedPayments = await prisma.payment.findMany({
       where: {
         verificationStatus: 'Verified',
         verifiedAt: {
-          gte: today,
-          lt: tomorrow
+          gte: start,
+          lte: now
         },
-        status: 'Paid'
+        status: {
+          in: ['Paid', 'Partial']
+        }
       },
       include: {
         booking: {

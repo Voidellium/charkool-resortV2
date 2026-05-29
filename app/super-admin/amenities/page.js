@@ -1,11 +1,21 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import SuperAdminLayout from '@/components/SuperAdminLayout';
 import { useToast, ConfirmModal } from '@/components/Toast';
+import { usePusher, CHANNELS, EVENTS } from '@/hooks/usePusher';
 import { useNavigationGuard } from '../../../hooks/useNavigationGuard.simple';
 import { useNavigationContext } from '../../../context/NavigationContext';
 import { NavigationConfirmationModal } from '../../../components/CustomModals';
 import { Package, Plus, Edit2, Trash2, Search, Filter, RefreshCw, Clock, AlertCircle, AlertTriangle } from 'lucide-react';
+
+const HIDDEN_AMENITIES = new Set([
+  'broom & dustpan',
+  'toiletries kit',
+  'karaoke',
+  'transportation service',
+  'extra bed',
+  'billiard access'
+]);
 
 export default function SuperAdminAmenityInventoryPage() {
   const [amenities, setAmenities] = useState([]);
@@ -23,6 +33,8 @@ export default function SuperAdminAmenityInventoryPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const formBlockRef = useRef(null);
+  const amenityNameInputRef = useRef(null);
   
   const { success, error } = useToast();
 
@@ -41,37 +53,64 @@ export default function SuperAdminAmenityInventoryPage() {
       const style = document.createElement('style');
       style.id = styleId;
       style.textContent = `
+        @media (max-width: 1200px) {
+          .controls-top-row {
+            grid-template-columns: 1fr !important;
+            gap: 0.9rem !important;
+          }
+
+          .controls-actions {
+            justify-content: flex-start !important;
+            margin-top: 0.25rem !important;
+          }
+        }
+
         @media (max-width: 768px) {
           .controls-section {
-            flex-direction: column !important;
-            align-items: stretch !important;
             gap: 1rem !important;
             padding: 1rem !important;
           }
-          
+
           .search-container {
             width: 100% !important;
             max-width: 100% !important;
           }
+
+          .controls-actions {
+            width: 100% !important;
+            justify-content: stretch !important;
+            gap: 0.5rem !important;
+          }
+
+          .controls-actions .submit-button,
+          .controls-actions .manual-refresh-button {
+            flex: 1 !important;
+            min-width: 140px !important;
+            justify-content: center !important;
+          }
           
           .add-form {
-            flex-direction: column !important;
-            align-items: stretch !important;
+            grid-template-columns: 1fr !important;
             gap: 0.75rem !important;
+          }
+
+          .form-field-wide,
+          .form-actions {
+            grid-column: 1 / -1 !important;
           }
           
           .form-input {
             width: 100% !important;
-            min-width: 100% !important;
             margin: 0 !important;
           }
           
           .form-input-small {
             width: 100% !important;
+            min-width: 0 !important;
             text-align: left !important;
           }
           
-          .submit-button, .cancel-button {
+          .cancel-button {
             width: 100% !important;
             justify-content: center !important;
           }
@@ -98,7 +137,10 @@ export default function SuperAdminAmenityInventoryPage() {
       // Add category field for UI
       const optWithCat = (optional || []).map(a => ({ ...a, category: 'optional' }));
       const rentWithCat = (rental || []).map(a => ({ ...a, category: 'rental' }));
-      const all = [...optWithCat, ...rentWithCat];
+      const all = [...optWithCat, ...rentWithCat].filter((amenity) => {
+        const normalizedName = amenity?.name?.trim().toLowerCase();
+        return normalizedName && !HIDDEN_AMENITIES.has(normalizedName);
+      });
       // Dedupe by category + id (fallback to name)
       const seen = new Set();
       const unique = [];
@@ -134,9 +176,33 @@ export default function SuperAdminAmenityInventoryPage() {
 
   useEffect(() => {
     fetchAmenities();
-    const interval = setInterval(() => fetchAmenities(), 30000); // 30s polling
-    return () => clearInterval(interval);
   }, []);
+
+  usePusher(
+    CHANNELS.AMENITIES,
+    {
+      [EVENTS.AMENITY_STOCK_CHANGED]: (eventData) => {
+        fetchAmenities(true);
+
+        const amenityName = eventData?.name || 'Amenity stock';
+        const quantity = Number(eventData?.quantity);
+        const action = eventData?.action || 'updated';
+
+        if (!Number.isNaN(quantity)) {
+          if (quantity <= 2) {
+            error(`${amenityName} is critically low (${quantity} left)`, { title: 'Critical Stock Alert' });
+          } else if (quantity < 5) {
+            warning(`${amenityName} is low on stock (${quantity} left)`, { title: 'Low Stock Alert' });
+          } else {
+            success(`${amenityName} stock ${action} (${quantity} available)`, { title: 'Inventory Update' });
+          }
+        } else {
+          warning(`${amenityName} stock ${action}`, { title: 'Inventory Update' });
+        }
+      },
+    },
+    true
+  );
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -324,6 +390,11 @@ export default function SuperAdminAmenityInventoryPage() {
     } else {
       setNewAmenity({ name: amenity.name, quantity: String(amenity.quantity), category: 'optional' });
     }
+
+    setTimeout(() => {
+      formBlockRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      amenityNameInputRef.current?.focus();
+    }, 80);
   };
 
   // Helper function to get category color
@@ -370,20 +441,6 @@ export default function SuperAdminAmenityInventoryPage() {
               </div>
             </div>
             <div style={{ display: 'flex', gap: '1rem' }}>
-              <button
-                onClick={() => fetchAmenities(true)}
-                disabled={refreshing}
-                style={{
-                  ...styles.refreshButton,
-                  opacity: refreshing ? 0.7 : 1,
-                  cursor: refreshing ? 'not-allowed' : 'pointer'
-                }}
-              >
-                <RefreshCw size={16} style={{ 
-                  animation: refreshing ? 'spin 1s linear infinite' : 'none' 
-                }} />
-                {refreshing ? 'Refreshing...' : 'Refresh'}
-              </button>
               <button
                 onClick={handleResetInventory}
                 style={{
@@ -443,114 +500,184 @@ export default function SuperAdminAmenityInventoryPage() {
 
         {/* Controls Section */}
         <div style={styles.controlsSection} className="controls-section">
-          {/* Search Bar */}
-          <div style={styles.searchContainer} className="search-container">
-            <Search size={20} style={styles.searchIcon} />
-            <input
-              type="text"
-              placeholder="Search amenities..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={styles.searchInput}
-            />
-          </div>
+          <div style={styles.controlsTopRow} className="controls-top-row">
+            <div style={styles.searchBlock} className="search-block">
+              <div style={styles.blockHeader}>
+                <h3 style={styles.blockTitle}>Find Amenities</h3>
+                <p style={styles.blockHelp}>Search by amenity name to quickly locate stock records.</p>
+              </div>
+              <div style={styles.searchContainer} className="search-container">
+                <Search size={20} style={styles.searchIcon} />
+                <input
+                  type="text"
+                  placeholder="Search amenities..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  style={styles.searchInput}
+                />
+              </div>
+            </div>
 
-          {/* Add Amenity Form */}
-          <form onSubmit={handleSubmit} style={styles.addForm} className="add-form">
-            <input
-              style={styles.formInput}
-              className="form-input"
-              type="text"
-              placeholder={editingAmenity ? "Update amenity name" : "Amenity Name"}
-              value={newAmenity.name}
-              onChange={(e) => {
-                setNewAmenity({ ...newAmenity, name: e.target.value });
-                navigationGuard.markFormDirty('super-admin-amenities');
-              }}
-              required
-            />
-            <input
-              style={styles.formInputSmall}
-              className="form-input-small"
-              type="number"
-              placeholder={editingAmenity ? "Stock quantity" : "Stock Qty"}
-              value={newAmenity.quantity}
-              onChange={(e) => {
-                setNewAmenity({ ...newAmenity, quantity: e.target.value });
-                navigationGuard.markFormDirty('super-admin-amenities');
-              }}
-              required
-              min="0"
-            />
-            <select
-              style={styles.formInputSmall}
-              className="form-input-small"
-              value={newAmenity.category}
-              onChange={e => {
-                setNewAmenity({ ...newAmenity, category: e.target.value });
-                navigationGuard.markFormDirty('super-admin-amenities');
-              }}
-              required
-            >
-              <option value="optional">Optional</option>
-              <option value="rental">Rental</option>
-            </select>
-            {newAmenity.category === 'rental' && (
-              <>
-                <input
-                  style={styles.formInputSmall}
-                  className="form-input-small"
-                  type="number"
-                  placeholder="Price per unit"
-                  value={newAmenity.pricePerUnit}
-                  onChange={(e) => setNewAmenity({ ...newAmenity, pricePerUnit: e.target.value })}
-                  min="0"
-                />
-                <input
-                  style={styles.formInputSmall}
-                  className="form-input-small"
-                  type="number"
-                  placeholder="Price per hour (optional)"
-                  value={newAmenity.pricePerHour}
-                  onChange={(e) => setNewAmenity({ ...newAmenity, pricePerHour: e.target.value })}
-                  min="0"
-                />
-                <input
-                  style={styles.formInputSmall}
-                  className="form-input-small"
-                  type="text"
-                  placeholder="Unit type (e.g., set, hour)"
-                  value={newAmenity.unitType}
-                  onChange={(e) => setNewAmenity({ ...newAmenity, unitType: e.target.value })}
-                />
-                <input
-                  style={styles.formInputSmall}
-                  className="form-input-small"
-                  type="text"
-                  placeholder="Unit note (optional)"
-                  value={newAmenity.unitNote}
-                  onChange={(e) => setNewAmenity({ ...newAmenity, unitNote: e.target.value })}
-                />
-              </>
-            )}
-            <button type="submit" style={styles.submitButton} className="submit-button" disabled={loading}>
-              <Plus size={16} />
-              {editingAmenity ? 'Update' : 'Add'}
-            </button>
-            {editingAmenity && (
+            <div style={styles.controlsActions} className="controls-actions">
+              <button
+                type="submit"
+                form="amenity-form"
+                style={styles.submitButton}
+                className="submit-button"
+                disabled={loading}
+              >
+                <Plus size={16} />
+                {editingAmenity ? 'Update Amenity' : 'Add Amenity'}
+              </button>
+
               <button
                 type="button"
-                style={styles.cancelButton}
-                className="cancel-button"
-                onClick={() => {
-                  setEditingAmenity(null);
-                  setNewAmenity({ name: '', quantity: '', category: 'optional' });
+                onClick={() => fetchAmenities(true)}
+                disabled={refreshing}
+                style={{
+                  ...styles.refreshButton,
+                  opacity: refreshing ? 0.7 : 1,
+                  cursor: refreshing ? 'not-allowed' : 'pointer'
                 }}
+                className="manual-refresh-button"
               >
-                Cancel
+                <RefreshCw size={16} style={{
+                  animation: refreshing ? 'spin 1s linear infinite' : 'none'
+                }} />
+                {refreshing ? 'Refreshing...' : 'Refresh'}
               </button>
-            )}
-          </form>
+            </div>
+          </div>
+
+          <div ref={formBlockRef} style={styles.formBlock} className="form-block">
+            <div style={styles.blockHeader}>
+              <h3 style={styles.blockTitle}>{editingAmenity ? 'Update Amenity' : 'Add New Amenity'}</h3>
+              <p style={styles.blockHelp}>Set stock values and category, then save or manually refresh the latest inventory.</p>
+            </div>
+
+            <form id="amenity-form" onSubmit={handleSubmit} style={styles.addForm} className="add-form">
+              <div style={{ ...styles.formField, ...styles.formFieldWide, ...styles.amenityNameField }} className="form-field-wide">
+                <label style={styles.fieldLabel}>Amenity Name</label>
+                <input
+                  ref={amenityNameInputRef}
+                  style={styles.formInput}
+                  className="form-input"
+                  type="text"
+                  placeholder={editingAmenity ? 'Update amenity name' : 'e.g., Extra Pillow'}
+                  value={newAmenity.name}
+                  onChange={(e) => {
+                    setNewAmenity({ ...newAmenity, name: e.target.value });
+                    navigationGuard.markFormDirty('super-admin-amenities');
+                  }}
+                  required
+                />
+              </div>
+
+              <div style={{ ...styles.formField, ...styles.stockField }}>
+                <label style={styles.fieldLabel}>Stock Quantity</label>
+                <input
+                  style={styles.formInputSmall}
+                  className="form-input-small"
+                  type="number"
+                  placeholder="0"
+                  value={newAmenity.quantity}
+                  onChange={(e) => {
+                    setNewAmenity({ ...newAmenity, quantity: e.target.value });
+                    navigationGuard.markFormDirty('super-admin-amenities');
+                  }}
+                  required
+                  min="0"
+                />
+              </div>
+
+              <div style={{ ...styles.formField, ...styles.categoryField }}>
+                <label style={styles.fieldLabel}>Category</label>
+                <select
+                  style={styles.formInputSmall}
+                  className="form-input-small"
+                  value={newAmenity.category}
+                  onChange={e => {
+                    setNewAmenity({ ...newAmenity, category: e.target.value });
+                    navigationGuard.markFormDirty('super-admin-amenities');
+                  }}
+                  required
+                >
+                  <option value="optional">Optional</option>
+                  <option value="rental">Rental</option>
+                </select>
+              </div>
+
+              {newAmenity.category === 'rental' && (
+                <>
+                  <div style={styles.formField}>
+                    <label style={styles.fieldLabel}>Price per Unit</label>
+                    <input
+                      style={styles.formInputSmall}
+                      className="form-input-small"
+                      type="number"
+                      placeholder="0"
+                      value={newAmenity.pricePerUnit}
+                      onChange={(e) => setNewAmenity({ ...newAmenity, pricePerUnit: e.target.value })}
+                      min="0"
+                    />
+                  </div>
+
+                  <div style={styles.formField}>
+                    <label style={styles.fieldLabel}>Price per Hour</label>
+                    <input
+                      style={styles.formInputSmall}
+                      className="form-input-small"
+                      type="number"
+                      placeholder="0"
+                      value={newAmenity.pricePerHour}
+                      onChange={(e) => setNewAmenity({ ...newAmenity, pricePerHour: e.target.value })}
+                      min="0"
+                    />
+                  </div>
+
+                  <div style={styles.formField}>
+                    <label style={styles.fieldLabel}>Unit Type</label>
+                    <input
+                      style={styles.formInputSmall}
+                      className="form-input-small"
+                      type="text"
+                      placeholder="e.g., set"
+                      value={newAmenity.unitType}
+                      onChange={(e) => setNewAmenity({ ...newAmenity, unitType: e.target.value })}
+                    />
+                  </div>
+
+                  <div style={{ ...styles.formField, ...styles.formFieldWide }} className="form-field-wide">
+                    <label style={styles.fieldLabel}>Unit Note (Optional)</label>
+                    <input
+                      style={styles.formInput}
+                      className="form-input"
+                      type="text"
+                      placeholder="Additional context for the unit"
+                      value={newAmenity.unitNote}
+                      onChange={(e) => setNewAmenity({ ...newAmenity, unitNote: e.target.value })}
+                    />
+                  </div>
+                </>
+              )}
+
+              <div style={styles.formActions} className="form-actions">
+                {editingAmenity && (
+                  <button
+                    type="button"
+                    style={styles.cancelButton}
+                    className="cancel-button"
+                    onClick={() => {
+                      setEditingAmenity(null);
+                      setNewAmenity({ name: '', quantity: '', category: 'optional' });
+                    }}
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
         </div>
 
         {/* Amenities Grid */}
@@ -991,12 +1118,48 @@ const styles = {
     marginBottom: '2rem',
     display: 'flex',
     flexDirection: 'column',
-    gap: '1.5rem',
+    gap: '1.25rem',
+  },
+  controlsTopRow: {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(0, 1fr) auto',
+    alignItems: 'end',
+    gap: '1.1rem',
+    width: '100%',
+  },
+  controlsActions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+  },
+  searchBlock: {
+    minWidth: 0,
+  },
+  formBlock: {
+    minWidth: 0,
+    marginTop: '0.2rem',
+  },
+  blockHeader: {
+    marginBottom: '0.8rem',
+  },
+  blockTitle: {
+    margin: 0,
+    fontSize: '0.95rem',
+    fontWeight: '700',
+    color: '#374151',
+  },
+  blockHelp: {
+    margin: '0.3rem 0 0 0',
+    fontSize: '0.78rem',
+    color: '#6b7280',
+    lineHeight: '1.4',
   },
   searchContainer: {
     position: 'relative',
-    width: '100%',
-    maxWidth: '400px',
+    width: 'min(100%, 460px)',
+    maxWidth: '460px',
   },
   searchIcon: {
     position: 'absolute',
@@ -1016,11 +1179,37 @@ const styles = {
     background: 'white',
   },
   addForm: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: '0.75rem',
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+    gap: '1rem 1.1rem',
     width: '100%',
+    alignItems: 'end',
+  },
+  formField: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.45rem',
+    minWidth: 0,
+  },
+  formFieldWide: {
+    gridColumn: 'span 2',
+  },
+  amenityNameField: {
+    minWidth: '320px',
+    paddingRight: '0.3rem',
+  },
+  stockField: {
+    minWidth: '170px',
+    paddingRight: '0.3rem',
+  },
+  categoryField: {
+    minWidth: '170px',
+  },
+  fieldLabel: {
+    fontSize: '0.76rem',
+    fontWeight: '600',
+    color: '#6b7280',
+    letterSpacing: '0.01em',
   },
   formInput: {
     padding: '0.75rem 1rem',
@@ -1029,9 +1218,10 @@ const styles = {
     fontSize: '0.875rem',
     outline: 'none',
     transition: 'border-color 0.2s ease',
-    flex: '1',
-    minWidth: '200px',
     background: 'white',
+    width: '100%',
+    minWidth: 0,
+    boxSizing: 'border-box',
   },
   formInputSmall: {
     padding: '0.75rem 1rem',
@@ -1040,9 +1230,19 @@ const styles = {
     fontSize: '0.875rem',
     outline: 'none',
     transition: 'border-color 0.2s ease',
-    width: '80px',
-    textAlign: 'center',
     background: 'white',
+    width: '100%',
+    minWidth: 0,
+    boxSizing: 'border-box',
+  },
+  formActions: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: '0.65rem',
+    flexWrap: 'wrap',
+    gridColumn: '1 / -1',
+    marginTop: '0.45rem',
   },
   submitButton: {
     display: 'flex',

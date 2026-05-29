@@ -258,6 +258,9 @@ export default function Home() {
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
+          minHeight: '100vh',
+          padding: '1rem',
+          boxSizing: 'border-box',
           zIndex: 99999,
         }}>
           <div style={{

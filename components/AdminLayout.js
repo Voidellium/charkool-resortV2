@@ -24,7 +24,10 @@ export default function AdminLayout({ children, activePage, role = 'admin' }) {
     try {
       const res = await fetch(`/api/notifications?role=${role}`);
       const data = await res.json();
-      setNotifications(data.filter(n => !n.read));
+      const normalized = Array.isArray(data)
+        ? data.map((n) => ({ ...n, isRead: typeof n.isRead === 'boolean' ? n.isRead : !!n.read }))
+        : [];
+      setNotifications(normalized.filter((n) => !n.isRead));
     } catch (err) {
       console.error('Failed to fetch notifications', err);
     }
@@ -46,7 +49,7 @@ export default function AdminLayout({ children, activePage, role = 'admin' }) {
   const markAsRead = async (id) => {
     try {
       await fetch(`/api/notifications/${id}`, { method: 'PATCH' });
-      setNotifications(notifications.filter(n => n.id !== id));
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
     } catch (err) {
       console.error('Failed to mark notification as read', err);
     }

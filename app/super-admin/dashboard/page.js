@@ -22,11 +22,19 @@ import { NavigationConfirmationModal } from '../../../components/CustomModals';
 function CustomTooltip({ active, payload, label }) {
   if (!active || !payload || !payload.length) return null;
   
+  const normalizeRevenue = (value) => {
+    if (typeof value !== 'number') return value;
+    return value > 100000 ? value / 100 : value;
+  };
+
   const formatByKey = (p) => {
     const key = p.dataKey || (p.name || '').toString().toLowerCase();
     const val = p.value;
     if (key === 'revenue' || key.toString().includes('revenue')) {
-      return typeof val === 'number' ? '₱' + val.toLocaleString() : val;
+      const revenueValue = normalizeRevenue(val);
+      return typeof revenueValue === 'number'
+        ? `₱${revenueValue.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        : revenueValue;
     }
     if (key === 'bookings' || key === 'count' || key.toString().includes('booking') || key.toString().includes('count')) {
       return typeof val === 'number' ? val.toLocaleString() : val;
@@ -230,10 +238,32 @@ export default function SuperAdminDashboard() {
       const pending = bookingsData.filter((b) => b.status === 'Pending').length;
       const cancelled = bookingsData.filter((b) => b.status === 'Cancelled').length;
       
-      // Calculate additional stats
-      const totalRevenue = bookingsData
-        .filter(b => b.status === 'Confirmed')
-        .reduce((sum, booking) => sum + (parseFloat(booking.totalPrice) || 0), 0);
+      const paidStatuses = new Set(['paid', 'reservation', 'partial', 'completed']);
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+
+      const normalizePaymentAmount = (amount) => {
+        let value = Number(amount || 0);
+        if (Number.isNaN(value)) return 0;
+        if (value > 1000000) {
+          value = Math.floor(value / 100);
+        }
+        return value;
+      };
+
+      const totalRevenue = bookingsData.reduce((sum, booking) => {
+        const payments = booking.payments || [];
+        const bookingPaidThisMonth = payments.reduce((subtotal, payment) => {
+          const status = String(payment?.status || '').toLowerCase();
+          if (!paidStatuses.has(status)) return subtotal;
+          const paidAt = payment?.createdAt ? new Date(payment.createdAt) : null;
+          if (!paidAt) return subtotal;
+          if (paidAt.getFullYear() !== currentYear || paidAt.getMonth() !== currentMonth) return subtotal;
+          return subtotal + normalizePaymentAmount(payment.amount);
+        }, 0);
+        return sum + bookingPaidThisMonth;
+      }, 0);
       
       const occupancyRate = total > 0 ? (confirmed / total) * 100 : 0;
       
@@ -557,7 +587,7 @@ export default function SuperAdminDashboard() {
             onClick={() => router.push('/super-admin/bookings?status=Cancelled')}
           />
           <StatCard 
-            title="Total Revenue" 
+            title="Total Revenue (This Month)" 
             value={formatCurrency(stats.totalRevenue)} 
             color="#10b981" 
             icon={() => <span style={{fontSize: '24px', fontWeight: 'bold'}}>₱</span>}  
@@ -975,7 +1005,13 @@ export default function SuperAdminDashboard() {
                   <BarChart data={report.monthlyReport}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                     <XAxis dataKey="month" tick={{ fontSize: isMobile ? 10 : 12 }} />
-                    <YAxis tick={{ fontSize: isMobile ? 10 : 12 }} />
+                    <YAxis
+                      tick={{ fontSize: isMobile ? 10 : 12 }}
+                      tickFormatter={(value) => {
+                        const normalized = value > 100000 ? value / 100 : value;
+                        return `₱${Number(normalized).toLocaleString('en-PH')}`;
+                      }}
+                    />
                     <Tooltip content={<CustomTooltip />} />
                     <Bar dataKey="revenue" fill="#febe52" radius={[4, 4, 0, 0]} />
                   </BarChart>

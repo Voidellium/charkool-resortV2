@@ -5,10 +5,10 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ToastProvider } from './Toast';
 import ChangePasswordModal from './ChangePasswordModal';
+import { useStaffNotifications } from '@/hooks/usePusher';
 import { 
   Bell, 
   Home, 
-  Settings, 
   Users, 
   Book, 
   FileText, 
@@ -27,22 +27,22 @@ import {
   LogOut,
   Lock
 } from 'lucide-react';
-import { signOut } from 'next-auth/react';
+import { signOut, useSession } from 'next-auth/react';
 import styles from './SuperAdminLayout.module.css';
 
 export default function SuperAdminLayout({ children, activePage, reportMenu, user }) {
+  const { data: session } = useSession();
+  const effectiveUser = user || session?.user || null;
   const [roomsAmenitiesOpen, setRoomsAmenitiesOpen] = useState(false);
   const [bookingsPaymentsOpen, setBookingsPaymentsOpen] = useState(false);
   const [usersChatbotOpen, setUsersChatbotOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const [navConfigOpen, setNavConfigOpen] = useState(false);
-  const [profileImage, setProfileImage] = useState(user?.profileImage || null);
+  const [profileImage, setProfileImage] = useState(effectiveUser?.profileImage || effectiveUser?.image || null);
   const [notifications, setNotifications] = useState([]);
   const fileInputRef = useRef(null);
   const profileRef = useRef(null);
   const notifRef = useRef(null);
-  const navConfigRef = useRef(null);
   const router = useRouter();
 
   const [sidebarVisible, setSidebarVisible] = useState(true);
@@ -62,6 +62,10 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
   const showConfirmModal = useCallback((title, message, onConfirm) => {
     setConfirmModal({ show: true, title, message, onConfirm });
   }, []);
+
+  useEffect(() => {
+    setProfileImage(effectiveUser?.profileImage || effectiveUser?.image || null);
+  }, [effectiveUser?.profileImage, effectiveUser?.image]);
 
 
   const toggleSidebar = () => {
@@ -116,7 +120,7 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
       setBookingsPaymentsOpen(false);
     }
     
-    if (activePage === "users" || activePage === "chatbot") {
+    if (activePage === "users" || activePage === "chatbot" || activePage === "escalations") {
       setUsersChatbotOpen(true);
     } else {
       setUsersChatbotOpen(false);
@@ -129,8 +133,6 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
         setProfileOpen(false);
       if (notifRef.current && !notifRef.current.contains(event.target))
         setNotifOpen(false);
-      if (navConfigRef.current && !navConfigRef.current.contains(event.target))
-        setNavConfigOpen(false);
       
       // Close collapsed dropdown when clicking outside - but not when clicking on the menu item itself
       if (collapsedDropdownOpen && !event.target.closest('[data-collapsed-menu]')) {
@@ -139,7 +141,7 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [collapsedDropdownOpen, profileRef, notifRef, navConfigRef]);
+  }, [collapsedDropdownOpen, profileRef, notifRef]);
 
   useEffect(() => {
     const fetchNotifications = async () => {
@@ -148,7 +150,10 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
         if (!res.ok) throw new Error('Fetch failed');
         const data = await res.json();
         if (Array.isArray(data)) {
-          setNotifications(data.filter(n => !n.read));
+          setNotifications(data.map((n) => ({
+            ...n,
+            isRead: typeof n.isRead === 'boolean' ? n.isRead : !!n.read,
+          })));
         } else {
           setNotifications([]);
         }
@@ -159,6 +164,26 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
     };
     fetchNotifications();
   }, []);
+
+  // 🔔 PUSHER: Listen for real-time notifications to update badge
+  useStaffNotifications('SUPERADMIN', (notification) => {
+    if (!notification) return;
+    
+    console.log('[Pusher] New SuperAdmin notification received in layout:', notification.type);
+    
+    // Add new unread notification to the list
+    const newNotification = {
+      id: Math.random().toString(36).substr(2, 9),
+      message: notification.message || 'New notification',
+      type: notification.type || 'notification',
+      isRead: false,
+      createdAt: new Date().toISOString(),
+    };
+    
+    setNotifications((prev) => [newNotification, ...prev]);
+  });
+
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   const menu = [
     { key: 'dashboard', label: 'Dashboard', path: '/super-admin/dashboard', icon: <Home size={18} /> },
@@ -190,7 +215,8 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
       icon: <Users size={18} />, 
       dropdown: [
         { label: 'User Management', onClick: () => router.push('/super-admin/users') },
-        { label: 'Chatbot Management', onClick: () => router.push('/super-admin/chatbot') }
+        { label: 'Chatbot Management', onClick: () => router.push('/super-admin/chatbot') },
+        { label: 'Escalations', onClick: () => router.push('/super-admin/escalations') }
       ] 
     },
     { key: 'audit-trails', label: 'Audit Trails', path: '/super-admin/audit-trails', icon: <FileText size={18} /> },
@@ -270,7 +296,7 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
           onMouseLeave={() => setTogglePressed(false)}
           style={{
             // Use default position until mounted to prevent hydration mismatch
-            left: !mounted ? '265px' : (isMobile ? 'auto' : (sidebarCollapsed ? '85px' : '265px')),
+            left: !mounted ? '285px' : (isMobile ? 'auto' : (sidebarCollapsed ? '89px' : '285px')),
             right: !mounted ? 'auto' : (isMobile ? '20px' : 'auto'),
             top: !mounted ? '50%' : (isMobile ? 'auto' : '50%'),
             bottom: !mounted ? 'auto' : (isMobile ? '20px' : 'auto'),
@@ -295,7 +321,7 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
           {/* Header */}
           {!sidebarCollapsed && (
             <h2 className={styles.sidebarHeader}>
-              {user?.name ? `Super Admin ${user.name.split(' ')[0]}` : 'Super Admin'}
+              {effectiveUser?.name ? `Super Admin ${effectiveUser.name.split(' ')[0]}` : 'Super Admin'}
             </h2>
           )}
           {/* Navigation */}
@@ -340,7 +366,7 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                         (activePage === item.key || 
                          (item.key === 'rooms-amenities' && (activePage === 'rooms' || activePage === 'amenities')) ||
                          (item.key === 'bookings-payments' && (activePage === 'bookings' || activePage === 'payments')) ||
-                         (item.key === 'users-chatbot' && (activePage === 'users' || activePage === 'chatbot'))) 
+                         (item.key === 'users-chatbot' && (activePage === 'users' || activePage === 'chatbot' || activePage === 'escalations'))) 
                         ? styles.menuItemCollapsedActive : ''
                       }`}
                       style={{ position: 'relative', overflow: 'visible', zIndex: 10000 }}
@@ -349,8 +375,8 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                         color: (activePage === item.key || 
                                (item.key === 'rooms-amenities' && (activePage === 'rooms' || activePage === 'amenities')) ||
                                (item.key === 'bookings-payments' && (activePage === 'bookings' || activePage === 'payments')) ||
-                               (item.key === 'users-chatbot' && (activePage === 'users' || activePage === 'chatbot'))) 
-                              ? '#fff' : '#333', 
+                               (item.key === 'users-chatbot' && (activePage === 'users' || activePage === 'chatbot' || activePage === 'escalations'))) 
+                              ? '#ffffff' : '#e5e7eb', 
                         size: 20 
                       })}
                       {item.dropdown && item.dropdown.length > 0 && (
@@ -363,8 +389,8 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                             color: (activePage === item.key || 
                                    (item.key === 'rooms-amenities' && (activePage === 'rooms' || activePage === 'amenities')) ||
                                    (item.key === 'bookings-payments' && (activePage === 'bookings' || activePage === 'payments')) ||
-                                   (item.key === 'users-chatbot' && (activePage === 'users' || activePage === 'chatbot'))) 
-                                  ? '#fff' : '#333',
+                                   (item.key === 'users-chatbot' && (activePage === 'users' || activePage === 'chatbot' || activePage === 'escalations'))) 
+                                  ? '#ffffff' : '#e5e7eb',
                             backgroundColor: 'rgba(255,255,255,0.2)',
                             borderRadius: '50%',
                             padding: '2px'
@@ -520,6 +546,7 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                          sub.label === 'Payments' ? <CreditCard size={16} /> :
                          sub.label === 'User Management' ? <Users size={16} /> :
                          sub.label === 'Chatbot Management' ? <MessageCircle size={16} /> :
+                         sub.label === 'Escalations' ? <AlertCircle size={16} /> :
                          <div style={{ width: '16px', height: '16px' }} />}
                         <span>{sub.label}</span>
                       </div>
@@ -551,10 +578,10 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                   className={styles.notificationButton}
                   aria-label="Notifications"
                 >
-                  <Bell size={22} color="#333" />
-                  {notifications.length > 0 && (
+                  <Bell size={22} color="#6b4700" />
+                  {unreadCount > 0 && (
                     <div className={styles.notificationBadge}>
-                      {notifications.length}
+                      {unreadCount}
                     </div>
                   )}
                 </button>
@@ -573,7 +600,7 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                           fontWeight: '400',
                           color: 'white'
                         }}>
-                          {notifications.filter(n => !n.isRead).length} unread messages
+                          {unreadCount} unread messages
                         </p>
                       </div>
                       <div style={{
@@ -584,7 +611,7 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                         fontWeight: '600',
                         color: 'white'
                       }}>
-                        {notifications.length}
+                        {unreadCount}
                       </div>
                     </div>
 
@@ -666,7 +693,7 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                                     position: 'absolute',
                                     right: 12,
                                     top: 12,
-                                    background: 'linear-gradient(135deg, #febe52 0%, #ebd591 100%)',
+                                    background: 'linear-gradient(135deg, #d79a2b 0%, #febe52 100%)',
                                     color: '#6b4700',
                                     fontWeight: 700,
                                     border: 'none',
@@ -693,7 +720,7 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                                   borderRadius: '10px',
                                   background: notification.isRead 
                                     ? 'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)'
-                                    : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                    : 'linear-gradient(135deg, #d79a2b 0%, #febe52 100%)',
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
@@ -747,7 +774,7 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                                         width: '6px',
                                         height: '6px',
                                         borderRadius: '50%',
-                                        background: '#667eea',
+                                        background: '#d79a2b',
                                         flexShrink: 0
                                       }} />
                                     )}
@@ -763,7 +790,7 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                     {/* Footer Actions */}
                     {notifications.length > 0 && (
                       <div className={styles.notificationFooter}>
-                        {notifications.filter(n => !n.isRead).length > 0 && (
+                        {unreadCount > 0 && (
                           <button
                             className={styles.markAllReadBtn}
                             onClick={async (e) => {
@@ -808,167 +835,44 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                 )}
               </div>
 
-              {/* Configuration Dropdown */}
-              <div ref={navConfigRef} style={{ position: 'relative' }}>
+              {/* Configuration Icon Buttons */}
+              {/* Promotions Button */}
+              <div className={styles.configIconButtonContainer}>
                 <button
-                  onClick={() => setNavConfigOpen(!navConfigOpen)}
-                  className={styles.configButton}
-                  aria-label="Resort Promotions and Policies"
-                  title="Resort Promotions and Policies"
+                  onClick={() => router.push('/super-admin/configurations/promotions')}
+                  className={styles.configIconButton}
+                  aria-label="Manage Promotions"
+                  title="Manage Promotions"
                 >
-                  <Settings size={22} color="#333" />
+                  <span style={{ fontSize: '18px', fontWeight: 'bold' }}>₱</span>
                 </button>
-                {navConfigOpen && (
-                  <div className={styles.configDropdown}>
-                    {/* Header */}
-                    <div className={styles.configDropdownHeader}>
-                      <div>
-                        <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: '700', color: 'white' }}>
-                          Configurations
-                        </h3>
-                        <p style={{ 
-                          margin: '0.25rem 0 0 0', 
-                          fontSize: '0.8rem', 
-                          opacity: 0.9,
-                          fontWeight: '400',
-                          color: 'white'
-                        }}>
-                          Resort Promotions and Policies
-                        </p>
-                      </div>
-                      <div style={{
-                        background: 'rgba(255,255,255,0.2)',
-                        borderRadius: '20px',
-                        padding: '0.5rem 1rem',
-                        fontSize: '0.875rem',
-                        fontWeight: '600',
-                        color: 'white'
-                      }}>
-                        <Settings size={16} />
-                      </div>
-                    </div>
+                <div className={styles.tooltip}>Manage Promotions</div>
+              </div>
 
-                    {/* Configuration Items */}
-                    <div className={styles.configDropdownContent}>
-                      <div 
-                        className={styles.configDropdownItem}
-                        onClick={() => {
-                          router.push('/super-admin/configurations/promotions');
-                          setNavConfigOpen(false);
-                        }}
-                      >
-                        <div style={{
-                          width: '36px',
-                          height: '36px',
-                          borderRadius: '10px',
-                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0
-                        }}>
-                          <span style={{ fontSize: '16px', color: 'white', fontWeight: 'bold' }}>₱</span>
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <p style={{
-                            margin: '0 0 0.25rem 0',
-                            fontSize: '0.875rem',
-                            fontWeight: '600',
-                            color: '#1f2937',
-                            lineHeight: '1.4'
-                          }}>
-                            Promotions
-                          </p>
-                          <span style={{
-                            fontSize: '0.75rem',
-                            color: '#9ca3af',
-                            fontWeight: '400'
-                          }}>
-                            Manage resort promotions and offers
-                          </span>
-                        </div>
-                      </div>
+              {/* Policies Button */}
+              <div className={styles.configIconButtonContainer}>
+                <button
+                  onClick={() => router.push('/super-admin/configurations/policies')}
+                  className={styles.configIconButton}
+                  aria-label="Manage Policies"
+                  title="Manage Policies"
+                >
+                  <FileText size={20} color="#6b4700" />
+                </button>
+                <div className={styles.tooltip}>Manage Policies</div>
+              </div>
 
-                      <div 
-                        className={styles.configDropdownItem}
-                        onClick={() => {
-                          router.push('/super-admin/configurations/policies');
-                          setNavConfigOpen(false);
-                        }}
-                      >
-                        <div style={{
-                          width: '36px',
-                          height: '36px',
-                          borderRadius: '10px',
-                          background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0
-                        }}>
-                          <FileText size={16} style={{ color: 'white' }} />
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <p style={{
-                            margin: '0 0 0.25rem 0',
-                            fontSize: '0.875rem',
-                            fontWeight: '600',
-                            color: '#1f2937',
-                            lineHeight: '1.4'
-                          }}>
-                            Policies
-                          </p>
-                          <span style={{
-                            fontSize: '0.75rem',
-                            color: '#9ca3af',
-                            fontWeight: '400'
-                          }}>
-                            Manage resort policies and rules
-                          </span>
-                        </div>
-                      </div>
-
-                      <div 
-                        className={styles.configDropdownItem}
-                        onClick={() => {
-                          router.push('/super-admin/configurations/datecustomization');
-                          setNavConfigOpen(false);
-                        }}
-                      >
-                        <div style={{
-                          width: '36px',
-                          height: '36px',
-                          borderRadius: '10px',
-                          background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0
-                        }}>
-                          <Calendar size={16} style={{ color: 'white' }} />
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <p style={{
-                            margin: '0 0 0.25rem 0',
-                            fontSize: '0.875rem',
-                            fontWeight: '600',
-                            color: '#1f2937',
-                            lineHeight: '1.4'
-                          }}>
-                            Date Customization
-                          </p>
-                          <span style={{
-                            fontSize: '0.75rem',
-                            color: '#9ca3af',
-                            fontWeight: '400'
-                          }}>
-                            Manage booking calendar availability
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
+              {/* Date Customization Button */}
+              <div className={styles.configIconButtonContainer}>
+                <button
+                  onClick={() => router.push('/super-admin/configurations/datecustomization')}
+                  className={styles.configIconButton}
+                  aria-label="Manage Date Customization"
+                  title="Manage Date Customization"
+                >
+                  <Calendar size={20} color="#6b4700" />
+                </button>
+                <div className={styles.tooltip}>Manage Date Customization</div>
               </div>
 
               {/* Profile */}
@@ -991,7 +895,7 @@ export default function SuperAdminLayout({ children, activePage, reportMenu, use
                 {profileOpen && (
                   <div className={styles.profilePanel}>
                     <div className={styles.profileHeader}>
-                      {user?.name || 'Unknown User'}
+                      {effectiveUser?.name || effectiveUser?.email || 'Unknown User'}
                     </div>
                     <div
                       className={`${styles.profileAction} ${styles.profileActionPrimary}`}

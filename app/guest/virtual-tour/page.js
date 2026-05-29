@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { useState, useEffect } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import { useModelPaths } from '@/hooks/useModelPaths';
 
 const EnhancedThreeDModelViewer = dynamic(() => import('../../../components/EnhancedThreeDModelViewer'), {
@@ -139,7 +140,8 @@ export default function GuestVirtualTour() {
               className="back-btn"
               onClick={handleBackToExterior}
             >
-              ← Back to Exterior
+              <ArrowLeft size={16} style={{ marginRight: 6 }} />
+              Back to Exterior
             </button>
           )}
         </div>
@@ -160,7 +162,7 @@ export default function GuestVirtualTour() {
           width: 100%;
           min-height: calc(100vh - 80px);
           background: linear-gradient(135deg, #FFF8E1 0%, #FFEAA7 100%);
-          padding: 2rem;
+          padding: 1.5rem 2rem 2rem;
         }
 
         .virtual-tour-header {
@@ -299,6 +301,9 @@ export default function GuestVirtualTour() {
           cursor: pointer;
           margin-top: 1rem;
           transition: all 0.3s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
         }
 
         .back-btn:hover {
@@ -316,6 +321,10 @@ export default function GuestVirtualTour() {
         }
 
         @media (max-width: 968px) {
+          .virtual-tour-container {
+            padding-top: 1rem;
+          }
+
           .viewer-wrapper {
             flex-direction: column;
             height: auto;

@@ -6,13 +6,13 @@ import Link from 'next/link';
 import { generateBrowserFingerprint } from '../../src/lib/browser-fingerprint';
 
 function VerifyOTPContent() {
-  const [otp, setOtp] = useState('');
+  const [otpDigits, setOtpDigits] = useState(Array(6).fill(''));
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [otpRequested, setOtpRequested] = useState(false);
-  const otpRef = useRef(null);
+  const otpRefs = useRef([]);
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session, status, update } = useSession();
@@ -83,9 +83,7 @@ function VerifyOTPContent() {
   }, [status, router]);
 
   useEffect(() => {
-    if (otpRef.current) {
-      otpRef.current.focus();
-    }
+    otpRefs.current[0]?.focus();
   }, []);
 
   useEffect(() => {
@@ -107,6 +105,7 @@ function VerifyOTPContent() {
     e.preventDefault();
     setError('');
     setLoading(true);
+    const otp = otpDigits.join('');
 
     try {
       // Get or generate browser fingerprint
@@ -179,6 +178,95 @@ function VerifyOTPContent() {
 
   const handleResendOTP = async () => {
     handleSendOTP(true);
+  };
+
+  const handleOtpChange = (index, value) => {
+    const cleaned = value.replace(/\D/g, '');
+
+    if (!cleaned) {
+      setOtpDigits((prev) => {
+        const next = [...prev];
+        next[index] = '';
+        return next;
+      });
+      return;
+    }
+
+    if (cleaned.length === 1) {
+      setOtpDigits((prev) => {
+        const next = [...prev];
+        next[index] = cleaned;
+        return next;
+      });
+
+      if (index < 5) {
+        otpRefs.current[index + 1]?.focus();
+      }
+      return;
+    }
+
+    // Support typing/pasting multiple digits at once.
+    setOtpDigits((prev) => {
+      const next = [...prev];
+      cleaned.slice(0, 6 - index).split('').forEach((digit, offset) => {
+        next[index + offset] = digit;
+      });
+      return next;
+    });
+
+    const lastIndex = Math.min(index + cleaned.length - 1, 5);
+    otpRefs.current[lastIndex]?.focus();
+  };
+
+  const handleOtpKeyDown = (index, e) => {
+    if (e.key === 'Backspace') {
+      e.preventDefault();
+
+      if (otpDigits[index]) {
+        setOtpDigits((prev) => {
+          const next = [...prev];
+          next[index] = '';
+          return next;
+        });
+        return;
+      }
+
+      if (index > 0) {
+        setOtpDigits((prev) => {
+          const next = [...prev];
+          next[index - 1] = '';
+          return next;
+        });
+        otpRefs.current[index - 1]?.focus();
+      }
+    }
+
+    if (e.key === 'ArrowLeft' && index > 0) {
+      otpRefs.current[index - 1]?.focus();
+    }
+
+    if (e.key === 'ArrowRight' && index < 5) {
+      otpRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleOtpPaste = (index, e) => {
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '');
+    if (!pasted) {
+      return;
+    }
+
+    e.preventDefault();
+    setOtpDigits((prev) => {
+      const next = [...prev];
+      pasted.slice(0, 6 - index).split('').forEach((digit, offset) => {
+        next[index + offset] = digit;
+      });
+      return next;
+    });
+
+    const lastIndex = Math.min(index + pasted.length - 1, 5);
+    otpRefs.current[lastIndex]?.focus();
   };
 
   if (status === 'loading') {
@@ -260,23 +348,33 @@ function VerifyOTPContent() {
 
           <form onSubmit={handleSubmit} className="form">
             <div className="input-group">
-              <label htmlFor="otp">Enter OTP</label>
-              <input
-                ref={otpRef}
-                type="text"
-                id="otp"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                placeholder="000000"
-                maxLength={6}
-                required
-                className="otp-input"
-              />
+              <label htmlFor="otp-0">Enter OTP</label>
+              <div className="otp-boxes">
+                {otpDigits.map((digit, index) => (
+                  <input
+                    key={index}
+                    ref={(el) => { otpRefs.current[index] = el; }}
+                    id={`otp-${index}`}
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete={index === 0 ? 'one-time-code' : 'off'}
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    value={digit}
+                    onChange={(e) => handleOtpChange(index, e.target.value)}
+                    onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                    onPaste={(e) => handleOtpPaste(index, e)}
+                    className="otp-box"
+                    aria-label={`OTP digit ${index + 1}`}
+                    required
+                  />
+                ))}
+              </div>
             </div>
 
             <button
               type="submit"
-              disabled={loading || otp.length !== 6}
+              disabled={loading || otpDigits.join('').length !== 6}
               className="verify-button"
             >
               {loading ? 'Verifying...' : 'Verify OTP'}
@@ -370,6 +468,7 @@ function VerifyOTPContent() {
           display: flex;
           flex-direction: column;
           gap: 1.5rem;
+          width: 100%;
         }
 
         .input-group {
@@ -384,18 +483,26 @@ function VerifyOTPContent() {
           color: #374151;
         }
 
-        .otp-input {
+        .otp-boxes {
+          display: grid;
+          grid-template-columns: repeat(6, minmax(0, 1fr));
+          gap: 0.5rem;
           width: 100%;
-          padding: 0.75rem;
+        }
+
+        .otp-box {
+          width: 100%;
+          height: 3rem;
           border: 1px solid #d1d5db;
           border-radius: 0.375rem;
           font-size: 1.125rem;
           text-align: center;
-          letter-spacing: 0.5rem;
           font-weight: 600;
+          font-family: 'Courier New', monospace;
+          transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }
 
-        .otp-input:focus {
+        .otp-box:focus {
           outline: none;
           border-color: #FEBE52;
           box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
@@ -403,6 +510,7 @@ function VerifyOTPContent() {
 
         .verify-button {
           width: 100%;
+          min-height: 3rem;
           padding: 0.75rem 1rem;
           border: none;
           border-radius: 0.375rem;
@@ -490,6 +598,21 @@ function VerifyOTPContent() {
           padding: 2rem;
           text-align: center;
           color: #6b7280;
+        }
+
+        @media (max-width: 480px) {
+          .content {
+            padding: 1.5rem;
+          }
+
+          .otp-boxes {
+            gap: 0.4rem;
+          }
+
+          .otp-box {
+            font-size: 1rem;
+            height: 2.75rem;
+          }
         }
       `}</style>
     </div>

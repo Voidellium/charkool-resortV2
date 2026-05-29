@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/auth';
+import { notifyStaff, notifyUser, EVENTS } from '@/lib/pusher-server';
 
 // POST: Guest submits a reschedule request
 export async function POST(req, { params }) {
@@ -189,6 +190,40 @@ export async function PATCH(req, { params }) {
           userId: request.userId,
         },
       });
+      
+      // 🔔 PUSHER: Notify guest and SuperAdmin about approval
+      try {
+        // Notify SuperAdmin (for page refresh)
+        await notifyStaff('SUPERADMIN', {
+          type: 'reschedule_approved',
+          message: `Reschedule request #${request.id} has been approved for Booking #${request.bookingId}`,
+          bookingId: request.bookingId,
+          requestId: request.id,
+          guestName: request.user?.firstName,
+        });
+        
+        // Notify guest about approval and booking status change
+        if (request.userId) {
+          // Send notification
+          await notifyUser(request.userId, EVENTS.NEW_NOTIFICATION, {
+            type: 'reschedule_approved',
+            message: `Your reschedule request has been approved. New dates: ${new Date(request.newCheckIn).toLocaleDateString()} to ${new Date(request.newCheckOut).toLocaleDateString()}`,
+            bookingId: request.bookingId,
+          });
+          
+          // Send booking status change event so guest dashboard updates in real-time
+          await notifyUser(request.userId, EVENTS.BOOKING_STATUS_CHANGED, {
+            bookingId: request.bookingId,
+            status: 'Confirmed',
+            checkIn: request.newCheckIn,
+            checkOut: request.newCheckOut,
+            message: 'Your reschedule request has been approved',
+          });
+        }
+        console.log(`[Pusher] Notified about reschedule approval for request #${request.id}`);
+      } catch (pusherErr) {
+        console.warn('[Pusher] Failed to notify about reschedule approval:', pusherErr);
+      }
     } else if (action === 'DENY') {
       updated = await prisma.rescheduleRequest.update({
         where: { id: request.id },
@@ -209,6 +244,38 @@ export async function PATCH(req, { params }) {
           userId: request.userId,
         },
       });
+      
+      // 🔔 PUSHER: Notify guest and SuperAdmin about denial
+      try {
+        // Notify SuperAdmin (for page refresh)
+        await notifyStaff('SUPERADMIN', {
+          type: 'reschedule_denied',
+          message: `Reschedule request #${request.id} has been denied for Booking #${request.bookingId}`,
+          bookingId: request.bookingId,
+          requestId: request.id,
+          guestName: request.user?.firstName,
+        });
+        
+        // Notify guest about denial
+        if (request.userId) {
+          // Send notification
+          await notifyUser(request.userId, EVENTS.NEW_NOTIFICATION, {
+            type: 'reschedule_denied',
+            message: `Your reschedule request has been denied. Reason: ${context}`,
+            bookingId: request.bookingId,
+          });
+          
+          // Send booking status change event so guest dashboard updates in real-time
+          await notifyUser(request.userId, EVENTS.BOOKING_STATUS_CHANGED, {
+            bookingId: request.bookingId,
+            status: 'Confirmed',
+            message: `Your reschedule request was denied. Reason: ${context}`,
+          });
+        }
+        console.log(`[Pusher] Notified about reschedule denial for request #${request.id}`);
+      } catch (pusherErr) {
+        console.warn('[Pusher] Failed to notify about reschedule denial:', pusherErr);
+      }
     } else {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }

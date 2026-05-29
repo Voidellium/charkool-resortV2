@@ -1,6 +1,24 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
+function normalizePromotionId(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function computeDiscountAmount(baseTotal, promotion) {
+  if (!promotion || baseTotal <= 0) return 0;
+  if (promotion.discountType === 'percentage') {
+    const percent = Number(promotion.discountValue) / 10000;
+    return Math.min(baseTotal, Math.round(baseTotal * percent));
+  }
+  if (promotion.discountType === 'fixed') {
+    return Math.min(baseTotal, Number(promotion.discountValue) || 0);
+  }
+  return 0;
+}
+
 // POST: Calculate the total price for a selection of rooms and amenities
 export async function POST(request) {
   try {
@@ -13,7 +31,8 @@ export async function POST(request) {
       optionalAmenities = {}, 
       rentalAmenities = {}, 
       cottage, 
-      nights = 1 
+      nights = 1,
+      promotionId = null
     } = body;
 
     let total = 0;
@@ -148,7 +167,43 @@ export async function POST(request) {
     // Optional amenities are typically free add-ons, so they don't add to the price.
     // If they were to have a price, the logic would be added here.
 
-    return NextResponse.json({ totalPrice: total });
+    let appliedPromotion = null;
+    let discountAmount = 0;
+    const normalizedPromotionId = normalizePromotionId(promotionId);
+
+    if (normalizedPromotionId) {
+      const promotion = await prisma.promotion.findUnique({
+        where: { id: normalizedPromotionId }
+      });
+
+      const now = new Date();
+      const isActive = promotion && promotion.isActive;
+      const isWithinDates = promotion && promotion.startDate <= now && promotion.endDate >= now;
+      const isBookingTarget = promotion && promotion.targetType === 'booking';
+
+      if (!promotion || !isActive || !isWithinDates || !isBookingTarget) {
+        return NextResponse.json({ error: 'Selected promotion is not valid for this booking.' }, { status: 400 });
+      }
+
+      discountAmount = computeDiscountAmount(total, promotion);
+      appliedPromotion = {
+        id: promotion.id,
+        title: promotion.title,
+        discountType: promotion.discountType,
+        discountValue: promotion.discountValue,
+        targetType: promotion.targetType
+      };
+    }
+
+    const finalTotal = Math.max(0, total - discountAmount);
+
+    return NextResponse.json({
+      totalPrice: finalTotal,
+      baseTotal: total,
+      discountAmount,
+      finalTotal,
+      appliedPromotion
+    });
 
   } catch (error) {
     console.error('❌ Calculate Total POST Error:', error);

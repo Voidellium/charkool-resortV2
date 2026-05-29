@@ -5,9 +5,18 @@ import { RefreshCw, User, Clock, Lock, ChevronDown, LogOut } from 'lucide-react'
 import { useNavigationGuard } from '../../hooks/useNavigationGuard.simple';
 import { NavigationConfirmationModal } from '../../components/CustomModals';
 import ChangePasswordModal from '@/components/ChangePasswordModal';
+import { useToast } from '@/components/Toast';
+import { usePusher, CHANNELS, EVENTS } from '@/hooks/usePusher';
+
+const HIDDEN_AMENITIES = new Set([
+  'transportation service',
+  'extra bed',
+  'billiard access'
+]);
 
 export default function AmenityInventoryDashboard() {
   const { data: session } = useSession();
+  const { success: toastSuccess, warning: toastWarning, error: toastError } = useToast();
   const [amenities, setAmenities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -43,7 +52,10 @@ export default function AmenityInventoryDashboard() {
       const [optional, rental] = await Promise.all([optRes.json(), rentRes.json()]);
       const opt = (optional || []).map(a => ({ ...a, category: 'Optional' }));
       const rent = (rental || []).map(a => ({ ...a, category: 'Rental' }));
-      const merged = [...opt, ...rent];
+      const merged = [...opt, ...rent].filter((amenity) => {
+        const normalizedName = amenity?.name?.trim().toLowerCase();
+        return normalizedName && !HIDDEN_AMENITIES.has(normalizedName);
+      });
       // dedupe by category-id
       const seen = new Set();
       const unique = [];
@@ -63,6 +75,32 @@ export default function AmenityInventoryDashboard() {
   useEffect(() => {
     fetchAmenities();
   }, []);
+
+  usePusher(
+    CHANNELS.AMENITIES,
+    {
+      [EVENTS.AMENITY_STOCK_CHANGED]: (eventData) => {
+        fetchAmenities();
+
+        const amenityName = eventData?.name || 'Amenity stock';
+        const quantity = Number(eventData?.quantity);
+        const action = eventData?.action || 'updated';
+
+        if (!Number.isNaN(quantity)) {
+          if (quantity <= 2) {
+            toastError(`${amenityName} is critically low (${quantity} left)`, { title: 'Critical Stock Alert' });
+          } else if (quantity < 5) {
+            toastWarning(`${amenityName} is low on stock (${quantity} left)`, { title: 'Low Stock Alert' });
+          } else {
+            toastSuccess(`${amenityName} stock ${action} (${quantity} available)`, { title: 'Inventory Update' });
+          }
+        } else {
+          toastWarning(`${amenityName} stock ${action}`, { title: 'Inventory Update' });
+        }
+      },
+    },
+    true
+  );
 
   const handleRefresh = () => {
     setLoading(true);

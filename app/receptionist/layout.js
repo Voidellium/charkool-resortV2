@@ -2,6 +2,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { useSession } from 'next-auth/react';
+import { ToastProvider } from '@/components/Toast';
 
 export default function ReceptionistLayout({ children }) {
   const router = useRouter();
@@ -14,5 +15,5 @@ export default function ReceptionistLayout({ children }) {
     }
   }, [session, status, router]);
 
-  return <>{children}</>;
+  return <ToastProvider>{children}</ToastProvider>;
 }

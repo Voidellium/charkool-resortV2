@@ -13,6 +13,24 @@ import {
 import BookingCalendar from '../../../components/BookingCalendar';
 import PromotionPopup from '../../../components/PromotionPopup';
 import { useUserUpdates } from '../../../hooks/usePusher';
+import { useToast } from '@/components/Toast';
+import {
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  Clock3,
+  CreditCard,
+  FileText,
+  Hotel,
+  MessageCircleQuestion,
+  Printer,
+  Smartphone,
+  Trash2,
+  User,
+  ClipboardList,
+  Building2,
+  NotebookPen
+} from 'lucide-react';
 
 // Modal Component
 const Modal = ({ show, onClose, children }) => {
@@ -160,17 +178,16 @@ function RescheduleModalContent({ booking, guest }) {
   const [info, setInfo] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [selectedDates, setSelectedDates] = useState({ checkInDate: null, checkOutDate: null });
+  const [validationModal, setValidationModal] = useState({ show: false, message: '' });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!selectedDates.checkInDate || !selectedDates.checkOutDate) {
-      setStatus('error');
-      setInfo('Please select both check-in and check-out dates.');
+      setValidationModal({ show: true, message: 'Please select both check-in and check-out dates.' });
       return;
     }
     if (!reason.trim()) {
-      setStatus('error');
-      setInfo('Please provide a reason for rescheduling.');
+      setValidationModal({ show: true, message: 'Please provide a reason for rescheduling.' });
       return;
     }
     setSubmitting(true);
@@ -252,6 +269,63 @@ function RescheduleModalContent({ booking, guest }) {
       {status === 'error' && (
         <div style={{ color: 'red', marginTop: 12 }}>{info}</div>
       )}
+      {validationModal.show && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.35)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1300,
+          padding: '1rem'
+        }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #febe52 0%, #ebd591 100%)',
+            borderRadius: '14px',
+            padding: '24px',
+            width: '360px',
+            maxWidth: '100%',
+            boxShadow: '0 12px 30px rgba(0,0,0,0.2)',
+            position: 'relative'
+          }}>
+            <button
+              onClick={() => setValidationModal({ show: false, message: '' })}
+              style={{
+                position: 'absolute',
+                top: 12,
+                right: 12,
+                background: 'transparent',
+                border: 'none',
+                fontSize: 20,
+                cursor: 'pointer',
+                color: '#6b4700'
+              }}
+            >
+              ×
+            </button>
+            <h3 style={{ margin: 0, color: '#6b4700', fontWeight: 700 }}>Missing Details</h3>
+            <p style={{ margin: '12px 0 20px', color: '#6b4700', lineHeight: 1.5 }}>{validationModal.message}</p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setValidationModal({ show: false, message: '' })}
+                style={{
+                  backgroundColor: '#56A86B',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '10px 24px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
+                Okay
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <style jsx>{`
         .submit-request-btn {
           width: 100%;
@@ -279,6 +353,7 @@ function RescheduleModalContent({ booking, guest }) {
 
 // Unified Details Modal Component
 const UnifiedDetailsModal = ({ booking, guest }) => {
+  const { warning: toastWarning } = useToast();
   const [fullBookingDetails, setFullBookingDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -310,12 +385,154 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
     if (receiptUrl) {
       window.open(receiptUrl, '_blank');
     } else {
-      alert('Receipt not available for this payment.');
+      toastWarning('Receipt not available for this payment.', { title: 'Receipt Unavailable' });
     }
   };
 
   const handlePrintDetails = () => {
-    window.print();
+    const formatCurrency = (amount) => `PHP ${Number(amount).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const safeText = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    }[char]));
+
+    const nights = Math.max(1, Math.ceil((new Date(details.checkOut) - new Date(details.checkIn)) / (1000 * 60 * 60 * 24)));
+    const roomLines = (details.rooms || []).map((roomBooking) => {
+      const roomQty = Number(roomBooking.quantity) || 0;
+      const roomRate = (Number(roomBooking.room?.price) || 0) / 100;
+      const roomReservationFee = roomQty * 2000;
+      const roomBase = roomRate * roomQty * nights;
+      const additionalPaxFee = (roomBooking.additionalPax || 0) * 400 * nights;
+      return {
+        label: `${roomBooking.room?.name || 'Room'} (${roomQty} x ${nights} night${nights > 1 ? 's' : ''})`,
+        amount: Math.max(0, roomBase - roomReservationFee + additionalPaxFee)
+      };
+    });
+
+    const rentalLines = (details.rentalAmenities || []).map((rental) => ({
+      label: `${rental.rentalAmenity?.name || 'Rental Amenity'} (${rental.quantity || 0})`,
+      amount: (Number(rental.totalPrice) || 0) / 100
+    }));
+
+    const optionalLines = (details.optionalAmenities || []).map((optional) => {
+      const amenityPrice = (Number(optional.optionalAmenity?.price) || 0) / 100;
+      const quantity = Number(optional.quantity) || 0;
+      return {
+        label: `${optional.optionalAmenity?.name || 'Optional Amenity'} (${quantity})`,
+        amount: amenityPrice * quantity
+      };
+    });
+
+    const cottageLines = (details.cottage || []).map((cottageBooking) => ({
+      label: cottageBooking.cottage?.name || 'Cottage',
+      amount: (Number(cottageBooking.totalPrice) || 0) / 100
+    }));
+
+    const lineItems = [
+      {
+        label: `Reservation Fee (${details.rooms?.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0) || 0} room x 2,000)`,
+        amount: reservationFee
+      },
+      ...roomLines,
+      ...rentalLines,
+      ...optionalLines,
+      ...cottageLines
+    ].filter((item) => item.amount > 0);
+
+    const receiptHtml = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Booking Receipt #${safeText(details.id)}</title>
+          <style>
+            @page { margin: 18mm; }
+            body { font-family: Arial, sans-serif; color: #1f2937; margin: 0; }
+            .receipt { max-width: 760px; margin: 0 auto; }
+            .header { border-bottom: 2px solid #d1d5db; padding-bottom: 14px; margin-bottom: 18px; }
+            .brand { font-size: 24px; font-weight: 800; letter-spacing: 1px; color: #92400e; }
+            .sub { font-size: 12px; color: #6b7280; margin-top: 2px; }
+            .title { font-size: 20px; margin: 16px 0 6px; font-weight: 700; }
+            .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 20px; margin-bottom: 18px; }
+            .meta p { margin: 0; font-size: 13px; line-height: 1.45; }
+            .label { color: #6b7280; font-weight: 600; }
+            .value { color: #111827; font-weight: 700; }
+            table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+            th, td { padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px; }
+            th { text-align: left; color: #6b7280; font-weight: 700; }
+            td:last-child, th:last-child { text-align: right; }
+            .totals { margin-top: 14px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
+            .totals-row { display: flex; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid #e5e7eb; font-size: 13px; }
+            .totals-row:last-child { border-bottom: 0; }
+            .totals-row strong { font-size: 14px; }
+            .total-main { background: #fef3c7; }
+            .paid { background: #ecfdf3; }
+            .balance { background: #fff1f2; }
+            .footer { margin-top: 18px; color: #6b7280; font-size: 12px; line-height: 1.45; }
+          </style>
+        </head>
+        <body>
+          <div class="receipt">
+            <div class="header">
+              <div class="brand">CHARKOOL BEACH RESORT</div>
+              <div class="sub">Booking Receipt</div>
+              <div class="title">Booking #${safeText(details.id)}</div>
+            </div>
+
+            <div class="meta">
+              <p><span class="label">Guest:</span> <span class="value">${safeText(guest ? `${guest.firstName} ${guest.lastName}` : 'N/A')}</span></p>
+              <p><span class="label">Issued On:</span> <span class="value">${safeText(new Date().toLocaleString('en-PH'))}</span></p>
+              <p><span class="label">Email:</span> <span class="value">${safeText(guest?.email || 'N/A')}</span></p>
+              <p><span class="label">Booking Status:</span> <span class="value">${safeText(details.status)}</span></p>
+              <p><span class="label">Check-in:</span> <span class="value">${safeText(new Date(details.checkIn).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }))}</span></p>
+              <p><span class="label">Check-out:</span> <span class="value">${safeText(new Date(details.checkOut).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }))}</span></p>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>Description</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${lineItems.map((item) => `<tr><td>${safeText(item.label)}</td><td>${safeText(formatCurrency(item.amount))}</td></tr>`).join('')}
+              </tbody>
+            </table>
+
+            <div class="totals">
+              <div class="totals-row total-main"><strong>Total Amount</strong><strong>${safeText(formatCurrency(calculatedTotal))}</strong></div>
+              <div class="totals-row paid"><span>Amount Paid</span><strong>${safeText(formatCurrency(totalAmount / 100))}</strong></div>
+              <div class="totals-row balance"><span>Remaining Balance</span><strong>${safeText(formatCurrency(Math.max(0, remainingBalance)))}</strong></div>
+              <div class="totals-row"><span>Payment Status</span><strong>${safeText(details.paymentStatus || 'N/A')}</strong></div>
+            </div>
+
+            <div class="footer">
+              This receipt was generated from your booking details view. Keep this copy for your records.
+            </div>
+          </div>
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 400);
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    const printWindow = window.open('', '_blank', 'width=900,height=800');
+    if (!printWindow) {
+      toastWarning('Popup blocked. Please allow popups to print the receipt.', { title: 'Print Blocked' });
+      return;
+    }
+
+    printWindow.document.open();
+    printWindow.document.write(receiptHtml);
+    printWindow.document.close();
   };
 
   if (loading) {
@@ -367,9 +584,16 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
     return sum + (amenityPrice * (Number(optional.quantity) || 0));
   }, 0);
   const cottageTotal = (details.cottage || []).reduce((sum, cottageBooking) => sum + ((Number(cottageBooking.totalPrice) || 0) / 100), 0);
-  const calculatedTotal = reservationFee + roomCharges + rentalTotal + optionalTotal + cottageTotal;
-  const totalPrice = calculatedTotal;
-  const remainingBalance = calculatedTotal - (totalAmount / 100);
+  const computedTotal = reservationFee + roomCharges + rentalTotal + optionalTotal + cottageTotal;
+  const baseTotal = details.totalBeforeDiscount ? (Number(details.totalBeforeDiscount) / 100) : computedTotal;
+  const finalTotal = details.totalAfterDiscount
+    ? (Number(details.totalAfterDiscount) / 100)
+    : (details.totalPrice ? (Number(details.totalPrice) / 100) : computedTotal);
+  const appliedDiscount = details.discountAmount
+    ? (Number(details.discountAmount) / 100)
+    : Math.max(0, baseTotal - finalTotal);
+  const totalPrice = finalTotal;
+  const remainingBalance = finalTotal - (totalAmount / 100);
   
   const room = details.rooms?.[0]?.room;
   const isCancelled = String(details.status).toLowerCase() === 'cancelled';
@@ -379,7 +603,7 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
       {/* Cancellation Notice Banner */}
       {isCancelled && (
         <div className="cancellation-banner">
-          <div className="banner-icon">⚠️</div>
+          <div className="banner-icon"><AlertTriangle size={34} /></div>
           <div className="banner-content">
             <h3>Booking Cancelled</h3>
             <p>This booking has been cancelled and is no longer active.</p>
@@ -391,14 +615,18 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
         <h2>{isCancelled ? 'Cancelled Booking Details' : 'Booking & Payment Details'}</h2>
         <div className="modal-actions">
           <button className="action-btn secondary" onClick={handlePrintDetails}>
-            🖨️ Print
+            <Printer size={16} style={{ marginRight: 6 }} />
+            Print
           </button>
         </div>
       </div>
 
       {error && (
         <div className="error-notice">
-          <span>⚠️ {error}</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+            <AlertTriangle size={16} />
+            {error}
+          </span>
         </div>
       )}
 
@@ -406,7 +634,7 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
         {/* Reschedule Policy */}
         {!isCancelled && (
           <div className="details-section">
-            <h3>📋 Reschedule Policy</h3>
+            <h3 className="section-title"><ClipboardList size={18} /> Reschedule Policy</h3>
             <div className="policy-note">
               <p>
                 <strong>Reschedule Policy:</strong> Bookings can only be rescheduled up to 1 week (7 days) before the check-in date.
@@ -418,7 +646,7 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
         {/* Guest Information */}
         {!isCancelled && (
           <div className="details-section">
-            <h3>👤 Guest Information</h3>
+            <h3 className="section-title"><User size={18} /> Guest Information</h3>
             <div className="details-grid">
               <div className="detail-item">
                 <span className="label">Name</span>
@@ -438,7 +666,7 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
 
         {/* Booking Information */}
         <div className="details-section">
-          <h3>🏨 Accommodation Details</h3>
+          <h3 className="section-title"><Building2 size={18} /> Accommodation Details</h3>
           <div className="details-grid">
             <div className="detail-item">
               <span className="label">Room</span>
@@ -512,7 +740,7 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
         {/* Cancellation Details - Only show for cancelled bookings */}
         {isCancelled && details.cancellationRemarks && (
           <div className="details-section cancellation-section">
-            <h3>📝 Cancellation Information</h3>
+            <h3 className="section-title"><NotebookPen size={18} /> Cancellation Information</h3>
             <div className="cancellation-remarks">
               <div className="remarks-label">Reason for Cancellation:</div>
               <div className="remarks-text">{details.cancellationRemarks}</div>
@@ -522,7 +750,7 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
 
         {/* Payment Information with Breakdown */}
         <div className="details-section">
-          <h3>💳 {isCancelled ? 'Payment Summary' : 'Payment Details'}</h3>
+          <h3 className="section-title"><CreditCard size={18} /> {isCancelled ? 'Payment Summary' : 'Payment Details'}</h3>
           
           {isCancelled ? (
             <div className="payment-summary">
@@ -633,27 +861,17 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
                 {/* Divider */}
                 <div className="breakdown-divider"></div>
 
+                {appliedDiscount > 0 && (
+                  <div className="breakdown-item">
+                    <span className="breakdown-label">Promotion Discount</span>
+                    <span className="breakdown-value" style={{ color: '#b45309' }}>-₱{appliedDiscount.toLocaleString()}</span>
+                  </div>
+                )}
+
                 {/* Total */}
                 <div className="breakdown-item breakdown-total">
-                  <span className="breakdown-label"><strong>Total Amount</strong></span>
-                  <span className="breakdown-value"><strong>₱{(() => {
-                    const reservationFee = (details.rooms?.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0) || 0) * 2000;
-                    const roomCharges = (details.rooms || []).reduce((sum, roomBooking) => {
-                      const nights = Math.ceil((new Date(details.checkOut) - new Date(details.checkIn)) / (1000 * 60 * 60 * 24));
-                      const roomPricePerNight = (Number(roomBooking.room?.price) || 0) / 100;
-                      const roomTotal = roomPricePerNight * (Number(roomBooking.quantity) || 0) * nights;
-                      const roomReservationFee = (Number(roomBooking.quantity) || 0) * 2000;
-                      const additionalPaxFee = (roomBooking.additionalPax || 0) * 400 * nights;
-                      return sum + (roomTotal - roomReservationFee + additionalPaxFee);
-                    }, 0);
-                    const rentalTotal = (details.rentalAmenities || []).reduce((sum, rental) => sum + ((Number(rental.totalPrice) || 0) / 100), 0);
-                    const optionalTotal = (details.optionalAmenities || []).reduce((sum, optional) => {
-                      const amenityPrice = (Number(optional.optionalAmenity?.price) || 0) / 100;
-                      return sum + (amenityPrice * (Number(optional.quantity) || 0));
-                    }, 0);
-                    const cottageTotal = (details.cottage || []).reduce((sum, cottageBooking) => sum + ((Number(cottageBooking.totalPrice) || 0) / 100), 0);
-                    return (reservationFee + roomCharges + rentalTotal + optionalTotal + cottageTotal).toLocaleString();
-                  })()}</strong></span>
+                  <span className="breakdown-label"><strong>{appliedDiscount > 0 ? 'Final Total' : 'Total Amount'}</strong></span>
+                  <span className="breakdown-value"><strong>₱{totalPrice.toLocaleString()}</strong></span>
                 </div>
 
                 {/* Amount Paid */}
@@ -669,26 +887,7 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
                   <div className="breakdown-item breakdown-remaining">
                     <span className="breakdown-label"><strong>Remaining Balance</strong></span>
                     <span className="breakdown-value remaining">
-                      <strong>₱{(() => {
-                        const reservationFee = (details.rooms?.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0) || 0) * 2000;
-                        const roomCharges = (details.rooms || []).reduce((sum, roomBooking) => {
-                          const nights = Math.ceil((new Date(details.checkOut) - new Date(details.checkIn)) / (1000 * 60 * 60 * 24));
-                          const roomPricePerNight = (Number(roomBooking.room?.price) || 0) / 100;
-                          const roomTotal = roomPricePerNight * (Number(roomBooking.quantity) || 0) * nights;
-                          const roomReservationFee = (Number(roomBooking.quantity) || 0) * 2000;
-                          const additionalPaxFee = (roomBooking.additionalPax || 0) * 400 * nights;
-                          return sum + (roomTotal - roomReservationFee + additionalPaxFee);
-                        }, 0);
-                        const rentalTotal = (details.rentalAmenities || []).reduce((sum, rental) => sum + ((Number(rental.totalPrice) || 0) / 100), 0);
-                        const optionalTotal = (details.optionalAmenities || []).reduce((sum, optional) => {
-                          const amenityPrice = (Number(optional.optionalAmenity?.price) || 0) / 100;
-                          return sum + (amenityPrice * (Number(optional.quantity) || 0));
-                        }, 0);
-                        const cottageTotal = (details.cottage || []).reduce((sum, cottageBooking) => sum + ((Number(cottageBooking.totalPrice) || 0) / 100), 0);
-                        const calculatedTotal = reservationFee + roomCharges + rentalTotal + optionalTotal + cottageTotal;
-                        const amountPaid = totalAmount / 100;
-                        return (calculatedTotal - amountPaid).toLocaleString();
-                      })()}</strong>
+                      <strong>₱{remainingBalance.toLocaleString()}</strong>
                     </span>
                   </div>
                 )}
@@ -705,7 +904,7 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
         {/* Payment Transactions */}
         {!isCancelled && details.payments && details.payments.filter(p => p.status === 'Paid' || p.status === 'Reservation').length > 0 && (
           <div className="details-section">
-            <h3>💰 Payment Transactions</h3>
+            <h3 className="section-title"><FileText size={18} /> Payment Transactions</h3>
             <div className="payments-list">
               {details.payments.filter(p => p.status === 'Paid' || p.status === 'Reservation').map((payment, index) => (
                 <div key={payment.id || index} className="payment-item">
@@ -749,7 +948,8 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
                       className="receipt-btn"
                       onClick={() => handleDownloadReceipt(payment.receiptUrl)}
                     >
-                      📄 Download Receipt
+                      <FileText size={14} style={{ marginRight: 6 }} />
+                      Download Receipt
                     </button>
                   )}
                 </div>
@@ -761,7 +961,7 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
 
       <style jsx>{`
         .unified-modal {
-          max-width: 700px;
+          max-width: 860px;
           margin: 0 auto;
         }
         
@@ -769,17 +969,20 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
           display: flex;
           align-items: center;
           gap: 1rem;
-          background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-          border: 2px solid #ef4444;
+          background: #fff5f5;
+          border: 1px solid #efb8bf;
           border-radius: 12px;
           padding: 1.5rem;
           margin-bottom: 1.5rem;
-          box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15);
+          box-shadow: 0 8px 20px rgba(16, 24, 40, 0.08);
         }
         
         .banner-icon {
-          font-size: 2.5rem;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
           line-height: 1;
+          color: #dc2626;
         }
         
         .banner-content h3 {
@@ -801,13 +1004,13 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
           align-items: center;
           margin-bottom: 2rem;
           padding-bottom: 1rem;
-          border-bottom: 2px solid #F4E4BC;
+          border-bottom: 1px solid #e6dfd1;
         }
         
         .modal-header h2 {
-          color: #8B4513;
+          color: #7a4f19;
           margin: 0;
-          font-size: 1.8rem;
+          font-size: 1.65rem;
           font-weight: 700;
         }
         
@@ -833,20 +1036,25 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
         }
         
         .details-section {
-          background: linear-gradient(135deg, #FFF8DC 0%, #F5F5DC 100%);
-          border: 1px solid #E5D5A3;
+          background: #ffffff;
+          border: 1px solid #e8e0d1;
           border-radius: 12px;
           padding: 1.5rem;
+          box-shadow: 0 8px 18px rgba(16, 24, 40, 0.06);
         }
         
         .details-section h3 {
-          color: #8B4513;
+          color: #7a4f19;
           margin: 0 0 1.25rem 0;
           font-size: 1.3rem;
           font-weight: 600;
           display: flex;
           align-items: center;
           gap: 0.5rem;
+        }
+
+        .section-title :global(svg) {
+          color: #9a6522;
         }
         
         .details-grid {
@@ -883,8 +1091,8 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
         .value.cancellation-date { color: #dc2626; font-weight: 600; }
         
         .cancellation-section {
-          background: linear-gradient(135deg, #fff5f5 0%, #ffe4e6 100%);
-          border: 1px solid #fecaca;
+          background: #fff8f8;
+          border: 1px solid #f3d2d8;
         }
         
         .cancellation-remarks {
@@ -933,7 +1141,8 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
         .value.status-refunded { color: #17a2b8; font-weight: 600; }
         
         .payment-summary {
-          background: linear-gradient(135deg, #FEBE52, #F4E4BC);
+          background: #f8f6ef;
+          border: 1px solid #e6dbc8;
           border-radius: 8px;
           padding: 1rem;
           margin-bottom: 1.5rem;
@@ -983,8 +1192,8 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
         }
 
         .breakdown-container {
-          background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-          border: 2px solid #10b981;
+          background: #f8fafc;
+          border: 1px solid #dfe7ef;
           border-radius: 12px;
           padding: 1.5rem;
           margin-bottom: 1rem;
@@ -1033,8 +1242,8 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
         }
 
         .breakdown-total {
-          background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-          border: 2px solid #f59e0b;
+          background: #f7f5ef;
+          border: 1px solid #e3d7be;
           padding: 1rem 1.25rem;
         }
 
@@ -1045,8 +1254,8 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
         }
 
         .breakdown-paid {
-          background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-          border: 1px solid #10b981;
+          background: #ecfdf3;
+          border: 1px solid #a7e4c4;
         }
 
         .breakdown-paid .breakdown-value.paid {
@@ -1054,8 +1263,8 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
         }
 
         .breakdown-remaining {
-          background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
-          border: 2px solid #ef4444;
+          background: #fff5f5;
+          border: 1px solid #f0bcc4;
           padding: 1rem 1.25rem;
         }
 
@@ -1066,8 +1275,8 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
         }
 
         .breakdown-status {
-          background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-          border: 1px solid #3b82f6;
+          background: #f1f5f9;
+          border: 1px solid #d4deea;
         }
 
         .breakdown-status .breakdown-value {
@@ -1130,7 +1339,7 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
         }
         
         .receipt-btn {
-          background: linear-gradient(135deg, #28a745, #20c997);
+          background: #1f7a4f;
           color: white;
           border: none;
           border-radius: 6px;
@@ -1143,7 +1352,7 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
         }
         
         .receipt-btn:hover {
-          background: linear-gradient(135deg, #218838, #1e7e34);
+          background: #16613f;
           transform: translateY(-1px);
         }
         
@@ -1158,13 +1367,13 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
         }
         
         .action-btn.secondary {
-          background: linear-gradient(135deg, #F4E4BC, #E5D5A3);
-          color: #8B4513;
-          border: 1px solid #E5D5A3;
+          background: #f6ebcf;
+          color: #6f4718;
+          border: 1px solid #dfcc98;
         }
         
         .action-btn.secondary:hover {
-          background: linear-gradient(135deg, #E5D5A3, #D4AF37);
+          background: #edd9aa;
         }
         
         .service-item {
@@ -1204,6 +1413,10 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
             flex-direction: column;
             gap: 1rem;
             align-items: flex-start;
+          }
+
+          .unified-modal {
+            max-width: 100%;
           }
           
           .details-grid {
@@ -1283,7 +1496,8 @@ const BookingHistoryCard = ({ booking, guest, onViewDetails, onReschedule, resch
   }, 0);
   const cottageTotal = (booking.cottage || []).reduce((sum, cottageBooking) => sum + ((Number(cottageBooking.totalPrice) || 0) / 100), 0);
   const calculatedTotal = reservationFee + roomCharges + rentalTotal + optionalTotal + cottageTotal;
-  const remainingBalance = calculatedTotal - (totalPaid / 100);
+  const finalTotal = Number(booking.totalAfterDiscount || booking.totalPrice || calculatedTotal * 100) / 100;
+  const remainingBalance = finalTotal - (totalPaid / 100);
 
   return (
     <div className="booking-history-card">
@@ -1332,12 +1546,14 @@ const BookingHistoryCard = ({ booking, guest, onViewDetails, onReschedule, resch
         {/* Show refund status for cancelled bookings */}
         {isCancelled ? (
           totalRefunded > 0 ? (
-            <p style={{ color: '#28a745', fontWeight: '600' }}>
-              <strong>Refund Status:</strong> ✅ Refunded ₱{(totalRefunded / 100).toFixed(0)}
+            <p style={{ color: '#28a745', fontWeight: '600', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <CheckCircle2 size={16} />
+              <strong>Refund Status:</strong> Refunded ₱{(totalRefunded / 100).toFixed(0)}
             </p>
           ) : totalPaid > 0 ? (
-            <p style={{ color: '#ffc107', fontWeight: '600' }}>
-              <strong>Refund Status:</strong> ⏳ Processing Refund
+            <p style={{ color: '#b45309', fontWeight: '600', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Clock3 size={16} />
+              <strong>Refund Status:</strong> Processing Refund
             </p>
           ) : null
         ) : (
@@ -1537,7 +1753,8 @@ const HistoryCard = ({
   }, 0);
   const cottageTotal = (booking.cottage || []).reduce((sum, cottageBooking) => sum + ((Number(cottageBooking.totalPrice) || 0) / 100), 0);
   const calculatedTotal = reservationFee + roomCharges + rentalTotal + optionalTotal + cottageTotal;
-  const remainingBalance = calculatedTotal - (totalPaid / 100);
+  const finalTotal = Number(booking.totalAfterDiscount || booking.totalPrice || calculatedTotal * 100) / 100;
+  const remainingBalance = finalTotal - (totalPaid / 100);
 
   const isRescheduleAllowed = () => {
     const now = new Date();
@@ -1661,7 +1878,7 @@ const HistoryCard = ({
               year: 'numeric'
             })}</span>
           </div>
-          <div className="date-separator">→</div>
+          <div className="date-separator"><ArrowRight size={18} /></div>
           <div className="date-group">
             <span className="date-label">Check-out</span>
             <span className="date-value">{new Date(booking.checkOut).toLocaleDateString('en-US', { 
@@ -1703,11 +1920,11 @@ const HistoryCard = ({
           </button>
         )}
         {rescheduleStatus === 'APPROVED' && (
-          <span className="reschedule-success">✓ Approved</span>
+          <span className="reschedule-success"><CheckCircle2 size={15} style={{ marginRight: 6 }} />Approved</span>
         )}
         {rescheduleStatus === 'DENIED' && (
           <div className="reschedule-denied-container">
-            <span className="reschedule-denied">✗ Denied</span>
+            <span className="reschedule-denied"><AlertTriangle size={15} style={{ marginRight: 6 }} />Denied</span>
             <button className="action-btn secondary" onClick={() => setShowDeniedModal(true)}>
               View Reason
             </button>
@@ -1782,7 +1999,7 @@ const HistoryCard = ({
             disabled={dismissing}
             title="Remove this expired booking from your history"
           >
-            {dismissing ? 'Dismissing...' : '🗑️ Dismiss'}
+            {dismissing ? 'Dismissing...' : <><Trash2 size={14} style={{ marginRight: 6 }} />Dismiss</>}
           </button>
         )}
       </div>
@@ -1805,11 +2022,11 @@ const HistoryCard = ({
 
       <style jsx>{`
         .history-card {
-          background: linear-gradient(135deg, #ffffff 0%, #fefefe 100%);
-          border: 1px solid #E5D5A3;
+          background: #ffffff;
+          border: 1px solid #e7e2d8;
           border-radius: 12px;
           padding: 1.5rem;
-          box-shadow: 0 4px 12px rgba(254, 190, 82, 0.15);
+          box-shadow: 0 6px 18px rgba(20, 28, 38, 0.08);
           transition: all 0.3s ease;
           position: relative;
           overflow: hidden;
@@ -1822,13 +2039,13 @@ const HistoryCard = ({
           left: 0;
           right: 0;
           height: 3px;
-          background: linear-gradient(90deg, #FEBE52, #F4E4BC, #D4AF37);
+          background: linear-gradient(90deg, #d9a441, #edd29a, #d9a441);
         }
         
         .history-card:hover {
           transform: translateY(-4px);
-          box-shadow: 0 8px 24px rgba(254, 190, 82, 0.25);
-          border-color: #FEBE52;
+          box-shadow: 0 14px 28px rgba(20, 28, 38, 0.12);
+          border-color: #d6c4a3;
         }
         
         .card-header {
@@ -1904,11 +2121,11 @@ const HistoryCard = ({
           display: flex;
           align-items: center;
           justify-content: space-between;
-          background: linear-gradient(135deg, #FFF8DC 0%, #F5F5DC 100%);
+          background: #f9f6ef;
           border-radius: 8px;
           padding: 1rem;
           margin-bottom: 1rem;
-          border: 1px solid #E5D5A3;
+          border: 1px solid #ece4d3;
         }
         
         .date-group {
@@ -1931,9 +2148,11 @@ const HistoryCard = ({
         }
         
         .date-separator {
-          font-size: 1.2rem;
           color: #FEBE52;
           font-weight: bold;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
         }
         
         .booking-meta {
@@ -1984,26 +2203,27 @@ const HistoryCard = ({
         }
         
         .action-btn.primary {
-          background: linear-gradient(135deg, #FEBE52, #E6A835);
+          background: #b47a22;
           color: white;
           border: 2px solid transparent;
         }
         
         .action-btn.primary:hover {
-          background: linear-gradient(135deg, #E6A835, #D4961F);
+          background: #9b6517;
           transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(254, 190, 82, 0.4);
+          box-shadow: 0 6px 14px rgba(70, 45, 13, 0.25);
         }
         
         .action-btn.secondary {
-          background: linear-gradient(135deg, #F4E4BC, #E5D5A3);
-          color: #8B4513;
-          border: 2px solid #E5D5A3;
+          background: #f8f4ea;
+          color: #7a5220;
+          border: 2px solid #e1d5bf;
         }
         
         .action-btn.secondary:hover {
-          background: linear-gradient(135deg, #E5D5A3, #D4AF37);
-          border-color: #D4AF37;
+          background: rgba(255, 255, 255, 0.62);
+          border-color: #d2bf9e;
+          backdrop-filter: blur(9px);
           transform: translateY(-1px);
         }
         
@@ -2018,6 +2238,8 @@ const HistoryCard = ({
           color: #28a745;
           font-weight: 600;
           font-size: 0.9rem;
+          display: inline-flex;
+          align-items: center;
         }
         
         .reschedule-denied-container {
@@ -2031,6 +2253,8 @@ const HistoryCard = ({
           color: #dc3545;
           font-weight: 600;
           font-size: 0.9rem;
+          display: inline-flex;
+          align-items: center;
         }
         
         @media (max-width: 768px) {
@@ -2080,6 +2304,7 @@ const HistoryCard = ({
 
 // Main Dashboard Component
 export default function GuestDashboard() {
+  const { success: toastSuccess, error: toastError, warning: toastWarning, info: toastInfo } = useToast();
   const [guest, setGuest] = useState(null);
   const [bookings, setBookings] = useState([]);
   const [filteredBookings, setFilteredBookings] = useState([]);
@@ -2148,14 +2373,15 @@ export default function GuestDashboard() {
       }, 0);
       
       // Calculate total price from booking components
-      const basePrice = Number(booking.totalPrice || 0);
+      const basePrice = Number(booking.totalBeforeDiscount || booking.totalPrice || 0);
       const rentalTotal = (booking.rentalAmenities || []).reduce((sum, ra) => 
         sum + Number(ra.totalPrice || 0), 0
       );
       const cottageTotal = (booking.cottage || []).reduce((sum, c) => 
         sum + Number(c.totalPrice || 0), 0
       );
-      const total = basePrice + rentalTotal + cottageTotal;
+      const computedTotal = basePrice + rentalTotal + cottageTotal;
+      const total = Number(booking.totalAfterDiscount || booking.totalPrice || computedTotal);
       
       return sum + Math.max(0, total - totalPaid);
     }, 0);
@@ -2214,11 +2440,11 @@ export default function GuestDashboard() {
         }
       } else {
         const error = await res.json();
-        alert(`Error: ${error.error || 'Failed to dismiss booking'}`);
+        toastError(error.error || 'Failed to dismiss booking', { title: 'Dismiss Failed' });
       }
     } catch (err) {
       console.error('Dismiss error:', err);
-      alert('Failed to dismiss booking');
+      toastError('Failed to dismiss booking', { title: 'Dismiss Failed' });
     } finally {
       setDismissing(false);
     }
@@ -2255,7 +2481,7 @@ export default function GuestDashboard() {
       }
     } catch (err) {
       console.error('Dismiss all error:', err);
-      alert('Failed to dismiss some bookings');
+      toastError('Failed to dismiss some bookings', { title: 'Bulk Dismiss Failed' });
     } finally {
       setDismissing(false);
     }
@@ -2416,14 +2642,29 @@ export default function GuestDashboard() {
   useUserUpdates(guest?.id, {
     onBookingStatusChanged: (data) => {
       console.log('[Pusher] Booking status changed:', data.status);
-      // Show a notification to the user
       if (data.message) {
-        alert(data.message); // You can replace this with a toast notification
+        const status = String(data.status || '').toLowerCase();
+        if (status.includes('cancel') || status.includes('denied')) {
+          toastWarning(data.message, { title: 'Booking Update' });
+        } else if (status.includes('confirm') || status.includes('completed') || status.includes('approved')) {
+          toastSuccess(data.message, { title: 'Booking Update' });
+        } else {
+          toastInfo(data.message, { title: 'Booking Update' });
+        }
       }
       refetchGuestData();
     },
     onNotification: (notification) => {
       console.log('[Pusher] New notification:', notification.message);
+      const nType = String(notification?.type || '').toLowerCase();
+      const nMessage = notification?.message || 'New notification received';
+      if (nType.includes('denied') || nType.includes('cancel')) {
+        toastWarning(nMessage, { title: 'Notification' });
+      } else if (nType.includes('approved') || nType.includes('confirmed') || nType.includes('reschedule')) {
+        toastSuccess(nMessage, { title: 'Notification' });
+      } else {
+        toastInfo(nMessage, { title: 'Notification' });
+      }
       // Refresh notifications
       fetch('/api/notifications?role=CUSTOMER')
         .then(res => res.ok ? res.json() : [])
@@ -2443,7 +2684,7 @@ export default function GuestDashboard() {
 
       if (res.ok) {
         const data = await res.json();
-        alert(`Booking cancelled successfully! Refund: ₱${data.refundAmount.toLocaleString()}`);
+        toastSuccess(`Booking cancelled successfully! Refund: ₱${data.refundAmount.toLocaleString()}`, { title: 'Cancellation Approved' });
         // Refresh bookings
         const refreshRes = await fetch('/api/guest/me');
         if (refreshRes.ok) {
@@ -2456,11 +2697,11 @@ export default function GuestDashboard() {
         }
       } else {
         const error = await res.json();
-        alert(`Error: ${error.error}`);
+        toastError(error.error || 'Failed to cancel booking', { title: 'Cancellation Failed' });
       }
     } catch (err) {
       console.error('Cancel error:', err);
-      alert('Failed to cancel booking');
+      toastError('Failed to cancel booking', { title: 'Cancellation Failed' });
     } finally {
       setCancelLoading(false);
       setCancelConfirmModal({ show: false, booking: null });
@@ -2528,7 +2769,7 @@ export default function GuestDashboard() {
       });
 
       if (res.ok) {
-        alert('Cancellation request submitted successfully! Awaiting admin approval.');
+        toastSuccess('Cancellation request submitted successfully! Awaiting admin approval.', { title: 'Request Submitted' });
         // Refresh bookings
         const refreshRes = await fetch('/api/guest/me');
         if (refreshRes.ok) {
@@ -2541,11 +2782,11 @@ export default function GuestDashboard() {
         }
       } else {
         const error = await res.json();
-        alert(`Error: ${error.error}`);
+        toastError(error.error || 'Failed to submit cancellation request', { title: 'Request Failed' });
       }
     } catch (err) {
       console.error('Cancel request error:', err);
-      alert('Failed to submit cancellation request');
+      toastError('Failed to submit cancellation request', { title: 'Request Failed' });
     } finally {
       setCancelLoading(false);
     }
@@ -2561,7 +2802,7 @@ export default function GuestDashboard() {
       // All cancellations require admin approval
       setCancelRequestModal({ show: true, booking });
     } else {
-      alert('Cancellation not available within 24 hours of check-in');
+      toastWarning('Cancellation not available within 24 hours of check-in', { title: 'Cancellation Restricted' });
     }
   };
 
@@ -2707,7 +2948,7 @@ export default function GuestDashboard() {
                 <div className="highlight-actions">
                   <button className="next-stay-view-details-btn" onClick={() => setSelectedDetailsBooking(nextBooking)}>
                     <span className="btn-text">View Details</span>
-                    <span className="btn-arrow">→</span>
+                    <span className="btn-arrow"><ArrowRight size={18} /></span>
                   </button>
                 </div>
               </div>
@@ -2720,7 +2961,7 @@ export default function GuestDashboard() {
           <h3>Quick Actions</h3>
           <div className="quick-actions-grid">
             <button className="quick-action-btn" onClick={() => router.push('/booking')}>
-              <span className="action-icon">🏨</span>
+              <span className="action-icon"><Hotel size={34} /></span>
               <span className="action-label">New Booking</span>
             </button>
             
@@ -2728,12 +2969,12 @@ export default function GuestDashboard() {
               // Trigger the floating chatbot to open
               window.dispatchEvent(new Event('openChatbot'));
             }}>
-              <span className="action-icon">💬</span>
-              <span className="action-label">Chat Support</span>
+              <span className="action-icon"><MessageCircleQuestion size={34} /></span>
+              <span className="action-label">Ask Questions</span>
             </button>
             
             <button className="quick-action-btn" onClick={() => router.push('/guest/3dview')}>
-              <span className="action-icon">📱</span>
+              <span className="action-icon"><Smartphone size={34} /></span>
               <span className="action-label">Virtual Tour</span>
             </button>
           </div>
@@ -2825,7 +3066,10 @@ export default function GuestDashboard() {
                   className={activeTab === 'expired' ? 'tab active expired-tab' : 'tab expired-tab'}
                   onClick={() => setActiveTab('expired')}
                 >
-                  Expired ({categorized.expiredPending.length}) ⚠️
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    Expired ({categorized.expiredPending.length})
+                    <AlertTriangle size={14} />
+                  </span>
                 </button>
               )}
             </div>
@@ -2888,7 +3132,7 @@ export default function GuestDashboard() {
 
       <style jsx>{`
         .dashboard-container {
-          background: linear-gradient(135deg, #FFF8DC 0%, #F5F5DC 50%, #F0F8E8 100%);
+          background: linear-gradient(180deg, #f7f4ef 0%, #f3f6f8 100%);
           min-height: 100vh;
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif;
           position: relative;
@@ -2903,23 +3147,24 @@ export default function GuestDashboard() {
         .dashboard-header {
           text-align: center;
           margin-bottom: 3rem;
-          padding: 2rem 0;
+          padding: 1.25rem 1.5rem;
+          border: 1px solid #e6dfd1;
+          border-radius: 18px;
+          background: #ffffff;
+          box-shadow: 0 8px 22px rgba(16, 24, 40, 0.06);
         }
         
         .dashboard-header h1 {
           font-size: 3rem;
           font-weight: 800;
-          background: linear-gradient(135deg, #8B4513, #D4AF37, #FEBE52);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
+          color: #243446;
           margin: 0 0 0.5rem 0;
-          text-shadow: 0 2px 4px rgba(139, 69, 19, 0.1);
+          text-shadow: none;
         }
         
         .dashboard-header p {
           font-size: 1.2rem;
-          color: #A0826D;
+          color: #5f6d7d;
           margin: 0;
           font-weight: 500;
         }
@@ -2933,21 +3178,23 @@ export default function GuestDashboard() {
         }
         
         .stat-card {
-          background: linear-gradient(135deg, #ffffff 0%, #fefefe 100%);
-          border: 2px solid #E5D5A3;
+          background: #ffffff;
+          border: 1px solid #e7e2d8;
           border-radius: 16px;
           padding: 1.5rem;
           display: flex;
           align-items: center;
           gap: 1.5rem;
-          box-shadow: 0 4px 12px rgba(254, 190, 82, 0.15);
+          box-shadow: 0 6px 16px rgba(16, 24, 40, 0.08);
           transition: all 0.3s ease;
         }
         
         .stat-card:hover {
           transform: translateY(-4px);
-          box-shadow: 0 8px 24px rgba(254, 190, 82, 0.25);
-          border-color: #FEBE52;
+          box-shadow: 0 14px 28px rgba(16, 24, 40, 0.14);
+          border-color: #d7c8ab;
+          background: rgba(255, 255, 255, 0.62);
+          backdrop-filter: blur(10px);
         }
         
         .stat-icon {
@@ -2963,13 +3210,13 @@ export default function GuestDashboard() {
         .stat-value {
           font-size: 2rem;
           font-weight: 700;
-          color: #8B4513;
+          color: #1f2d3d;
           margin: 0 0 0.25rem 0;
         }
         
         .stat-label {
           font-size: 0.9rem;
-          color: #A0826D;
+          color: #667487;
           text-transform: uppercase;
           letter-spacing: 0.5px;
           font-weight: 600;
@@ -2977,18 +3224,25 @@ export default function GuestDashboard() {
         
         /* Next Booking Highlight */
         .next-booking-highlight {
-          background: linear-gradient(135deg, #FEBE52 0%, #F4E4BC 100%);
-          border: 2px solid #D4AF37;
+          background: #ffffff;
+          border: 1px solid #e7e0d1;
           border-radius: 16px;
           padding: 2rem;
           margin-bottom: 2rem;
-          box-shadow: 0 8px 24px rgba(254, 190, 82, 0.3);
+          box-shadow: 0 8px 20px rgba(16, 24, 40, 0.08);
+          transition: all 0.25s ease;
+        }
+
+        .next-booking-highlight:hover {
+          box-shadow: 0 14px 30px rgba(16, 24, 40, 0.14);
+          background: rgba(255, 255, 255, 0.64);
+          backdrop-filter: blur(10px);
         }
         
         .next-booking-highlight h3 {
           margin: 0 0 1.5rem 0;
           font-size: 1.5rem;
-          color: #8B4513;
+          color: #1f2d3d;
           font-weight: 700;
         }
         
@@ -3001,24 +3255,24 @@ export default function GuestDashboard() {
         
         .countdown {
           text-align: center;
-          background: rgba(255, 255, 255, 0.8);
+          background: #f8f6f1;
           padding: 1rem 1.5rem;
           border-radius: 12px;
-          border: 2px solid #D4AF37;
+          border: 1px solid #e6dece;
         }
         
         .days-until {
           display: block;
           font-size: 3rem;
           font-weight: 800;
-          color: #8B4513;
+          color: #1f2d3d;
           line-height: 1;
         }
         
         .countdown-label {
           display: block;
           font-size: 0.9rem;
-          color: #A0826D;
+          color: #667487;
           margin-top: 0.5rem;
           font-weight: 600;
         }
@@ -3030,11 +3284,11 @@ export default function GuestDashboard() {
         .booking-quick-info .room-name {
           font-size: 1.3rem;
           margin: 0 0 0.5rem 0;
-          color: #8B4513;
+          color: #1f2d3d;
         }
         
         .booking-quick-info .dates {
-          color: #654321;
+          color: #4b5c70;
           margin: 0 0 0.5rem 0;
         }
         
@@ -3082,15 +3336,15 @@ export default function GuestDashboard() {
           justify-content: center;
           gap: 0.75rem;
           padding: 1rem 2rem;
-          background: linear-gradient(135deg, #FFFFFF 0%, #F8F9FA 100%);
-          border: 2px solid #8B4513;
+          background: #243446;
+          border: 2px solid #243446;
           border-radius: 12px;
           font-size: 1rem;
           font-weight: 700;
-          color: #8B4513;
+          color: #ffffff;
           cursor: pointer;
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-          box-shadow: 0 4px 12px rgba(139, 69, 19, 0.15);
+          box-shadow: 0 4px 12px rgba(36, 52, 70, 0.2);
           overflow: hidden;
         }
 
@@ -3110,11 +3364,12 @@ export default function GuestDashboard() {
         }
 
         .next-stay-view-details-btn:hover {
-          background: linear-gradient(135deg, #8B4513 0%, #654321 100%);
+          background: rgba(36, 52, 70, 0.75);
           color: #FFFFFF;
-          border-color: #654321;
+          border-color: rgba(36, 52, 70, 0.75);
+          backdrop-filter: blur(10px);
           transform: translateY(-2px) scale(1.02);
-          box-shadow: 0 8px 24px rgba(139, 69, 19, 0.3);
+          box-shadow: 0 10px 26px rgba(36, 52, 70, 0.3);
         }
 
         .next-stay-view-details-btn:active {
@@ -3259,8 +3514,8 @@ export default function GuestDashboard() {
         }
         
         .quick-action-btn {
-          background: linear-gradient(135deg, #ffffff 0%, #fefefe 100%);
-          border: 2px solid #E5D5A3;
+          background: #ffffff;
+          border: 1px solid #e7e2d8;
           border-radius: 12px;
           padding: 1.5rem 1rem;
           display: flex;
@@ -3269,23 +3524,28 @@ export default function GuestDashboard() {
           gap: 0.75rem;
           cursor: pointer;
           transition: all 0.3s ease;
-          box-shadow: 0 4px 12px rgba(254, 190, 82, 0.15);
+          box-shadow: 0 6px 16px rgba(16, 24, 40, 0.08);
         }
         
         .quick-action-btn:hover {
           transform: translateY(-4px);
-          box-shadow: 0 8px 24px rgba(254, 190, 82, 0.25);
-          border-color: #FEBE52;
+          box-shadow: 0 14px 28px rgba(16, 24, 40, 0.14);
+          border-color: #d7c8ab;
+          background: rgba(255, 255, 255, 0.62);
+          backdrop-filter: blur(10px);
         }
         
         .quick-action-btn .action-icon {
-          font-size: 2.5rem;
+          color: #243446;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
         }
         
         .quick-action-btn .action-label {
           font-size: 1rem;
           font-weight: 600;
-          color: #8B4513;
+          color: #243446;
         }
         
         /* Booking Tabs */
@@ -3298,25 +3558,25 @@ export default function GuestDashboard() {
         
         .booking-tabs .tab {
           padding: 0.75rem 1.5rem;
-          border: 2px solid #E5D5A3;
-          background: linear-gradient(135deg, #ffffff 0%, #fefefe 100%);
+          border: 1px solid #e1d8c7;
+          background: #ffffff;
           border-radius: 8px;
           font-size: 1rem;
           font-weight: 600;
-          color: #8B4513;
+          color: #324355;
           cursor: pointer;
           transition: all 0.3s ease;
         }
         
         .booking-tabs .tab:hover {
-          border-color: #FEBE52;
-          background: linear-gradient(135deg, #F4E4BC 0%, #FFF8DC 100%);
+          border-color: #cdbb99;
+          background: #faf7f1;
         }
         
         .booking-tabs .tab.active {
-          background: linear-gradient(135deg, #FEBE52 0%, #F4E4BC 100%);
-          border-color: #D4AF37;
-          color: #654321;
+          background: #f3ebdc;
+          border-color: #c7b08c;
+          color: #243446;
         }
         
         .booking-tabs .tab.expired-tab {
@@ -3345,12 +3605,12 @@ export default function GuestDashboard() {
         }
         
         .filters-section {
-          background: linear-gradient(135deg, #ffffff 0%, #fefefe 100%);
-          border: 1px solid #E5D5A3;
+          background: #ffffff;
+          border: 1px solid #e7e2d8;
           border-radius: 16px;
           padding: 2rem;
           margin-bottom: 3rem;
-          box-shadow: 0 8px 32px rgba(254, 190, 82, 0.15);
+          box-shadow: 0 10px 24px rgba(16, 24, 40, 0.08);
         }
         
         .filters-container {
@@ -3369,7 +3629,7 @@ export default function GuestDashboard() {
         .filter-group label {
           font-size: 0.9rem;
           font-weight: 600;
-          color: #8B4513;
+          color: #3f4f63;
           text-transform: uppercase;
           letter-spacing: 0.5px;
         }
@@ -3377,25 +3637,25 @@ export default function GuestDashboard() {
         .filter-group input,
         .filter-group select {
           padding: 0.8rem 1rem;
-          border: 2px solid #E5D5A3;
+          border: 1px solid #d9dfe6;
           border-radius: 8px;
           font-size: 1rem;
-          background: linear-gradient(135deg, #ffffff 0%, #fefefe 100%);
-          color: #654321;
+          background: #ffffff;
+          color: #243446;
           transition: all 0.3s ease;
         }
         
         .filter-group input:focus,
         .filter-group select:focus {
           outline: none;
-          border-color: #FEBE52;
-          box-shadow: 0 0 0 3px rgba(254, 190, 82, 0.2);
+          border-color: #8aa4c4;
+          box-shadow: 0 0 0 3px rgba(138, 164, 196, 0.2);
         }
         
         .clear-filters-btn {
-          background: linear-gradient(135deg, #F4E4BC, #E5D5A3);
-          color: #8B4513;
-          border: 2px solid #E5D5A3;
+          background: #f5f7fa;
+          color: #3f4f63;
+          border: 1px solid #d9dfe6;
           border-radius: 8px;
           padding: 0.8rem 1.5rem;
           font-size: 0.9rem;
@@ -3407,8 +3667,9 @@ export default function GuestDashboard() {
         }
         
         .clear-filters-btn:hover {
-          background: linear-gradient(135deg, #E5D5A3, #D4AF37);
-          border-color: #D4AF37;
+          background: rgba(255, 255, 255, 0.62);
+          border-color: #c4d1de;
+          backdrop-filter: blur(8px);
           transform: translateY(-1px);
         }
         
@@ -3428,7 +3689,7 @@ export default function GuestDashboard() {
         .section-header h2 {
           font-size: 2.2rem;
           font-weight: 700;
-          color: #8B4513;
+          color: #243446;
           margin: 0;
           position: relative;
         }
@@ -3445,13 +3706,13 @@ export default function GuestDashboard() {
         }
         
         .results-count {
-          background: linear-gradient(135deg, #FEBE52, #F4E4BC);
-          color: #8B4513;
+          background: #edf2f7;
+          color: #324355;
           padding: 0.5rem 1rem;
           border-radius: 20px;
           font-size: 0.9rem;
           font-weight: 600;
-          border: 1px solid #E5D5A3;
+          border: 1px solid #dbe3ec;
         }
         
         .history-grid {
@@ -3465,10 +3726,10 @@ export default function GuestDashboard() {
           grid-column: 1 / -1;
           text-align: center;
           padding: 4rem 2rem;
-          background: linear-gradient(135deg, #ffffff 0%, #fefefe 100%);
-          border: 2px dashed #E5D5A3;
+          background: #ffffff;
+          border: 2px dashed #d9d2c4;
           border-radius: 16px;
-          color: #A0826D;
+          color: #647588;
         }
         
         .no-data-icon {
@@ -3480,7 +3741,7 @@ export default function GuestDashboard() {
         .no-data h3 {
           font-size: 1.5rem;
           font-weight: 600;
-          color: #8B4513;
+          color: #243446;
           margin: 0 0 0.5rem 0;
         }
         

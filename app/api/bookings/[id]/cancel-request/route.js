@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/auth';
+import { notifyStaff, CHANNELS, EVENTS } from '@/lib/pusher-server';
 
 // POST - Request cancellation (ALL cancellations require admin approval)
 export async function POST(req, context) {
@@ -102,6 +103,21 @@ export async function POST(req, context) {
         bookingId: bookingId,
       },
     });
+
+    // 🔔 PUSHER: Notify SuperAdmin in real-time about new cancellation request
+    try {
+      await notifyStaff('SUPERADMIN', {
+        type: 'cancellation_request',
+        message: `New cancellation request for Booking #${bookingId} from ${booking.user?.firstName} ${booking.user?.lastName}`,
+        bookingId: bookingId,
+        requestId: cancellationRequest.id,
+        reason: reason.trim(),
+        guestName: booking.guestName || `${booking.user?.firstName} ${booking.user?.lastName}`,
+      });
+      console.log(`[Pusher] Notified SuperAdmin about new cancellation request #${cancellationRequest.id}`);
+    } catch (pusherErr) {
+      console.warn('[Pusher] Failed to notify about cancellation request:', pusherErr);
+    }
 
     return NextResponse.json({
       success: true,

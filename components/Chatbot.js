@@ -11,21 +11,12 @@ const Chatbot = () => {
 
   const pathname = usePathname();
 
-  // Pages where chatbot should be visible (all guest-accessible pages)
+  // Pages where chatbot should be visible.
+  // Requested behavior: only landing page and guest dashboard area.
   const visibleRoutes = [
     '/',
-    '/about-us',
-    '/rooms',
-    '/room',
-    '/virtual-tour',
-    '/booking',
     '/guest',
-    '/guest/dashboard',
-    '/guest/bookings',
-    '/guest/profile',
-    '/guest/3dview',
-    '/confirmation',
-    '/amenities'
+    '/guest/dashboard'
   ];
   
   // Pages where chatbot should be hidden
@@ -35,12 +26,34 @@ const Chatbot = () => {
   ];
 
   // Roles that should NOT see the chatbot
-  const adminRoles = ['SUPER_ADMIN', 'RECEPTIONIST', 'CASHIER', 'AMENITY_INVENTORY_MANAGER'];
+  const adminRoles = [
+    'SUPER_ADMIN',
+    'SUPERADMIN',
+    'RECEPTIONIST',
+    'CASHIER',
+    'AMENITY_INVENTORY_MANAGER',
+    'AMENITYINVENTORYMANAGER',
+    'ADMIN'
+  ];
+
+  // Role route prefixes that must never show chatbot.
+  const blockedRoutePrefixes = [
+    '/super-admin',
+    '/receptionist',
+    '/cashier',
+    '/amenityinventorymanager',
+    '/admin'
+  ];
 
   // Check if current path should show chatbot
   const shouldShowIcon = (() => {
     // Hide for admin roles
-    if (session?.user?.role && adminRoles.includes(session.user.role)) {
+    if (session?.user?.role && adminRoles.includes(String(session.user.role).toUpperCase())) {
+      return false;
+    }
+
+    // Hide on any staff/admin route even if role is not yet loaded.
+    if (blockedRoutePrefixes.some((route) => pathname?.startsWith(route))) {
       return false;
     }
     
@@ -97,7 +110,7 @@ const Chatbot = () => {
       {isOpen && (
         <div className="modal-backdrop" onClick={() => setIsOpen(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <ChatInterface isModal={true} onClose={() => setIsOpen(false)} />
+            <ChatInterface isModal={true} onClose={() => setIsOpen(false)} session={session} />
           </div>
         </div>
       )}

@@ -99,6 +99,7 @@ export function getPusherClient() {
 export const CHANNELS = {
   BOOKINGS: 'bookings',
   AVAILABILITY: 'availability',
+  AMENITIES: 'amenities',
   NOTIFICATIONS_RECEPTIONIST: 'notifications-receptionist',
   NOTIFICATIONS_CASHIER: 'notifications-cashier',
   NOTIFICATIONS_SUPERADMIN: 'notifications-superadmin',
@@ -119,6 +120,7 @@ export const EVENTS = {
   PAYMENT_FLAGGED: 'payment-flagged',
   AVAILABILITY_CHANGED: 'availability-changed',
   ROOM_BOOKED: 'room-booked',
+  AMENITY_STOCK_CHANGED: 'amenity-stock-changed',
   NEW_NOTIFICATION: 'new-notification',
   BOOKING_STATUS_CHANGED: 'booking-status-changed',
 };

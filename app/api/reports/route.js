@@ -2,6 +2,12 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
+function serializeBigInt(value) {
+  return JSON.parse(
+    JSON.stringify(value, (_key, val) => (typeof val === 'bigint' ? val.toString() : val))
+  );
+}
+
 // ✅ GET: Reports
 export async function GET(req) {
   try {
@@ -24,6 +30,7 @@ export async function GET(req) {
       include: {
         rooms: { include: { room: true } },
         user: true,
+        payments: true,
         // legacy amenities still loaded if ever needed
         amenities: { include: { amenity: true } },
         // new amenity systems
@@ -35,8 +42,33 @@ export async function GET(req) {
 
     // ✅ Aggregates
     const totalBookings = bookings.length;
-    const totalRevenue = bookings.reduce(
-      (sum, b) => sum + Number(b.totalPrice || 0),
+    const paidStatuses = new Set(['paid', 'reservation', 'partial', 'completed']);
+    const startDateObj = startDate ? new Date(startDate) : null;
+    const endDateObj = endDate ? new Date(endDate) : null;
+    if (endDateObj) {
+      endDateObj.setHours(23, 59, 59, 999);
+    }
+    const isInRange = (date) => {
+      if (!date) return false;
+      const dt = new Date(date);
+      if (startDateObj && dt < startDateObj) return false;
+      if (endDateObj && dt > endDateObj) return false;
+      return true;
+    };
+
+    const paidPayments = bookings.flatMap((booking) =>
+      (booking.payments || []).filter((payment) => {
+        const statusValue = String(payment?.status || '').toLowerCase();
+        if (!paidStatuses.has(statusValue)) return false;
+        if (startDateObj || endDateObj) {
+          return isInRange(payment?.createdAt);
+        }
+        return true;
+      })
+    );
+
+    const totalRevenue = paidPayments.reduce(
+      (sum, payment) => sum + Number(payment?.amount || 0),
       0
     );
     // Approximate occupied room units based on BookingRoom quantities
@@ -52,9 +84,17 @@ export async function GET(req) {
         acc[month] = { month, bookings: 0, revenue: 0 };
       }
       acc[month].bookings++;
-      acc[month].revenue += Number(b.totalPrice || 0);
       return acc;
     }, {});
+
+    for (const payment of paidPayments) {
+      if (!payment?.createdAt) continue;
+      const month = new Date(payment.createdAt).toISOString().slice(0, 7);
+      if (!monthly[month]) {
+        monthly[month] = { month, bookings: 0, revenue: 0 };
+      }
+      monthly[month].revenue += Number(payment?.amount || 0);
+    }
 
     const monthlyReport = Object.values(monthly);
 
@@ -95,7 +135,7 @@ export async function GET(req) {
     const optionalAmenityReport = Array.from(optionalCounts.entries()).map(([amenity, count]) => ({ amenity, count }));
     const rentalAmenityReport = Array.from(rentalCounts.entries()).map(([amenity, count]) => ({ amenity, count }));
 
-    return NextResponse.json({
+    const responsePayload = {
       totalBookings,
       totalRevenue,
       occupancyRate:
@@ -107,7 +147,9 @@ export async function GET(req) {
       optionalAmenityReport,
       rentalAmenityReport,
       bookings,
-    });
+    };
+
+    return NextResponse.json(serializeBigInt(responsePayload));
   } catch (error) {
     console.error("❌ Error generating report:", error);
     return NextResponse.json(

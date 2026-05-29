@@ -4,13 +4,31 @@ import { recordAudit } from '@/src/lib/audit';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/auth';
 import { withSecurity, validateNumber, validateObject } from '@/lib/security';
-import { broadcastNewBooking, triggerEvent, CHANNELS, EVENTS } from '@/lib/pusher-server';
+import { broadcastNewBooking, triggerEvent, notifyStaff, CHANNELS, EVENTS } from '@/lib/pusher-server';
 
 // Helper function to serialize BigInt values
 function serializeBigInt(obj) {
   return JSON.parse(JSON.stringify(obj, (key, value) =>
     typeof value === 'bigint' ? value.toString() : value
   ));
+}
+
+function normalizePromotionId(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function computeDiscountAmount(baseTotal, promotion) {
+  if (!promotion || baseTotal <= 0) return 0;
+  if (promotion.discountType === 'percentage') {
+    const percent = Number(promotion.discountValue) / 10000;
+    return Math.min(baseTotal, Math.round(baseTotal * percent));
+  }
+  if (promotion.discountType === 'fixed') {
+    return Math.min(baseTotal, Number(promotion.discountValue) || 0);
+  }
+  return 0;
 }
 
 async function getBookingsHandler(request) {
@@ -172,6 +190,7 @@ async function getBookingsHandler(request) {
 
 async function postBookingHandler(request) {
   try {
+    const actorSession = await getServerSession(authOptions);
     const body = request.sanitizedBody || await request.json();
     
     // Enhanced input validation
@@ -188,7 +207,8 @@ async function postBookingHandler(request) {
       cottage: { type: 'object', required: false },
       status: { type: 'string', required: false, options: { maxLength: 20 } },
       paymentStatus: { type: 'string', required: false, options: { maxLength: 20 } },
-      userId: { type: 'number', required: false, options: { integer: true, min: 1 } }
+      userId: { type: 'number', required: false, options: { integer: true, min: 1 } },
+      promotionId: { type: 'number', required: false, options: { integer: true, min: 1 } }
     };
 
     const validation = validateObject(body, schema);
@@ -212,7 +232,8 @@ async function postBookingHandler(request) {
       cottage,
       status = 'Pending',
       paymentStatus = 'Pending',
-      userId = null
+      userId = null,
+      promotionId = null
     } = validation.data;
 
     // Validate that either selectedRooms or roomsArray is provided
@@ -346,18 +367,6 @@ async function postBookingHandler(request) {
           }
         }
         
-        // AUTOMATIC EXTRA BED: Add extra bed for each additional pax
-        if (roomData.additionalPax && roomData.additionalPax > 0) {
-          // Find the "Extra Bed" amenity
-          const extraBedAmenity = await prisma.optionalAmenity.findFirst({
-            where: { name: { contains: 'Extra Bed', mode: 'insensitive' } }
-          });
-          
-          if (extraBedAmenity) {
-            optionalAmenitiesToUse[extraBedAmenity.id] = (optionalAmenitiesToUse[extraBedAmenity.id] || 0) + roomData.additionalPax;
-          }
-        }
-        
         // Aggregate rental amenities
         if (roomData.rentalAmenities) {
           for (const [amenityId, selection] of Object.entries(roomData.rentalAmenities)) {
@@ -430,6 +439,30 @@ async function postBookingHandler(request) {
       }
     }
 
+    const normalizedPromotionId = normalizePromotionId(promotionId);
+    let appliedPromotion = null;
+    let discountAmount = 0;
+
+    if (normalizedPromotionId) {
+      const promotion = await prisma.promotion.findUnique({
+        where: { id: normalizedPromotionId }
+      });
+      const now = new Date();
+      const isActive = promotion && promotion.isActive;
+      const isWithinDates = promotion && promotion.startDate <= now && promotion.endDate >= now;
+      const isBookingTarget = promotion && promotion.targetType === 'booking';
+
+      if (!promotion || !isActive || !isWithinDates || !isBookingTarget) {
+        return NextResponse.json({ error: 'Selected promotion is not valid for this booking.' }, { status: 400 });
+      }
+
+      discountAmount = computeDiscountAmount(calculatedTotalPrice, promotion);
+      appliedPromotion = promotion;
+    }
+
+    const totalBeforeDiscount = calculatedTotalPrice;
+    const totalAfterDiscount = Math.max(0, totalBeforeDiscount - discountAmount);
+
     // Reserve stock and create booking in a single transaction
     // Create booking with retry logic for transaction failures
     let booking;
@@ -470,7 +503,17 @@ async function postBookingHandler(request) {
               paymentMode,
               status,
               paymentStatus,
-              totalPrice: calculatedTotalPrice,
+              totalPrice: totalAfterDiscount,
+              appliedPromotionId: appliedPromotion ? appliedPromotion.id : null,
+              discountLabel: appliedPromotion ? appliedPromotion.title : null,
+              discountTypeSnapshot: appliedPromotion ? appliedPromotion.discountType : null,
+              discountValueSnapshot: appliedPromotion ? appliedPromotion.discountValue : null,
+              discountAmount: appliedPromotion ? discountAmount : null,
+              totalBeforeDiscount: totalBeforeDiscount,
+              totalAfterDiscount: totalAfterDiscount,
+              discountAppliedAt: appliedPromotion ? new Date() : null,
+              discountAppliedByRole: appliedPromotion ? (userId ? 'CUSTOMER' : (actorSession?.user?.role || null)) : null,
+              discountAppliedById: appliedPromotion ? (userId ? parseInt(userId) : (actorSession?.user?.id || null)) : null,
               userId: userId ? parseInt(userId) : null,
               // Hold inventory for 15 minutes pending reservation payment
               ...(status === 'Pending' && { heldUntil: new Date(Date.now() + 15 * 60 * 1000) }),
@@ -658,6 +701,26 @@ async function postBookingHandler(request) {
           role: 'superadmin',
         },
       });
+
+      // If the booking was created by receptionist, hand off to cashier immediately.
+      if (actorSession?.user?.role === 'RECEPTIONIST') {
+        const handoffNotification = await prisma.notification.create({
+          data: {
+            message: `Walk-in booking #${booking.id} is ready for cashier payment processing.`,
+            type: 'WALKIN_HANDOFF',
+            role: 'CASHIER',
+            bookingId: booking.id,
+          },
+        });
+
+        await notifyStaff('CASHIER', {
+          id: handoffNotification.id,
+          type: handoffNotification.type,
+          message: handoffNotification.message,
+          bookingId: booking.id,
+          createdAt: handoffNotification.createdAt,
+        });
+      }
     } catch (notifError) {
       console.error('Failed to create notification:', notifError);
     }
@@ -665,15 +728,23 @@ async function postBookingHandler(request) {
     // Record audit trail for the booking creation
     try {
       // Attempt to resolve server session to capture who created the booking
-      const session = await getServerSession(authOptions);
       const detailsObj = {
         summary: `Created booking for ${booking.guestName}`,
         after: booking,
+        promotion: appliedPromotion ? {
+          id: appliedPromotion.id,
+          title: appliedPromotion.title,
+          discountType: appliedPromotion.discountType,
+          discountValue: appliedPromotion.discountValue,
+          discountAmount,
+          totalBeforeDiscount,
+          totalAfterDiscount
+        } : null,
       };
       await recordAudit({
-        actorId: session?.user?.id || null,
-        actorName: session?.user?.name || session?.user?.email || booking.guestName,
-        actorRole: session?.user?.role || 'CUSTOMER',
+        actorId: actorSession?.user?.id || null,
+        actorName: actorSession?.user?.name || actorSession?.user?.email || booking.guestName,
+        actorRole: actorSession?.user?.role || 'CUSTOMER',
         action: 'CREATE',
         entity: 'Booking',
         entityId: String(booking.id),
@@ -701,6 +772,17 @@ async function postBookingHandler(request) {
     } catch (pusherErr) {
       console.error('[Pusher] Failed to broadcast new booking:', pusherErr);
       // Non-critical: don't fail the request if Pusher fails
+    }
+
+    // Broadcast amenity stock change for real-time inventory dashboards
+    try {
+      await triggerEvent(CHANNELS.AMENITIES, EVENTS.AMENITY_STOCK_CHANGED, {
+        action: 'booking-created',
+        bookingId: booking.id,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (pusherErr) {
+      console.warn('[Pusher] Failed to broadcast amenity stock change:', pusherErr?.message || pusherErr);
     }
 
     return NextResponse.json({ booking: serializeBigInt(booking) }, { status: 201 });

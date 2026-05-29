@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/auth';
+import { notifyStaff, notifyUser, EVENTS } from '@/lib/pusher-server';
 
 // PATCH - Approve or deny cancellation request
 export async function PATCH(req, context) {
@@ -84,6 +85,38 @@ export async function PATCH(req, context) {
         });
       });
 
+      // 🔔 PUSHER: Notify SuperAdmin about approval and guest about decision
+      try {
+        // Notify SuperAdmin that request was approved (for page refresh)
+        await notifyStaff('SUPERADMIN', {
+          type: 'cancellation_approved',
+          message: `Cancellation request #${requestId} has been approved for Booking #${request.bookingId}`,
+          bookingId: request.bookingId,
+          requestId: requestId,
+          guestName: request.booking.user?.firstName,
+        });
+        
+        // Notify guest about approval
+        if (request.userId) {
+          // Send notification
+          await notifyUser(request.userId, EVENTS.NEW_NOTIFICATION, {
+            type: 'cancellation_approved',
+            message: `Your cancellation request has been approved`,
+            bookingId: request.bookingId,
+          });
+          
+          // Send booking status change event so guest dashboard updates in real-time
+          await notifyUser(request.userId, EVENTS.BOOKING_STATUS_CHANGED, {
+            bookingId: request.bookingId,
+            status: 'Cancelled',
+            message: 'Your booking has been cancelled',
+          });
+        }
+        console.log(`[Pusher] Notified about cancellation approval for request #${requestId}`);
+      } catch (pusherErr) {
+        console.warn('[Pusher] Failed to notify about cancellation approval:', pusherErr);
+      }
+
       return NextResponse.json({
         success: true,
         message: 'Cancellation request approved',
@@ -123,6 +156,38 @@ export async function PATCH(req, context) {
           },
         });
       });
+
+      // 🔔 PUSHER: Notify SuperAdmin about denial and guest about decision
+      try {
+        // Notify SuperAdmin that request was denied (for page refresh)
+        await notifyStaff('SUPERADMIN', {
+          type: 'cancellation_denied',
+          message: `Cancellation request #${requestId} has been denied for Booking #${request.bookingId}`,
+          bookingId: request.bookingId,
+          requestId: requestId,
+          guestName: request.booking.user?.firstName,
+        });
+        
+        // Notify guest about denial
+        if (request.userId) {
+          // Send notification
+          await notifyUser(request.userId, EVENTS.NEW_NOTIFICATION, {
+            type: 'cancellation_denied',
+            message: `Your cancellation request has been denied. Reason: ${adminContext.trim()}. You may reschedule instead.`,
+            bookingId: request.bookingId,
+          });
+          
+          // Send booking status change event so guest dashboard updates in real-time
+          await notifyUser(request.userId, EVENTS.BOOKING_STATUS_CHANGED, {
+            bookingId: request.bookingId,
+            status: 'Confirmed',
+            message: `Your cancellation request was denied. Reason: ${adminContext.trim()}. You may reschedule instead.`,
+          });
+        }
+        console.log(`[Pusher] Notified about cancellation denial for request #${requestId}`);
+      } catch (pusherErr) {
+        console.warn('[Pusher] Failed to notify about cancellation denial:', pusherErr);
+      }
 
       return NextResponse.json({
         success: true,

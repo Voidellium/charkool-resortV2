@@ -24,7 +24,7 @@ export async function POST(req) {
       return new Response(JSON.stringify({ error: 'Only Super Admin can create staff accounts' }), { status: 403 });
     }
 
-    const { name, email, password, role } = await req.json();
+    const { name, email, password, role, adminPassword, promotionJustification, promotionAcknowledged } = await req.json();
 
     // Validate required fields
     if (!name || !email || !password || !role) {
@@ -36,6 +36,35 @@ export async function POST(req) {
       return new Response(JSON.stringify({ 
         error: `Invalid staff role. Valid roles are: ${STAFF_ROLES.join(', ')}` 
       }), { status: 400 });
+    }
+
+    const isSuperAdminCreation = role === 'SUPERADMIN';
+    if (isSuperAdminCreation) {
+      if (!promotionAcknowledged) {
+        return new Response(JSON.stringify({ error: 'Promotion acknowledgment is required.' }), { status: 400 });
+      }
+
+      if (!promotionJustification || !String(promotionJustification).trim()) {
+        return new Response(JSON.stringify({ error: 'Promotion justification is required.' }), { status: 400 });
+      }
+
+      if (!adminPassword || !String(adminPassword).trim()) {
+        return new Response(JSON.stringify({ error: 'Current admin password is required.' }), { status: 400 });
+      }
+
+      const actingAdmin = await prisma.user.findUnique({
+        where: { id: parseInt(session.user.id, 10) },
+        select: { password: true },
+      });
+
+      if (!actingAdmin?.password) {
+        return new Response(JSON.stringify({ error: 'Unable to verify admin password.' }), { status: 403 });
+      }
+
+      const passwordMatches = await bcrypt.compare(String(adminPassword), actingAdmin.password);
+      if (!passwordMatches) {
+        return new Response(JSON.stringify({ error: 'Current admin password is incorrect.' }), { status: 401 });
+      }
     }
 
     // Validate password strength
@@ -86,6 +115,7 @@ export async function POST(req) {
           summary: `Created staff account for ${newStaff.name} with role ${newStaff.role}`,
           staffEmail: newStaff.email,
           staffRole: newStaff.role,
+          promotionJustification: isSuperAdminCreation ? String(promotionJustification).trim() : undefined,
         }),
       });
     } catch (auditErr) {
@@ -137,10 +167,8 @@ export async function GET(req) {
         name: true,
         email: true,
         role: true,
-        createdAt: true,
-        lastLogin: true,
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { id: 'desc' },
     });
 
     return new Response(JSON.stringify(staff), { status: 200 });

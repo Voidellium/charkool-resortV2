@@ -2,8 +2,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import SuperAdminLayout from '@/components/SuperAdminLayout';
 import { DoorOpen, Plus, Edit2, Trash2, Search, Upload, Eye, RefreshCw, BedDouble, Users, CheckCircle, XCircle, AlertCircle, Info } from 'lucide-react';
+import { useToast } from '@/components/Toast';
 
 export default function SuperAdminRoomsPage() {
+  const { success, error, warning, info } = useToast();
   const [rooms, setRooms] = useState([]);
   const [filteredRooms, setFilteredRooms] = useState([]);
   const [newRoom, setNewRoom] = useState({
@@ -25,7 +27,11 @@ export default function SuperAdminRoomsPage() {
   const [alertModal, setAlertModal] = useState({ show: false, title: '', message: '', type: 'info' });
   const showAlert = useCallback((title, message, type = 'info') => {
     setAlertModal({ show: true, title, message, type });
-  }, []);
+    if (type === 'success') success(message, { title });
+    else if (type === 'error') error(message, { title });
+    else if (type === 'warning') warning(message, { title });
+    else info(message, { title });
+  }, [success, error, warning, info]);
 
   useEffect(() => {
     fetchRooms();
@@ -72,13 +78,32 @@ export default function SuperAdminRoomsPage() {
     }
   };
 
+  const validateImageFile = (file) => {
+    if (!file) return { valid: true };
+    const MAX_SIZE = 25 * 1024 * 1024;
+    const ALLOWED_TYPES = ['image/jpeg', 'image/pjpeg', 'image/png'];
+    if (file.size > MAX_SIZE) {
+      return { valid: false, error: `File size must be less than 25MB. Current size: ${(file.size / 1024 / 1024).toFixed(2)}MB` };
+    }
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      return { valid: false, error: 'Only JPG, JPEG, JFIF, and PNG image files are allowed' };
+    }
+    return { valid: true };
+  };
+
   const handleAddRoom = async (e) => {
     e.preventDefault();
     if (!newRoom.name || !newRoom.type) {
       showAlert('Missing Fields', 'Please fill in all fields', 'warning');
       return;
     }
-
+    if (newRoom.image) {
+      const validation = validateImageFile(newRoom.image);
+      if (!validation.valid) {
+        showAlert('Invalid Image', validation.error, 'error');
+        return;
+      }
+    }
     try {
       const formData = new FormData();
       formData.append('name', newRoom.name);
@@ -88,7 +113,10 @@ export default function SuperAdminRoomsPage() {
       if (newRoom.image) formData.append('image', newRoom.image);
 
       const res = await fetch('/api/rooms', { method: 'POST', body: formData });
-      if (!res.ok) throw new Error('Failed to add room');
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to add room');
+      }
 
       const addedRoom = await res.json();
       setRooms((prev) => [...prev, addedRoom]);
@@ -107,6 +135,14 @@ export default function SuperAdminRoomsPage() {
     if (!editingRoom?.name || !editingRoom?.type) {
       showAlert('Missing Fields', 'Please fill in all fields', 'warning');
       return;
+    }
+
+    if (editingRoom.image && editingRoom.image instanceof File) {
+      const validation = validateImageFile(editingRoom.image);
+      if (!validation.valid) {
+        showAlert('Invalid Image', validation.error, 'error');
+        return;
+      }
     }
 
     try {
@@ -232,18 +268,6 @@ export default function SuperAdminRoomsPage() {
 
           <div style={styles.statCard}>
             <div style={styles.statIcon}>
-              <span style={{ fontSize: '24px', color: '#f59e0b', fontWeight: 'bold' }}>₱</span>
-            </div>
-            <div>
-              <div style={styles.statValue}>
-                ₱{Math.round(rooms.reduce((sum, room) => sum + (room.price / 100), 0) / rooms.length || 0)}
-              </div>
-              <div style={styles.statLabel}>Avg. Price</div>
-            </div>
-          </div>
-
-          <div style={styles.statCard}>
-            <div style={styles.statIcon}>
               <Users size={24} style={{ color: '#8b5cf6' }} />
             </div>
             <div>
@@ -359,7 +383,7 @@ export default function SuperAdminRoomsPage() {
                   <Upload size={20} style={{ color: '#9ca3af' }} />
                   <input
                     type="file"
-                    accept="image/*"
+                    accept=".jpg,.jpeg,.jfif,.png"
                     onChange={(e) => {
                       if (editingRoom) {
                         setEditingRoom({ ...editingRoom, image: e.target.files[0] });
@@ -372,15 +396,13 @@ export default function SuperAdminRoomsPage() {
                   <span style={styles.fileInputText}>
                     {(() => {
                       const currentImage = editingRoom?.image || newRoom.image;
-                      if (!currentImage) return 'Choose image file';
-                      // If it's a File object, show the file name
+                      if (!currentImage) return 'JPG, JPEG, JFIF, PNG • Max 25MB';
                       if (currentImage instanceof File) return currentImage.name;
-                      // If it's a string (existing image path), show "Current image" or extract filename
                       if (typeof currentImage === 'string') {
                         const fileName = currentImage.split('/').pop();
                         return `Current: ${fileName}`;
                       }
-                      return 'Choose image file';
+                      return 'JPG, JPEG, JFIF, PNG • Max 25MB';
                     })()}
                   </span>
                 </label>

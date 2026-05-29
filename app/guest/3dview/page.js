@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { useState, useEffect } from 'react';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, ArrowLeft } from 'lucide-react';
 import { useModelPaths } from '@/hooks/useModelPaths';
 
 const EnhancedThreeDModelViewer = dynamic(() => import('../../../components/EnhancedThreeDModelViewer'), {
@@ -86,8 +86,9 @@ export default function GuestThreeDView() {
 
   return (
     <div style={{
-      width: '100vw',
-      height: '100vh',
+      width: '100%',
+      height: 'calc(100vh - 80px)',
+      minHeight: 'calc(100vh - 80px)',
       display: 'flex',
       flexDirection: 'column',
       overflow: 'hidden',
@@ -137,7 +138,7 @@ export default function GuestThreeDView() {
             borderRight: '1px solid rgba(253, 211, 92, 0.3)',
             boxShadow: '2px 0 12px rgba(0, 0, 0, 0.05)',
             transition: 'transform 0.3s ease',
-            zIndex: 1050
+            zIndex: 900
           }}
         >
           <div style={{
@@ -292,7 +293,7 @@ export default function GuestThreeDView() {
                   e.target.style.boxShadow = '0 8px 24px rgba(254,190,82,0.42)';
                 }}
               >
-                <span style={{ fontSize: '1.2rem' }}>←</span>
+                <ArrowLeft size={18} />
                 Back to Exterior
               </button>
             )}

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { recordAudit } from '@/src/lib/audit';
 import { getToken } from 'next-auth/jwt';
+import { triggerEvent, CHANNELS, EVENTS } from '@/lib/pusher-server';
 
 const JWT_SECRET = process.env.NEXTAUTH_SECRET;
 const isAuthorized = (role) => role === 'SUPERADMIN' || role === 'AMENITYINVENTORYMANAGER';
@@ -12,7 +13,11 @@ export async function PUT(request, { params }) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   }
   try {
-    const id = parseInt(params.id);
+    const resolvedParams = await params;
+    const id = parseInt(resolvedParams?.id, 10);
+    if (!Number.isFinite(id)) {
+      return NextResponse.json({ error: 'Invalid amenity id' }, { status: 400 });
+    }
     const body = await request.json();
     const data = {};
     if (body.name !== undefined) data.name = body.name.trim();
@@ -34,6 +39,20 @@ export async function PUT(request, { params }) {
         details: `Updated optional amenity "${updated.name}"`,
       });
     } catch {}
+
+    try {
+      await triggerEvent(CHANNELS.AMENITIES, EVENTS.AMENITY_STOCK_CHANGED, {
+        action: 'updated',
+        category: 'optional',
+        amenityId: updated.id,
+        name: updated.name,
+        quantity: updated.quantity,
+        updatedAt: updated.updatedAt,
+      });
+    } catch (pusherErr) {
+      console.warn('[Pusher] Failed to emit optional amenity update event:', pusherErr?.message || pusherErr);
+    }
+
     return NextResponse.json(updated);
   } catch (error) {
     console.error('❌ Optional Amenity PUT Error:', error);
@@ -47,7 +66,11 @@ export async function DELETE(request, { params }) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   }
   try {
-    const id = parseInt(params.id);
+    const resolvedParams = await params;
+    const id = parseInt(resolvedParams?.id, 10);
+    if (!Number.isFinite(id)) {
+      return NextResponse.json({ error: 'Invalid amenity id' }, { status: 400 });
+    }
     const deleted = await prisma.optionalAmenity.delete({ where: { id } });
     await prisma.amenityLog.create({ data: { action: 'DELETE', amenityName: deleted.name, user: token.name || 'Unknown User' } });
     try {
@@ -61,6 +84,19 @@ export async function DELETE(request, { params }) {
         details: `Deleted optional amenity "${deleted.name}"`,
       });
     } catch {}
+
+    try {
+      await triggerEvent(CHANNELS.AMENITIES, EVENTS.AMENITY_STOCK_CHANGED, {
+        action: 'deleted',
+        category: 'optional',
+        amenityId: deleted.id,
+        name: deleted.name,
+        quantity: 0,
+      });
+    } catch (pusherErr) {
+      console.warn('[Pusher] Failed to emit optional amenity delete event:', pusherErr?.message || pusherErr);
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('❌ Optional Amenity DELETE Error:', error);

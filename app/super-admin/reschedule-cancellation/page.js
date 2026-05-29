@@ -21,6 +21,7 @@ import {
 import SuperAdminLayout from '@/components/SuperAdminLayout';
 import Loading from '@/components/Loading';
 import { useToast } from '@/components/Toast';
+import { useStaffNotifications } from '@/hooks/usePusher';
 
 export default function RescheduleCancellationPage() {
   const { data: session } = useSession();
@@ -90,10 +91,43 @@ export default function RescheduleCancellationPage() {
   useEffect(() => {
     if (currentTab === 'reschedule') {
       fetchRescheduleRequests();
+    } else if (currentTab === 'cancellation') {
+      fetchCancellationRequests();
     } else {
+      fetchRescheduleRequests();
       fetchCancellationRequests();
     }
   }, [currentTab]);
+
+  // 🔔 PUSHER: Listen for real-time notifications (cancellation/reschedule updates)
+  useStaffNotifications('SUPERADMIN', (notification) => {
+    if (!notification) return;
+    const type = notification.type || 'notification';
+    const message = notification.message || 'New super admin update received';
+    if (type.includes('denied') || type.includes('cancelled')) {
+      toast.warning(message, { title: 'Live Update' });
+    } else if (type.includes('approved')) {
+      toast.success(message, { title: 'Live Update' });
+    } else {
+      toast.info(message, { title: 'Live Update' });
+    }
+    
+    // Handle cancellation request notifications
+    if (notification.type === 'cancellation_request') {
+      console.log('[Pusher] New cancellation request received, refreshing list');
+      fetchCancellationRequests();
+    }
+    // Handle cancellation approval/denial notifications
+    else if (notification.type === 'cancellation_approved' || notification.type === 'cancellation_denied') {
+      console.log(`[Pusher] Cancellation ${notification.type}, refreshing list`);
+      fetchCancellationRequests();
+    }
+    // Handle reschedule request notifications (if applicable)
+    else if (notification.type === 'reschedule_request' || notification.type === 'reschedule_approved' || notification.type === 'reschedule_denied') {
+      console.log('[Pusher] Reschedule request update, refreshing list');
+      fetchRescheduleRequests();
+    }
+  });
 
   // Approve reschedule request
   const handleApprove = async (request) => {
@@ -205,26 +239,42 @@ export default function RescheduleCancellationPage() {
     }
   };
 
+  const pendingReschedules = rescheduleRequests.filter(r => r.status === 'PENDING');
+  const pendingCancellations = cancellationRequests.filter(r => r.status === 'PENDING');
+  const completedRequests = [
+    ...rescheduleRequests.filter(r => r.status !== 'PENDING').map(r => ({ type: 'Reschedule', request: r })),
+    ...cancellationRequests.filter(r => r.status !== 'PENDING').map(r => ({ type: 'Cancellation', request: r }))
+  ];
+
   // Filter and search logic
   const getFilteredRequests = () => {
-    const requests = currentTab === 'reschedule' ? rescheduleRequests : cancellationRequests;
-    
-    let filtered = requests;
+    let filtered = [];
 
-    // Apply status filter
-    if (filterStatus !== 'all') {
-      filtered = filtered.filter(req => req.status.toLowerCase() === filterStatus.toLowerCase());
+    if (currentTab === 'reschedule') {
+      filtered = pendingReschedules;
+    } else if (currentTab === 'cancellation') {
+      filtered = pendingCancellations;
+    } else {
+      filtered = completedRequests;
+    }
+
+    // Apply status filter (completed tab only)
+    if (currentTab === 'completed' && filterStatus !== 'all') {
+      filtered = filtered.filter(item => item.request.status.toLowerCase() === filterStatus.toLowerCase());
     }
 
     // Apply search
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(req => 
-        req.bookingId?.toString().toLowerCase().includes(query) ||
-        req.user?.firstName?.toLowerCase().includes(query) ||
-        req.user?.lastName?.toLowerCase().includes(query) ||
-        req.user?.email?.toLowerCase().includes(query)
-      );
+      filtered = filtered.filter(item => {
+        const req = currentTab === 'completed' ? item.request : item;
+        const guestName = req.booking?.guestName || (req.booking?.user ? `${req.booking.user.firstName} ${req.booking.user.lastName}` : '');
+        const email = req.booking?.user?.email || '';
+        
+        return req.bookingId?.toString().toLowerCase().includes(query) ||
+          guestName.toLowerCase().includes(query) ||
+          email.toLowerCase().includes(query);
+      });
     }
 
     return filtered;
@@ -242,6 +292,14 @@ export default function RescheduleCancellationPage() {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, filterStatus, currentTab]);
+
+  useEffect(() => {
+    if (currentTab === 'completed') {
+      setFilterStatus('all');
+    } else {
+      setFilterStatus('pending');
+    }
+  }, [currentTab]);
 
   return (
     <SuperAdminLayout activePage="bookings">
@@ -271,7 +329,7 @@ export default function RescheduleCancellationPage() {
             <div style={styles.statContent}>
               <p style={styles.statLabel}>Pending Reschedules</p>
               <p style={styles.statValue}>
-                {rescheduleRequests.filter(r => r.status === 'PENDING').length}
+                {pendingReschedules.length}
               </p>
             </div>
           </div>
@@ -281,9 +339,9 @@ export default function RescheduleCancellationPage() {
               <CheckCircle size={24} color="#10b981" />
             </div>
             <div style={styles.statContent}>
-              <p style={styles.statLabel}>Approved Requests</p>
+              <p style={styles.statLabel}>Pending Cancellations</p>
               <p style={styles.statValue}>
-                {rescheduleRequests.filter(r => r.status === 'APPROVED').length}
+                {pendingCancellations.length}
               </p>
             </div>
           </div>
@@ -293,9 +351,9 @@ export default function RescheduleCancellationPage() {
               <XCircle size={24} color="#ef4444" />
             </div>
             <div style={styles.statContent}>
-              <p style={styles.statLabel}>Denied Requests</p>
+              <p style={styles.statLabel}>Completed Requests</p>
               <p style={styles.statValue}>
-                {rescheduleRequests.filter(r => r.status === 'DENIED').length}
+                {completedRequests.length}
               </p>
             </div>
           </div>
@@ -305,9 +363,9 @@ export default function RescheduleCancellationPage() {
               <Ban size={24} color="#f97316" />
             </div>
             <div style={styles.statContent}>
-              <p style={styles.statLabel}>Cancellation Requests</p>
+              <p style={styles.statLabel}>Total Requests</p>
               <p style={styles.statValue}>
-                {cancellationRequests.length}
+                {rescheduleRequests.length + cancellationRequests.length}
               </p>
             </div>
           </div>
@@ -327,7 +385,7 @@ export default function RescheduleCancellationPage() {
                 <RefreshCw size={18} />
                 Reschedule Requests
                 <span style={styles.tabBadge}>
-                  {rescheduleRequests.filter(r => r.status === 'PENDING').length}
+                  {pendingReschedules.length}
                 </span>
               </button>
               <button
@@ -340,7 +398,20 @@ export default function RescheduleCancellationPage() {
                 <Ban size={18} />
                 Cancellation Approvals
                 <span style={styles.tabBadge}>
-                  {cancellationRequests.filter(r => r.status === 'PENDING').length}
+                  {pendingCancellations.length}
+                </span>
+              </button>
+              <button
+                onClick={() => setCurrentTab('completed')}
+                style={{
+                  ...styles.tabButton,
+                  ...(currentTab === 'completed' ? styles.tabButtonActive : {})
+                }}
+              >
+                <CheckCircle size={18} />
+                Completed Requests
+                <span style={styles.tabBadge}>
+                  {completedRequests.length}
                 </span>
               </button>
             </div>
@@ -367,10 +438,15 @@ export default function RescheduleCancellationPage() {
               onChange={(e) => setFilterStatus(e.target.value)}
               style={styles.filterSelect}
             >
-              <option value="all">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="denied">Denied</option>
+              {currentTab === 'completed' ? (
+                <>
+                  <option value="all">All Status</option>
+                  <option value="approved">Approved</option>
+                  <option value="denied">Denied</option>
+                </>
+              ) : (
+                <option value="pending">Pending</option>
+              )}
             </select>
           </div>
 
@@ -378,7 +454,10 @@ export default function RescheduleCancellationPage() {
             onClick={() => {
               if (currentTab === 'reschedule') {
                 fetchRescheduleRequests();
+              } else if (currentTab === 'cancellation') {
+                fetchCancellationRequests();
               } else {
+                fetchRescheduleRequests();
                 fetchCancellationRequests();
               }
             }}
@@ -402,12 +481,14 @@ export default function RescheduleCancellationPage() {
                 onApprove={handleApprove}
                 onDeny={handleDeny}
               />
-            ) : (
+            ) : currentTab === 'cancellation' ? (
               <CancellationApprovalsTable 
                 requests={paginatedRequests}
                 onApprove={handleApprove}
                 onDeny={handleDeny}
               />
+            ) : (
+              <CompletedRequestsTable requests={paginatedRequests} />
             )}
 
             {/* Pagination */}
@@ -573,7 +654,7 @@ function RescheduleRequestsTable({ requests, onApprove, onDeny }) {
                 <td style={styles.tableCell}>
                   <div style={styles.guestInfo}>
                     <User size={16} color="#6b7280" />
-                    <span>{request.user?.firstName} {request.user?.lastName}</span>
+                    <span>{request.booking?.guestName || (request.booking?.user ? `${request.booking.user.firstName} ${request.booking.user.lastName}` : 'Unknown Guest')}</span>
                   </div>
                 </td>
                 <td style={styles.tableCell}>
@@ -688,7 +769,7 @@ function CancellationApprovalsTable({ requests, onApprove, onDeny }) {
                   </span>
                 </td>
                 <td style={styles.tableCell}>
-                  {new Date(request.booking?.checkInDate).toLocaleDateString()}
+                  {request.booking?.checkIn ? new Date(request.booking.checkIn).toLocaleDateString() : 'N/A'}
                 </td>
                 <td style={styles.tableCell}>
                   <div style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -744,6 +825,93 @@ function CancellationApprovalsTable({ requests, onApprove, onDeny }) {
                       )}
                     </span>
                   )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function CompletedRequestsTable({ requests }) {
+  if (!requests || requests.length === 0) {
+    return (
+      <div style={styles.emptyState}>
+        <CheckCircle size={48} color="#d1d5db" />
+        <h3 style={styles.emptyStateTitle}>No Completed Requests</h3>
+        <p style={styles.emptyStateText}>
+          Approved or denied requests will appear here.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={styles.tableContainer}>
+      <table style={styles.table}>
+        <thead>
+          <tr>
+            <th style={styles.tableHeader}>Type</th>
+            <th style={styles.tableHeader}>Booking ID</th>
+            <th style={styles.tableHeader}>Guest</th>
+            <th style={styles.tableHeader}>Details</th>
+            <th style={styles.tableHeader}>Status</th>
+            <th style={styles.tableHeader}>Decided</th>
+          </tr>
+        </thead>
+        <tbody>
+          {requests.map((item) => {
+            const request = item.request;
+            const statusColors = {
+              APPROVED: { bg: '#d1fae5', text: '#065f46', border: '#10b981' },
+              DENIED: { bg: '#fee2e2', text: '#991b1b', border: '#ef4444' }
+            };
+            const colors = statusColors[request.status] || statusColors.APPROVED;
+            const guestName = request.booking?.guestName || (request.booking?.user ? `${request.booking.user.firstName} ${request.booking.user.lastName}` : 'Unknown Guest');
+
+            const formatMaybeDate = (value) => {
+              if (!value) return 'N/A';
+              const dt = new Date(value);
+              return Number.isNaN(dt.getTime()) ? 'N/A' : dt.toLocaleDateString();
+            };
+
+            const details = item.type === 'Reschedule'
+              ? `${formatMaybeDate(request.oldCheckIn)} → ${formatMaybeDate(request.newCheckIn)}`
+              : `${formatMaybeDate(request.booking?.checkIn || request.booking?.checkInDate)} • ${request.reason || 'No reason provided'}`;
+
+            return (
+              <tr key={`${item.type}-${request.id}`} style={styles.tableRow}>
+                <td style={styles.tableCell}>{item.type}</td>
+                <td style={styles.tableCell}>#{request.bookingId}</td>
+                <td style={styles.tableCell}>
+                  {guestName}
+                  <br />
+                  <span style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                    {request.booking?.user?.email || ''}
+                  </span>
+                </td>
+                <td style={styles.tableCell}>
+                  <div style={{ maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {details}
+                  </div>
+                </td>
+                <td style={styles.tableCell}>
+                  <span style={{
+                    padding: '0.25rem 0.75rem',
+                    borderRadius: '12px',
+                    fontSize: '0.875rem',
+                    fontWeight: '600',
+                    backgroundColor: colors.bg,
+                    color: colors.text,
+                    border: `1px solid ${colors.border}`
+                  }}>
+                    {request.status}
+                  </span>
+                </td>
+                <td style={styles.tableCell}>
+                  {request.decidedAt ? new Date(request.decidedAt).toLocaleDateString() : 'N/A'}
                 </td>
               </tr>
             );

@@ -44,7 +44,7 @@ export async function PUT(req, { params }) {
 
     const { id } = await params;
     const userId = parseInt(id);
-    const { name, email, password, role } = await req.json();
+    const { name, email, password, role, adminPassword, promotionJustification, promotionAcknowledged } = await req.json();
 
     // Get current user data
     const beforeUser = await prisma.user.findUnique({
@@ -78,6 +78,45 @@ export async function PUT(req, { params }) {
       }), { status: 400, headers: corsHeaders });
     }
 
+    const isPromotingToSuperAdmin = beforeUser.role !== 'SUPERADMIN' && role === 'SUPERADMIN';
+    if (isPromotingToSuperAdmin) {
+      if (!promotionAcknowledged) {
+        return new Response(JSON.stringify({ 
+          error: 'Promotion acknowledgment is required.' 
+        }), { status: 400, headers: corsHeaders });
+      }
+
+      if (!promotionJustification || !String(promotionJustification).trim()) {
+        return new Response(JSON.stringify({ 
+          error: 'Promotion justification is required.' 
+        }), { status: 400, headers: corsHeaders });
+      }
+
+      if (!adminPassword || !String(adminPassword).trim()) {
+        return new Response(JSON.stringify({ 
+          error: 'Current admin password is required.' 
+        }), { status: 400, headers: corsHeaders });
+      }
+
+      const actingAdmin = await prisma.user.findUnique({
+        where: { id: parseInt(session.user.id, 10) },
+        select: { password: true },
+      });
+
+      if (!actingAdmin?.password) {
+        return new Response(JSON.stringify({ 
+          error: 'Unable to verify admin password.' 
+        }), { status: 403, headers: corsHeaders });
+      }
+
+      const passwordMatches = await bcrypt.compare(String(adminPassword), actingAdmin.password);
+      if (!passwordMatches) {
+        return new Response(JSON.stringify({ 
+          error: 'Current admin password is incorrect.' 
+        }), { status: 401, headers: corsHeaders });
+      }
+    }
+
     // Build update data
     let updatedData = {};
     if (name) updatedData.name = name.trim();
@@ -103,6 +142,7 @@ export async function PUT(req, { params }) {
       if (beforeUser.email !== updatedUser.email) changes.push(`email: "${beforeUser.email}" → "${updatedUser.email}"`);
       if (beforeUser.role !== updatedUser.role) changes.push(`role: "${beforeUser.role}" → "${updatedUser.role}"`);
       if (password) changes.push('password: [updated]');
+      if (isPromotingToSuperAdmin) changes.push(`superadmin promotion justification: "${String(promotionJustification).trim()}"`);
 
       await recordAudit({
         actorId: session.user.id,
@@ -114,7 +154,7 @@ export async function PUT(req, { params }) {
         details: JSON.stringify({
           summary: `Updated ${isStaffRole(updatedUser.role) ? 'staff' : 'user'} ${updatedUser.name}: ${changes.join(', ')}`,
           before: beforeUser,
-          after: { ...updatedUser, passwordChanged: !!password }
+          after: { ...updatedUser, passwordChanged: !!password, promotionJustification: isPromotingToSuperAdmin ? String(promotionJustification).trim() : undefined }
         }),
       });
     } catch (auditErr) {

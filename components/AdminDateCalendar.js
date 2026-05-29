@@ -184,92 +184,105 @@ export default function AdminDateCalendar({ disabledDates = [], onDateSelect }) 
         .calendar-wrapper {
           width: min(100%, 860px);
           margin: 0 auto;
+          border: 1px solid #e2e8f0;
+          border-radius: 14px;
+          overflow: hidden;
+          background: #fff;
+          box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
         }
         .header {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 0.9rem;
+          padding: 12px 16px;
           background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
-          border-radius: 12px 12px 0 0;
           color: #fff;
         }
         .header-title {
           margin: 0;
-          font-size: 1.05rem;
+          font-size: 1.1rem;
           font-weight: 700;
+          text-align: center;
+          flex: 1;
           letter-spacing: 0.02em;
         }
         .nav-btn {
           background: rgba(255, 255, 255, 0.2);
           border: none;
           border-radius: 8px;
-          width: 34px;
-          height: 34px;
+          width: 36px;
+          height: 36px;
           color: #fff;
-          font-size: 1.2rem;
+          font-size: 1.3rem;
           cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
           transition: background-color 0.2s ease;
         }
         .nav-btn:hover {
           background: rgba(255, 255, 255, 0.3);
         }
         .calendar-body {
-          border: 1px solid #e2e8f0;
-          border-top: none;
-          border-radius: 0 0 12px 12px;
-          padding: 1rem;
+          padding: 16px;
           background: #fff;
         }
         .months-grid {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 12px;
+          margin-bottom: 16px;
         }
         .month-card {
-          border: 1px solid #e2e8f0;
+          border: 2px solid #e2e8f0;
           border-radius: 10px;
-          padding: 0.65rem;
+          padding: 10px;
           background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
         }
         .month-title {
-          margin: 0 0 0.6rem;
+          margin: 0 0 8px 0;
           text-align: center;
-          font-size: 0.96rem;
+          font-weight: 700;
           color: #334155;
+          font-size: 0.95rem;
         }
         .weekdays {
-          display: grid;
-          grid-template-columns: repeat(7, 1fr);
-          gap: 0.25rem;
-          margin-bottom: 0.35rem;
+          display: grid !important;
+          grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+          gap: 4px;
+          margin-bottom: 4px;
         }
         .weekday {
           text-align: center;
-          font-size: 0.72rem;
-          font-weight: 600;
-          color: #64748b;
-          padding: 0.3rem 0;
+          padding: 5px 0;
+          font-size: 0.78rem;
+          font-weight: bold;
+          color: #475569;
         }
         .days-grid {
-          display: grid;
-          grid-template-columns: repeat(7, 1fr);
-          gap: 0.25rem;
+          display: grid !important;
+          grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+          gap: 4px;
         }
         .day {
-          min-height: 36px;
+          min-height: 34px;
+          width: 100%;
+          aspect-ratio: 1 / 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
           border: 1px solid #e2e8f0;
-          border-radius: 8px;
+          border-radius: 6px;
           background: #fff;
           color: #1e293b;
           cursor: pointer;
-          font-size: 0.88rem;
+          font-size: 0.9rem;
           font-weight: 500;
           transition: all 0.2s ease;
         }
-        .day:hover {
-          background: #f8fafc;
-          border-color: #cbd5e1;
+        .day:hover:not(.empty):not(.disabled) {
+          background: #e6f0ff;
+          transform: translateY(-1px);
         }
         .day.empty {
           border: none;
@@ -278,44 +291,52 @@ export default function AdminDateCalendar({ disabledDates = [], onDateSelect }) 
         }
         .day.selected {
           border: 2px solid #2563eb;
-          background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+          background: #dbeafe;
           color: #1e40af;
           font-weight: 700;
         }
         .day.disabled {
-          background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+          background: #fee2e2;
           color: #dc2626;
+          font-weight: 600;
         }
         .legend {
-          margin-top: 1rem;
-          padding-top: 1rem;
+          margin-top: 12px;
+          padding-top: 12px;
           border-top: 1px solid #e2e8f0;
           display: flex;
-          gap: 1rem;
+          gap: 12px;
           flex-wrap: wrap;
-          font-size: 0.75rem;
-          color: #64748b;
+          font-size: 0.85rem;
+          color: #333;
+          user-select: none;
         }
         .legend-item {
           display: flex;
           align-items: center;
-          gap: 0.5rem;
+          gap: 6px;
+          min-width: 140px;
         }
         .legend-color {
-          width: 16px;
-          height: 16px;
-          border-radius: 4px;
+          width: 18px;
+          height: 18px;
+          border-radius: 3px;
+          display: inline-block;
+          border: 1px solid #ccc;
         }
         .legend-color.selected {
-          background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+          background: #dbeafe;
           border: 2px solid #2563eb;
         }
         .legend-color.disabled {
-          background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+          background: #fee2e2;
         }
         @media (max-width: 760px) {
           .months-grid {
             grid-template-columns: 1fr;
+          }
+          .day {
+            min-height: 36px;
           }
         }
       `}</style>

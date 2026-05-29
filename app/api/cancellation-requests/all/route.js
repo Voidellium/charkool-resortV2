@@ -37,7 +37,7 @@ export async function GET(req) {
           status: 'asc' // PENDING first
         },
         {
-          createdAt: 'desc' // Then by most recent
+          requestedAt: 'desc' // Then by most recent
         }
       ]
     });

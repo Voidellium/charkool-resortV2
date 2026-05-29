@@ -4,9 +4,9 @@ import { useEffect, useState, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import SuperAdminLayout from '@/components/SuperAdminLayout';
 import Loading, { TableLoading, ButtonLoading } from '@/components/Loading';
+import { useToast } from '@/components/Toast';
 import {
   CreditCard,
-  DollarSign,
   Clock,
   CheckCircle,
   XCircle,
@@ -42,8 +42,50 @@ const getPast7Days = () => {
   return days;
 };
 
+const TAB_PAGE_SIZE = 10;
+
+const STATUS_TABS = [
+  { key: 'to_process', label: 'To Process Payment' },
+  { key: 'flagged', label: 'Flagged' },
+  { key: 'investigation', label: 'Under Investigation' },
+  { key: 'verified', label: 'Verified' },
+  { key: 'cleared', label: 'Cleared Case' },
+  { key: 'fraud', label: 'Fraud' },
+  { key: 'all', label: 'All Payments' },
+];
+
+function paymentMatchesTab(payment, tabKey) {
+  const verificationStatus = String(payment?.verificationStatus || '').toLowerCase();
+  const status = String(payment?.status || '').toLowerCase();
+  const flagReason = String(payment?.flagReason || '').toUpperCase();
+
+  switch (tabKey) {
+    case 'to_process':
+      return status === 'pending';
+    case 'flagged':
+      return verificationStatus === 'flagged' && !flagReason.startsWith('UNDER_INVESTIGATION') && !flagReason.startsWith('CONFIRMED_FRAUD');
+    case 'investigation':
+      return flagReason.startsWith('UNDER_INVESTIGATION');
+    case 'verified':
+      return verificationStatus === 'verified';
+    case 'cleared':
+      return flagReason.startsWith('CLEARED');
+    case 'fraud':
+      return flagReason.startsWith('CONFIRMED_FRAUD');
+    case 'all':
+    default:
+      return true;
+  }
+}
+
+function applyStatusTab(paymentsList, tabKey) {
+  return (paymentsList || []).filter((payment) => paymentMatchesTab(payment, tabKey));
+}
+
 export default function Payments() {
   const { data: session } = useSession();
+  const { success, error, warning, info } = useToast();
+  const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
 
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -54,6 +96,14 @@ export default function Payments() {
   const [report, setReport] = useState(null);
   const [actionLoading, setActionLoading] = useState({});
   const [activeFilter, setActiveFilter] = useState('all'); // for KPI card filtering
+  const [activeStatusTab, setActiveStatusTab] = useState('to_process');
+  const [showSupervisorActions, setShowSupervisorActions] = useState(false);
+  const [statusTabPage, setStatusTabPage] = useState(() =>
+    STATUS_TABS.reduce((acc, tab) => {
+      acc[tab.key] = 1;
+      return acc;
+    }, {})
+  );
 
   // Payment processing state (like cashier)
   const [showProcessModal, setShowProcessModal] = useState(false);
@@ -64,6 +114,12 @@ export default function Payments() {
   const [referenceNo, setReferenceNo] = useState("");
   const [noteText, setNoteText] = useState("");
   const [eReceiptModal, setEReceiptModal] = useState({ show: false, receiptData: null });
+  const [overrideStatusModal, setOverrideStatusModal] = useState({
+    show: false,
+    payment: null,
+    newStatus: 'Paid',
+    reason: '',
+  });
   
   // Search and advanced filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -82,7 +138,11 @@ export default function Payments() {
   const [alertModal, setAlertModal] = useState({ show: false, title: '', message: '', type: 'info' });
   const showAlert = useCallback((title, message, type = 'info') => {
     setAlertModal({ show: true, title, message, type });
-  }, []);
+    if (type === 'success') success(message, { title });
+    else if (type === 'error') error(message, { title });
+    else if (type === 'warning') warning(message, { title });
+    else info(message, { title });
+  }, [success, error, warning, info]);
 
   useEffect(() => {
     fetchPayments();
@@ -92,35 +152,42 @@ export default function Payments() {
     // Remove report fetching since we calculate everything from payments data
   }, []);
 
-  async function fetchCheckoutTransactions() {
-    setCheckoutsLoading(true);
-    try {
-      // Fetch all bookings with checkout scheduled for today
-      const today = new Date().toISOString().split('T')[0];
-      const res = await fetch(`/api/bookings/checkout?date=${today}`);
-      if (res.ok) {
-        const data = await res.json();
-        setCheckoutTransactions(Array.isArray(data) ? data : data.checkouts || []);
-      } else {
-        setCheckoutTransactions([]);
+  async function fetchAllBookingsForAdmin() {
+    const all = [];
+    let page = 1;
+    let hasNext = true;
+
+    while (hasNext) {
+      const res = await fetch(`/api/bookings?page=${page}&limit=100`);
+      if (!res.ok) {
+        throw new Error(`Failed to fetch bookings page ${page}`);
       }
-    } catch (e) {
-      console.error('Failed to fetch checkout transactions:', e);
-      setCheckoutTransactions([]);
-    } finally {
-      setCheckoutsLoading(false);
+      const data = await res.json();
+      const rows = Array.isArray(data) ? data : (data.bookings || []);
+      all.push(...rows);
+
+      const next = data?.pagination?.hasNextPage;
+      hasNext = Boolean(next);
+      page += 1;
+      if (!data?.pagination) {
+        hasNext = false;
+      }
     }
+
+    return all;
+  }
+
+  async function fetchCheckoutTransactions() {
+    // Checkout actions are handled in Booking Management, not Payment Management.
+    setCheckoutTransactions([]);
+    setCheckoutsLoading(false);
   }
 
   async function fetchUpcomingReservations() {
     setReservationsLoading(true);
     try {
-      // SuperAdmin sees ALL upcoming reservations (no date limit)
-      // Try multiple endpoints to get all bookings
-      const res = await fetch('/api/bookings');
-      if (res.ok) {
-        const data = await res.json();
-        const bookings = Array.isArray(data) ? data : data.bookings || [];
+      // SuperAdmin sees ALL upcoming reservations (no date limit), across paginated results.
+      const bookings = await fetchAllBookingsForAdmin();
         
         // Filter for future check-in dates only
         const now = new Date();
@@ -147,11 +214,8 @@ export default function Payments() {
           return dateA - dateB;
         });
         
-        setUpcomingReservations(upcoming);
-        console.log('Fetched upcoming reservations:', upcoming.length);
-      } else {
-        setUpcomingReservations([]);
-      }
+      setUpcomingReservations(upcoming);
+      console.log('Fetched upcoming reservations:', upcoming.length);
     } catch (e) {
       console.error('Failed to fetch upcoming reservations:', e);
       setUpcomingReservations([]);
@@ -163,11 +227,8 @@ export default function Payments() {
   async function fetchPendingPaymentBookings() {
     setPendingPaymentsLoading(true);
     try {
-      // Fetch all bookings with Confirmed status and Pending payment
-      const res = await fetch('/api/bookings');
-      if (res.ok) {
-        const data = await res.json();
-        const bookings = Array.isArray(data) ? data : data.bookings || [];
+      // Fetch all bookings with Confirmed status and Pending payment, across paginated results.
+      const bookings = await fetchAllBookingsForAdmin();
         
         // Filter for Confirmed bookings with Pending payments
         const pending = bookings.filter(booking => {
@@ -183,11 +244,8 @@ export default function Payments() {
           return dateB - dateA;
         });
         
-        setPendingPaymentBookings(pending);
-        console.log('Fetched pending payment bookings:', pending.length);
-      } else {
-        setPendingPaymentBookings([]);
-      }
+      setPendingPaymentBookings(pending);
+      console.log('Fetched pending payment bookings:', pending.length);
     } catch (e) {
       console.error('Failed to fetch pending payment bookings:', e);
       setPendingPaymentBookings([]);
@@ -240,9 +298,9 @@ export default function Payments() {
 
   // UI for cashier daily revenue tracking
   const renderCashierRevenueSection = () => (
-    <div style={{ marginBottom: '2rem', background: 'white', borderRadius: '16px', padding: '1.5rem', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', border: '1px solid #e2e8f0' }}>
-      <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '1rem', color: '#1e293b' }}>
-        <CreditCard size={28} style={{ marginRight: '0.5rem', verticalAlign: 'middle' }} />
+    <div style={{ marginBottom: '1rem', background: 'white', borderRadius: '12px', padding: '1rem', boxShadow: '0 2px 10px rgba(0,0,0,0.06)', border: '1px solid #e2e8f0' }}>
+      <h2 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '0.75rem', color: '#1e293b' }}>
+        <CreditCard size={20} style={{ marginRight: '0.5rem', verticalAlign: 'middle' }} />
         Cashier Daily Revenue Tracker
       </h2>
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
@@ -277,7 +335,7 @@ export default function Payments() {
           )}
         </tbody>
       </table>
-      <div style={{ fontSize: '0.9rem', color: '#64748b', marginTop: '0.5rem' }}>
+      <div style={{ fontSize: '0.82rem', color: '#64748b', marginTop: '0.5rem' }}>
         Only records from the past 7 days are available. Older records are automatically removed.
       </div>
     </div>
@@ -481,6 +539,11 @@ export default function Payments() {
   async function processPayment() {
     const payment = processingPayment;
     if (!payment) return;
+
+    if (payment?.isCheckout || String(payment?.type || '').toLowerCase() === 'checkout') {
+      showAlert('Checkout Restricted', 'Checkout must be completed in Booking Management.', 'warning');
+      return;
+    }
     
     setActionLoading(prev => ({...prev, process: true}));
     try {
@@ -508,19 +571,44 @@ export default function Payments() {
         transactionDate: new Date().toISOString().split('T')[0]
       };
 
-      // Update payment status
-      await fetch("/api/payments/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          paymentId: payment.id,
-          amount: customerPaidInCents,
-          status: "Completed",
-          paymentMethod,
-          referenceNo,
-          receiptData
-        }),
-      }).catch(() => {});
+      const isBookingContext = ['walkin', 'booking'].includes(String(payment?.type || '').toLowerCase());
+      let updateRes;
+
+      if (isBookingContext) {
+        const bookingId = payment?.bookingId || payment?.id || payment?.booking?.id;
+        updateRes = await fetch('/api/bookings/update-payment-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bookingId,
+            paymentStatus: customerPaidInCents >= Number(payment?.totalPrice || payment?.amount || 0) ? 'Paid' : 'Partial',
+            paymentMethod,
+            referenceNo,
+            amountPaid: customerPaidInCents,
+            receiptData,
+            processContext: 'arrival'
+          })
+        });
+      } else {
+        updateRes = await fetch('/api/payments/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            paymentId: payment.id,
+            amount: customerPaidInCents,
+            customerPaid: customerPaidInCents,
+            status: 'Paid',
+            paymentMethod,
+            referenceNo,
+            receiptData
+          })
+        });
+      }
+
+      if (!updateRes?.ok) {
+        const payload = await updateRes?.json().catch(() => ({}));
+        throw new Error(payload?.error || 'Failed to update payment records');
+      }
 
       // Show e-receipt
       setEReceiptModal({ show: true, receiptData });
@@ -605,8 +693,8 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
   }
 
   function toggleSelectAll() {
-    const filtered = filterPayments();
-    if (selectedRows.size === filtered.length) {
+    const filtered = applyStatusTab(filterPayments(), activeStatusTab);
+    if (selectedRows.size > 0 && selectedRows.size === filtered.length) {
       setSelectedRows(new Set());
     } else {
       setSelectedRows(new Set(filtered.map(p => p.id)));
@@ -726,6 +814,39 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
     } finally {
       setActionLoading(prev => ({...prev, [`override_${paymentId}`]: false}));
     }
+  }
+
+  function openOverrideStatusModal(payment) {
+    if (!payment) return;
+
+    setOverrideStatusModal({
+      show: true,
+      payment,
+      newStatus: payment?.status || 'Paid',
+      reason: '',
+    });
+  }
+
+  function closeOverrideStatusModal() {
+    setOverrideStatusModal({
+      show: false,
+      payment: null,
+      newStatus: 'Paid',
+      reason: '',
+    });
+  }
+
+  async function submitOverrideStatusModal() {
+    const payment = overrideStatusModal.payment;
+    if (!payment) return;
+
+    if (!overrideStatusModal.reason.trim()) {
+      showAlert('Reason Required', 'Please provide a reason for overriding the payment status', 'warning');
+      return;
+    }
+
+    await overridePaymentStatus(payment.id, overrideStatusModal.newStatus, overrideStatusModal.reason.trim());
+    closeOverrideStatusModal();
   }
 
   async function unverifyPayment(paymentId, reason) {
@@ -855,6 +976,118 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
     }
   }
 
+  async function requestReview(paymentId, reason) {
+    if (!reason || !reason.trim()) {
+      showAlert('Reason Required', 'Please provide a reason for review request', 'warning');
+      return;
+    }
+
+    setActionLoading(prev => ({ ...prev, [`review_${paymentId}`]: true }));
+    try {
+      const res = await fetch('/api/payments/actions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentId, action: 'request_review', reason })
+      });
+      const data = await res.json();
+      if (!data?.success) {
+        showAlert('Request Failed', data?.error || 'Failed to mark payment for review', 'error');
+        return;
+      }
+      await refreshPayments();
+      showAlert('Marked For Review', 'Payment has been marked for supervisor review', 'success');
+    } catch (e) {
+      console.error('request review error', e);
+      showAlert('Request Failed', 'Failed to mark payment for review', 'error');
+    } finally {
+      setActionLoading(prev => ({ ...prev, [`review_${paymentId}`]: false }));
+    }
+  }
+
+  async function startInvestigation(paymentId, reason) {
+    if (!reason || !reason.trim()) {
+      showAlert('Reason Required', 'Please provide investigation context', 'warning');
+      return;
+    }
+
+    setActionLoading(prev => ({ ...prev, [`investigate_${paymentId}`]: true }));
+    try {
+      const res = await fetch('/api/payments/actions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentId, action: 'start_investigation', reason })
+      });
+      const data = await res.json();
+      if (!data?.success) {
+        showAlert('Investigation Failed', data?.error || 'Failed to start investigation', 'error');
+        return;
+      }
+      await refreshPayments();
+      showAlert('Investigation Started', 'Case moved to investigation', 'success');
+    } catch (e) {
+      console.error('start investigation error', e);
+      showAlert('Investigation Failed', 'Failed to start investigation', 'error');
+    } finally {
+      setActionLoading(prev => ({ ...prev, [`investigate_${paymentId}`]: false }));
+    }
+  }
+
+  async function clearCase(paymentId, reason) {
+    if (!reason || !reason.trim()) {
+      showAlert('Reason Required', 'Please provide a resolution note', 'warning');
+      return;
+    }
+
+    setActionLoading(prev => ({ ...prev, [`clear_${paymentId}`]: true }));
+    try {
+      const res = await fetch('/api/payments/actions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentId, action: 'clear_case', reason })
+      });
+      const data = await res.json();
+      if (!data?.success) {
+        showAlert('Clear Failed', data?.error || 'Failed to clear case', 'error');
+        return;
+      }
+      await refreshPayments();
+      showAlert('Case Cleared', 'Payment case marked as cleared', 'success');
+    } catch (e) {
+      console.error('clear case error', e);
+      showAlert('Clear Failed', 'Failed to clear case', 'error');
+    } finally {
+      setActionLoading(prev => ({ ...prev, [`clear_${paymentId}`]: false }));
+    }
+  }
+
+  async function confirmFraud(paymentId, reason) {
+    if (!reason || !reason.trim()) {
+      showAlert('Reason Required', 'Please provide fraud confirmation reason', 'warning');
+      return;
+    }
+
+    setActionLoading(prev => ({ ...prev, [`fraud_${paymentId}`]: true }));
+    try {
+      const res = await fetch('/api/payments/actions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentId, action: 'confirm_fraud', reason })
+      });
+      const data = await res.json();
+      if (!data?.success) {
+        showAlert('Fraud Update Failed', data?.error || 'Failed to confirm fraud', 'error');
+        return;
+      }
+      await refreshPayments();
+      showAlert('Fraud Confirmed', 'Case marked as confirmed fraud', 'success');
+    } catch (e) {
+      console.error('confirm fraud error', e);
+      showAlert('Fraud Update Failed', 'Failed to confirm fraud', 'error');
+    } finally {
+      setActionLoading(prev => ({ ...prev, [`fraud_${paymentId}`]: false }));
+    }
+  }
+
   function filterPayments() {
     if (!Array.isArray(payments)) return [];
     let filtered = payments.filter((p) => {
@@ -939,6 +1172,23 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
     });
   }
 
+  useEffect(() => {
+    const count = applyStatusTab(filterPayments(), activeStatusTab).length;
+    const pages = Math.max(1, Math.ceil(count / TAB_PAGE_SIZE));
+    setStatusTabPage((prev) => {
+      const nextPage = Math.min(prev[activeStatusTab] || 1, pages);
+      if (nextPage === (prev[activeStatusTab] || 1)) return prev;
+      return { ...prev, [activeStatusTab]: nextPage };
+    });
+  }, [activeStatusTab, payments, filters.status, filters.startDate, filters.endDate, searchQuery, paymentMethodFilter, activeFilter]);
+
+  useEffect(() => {
+    setStatusTabPage((prev) => {
+      if ((prev[activeStatusTab] || 1) === 1) return prev;
+      return { ...prev, [activeStatusTab]: 1 };
+    });
+  }, [activeStatusTab, searchQuery, paymentMethodFilter, filters.startDate, filters.endDate, filters.status, activeFilter]);
+
   if (loading) {
     return (
       <SuperAdminLayout activePage="payments" user={session?.user}>
@@ -956,7 +1206,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
   const layoutStyle = {
     display: 'flex',
     flexDirection: isDetailOpen ? 'row' : 'column',
-    gap: '2rem',
+    gap: '1rem',
     alignItems: isDetailOpen ? 'flex-start' : 'center',
     justifyContent: 'center',
   };
@@ -970,6 +1220,20 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
     flex: 1,
     maxWidth: '35%',
   };
+
+  const baseFilteredPayments = filterPayments();
+  const tabFilteredPayments = applyStatusTab(baseFilteredPayments, activeStatusTab);
+  const tabCounts = STATUS_TABS.reduce((acc, tab) => {
+    acc[tab.key] = applyStatusTab(baseFilteredPayments, tab.key).length;
+    return acc;
+  }, {});
+
+  const currentStatusTabPage = statusTabPage[activeStatusTab] || 1;
+  const totalStatusTabPages = Math.max(1, Math.ceil(tabFilteredPayments.length / TAB_PAGE_SIZE));
+  const pagedTabPayments = tabFilteredPayments.slice(
+    (currentStatusTabPage - 1) * TAB_PAGE_SIZE,
+    currentStatusTabPage * TAB_PAGE_SIZE
+  );
 
   return (
     <SuperAdminLayout activePage="payments" user={session?.user}>
@@ -1012,21 +1276,26 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
             onClick={() => handleKpiCardClick('all')}
           >
             <div style={styles.kpiIcon}>
-              <DollarSign size={32} />
+              <span style={{ fontSize: '32px', fontWeight: 700, lineHeight: 1 }}>₱</span>
             </div>
             <div style={styles.kpiContent}>
-              <h3 style={styles.kpiTitle}>Total Revenue</h3>
+              <h3 style={styles.kpiTitle}>Total Revenue (Paid)</h3>
               <p style={styles.kpiValue}>
                 ₱ {(() => {
-                  // Calculate from actual payments data
-                  const paidPayments = payments.filter(p => p.status === 'Paid');
+                  const paidPayments = payments.filter(p => {
+                    const status = String(p.status || '').toLowerCase();
+                    return status === 'paid' || status === 'reservation' || status === 'partial' || status === 'completed';
+                  });
                   const totalRevenue = paidPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
                   return formatAmount(totalRevenue);
                 })()}
               </p>
               <span style={styles.kpiChange}>
                 <TrendingUp size={14} style={{ marginRight: '4px' }} />
-                {payments.filter(p => p.status === 'Paid').length} paid transactions
+                {payments.filter(p => {
+                  const status = String(p.status || '').toLowerCase();
+                  return status === 'paid' || status === 'reservation' || status === 'partial' || status === 'completed';
+                }).length} paid transactions
               </span>
             </div>
           </div>
@@ -1094,18 +1363,44 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
           </div>
         </div>
 
-        {/* Cashier Daily Revenue Section */}
-        {renderCashierRevenueSection()}
+        <div style={styles.statusTabsBar}>
+          {STATUS_TABS.map((tab) => {
+            const isActive = activeStatusTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => {
+                  setActiveStatusTab(tab.key);
+                  setSelectedRows(new Set());
+                }}
+                style={{
+                  ...styles.statusTabButton,
+                  ...(isActive ? styles.statusTabButtonActive : {}),
+                }}
+              >
+                <span>{tab.label}</span>
+                <span style={{ ...styles.statusTabCount, ...(isActive ? styles.statusTabCountActive : {}) }}>
+                  {tabCounts[tab.key] || 0}
+                </span>
+              </button>
+            );
+          })}
+        </div>
 
-        {/* Today's Scheduled Checkouts Section */}
-        <div style={{ marginBottom: '2rem', background: 'white', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-          <div style={{ padding: '1.5rem', background: 'linear-gradient(135deg, #FEBE52 0%, #E89C1A 100%)', color: 'white' }}>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <CalendarDays size={28} /> Today's Scheduled Checkouts
+        {activeStatusTab === 'to_process' && (
+          <>
+            {/* Cashier Daily Revenue Section */}
+            {renderCashierRevenueSection()}
+
+            {/* Today's Scheduled Checkouts Section */}
+            <div style={{ marginBottom: '1rem', background: 'white', borderRadius: '12px', boxShadow: '0 2px 10px rgba(0,0,0,0.06)', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+          <div style={{ padding: '1rem', background: 'linear-gradient(135deg, #FEBE52 0%, #E89C1A 100%)', color: 'white' }}>
+            <h2 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <CalendarDays size={20} /> Today's Scheduled Checkouts
             </h2>
-            <p style={{ margin: '0.5rem 0 0 0', opacity: 0.9 }}>Process payments for guests checking out today ({checkoutTransactions.length} checkouts)</p>
+            <p style={{ margin: '0.35rem 0 0 0', opacity: 0.9, fontSize: '0.88rem' }}>Process payments for guests checking out today ({checkoutTransactions.length} checkouts)</p>
           </div>
-          <div style={{ padding: '1.5rem' }}>
+          <div style={{ padding: '1rem' }}>
             {checkoutsLoading ? (
               <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Loading checkouts...</div>
             ) : checkoutTransactions.length === 0 ? (
@@ -1208,17 +1503,17 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
               </div>
             )}
           </div>
-        </div>
-
-        {/* Confirmed Bookings Awaiting Payment (Walk-ins) */}
-        <div style={{ marginBottom: '2rem', background: 'white', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-          <div style={{ padding: '1.5rem', background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)', color: 'white' }}>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <AlertTriangle size={28} /> Walk-in Bookings - Payment Required
-            </h2>
-            <p style={{ margin: '0.5rem 0 0 0', opacity: 0.9 }}>Process payments for confirmed walk-in bookings ({pendingPaymentBookings.length} bookings)</p>
           </div>
-          <div style={{ padding: '1.5rem' }}>
+
+          {/* Confirmed Bookings Awaiting Payment (Walk-ins) */}
+          <div style={{ marginBottom: '1rem', background: 'white', borderRadius: '12px', boxShadow: '0 2px 10px rgba(0,0,0,0.06)', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+          <div style={{ padding: '1rem', background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)', color: 'white' }}>
+            <h2 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <AlertTriangle size={20} /> Walk-in Bookings - Payment Required
+            </h2>
+            <p style={{ margin: '0.35rem 0 0 0', opacity: 0.9, fontSize: '0.88rem' }}>Process payments for confirmed walk-in bookings ({pendingPaymentBookings.length} bookings)</p>
+          </div>
+          <div style={{ padding: '1rem' }}>
             {pendingPaymentsLoading ? (
               <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Loading pending payments...</div>
             ) : pendingPaymentBookings.length === 0 ? (
@@ -1321,17 +1616,17 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
               </div>
             )}
           </div>
-        </div>
-
-        {/* Upcoming Reservations Section (ALL records - no date limit) */}
-        <div style={{ marginBottom: '2rem', background: 'white', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-          <div style={{ padding: '1.5rem', background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)', color: 'white' }}>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <BookOpen size={28} /> All Upcoming Reservations
-            </h2>
-            <p style={{ margin: '0.5rem 0 0 0', opacity: 0.9 }}>View all future reservations - no date restrictions ({upcomingReservations.length} reservations)</p>
           </div>
-          <div style={{ padding: '1.5rem' }}>
+
+          {/* Upcoming Reservations Section (ALL records - no date limit) */}
+          <div style={{ marginBottom: '1rem', background: 'white', borderRadius: '12px', boxShadow: '0 2px 10px rgba(0,0,0,0.06)', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+          <div style={{ padding: '1rem', background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)', color: 'white' }}>
+            <h2 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <BookOpen size={20} /> All Upcoming Reservations
+            </h2>
+            <p style={{ margin: '0.35rem 0 0 0', opacity: 0.9, fontSize: '0.88rem' }}>View all future reservations - no date restrictions ({upcomingReservations.length} reservations)</p>
+          </div>
+          <div style={{ padding: '1rem' }}>
             {reservationsLoading ? (
               <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Loading reservations...</div>
             ) : upcomingReservations.length === 0 ? (
@@ -1350,6 +1645,9 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                       <th style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 600, fontSize: '0.875rem' }}>Total Amount</th>
                       <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, fontSize: '0.875rem' }}>Status</th>
                       <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, fontSize: '0.875rem' }}>Days Until</th>
+                      {isSuperAdmin && (
+                        <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, fontSize: '0.875rem' }}>Actions</th>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -1357,6 +1655,15 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                       const checkInDate = new Date(reservation.checkInDate || reservation.checkIn);
                       const today = new Date();
                       const daysUntil = Math.ceil((checkInDate - today) / (1000 * 60 * 60 * 24));
+                      const totalAmount = Number(reservation.totalAmount || reservation.totalPrice || 0);
+                      const paidAmount = (reservation.payments || [])
+                        .filter(p => {
+                          const status = String(p.status || '').toLowerCase();
+                          return status === 'paid' || status === 'reservation' || status === 'partial' || status === 'completed';
+                        })
+                        .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+                      const remainingBalance = Math.max(0, totalAmount - paidAmount);
+                      const canOverride = isSuperAdmin && remainingBalance > 0;
                       
                       return (
                         <tr key={reservation.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
@@ -1373,7 +1680,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                             {checkInDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                           </td>
                           <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 700, color: '#2563eb' }}>
-                            ₱{((reservation.totalAmount || reservation.totalPrice || 0) / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                            ₱{(totalAmount / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                           </td>
                           <td style={{ padding: '0.75rem', textAlign: 'center' }}>
                             <span style={{
@@ -1390,6 +1697,37 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                           <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: daysUntil <= 3 ? '#dc2626' : '#64748b' }}>
                             {daysUntil} days
                           </td>
+                          {isSuperAdmin && (
+                            <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                              <button
+                                onClick={() => {
+                                  if (!canOverride) return;
+                                  const overridePayment = {
+                                    ...reservation,
+                                    amount: remainingBalance,
+                                    type: 'override',
+                                    isCheckout: false,
+                                    override: true
+                                  };
+                                  openProcessPaymentModal(overridePayment);
+                                }}
+                                disabled={!canOverride}
+                                style={{
+                                  padding: '0.45rem 0.9rem',
+                                  background: canOverride ? 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)' : '#cbd5f5',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '8px',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 600,
+                                  cursor: canOverride ? 'pointer' : 'not-allowed'
+                                }}
+                                title={canOverride ? 'Process payment early (override)' : 'Already fully paid'}
+                              >
+                                Process Now
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       );
                     })}
@@ -1405,7 +1743,9 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
               </div>
             )}
           </div>
-        </div>
+            </div>
+          </>
+        )}
 
         {/* Enhanced Filters */}
         <div style={styles.filtersCard}>
@@ -1564,10 +1904,10 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
               <div style={styles.tableHeader}>
                 <h3 style={styles.tableTitle}>
                   <CreditCard size={20} style={{ marginRight: '0.5rem' }} />
-                  Payment Transactions
+                  {STATUS_TABS.find((tab) => tab.key === activeStatusTab)?.label || 'Payment Transactions'}
                 </h3>
                 <div style={styles.tableStats}>
-                  {filterPayments().length} of {payments.length} payments
+                  {tabFilteredPayments.length} of {payments.length} payments
                 </div>
               </div>
               <div style={styles.tableWrapper}>
@@ -1577,7 +1917,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                       <th style={styles.th}>
                         <input
                           type="checkbox"
-                          checked={selectedRows.size > 0 && selectedRows.size === filterPayments().length}
+                          checked={selectedRows.size > 0 && selectedRows.size === tabFilteredPayments.length}
                           onChange={toggleSelectAll}
                           aria-label="Select all"
                         />
@@ -1593,7 +1933,14 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                   </thead>
                   <tbody>
                     {refreshing && <TableLoading />}
-                    {filterPayments().map((payment) => (
+                    {!refreshing && pagedTabPayments.length === 0 && (
+                      <tr>
+                        <td colSpan={8} style={{ ...styles.td, textAlign: 'center', color: '#64748b' }}>
+                          No payments found for this tab and filter combination.
+                        </td>
+                      </tr>
+                    )}
+                    {pagedTabPayments.map((payment) => (
                       <tr
                         key={payment.id}
                         onClick={() => selectPayment(payment)}
@@ -1666,6 +2013,27 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                   </tbody>
                 </table>
               </div>
+              <div style={styles.tabPaginationBar}>
+                <div style={styles.tabPaginationInfo}>
+                  Page {currentStatusTabPage} of {totalStatusTabPages}
+                </div>
+                <div style={styles.tabPaginationButtons}>
+                  <button
+                    onClick={() => setStatusTabPage((prev) => ({ ...prev, [activeStatusTab]: Math.max(1, (prev[activeStatusTab] || 1) - 1) }))}
+                    disabled={currentStatusTabPage === 1}
+                    style={{ ...styles.tabPaginationButton, ...(currentStatusTabPage === 1 ? styles.tabPaginationButtonDisabled : {}) }}
+                  >
+                    Prev
+                  </button>
+                  <button
+                    onClick={() => setStatusTabPage((prev) => ({ ...prev, [activeStatusTab]: Math.min(totalStatusTabPages, (prev[activeStatusTab] || 1) + 1) }))}
+                    disabled={currentStatusTabPage >= totalStatusTabPages}
+                    style={{ ...styles.tabPaginationButton, ...(currentStatusTabPage >= totalStatusTabPages ? styles.tabPaginationButtonDisabled : {}) }}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1693,7 +2061,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
 
                   <div style={styles.modalSection}>
                     <h4 style={styles.sectionTitle}>
-                      <DollarSign size={18} style={{ marginRight: '0.5rem' }} />
+                      <span style={{ marginRight: '0.5rem', fontSize: '18px', fontWeight: 700, lineHeight: 1 }}>₱</span>
                       Transaction Info
                     </h4>
                     <div style={styles.detailGrid}>
@@ -1738,6 +2106,25 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                         <span style={styles.detailLabel}>Contact:</span>
                         <span style={styles.detailValue}>{selectedPayment.booking?.user?.contactNumber || 'N/A'}</span>
                       </div>
+                      {(() => {
+                        const booking = selectedPayment.booking || {};
+                        const baseTotal = Number(booking.totalBeforeDiscount || booking.totalPrice || 0);
+                        const finalTotal = Number(booking.totalAfterDiscount || booking.totalPrice || 0);
+                        const discountAmount = Number(booking.discountAmount || Math.max(0, baseTotal - finalTotal));
+                        if (discountAmount <= 0) return null;
+                        return (
+                          <>
+                            <div style={styles.detailRow}>
+                              <span style={styles.detailLabel}>Promotion:</span>
+                              <span style={styles.detailValue}>{booking.discountLabel || 'Promotion Applied'}</span>
+                            </div>
+                            <div style={styles.detailRow}>
+                              <span style={styles.detailLabel}>Discount:</span>
+                              <span style={styles.detailValue}>₱{(discountAmount / 100).toLocaleString()}</span>
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
 
@@ -1767,7 +2154,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                   <div style={styles.actionSection}>
                     <h4 style={styles.sectionTitle}>
                       <Shield size={18} style={{ marginRight: '0.5rem' }} />
-                      Quick Actions
+                      Payment Control Actions
                     </h4>
                     <div style={styles.actionButtons}>
                       <button
@@ -1786,7 +2173,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                         ) : (
                           <CheckCircle size={16} />
                         )}
-                        {actionLoading[`verify_${selectedPayment.id}`] ? ' Verifying...' : ' Verify Payment'}
+                        {actionLoading[`verify_${selectedPayment.id}`] ? ' Verifying...' : ' Mark Verified'}
                       </button>
                       <button
                         style={{
@@ -1826,149 +2213,192 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                         ) : (
                           <AlertTriangle size={16} />
                         )}
-                        {actionLoading[`flag_${selectedPayment.id}`] ? ' Flagging...' : ' Flag Payment'}
-                      </button>
-                      <button
-                        style={{
-                          ...styles.modalActionButton,
-                          backgroundColor: '#6366f1',
-                          color: 'white',
-                          opacity: actionLoading[`note_${selectedPayment.id}`] ? 0.6 : 1
-                        }}
-                        onClick={async () => {
-                          const note = prompt('Enter note for this payment:');
-                          if (note && note.trim()) {
-                            await addPaymentNote(selectedPayment.id, note.trim());
-                          }
-                        }}
-                        disabled={actionLoading[`note_${selectedPayment.id}`]}
-                      >
-                        {actionLoading[`note_${selectedPayment.id}`] ? (
-                          <RotateCcw size={16} className="animate-spin" />
-                        ) : (
-                          <Receipt size={16} />
-                        )}
-                        {actionLoading[`note_${selectedPayment.id}`] ? ' Adding Note...' : ' Add Note'}
+                        {actionLoading[`flag_${selectedPayment.id}`] ? ' Marking...' : ' Flag (Needs Review)'}
                       </button>
                     </div>
                   </div>
 
-                  {/* Higher Authority Actions Section */}
-                  <div style={{...styles.actionSection, marginTop: '2rem', paddingTop: '2rem', borderTop: '2px solid #f59e0b'}}>
-                    <h4 style={{...styles.sectionTitle, color: '#f59e0b'}}>
-                      <Shield size={18} style={{ marginRight: '0.5rem' }} />
-                      Supervisor Override Actions
-                    </h4>
-                    <div style={styles.actionButtons}>
-                      <button
-                        style={{
-                          ...styles.modalActionButton,
-                          background: 'linear-gradient(135deg, #FEBE52 0%, #E89C1A 100%)',
-                          color: 'white',
-                          opacity: actionLoading[`override_${selectedPayment.id}`] ? 0.6 : 1
-                        }}
-                        onClick={async () => {
-                          const newStatus = prompt('Enter new status (Paid, Pending, or Failed):');
-                          if (newStatus && ['Paid', 'Pending', 'Failed'].includes(newStatus)) {
-                            const reason = prompt('Enter reason for overriding status:');
-                            if (reason && reason.trim()) {
-                              await overridePaymentStatus(selectedPayment.id, newStatus, reason.trim());
-                            }
-                          } else if (newStatus !== null) {
-                            showAlert('Invalid Status', 'Invalid status. Must be: Paid, Pending, or Failed', 'warning');
-                          }
-                        }}
-                        disabled={actionLoading[`override_${selectedPayment.id}`]}
-                      >
-                        {actionLoading[`override_${selectedPayment.id}`] ? (
-                          <RotateCcw size={16} className="animate-spin" />
-                        ) : (
-                          <Shield size={16} />
-                        )}
-                        {actionLoading[`override_${selectedPayment.id}`] ? ' Overriding...' : ' Override Status'}
-                      </button>
-                      <button
-                        style={{
-                          ...styles.modalActionButton,
-                          backgroundColor: '#f59e0b',
-                          color: 'white',
-                          opacity: actionLoading[`unverify_${selectedPayment.id}`] ? 0.6 : 1
-                        }}
-                        onClick={async () => {
-                          const reason = prompt('Enter reason for unverifying this payment:');
-                          if (reason && reason.trim()) {
-                            await unverifyPayment(selectedPayment.id, reason.trim());
-                          }
-                        }}
-                        disabled={actionLoading[`unverify_${selectedPayment.id}`] || selectedPayment.verificationStatus !== 'Verified'}
-                      >
-                        {actionLoading[`unverify_${selectedPayment.id}`] ? (
-                          <RotateCcw size={16} className="animate-spin" />
-                        ) : (
-                          <XCircle size={16} />
-                        )}
-                        {actionLoading[`unverify_${selectedPayment.id}`] ? ' Unverifying...' : ' Unverify Payment'}
-                      </button>
-                      <button
-                        style={{
-                          ...styles.modalActionButton,
-                          backgroundColor: '#8b5cf6',
-                          color: 'white',
-                          opacity: actionLoading[`edit_${selectedPayment.id}`] ? 0.6 : 1
-                        }}
-                        onClick={async () => {
-                          const field = prompt('What to edit? (method, reference, provider):');
-                          if (field && ['method', 'reference', 'provider'].includes(field.toLowerCase())) {
-                            const newValue = prompt(`Enter new ${field}:`);
-                            if (newValue && newValue.trim()) {
-                              const updates = {};
-                              if (field.toLowerCase() === 'method') updates.method = newValue.trim();
-                              if (field.toLowerCase() === 'reference') updates.referenceId = newValue.trim();
-                              if (field.toLowerCase() === 'provider') updates.provider = newValue.trim();
-                              await editPaymentMetadata(selectedPayment.id, updates);
-                            }
-                          } else if (field !== null) {
-                            showAlert('Invalid Field', 'Invalid field. Must be: method, reference, or provider', 'warning');
-                          }
-                        }}
-                        disabled={actionLoading[`edit_${selectedPayment.id}`]}
-                      >
-                        {actionLoading[`edit_${selectedPayment.id}`] ? (
-                          <RotateCcw size={16} className="animate-spin" />
-                        ) : (
-                          <Receipt size={16} />
-                        )}
-                        {actionLoading[`edit_${selectedPayment.id}`] ? ' Updating...' : ' Edit Metadata'}
-                      </button>
-                      <button
-                        style={{
-                          ...styles.modalActionButton,
-                          backgroundColor: '#ec4899',
-                          color: 'white',
-                          opacity: actionLoading[`reassign_${selectedPayment.id}`] ? 0.6 : 1
-                        }}
-                        onClick={async () => {
-                          const cashierId = prompt('Enter cashier user ID to reassign to:');
-                          if (cashierId && cashierId.trim()) {
-                            const cashierName = prompt('Enter cashier name:');
-                            if (cashierName && cashierName.trim()) {
-                              const reason = prompt('Enter reason for reassignment:');
+                  <div style={{ marginTop: '1rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowSupervisorActions(prev => !prev)}
+                      style={{
+                        ...styles.modalActionButton,
+                        width: '100%',
+                        backgroundColor: '#fff7ed',
+                        color: '#c2410c',
+                        border: '1px solid #fdba74',
+                        marginBottom: '1rem'
+                      }}
+                    >
+                      <Shield size={16} />
+                      {showSupervisorActions ? 'Hide Advanced Actions' : 'Show Advanced Actions'}
+                    </button>
+
+                    {showSupervisorActions && (
+                      <div style={{...styles.actionSection, marginTop: '0', paddingTop: '1.5rem', borderTop: '2px solid #f59e0b'}}>
+                        <h4 style={{...styles.sectionTitle, color: '#f59e0b'}}>
+                          <Shield size={18} style={{ marginRight: '0.5rem' }} />
+                          Advanced Payment Actions
+                        </h4>
+                        <div style={styles.actionButtons}>
+                          <button
+                            style={{
+                              ...styles.modalActionButton,
+                              backgroundColor: '#7c3aed',
+                              color: 'white',
+                              opacity: actionLoading[`review_${selectedPayment.id}`] ? 0.6 : 1
+                            }}
+                            onClick={async () => {
+                              const reason = prompt('Enter review request reason:');
                               if (reason && reason.trim()) {
-                                await reassignCashier(selectedPayment.id, cashierId.trim(), cashierName.trim(), reason.trim());
+                                await requestReview(selectedPayment.id, reason.trim());
                               }
-                            }
-                          }
-                        }}
-                        disabled={actionLoading[`reassign_${selectedPayment.id}`]}
-                      >
-                        {actionLoading[`reassign_${selectedPayment.id}`] ? (
-                          <RotateCcw size={16} className="animate-spin" />
-                        ) : (
-                          <User size={16} />
-                        )}
-                        {actionLoading[`reassign_${selectedPayment.id}`] ? ' Reassigning...' : ' Reassign Cashier'}
-                      </button>
-                    </div>
+                            }}
+                            disabled={actionLoading[`review_${selectedPayment.id}`]}
+                          >
+                            {actionLoading[`review_${selectedPayment.id}`] ? (
+                              <ButtonLoading size="small" color="#7c3aed" />
+                            ) : (
+                              <AlertCircle size={16} />
+                            )}
+                            {actionLoading[`review_${selectedPayment.id}`] ? ' Sending...' : ' Request Review'}
+                          </button>
+
+                          <button
+                            style={{
+                              ...styles.modalActionButton,
+                              backgroundColor: '#6366f1',
+                              color: 'white',
+                              opacity: actionLoading[`note_${selectedPayment.id}`] ? 0.6 : 1
+                            }}
+                            onClick={async () => {
+                              const note = prompt('Enter note for this payment:');
+                              if (note && note.trim()) {
+                                await addPaymentNote(selectedPayment.id, note.trim());
+                              }
+                            }}
+                            disabled={actionLoading[`note_${selectedPayment.id}`]}
+                          >
+                            {actionLoading[`note_${selectedPayment.id}`] ? (
+                              <RotateCcw size={16} className="animate-spin" />
+                            ) : (
+                              <Receipt size={16} />
+                            )}
+                            {actionLoading[`note_${selectedPayment.id}`] ? ' Adding Note...' : ' Add Note'}
+                          </button>
+
+                          <button
+                            style={{
+                              ...styles.modalActionButton,
+                              background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                              color: 'white',
+                              opacity: actionLoading[`investigate_${selectedPayment.id}`] ? 0.6 : 1
+                            }}
+                            onClick={async () => {
+                              const reason = prompt('Enter investigation context:');
+                              if (reason && reason.trim()) {
+                                await startInvestigation(selectedPayment.id, reason.trim());
+                              }
+                            }}
+                            disabled={actionLoading[`investigate_${selectedPayment.id}`]}
+                          >
+                            {actionLoading[`investigate_${selectedPayment.id}`] ? (
+                              <RotateCcw size={16} className="animate-spin" />
+                            ) : (
+                              <AlertTriangle size={16} />
+                            )}
+                            {actionLoading[`investigate_${selectedPayment.id}`] ? ' Starting...' : ' Start Investigation'}
+                          </button>
+
+                          <button
+                            style={{
+                              ...styles.modalActionButton,
+                              backgroundColor: '#16a34a',
+                              color: 'white',
+                              opacity: actionLoading[`clear_${selectedPayment.id}`] ? 0.6 : 1
+                            }}
+                            onClick={async () => {
+                              const reason = prompt('Enter case clear note:');
+                              if (reason && reason.trim()) {
+                                await clearCase(selectedPayment.id, reason.trim());
+                              }
+                            }}
+                            disabled={actionLoading[`clear_${selectedPayment.id}`]}
+                          >
+                            {actionLoading[`clear_${selectedPayment.id}`] ? (
+                              <RotateCcw size={16} className="animate-spin" />
+                            ) : (
+                              <CheckCircle size={16} />
+                            )}
+                            {actionLoading[`clear_${selectedPayment.id}`] ? ' Clearing...' : ' Clear Case'}
+                          </button>
+
+                          <button
+                            style={{
+                              ...styles.modalActionButton,
+                              backgroundColor: '#b91c1c',
+                              color: 'white',
+                              opacity: actionLoading[`fraud_${selectedPayment.id}`] ? 0.6 : 1
+                            }}
+                            onClick={async () => {
+                              const reason = prompt('Enter confirmed fraud reason:');
+                              if (reason && reason.trim()) {
+                                await confirmFraud(selectedPayment.id, reason.trim());
+                              }
+                            }}
+                            disabled={actionLoading[`fraud_${selectedPayment.id}`]}
+                          >
+                            {actionLoading[`fraud_${selectedPayment.id}`] ? (
+                              <RotateCcw size={16} className="animate-spin" />
+                            ) : (
+                              <XCircle size={16} />
+                            )}
+                            {actionLoading[`fraud_${selectedPayment.id}`] ? ' Updating...' : ' Confirm Fraud'}
+                          </button>
+
+                          <button
+                            style={{
+                              ...styles.modalActionButton,
+                              background: 'linear-gradient(135deg, #FEBE52 0%, #E89C1A 100%)',
+                              color: 'white',
+                              opacity: actionLoading[`override_${selectedPayment.id}`] ? 0.6 : 1
+                            }}
+                            onClick={() => openOverrideStatusModal(selectedPayment)}
+                            disabled={actionLoading[`override_${selectedPayment.id}`]}
+                          >
+                            {actionLoading[`override_${selectedPayment.id}`] ? (
+                              <RotateCcw size={16} className="animate-spin" />
+                            ) : (
+                              <Shield size={16} />
+                            )}
+                            {actionLoading[`override_${selectedPayment.id}`] ? ' Overriding...' : ' Override Financial Status'}
+                          </button>
+                          <button
+                            style={{
+                              ...styles.modalActionButton,
+                              backgroundColor: '#f59e0b',
+                              color: 'white',
+                              opacity: actionLoading[`unverify_${selectedPayment.id}`] ? 0.6 : 1
+                            }}
+                            onClick={async () => {
+                              const reason = prompt('Enter reason for unverifying this payment:');
+                              if (reason && reason.trim()) {
+                                await unverifyPayment(selectedPayment.id, reason.trim());
+                              }
+                            }}
+                            disabled={actionLoading[`unverify_${selectedPayment.id}`] || selectedPayment.verificationStatus !== 'Verified'}
+                          >
+                            {actionLoading[`unverify_${selectedPayment.id}`] ? (
+                              <RotateCcw size={16} className="animate-spin" />
+                            ) : (
+                              <XCircle size={16} />
+                            )}
+                            {actionLoading[`unverify_${selectedPayment.id}`] ? ' Unverifying...' : ' Unverify Payment'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -2021,7 +2451,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
 
                 <div style={styles.modalSection}>
                   <h4 style={styles.sectionTitle}>
-                    <DollarSign size={18} style={{ marginRight: '0.5rem' }} />
+                    <span style={{ marginRight: '0.5rem', fontSize: '18px', fontWeight: 700, lineHeight: 1 }}>₱</span>
                     Payment Entry
                   </h4>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
@@ -2182,6 +2612,117 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                       <CheckCircle size={16} />
                     )}
                     {actionLoading.process ? 'Processing...' : 'Confirm Payment'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Override Financial Status Modal */}
+        {overrideStatusModal.show && overrideStatusModal.payment && (
+          <div style={styles.modalOverlay} onClick={closeOverrideStatusModal}>
+            <div style={{ ...styles.modalContent, maxWidth: '560px' }} onClick={(e) => e.stopPropagation()}>
+              <div style={styles.modalHeader}>
+                <h3 style={styles.modalTitle}>
+                  <Shield size={24} style={{ marginRight: '0.5rem' }} />
+                  Override Financial Status
+                </h3>
+                <button style={styles.closeButton} onClick={closeOverrideStatusModal}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div style={styles.modalBody}>
+                <div style={styles.modalSection}>
+                  <h4 style={styles.sectionTitle}>
+                    <Receipt size={18} style={{ marginRight: '0.5rem' }} />
+                    Payment Summary
+                  </h4>
+                  <div style={styles.detailGrid}>
+                    <div style={styles.detailRow}>
+                      <span style={styles.detailLabel}>Payment ID:</span>
+                      <span style={styles.detailValue}>#{String(overrideStatusModal.payment.id).slice(-8)}</span>
+                    </div>
+                    <div style={styles.detailRow}>
+                      <span style={styles.detailLabel}>Current Status:</span>
+                      <span style={styles.detailValue}>{overrideStatusModal.payment.status || 'N/A'}</span>
+                    </div>
+                    <div style={styles.detailRow}>
+                      <span style={styles.detailLabel}>Guest:</span>
+                      <span style={styles.detailValue}>{overrideStatusModal.payment.booking?.user?.name || overrideStatusModal.payment.booking?.guestName || 'Walk-in Guest'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={styles.modalSection}>
+                  <h4 style={styles.sectionTitle}>
+                    <Shield size={18} style={{ marginRight: '0.5rem' }} />
+                    New Status
+                  </h4>
+                  <select
+                    value={overrideStatusModal.newStatus}
+                    onChange={(e) => setOverrideStatusModal(prev => ({ ...prev, newStatus: e.target.value }))}
+                    style={{ ...styles.select, width: '100%' }}
+                  >
+                    <option value="Pending">Pending</option>
+                    <option value="Paid">Paid</option>
+                    <option value="Partial">Partial</option>
+                    <option value="Reservation">Reservation</option>
+                    <option value="Cancelled">Cancelled</option>
+                    <option value="Refunded">Refunded</option>
+                  </select>
+                  <p style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: '#64748b' }}>
+                    This updates the payment status and syncs the booking status where applicable.
+                  </p>
+                </div>
+
+                <div style={styles.modalSection}>
+                  <h4 style={styles.sectionTitle}>
+                    <AlertCircle size={18} style={{ marginRight: '0.5rem' }} />
+                    Reason
+                  </h4>
+                  <textarea
+                    value={overrideStatusModal.reason}
+                    onChange={(e) => setOverrideStatusModal(prev => ({ ...prev, reason: e.target.value }))}
+                    placeholder="Explain why the financial status is being overridden..."
+                    rows={4}
+                    style={{ ...styles.input, width: '100%', resize: 'vertical' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                  <button
+                    type="button"
+                    onClick={closeOverrideStatusModal}
+                    style={{
+                      padding: '0.75rem 1.25rem',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      background: '#fff',
+                      color: '#334155',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={submitOverrideStatusModal}
+                    disabled={actionLoading[`override_${overrideStatusModal.payment.id}`]}
+                    style={{
+                      padding: '0.75rem 1.25rem',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: 'linear-gradient(135deg, #FEBE52 0%, #E89C1A 100%)',
+                      color: '#fff',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      opacity: actionLoading[`override_${overrideStatusModal.payment.id}`] ? 0.7 : 1
+                    }}
+                  >
+                    {actionLoading[`override_${overrideStatusModal.payment.id}`] ? 'Overriding...' : 'Confirm Override'}
                   </button>
                 </div>
               </div>
@@ -2495,9 +3036,11 @@ function formatAmount(cents) {
 // Enhanced modern styles
 const styles = {
   container: {
-    padding: '2rem',
-    maxWidth: '1400px',
-    margin: '0 auto',
+    padding: '1rem 1.25rem',
+    maxWidth: 'none',
+    margin: '0',
+    width: '100%',
+    boxSizing: 'border-box',
     fontFamily: `'Inter', 'Segoe UI', Roboto, -apple-system, BlinkMacSystemFont, sans-serif`,
     lineHeight: 1.6,
     color: '#1a1a1a',
@@ -2505,37 +3048,84 @@ const styles = {
     minHeight: '100vh',
   },
   header: {
-    textAlign: 'center',
-    marginBottom: '2rem',
+    textAlign: 'left',
+    marginBottom: '1rem',
   },
   title: {
-    fontSize: '2.5rem',
+    fontSize: 'clamp(1.45rem, 2vw, 2rem)',
     fontWeight: 700,
     color: '#1e293b',
-    marginBottom: '0.5rem',
+    marginBottom: '0.2rem',
   background: 'linear-gradient(135deg, #FEBE52 0%, #E89C1A 100%)',
     WebkitBackgroundClip: 'text',
     WebkitTextFillColor: 'transparent',
     backgroundClip: 'text',
   },
   subtitle: {
-    fontSize: '1.1rem',
+    fontSize: '0.95rem',
     color: '#64748b',
     fontWeight: 400,
+  },
+
+  statusTabsBar: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.5rem',
+    marginBottom: '1rem',
+    background: 'white',
+    border: '1px solid #e2e8f0',
+    borderRadius: '12px',
+    padding: '0.6rem',
+    boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
+  },
+  statusTabButton: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.45rem',
+    border: '1px solid #dbe3ef',
+    background: '#f8fafc',
+    color: '#334155',
+    borderRadius: '999px',
+    padding: '0.45rem 0.8rem',
+    fontSize: '0.82rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  statusTabButtonActive: {
+    background: 'linear-gradient(135deg, #FEBE52 0%, #E89C1A 100%)',
+    color: '#fff',
+    border: '1px solid #E89C1A',
+  },
+  statusTabCount: {
+    minWidth: '22px',
+    height: '22px',
+    borderRadius: '999px',
+    background: '#e2e8f0',
+    color: '#334155',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '0.75rem',
+    fontWeight: 700,
+    padding: '0 0.4rem',
+  },
+  statusTabCountActive: {
+    background: 'rgba(255,255,255,0.28)',
+    color: '#fff',
   },
   
   // Enhanced KPI Cards
   kpiContainer: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-    gap: '1.5rem',
-    marginBottom: '2rem',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+    gap: '0.85rem',
+    marginBottom: '1rem',
   },
   kpiCard: {
     background: 'white',
-    borderRadius: '16px',
-    padding: '1.5rem',
-    boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+    borderRadius: '12px',
+    padding: '1rem',
+    boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
     border: '1px solid #e2e8f0',
     display: 'flex',
     alignItems: 'center',
@@ -2567,8 +3157,8 @@ const styles = {
     color: '#2d5a27',
   },
   kpiIcon: {
-    fontSize: '2.5rem',
-    minWidth: '60px',
+    fontSize: '1.6rem',
+    minWidth: '44px',
     textAlign: 'center',
   },
   kpiContent: {
@@ -2581,9 +3171,9 @@ const styles = {
     opacity: 0.9,
   },
   kpiValue: {
-    fontSize: '1.8rem',
+    fontSize: '1.28rem',
     fontWeight: 700,
-    marginBottom: '0.25rem',
+    marginBottom: '0.15rem',
   },
   kpiChange: {
     fontSize: '0.8rem',
@@ -2594,17 +3184,19 @@ const styles = {
   // Enhanced Filters
   filtersCard: {
     background: 'white',
-    borderRadius: '16px',
-    padding: '1.5rem',
-    marginBottom: '2rem',
-    boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+    borderRadius: '12px',
+    padding: '1rem',
+    marginBottom: '1rem',
+    boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
     border: '1px solid #e2e8f0',
   },
   filtersHeader: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: '1rem',
+    marginBottom: '0.75rem',
+    flexWrap: 'wrap',
+    gap: '0.6rem',
   },
   filtersTitle: {
     fontSize: '1.2rem',
@@ -2613,12 +3205,12 @@ const styles = {
     margin: 0,
   },
   refreshButton: {
-    padding: '0.75rem 1.5rem',
+    padding: '0.55rem 0.9rem',
     backgroundColor: '#3b82f6',
     color: 'white',
     border: 'none',
-    borderRadius: '10px',
-    fontSize: '0.9rem',
+    borderRadius: '8px',
+    fontSize: '0.82rem',
     fontWeight: 600,
     cursor: 'pointer',
     transition: 'all 0.2s ease',
@@ -2628,8 +3220,8 @@ const styles = {
   },
   filtersContainer: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-    gap: '1rem',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+    gap: '0.75rem',
     alignItems: 'end',
   },
   filterGroup: {
@@ -2643,8 +3235,8 @@ const styles = {
     color: '#374151',
   },
   input: {
-    padding: '0.75rem 1rem',
-    borderRadius: '10px',
+    padding: '0.6rem 0.75rem',
+    borderRadius: '8px',
     border: '2px solid #e5e7eb',
     fontSize: '0.9rem',
     outline: 'none',
@@ -2652,8 +3244,8 @@ const styles = {
     backgroundColor: 'white',
   },
   select: {
-    padding: '0.75rem 1rem',
-    borderRadius: '10px',
+    padding: '0.6rem 0.75rem',
+    borderRadius: '8px',
     border: '2px solid #e5e7eb',
     fontSize: '0.9rem',
     outline: 'none',
@@ -2662,11 +3254,11 @@ const styles = {
     cursor: 'pointer',
   },
   clearButton: {
-    padding: '0.75rem 1rem',
+    padding: '0.6rem 0.75rem',
     backgroundColor: '#ef4444',
     color: 'white',
     border: 'none',
-    borderRadius: '10px',
+    borderRadius: '8px',
     fontSize: '0.9rem',
     fontWeight: 600,
     cursor: 'pointer',
@@ -2676,13 +3268,13 @@ const styles = {
   // Enhanced Table
   tableCard: {
     background: 'white',
-    borderRadius: '16px',
+    borderRadius: '12px',
     overflow: 'hidden',
-    boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+    boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
     border: '1px solid #e2e8f0',
   },
   tableHeader: {
-    padding: '1.5rem',
+    padding: '1rem',
   background: 'linear-gradient(135deg, #FEBE52 0%, #E89C1A 100%)',
     color: 'white',
     display: 'flex',
@@ -2690,13 +3282,45 @@ const styles = {
     alignItems: 'center',
   },
   tableTitle: {
-    fontSize: '1.3rem',
+    fontSize: '1.05rem',
     fontWeight: 600,
     margin: 0,
   },
   tableStats: {
     fontSize: '0.9rem',
     opacity: 0.9,
+  },
+  tabPaginationBar: {
+    borderTop: '1px solid #e2e8f0',
+    padding: '0.75rem 1rem',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '0.75rem',
+    flexWrap: 'wrap',
+  },
+  tabPaginationInfo: {
+    fontSize: '0.82rem',
+    color: '#64748b',
+    fontWeight: 600,
+  },
+  tabPaginationButtons: {
+    display: 'flex',
+    gap: '0.5rem',
+  },
+  tabPaginationButton: {
+    border: '1px solid #cbd5e1',
+    background: '#fff',
+    color: '#1e293b',
+    borderRadius: '8px',
+    padding: '0.35rem 0.75rem',
+    fontSize: '0.82rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  tabPaginationButtonDisabled: {
+    opacity: 0.5,
+    cursor: 'not-allowed',
   },
   tableWrapper: {
     overflowX: 'auto',
@@ -2710,7 +3334,7 @@ const styles = {
     backgroundColor: '#f8fafc',
   },
   th: {
-    padding: '1rem',
+    padding: '0.7rem 0.65rem',
     textAlign: 'left',
     fontWeight: 600,
     fontSize: '0.85rem',
@@ -2725,7 +3349,7 @@ const styles = {
     borderBottom: '1px solid #f1f5f9',
   },
   td: {
-    padding: '1rem',
+    padding: '0.7rem 0.65rem',
     borderBottom: '1px solid #f1f5f9',
     verticalAlign: 'middle',
   },
@@ -2752,7 +3376,7 @@ const styles = {
     color: '#1e293b',
   },
   amount: {
-    fontSize: '1.1rem',
+    fontSize: '0.98rem',
     fontWeight: 700,
     color: '#059669',
   },

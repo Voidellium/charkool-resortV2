@@ -4,6 +4,7 @@
 import { useEffect } from 'react';
 import GuestHeader from '../../components/GuestHeader';
 import { UserProvider, useUser } from '../../context/UserContext';
+import { ToastProvider } from '@/components/Toast';
 
 // Inner component that has access to UserContext
 function GuestLayoutInner({ children }) {
@@ -57,10 +58,12 @@ function GuestLayoutInner({ children }) {
 
 export default function GuestLayout({ children }) {
   return (
-    <UserProvider initialUser={null}>
-      <GuestLayoutInner>
-        {children}
-      </GuestLayoutInner>
-    </UserProvider>
+    <ToastProvider>
+      <UserProvider initialUser={null}>
+        <GuestLayoutInner>
+          {children}
+        </GuestLayoutInner>
+      </UserProvider>
+    </ToastProvider>
   );
 }

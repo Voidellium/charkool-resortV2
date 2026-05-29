@@ -4,7 +4,8 @@ import { Poppins } from 'next/font/google';
 import { getServerSession } from 'next-auth';
 import SessionWrapper from '../../SessionWrapper';
 import { authOptions } from '../auth';
-import Chatbot from '../../components/Chatbot';
+import { ToastProvider } from '@/components/Toast';
+import SuperAdminNotifier from '@/components/SuperAdminNotifier';
 
 const poppins = Poppins({
   subsets: ['latin'],
@@ -26,24 +27,26 @@ export default async function RootLayout({ children }) {
       refetchInterval={0}
       basePath="/api/auth"
     >
-      <BrowserFingerprintProvider>
-        <ClientNavbarWrapper />
-        <main
-          style={{
-            width: '100%',
-            maxWidth: 'none',
-            margin: 0,
-            padding: 0,
-            boxSizing: 'border-box',
-            minHeight: '100vh',
-            fontSize: '0.9rem',
-            lineHeight: '1.4',
-          }}
-        >
-          <div style={{ fontSize: 'inherit' }}>{children}</div>
-        </main>
-        <Chatbot />
-      </BrowserFingerprintProvider>
+      <ToastProvider>
+        <SuperAdminNotifier />
+        <BrowserFingerprintProvider>
+          <ClientNavbarWrapper />
+          <main
+            style={{
+              width: '100%',
+              maxWidth: 'none',
+              margin: 0,
+              padding: 0,
+              boxSizing: 'border-box',
+              minHeight: '100vh',
+              fontSize: '0.9rem',
+              lineHeight: '1.4',
+            }}
+          >
+            <div style={{ fontSize: 'inherit' }}>{children}</div>
+          </main>
+        </BrowserFingerprintProvider>
+      </ToastProvider>
     </SessionWrapper>
   );
 }

@@ -52,34 +52,54 @@ export async function GET(req) {
 export async function POST(req) {
   try {
     const body = await req.json();
-    const { message, type, role } = body;
+    const { message, type, role, bookingId, userId, targetRoles } = body;
 
-    if (!message || !type || !role) {
+    if (!message || !type || (!role && (!Array.isArray(targetRoles) || targetRoles.length === 0))) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const newNotification = await prisma.notification.create({
-      data: { message, type, role },
-    });
+    const rolesToCreate = Array.isArray(targetRoles) && targetRoles.length > 0
+      ? targetRoles
+      : [role];
+
+    const createdNotifications = [];
+    for (const targetRole of rolesToCreate) {
+      const created = await prisma.notification.create({
+        data: {
+          message,
+          type,
+          role: String(targetRole).toUpperCase(),
+          bookingId: bookingId ? Number(bookingId) : null,
+          userId: userId ? Number(userId) : null,
+        },
+      });
+      createdNotifications.push(created);
+    }
+
+    const primaryNotification = createdNotifications[0];
 
     // 🔔 PUSHER: Send real-time notification to the appropriate channel
     try {
-      if (role.toUpperCase() === 'CUSTOMER' && body.userId) {
+      if (rolesToCreate.length === 1 && String(rolesToCreate[0]).toUpperCase() === 'CUSTOMER' && userId) {
         // Notify specific user
-        await notifyUser(body.userId, EVENTS.NEW_NOTIFICATION, {
-          id: newNotification.id,
+        await notifyUser(userId, EVENTS.NEW_NOTIFICATION, {
+          id: primaryNotification.id,
           message,
           type,
-          createdAt: newNotification.createdAt,
+          bookingId: primaryNotification.bookingId,
+          createdAt: primaryNotification.createdAt,
         });
       } else {
-        // Notify staff by role
-        await notifyStaff(role, {
-          id: newNotification.id,
-          message,
-          type,
-          createdAt: newNotification.createdAt,
-        });
+        // Notify staff by role(s)
+        for (const n of createdNotifications) {
+          await notifyStaff(n.role, {
+            id: n.id,
+            message: n.message,
+            type: n.type,
+            bookingId: n.bookingId,
+            createdAt: n.createdAt,
+          });
+        }
       }
       console.log('[Pusher] Sent real-time notification');
     } catch (pusherErr) {
@@ -96,17 +116,23 @@ export async function POST(req) {
         actorRole: session?.user?.role || 'SYSTEM',
         action: 'CREATE',
         entity: 'Notification',
-        entityId: String(newNotification.id),
+        entityId: String(primaryNotification.id),
         details: JSON.stringify({
           summary: `Created notification: ${message.substring(0, 50)}...`,
-          after: newNotification
+          after: primaryNotification,
+          count: createdNotifications.length,
+          targetRoles: rolesToCreate,
         }),
       });
     } catch (auditErr) {
       console.error('Failed to record audit for notification creation:', auditErr);
     }
 
-    return NextResponse.json(newNotification);
+    return NextResponse.json(
+      createdNotifications.length === 1
+        ? primaryNotification
+        : { success: true, count: createdNotifications.length, notifications: createdNotifications }
+    );
   } catch (error) {
     console.error("POST Notification Error:", error);
     return NextResponse.json({ error: "Failed to create notification" }, { status: 500 });

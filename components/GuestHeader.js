@@ -188,10 +188,7 @@ function GuestHeader({ sessionUser }) {
         if (res.ok) {
           const data = await res.json();
           if (!isMountedLocal) return;
-          setNotifications(data || []);
-          const unread = (data || []).filter(n => !n.isRead).length;
-          setUnreadCount(unread);
-          setBellColor(unread > 0 ? '#ef4444' : 'white');
+          syncNotificationState(data || []);
         } else {
           console.error('Failed to fetch notifications:', res.status);
           if (isMountedLocal) setNotifError('Failed to load notifications');
@@ -203,7 +200,7 @@ function GuestHeader({ sessionUser }) {
         if (isMountedLocal) setLoadingNotifications(false);
       }
     }
-    
+
     fetchNotifications();
     
     // Poll for new notifications every 60 seconds
@@ -295,6 +292,13 @@ function GuestHeader({ sessionUser }) {
     setShowLogoutModal(false);
   };
 
+  const syncNotificationState = (nextNotifications) => {
+    setNotifications(nextNotifications);
+    const unread = nextNotifications.filter((n) => !n.isRead).length;
+    setUnreadCount(unread);
+    setBellColor(unread > 0 ? '#ef4444' : 'white');
+  };
+
   // Mark single notification as read
   const handleMarkAsRead = async (notification) => {
     if (notification.isRead) return;
@@ -307,11 +311,10 @@ function GuestHeader({ sessionUser }) {
       });
       
       if (res.ok) {
-        setNotifications(prev => prev.map(n => 
+        const next = notifications.map((n) =>
           n.id === notification.id ? { ...n, isRead: true } : n
-        ));
-        setUnreadCount(prev => Math.max(0, prev - 1));
-        if (unreadCount - 1 <= 0) setBellColor('white');
+        );
+        syncNotificationState(next);
       }
     } catch (error) {
       console.error('Error marking notification as read:', error);
@@ -332,9 +335,7 @@ function GuestHeader({ sessionUser }) {
         )
       );
       
-      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-      setUnreadCount(0);
-      setBellColor('white');
+      syncNotificationState(notifications.map((n) => ({ ...n, isRead: true })));
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
     }
@@ -384,10 +385,7 @@ function GuestHeader({ sessionUser }) {
         const res = await fetch('/api/notifications?role=CUSTOMER');
         if (res.ok) {
           const data = await res.json();
-          setNotifications(data || []);
-          const unread = (data || []).filter(n => !n.isRead).length;
-          setUnreadCount(unread);
-          setBellColor(unread > 0 ? '#ef4444' : 'white');
+          syncNotificationState(data || []);
         }
       } catch (e) {
         // Handle silently
@@ -433,6 +431,9 @@ function GuestHeader({ sessionUser }) {
           <nav className={`nav-links ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
             <GuardedLink href="/guest/dashboard" className={pathname === '/guest/dashboard' ? 'active' : ''}>
               <span>Dashboard</span>
+            </GuardedLink>
+            <GuardedLink href="/guest/amenities" className={pathname?.startsWith('/guest/amenities') ? 'active' : ''}>
+              <span>Amenities</span>
             </GuardedLink>
             <GuardedLink href="/guest/3dview" className={pathname === '/guest/3dview' ? 'active' : ''}>
               <span>Virtual Tour</span>
@@ -536,7 +537,7 @@ function GuestHeader({ sessionUser }) {
                     <h3 className="notification-title">Notifications</h3>
                     <p className="notification-subtitle">{unreadCount} unread</p>
                   </div>
-                  <div className="notification-badge">{notifications.length}</div>
+                  <div className="notification-badge">{unreadCount}</div>
                 </div>
 
                 <div className="notification-body">
@@ -571,11 +572,10 @@ function GuestHeader({ sessionUser }) {
                                     body: JSON.stringify({ isRead: true }),
                                   });
                                   if (res.ok) {
-                                    setNotifications(prev => prev.map(n => 
+                                    const next = notifications.map((n) =>
                                       n.id === notif.id ? { ...n, isRead: true } : n
-                                    ));
-                                    setUnreadCount(prev => Math.max(0, prev - 1));
-                                    if (unreadCount - 1 <= 0) setBellColor('white');
+                                    );
+                                    syncNotificationState(next);
                                   }
                                 } catch (e) {
                                   // Handle silently
@@ -603,11 +603,10 @@ function GuestHeader({ sessionUser }) {
                                       body: JSON.stringify({ isRead: true }),
                                     });
                                     if (res.ok) {
-                                      setNotifications(prev => prev.map(n => 
+                                      const next = notifications.map((n) =>
                                         n.id === notif.id ? { ...n, isRead: true } : n
-                                      ));
-                                      setUnreadCount(prev => Math.max(0, prev - 1));
-                                      if (unreadCount - 1 <= 0) setBellColor('white');
+                                      );
+                                      syncNotificationState(next);
                                     }
                                   } catch {}
                                 }}
@@ -646,9 +645,7 @@ function GuestHeader({ sessionUser }) {
                               body: JSON.stringify({ isRead: true }),
                             }))
                           );
-                          setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-                          setUnreadCount(0);
-                          setBellColor('white');
+                          syncNotificationState(notifications.map((n) => ({ ...n, isRead: true })));
                         } catch (e) {
                           // Handle silently
                         }
@@ -761,8 +758,7 @@ function GuestHeader({ sessionUser }) {
           left: 0;
           right: 0;
           z-index: 1000;
-          background: linear-gradient(135deg, rgba(240, 176, 53, 0.55), rgba(252, 211, 77, 0.12));
-          backdrop-filter: blur(10px);
+          background: #e6a73f;
           border-bottom: 1px solid rgba(255, 255, 255, 0.18);
           padding: 1rem 0;
           transition: background 0.4s ease, box-shadow 0.4s ease, padding 0.4s ease;
@@ -773,16 +769,16 @@ function GuestHeader({ sessionUser }) {
           content: '';
           position: absolute;
           inset: 0;
-          background: linear-gradient(120deg, #febe52, #EDCA60);
+          background: linear-gradient(120deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.05));
           pointer-events: none;
-          opacity: 0.7;
+          opacity: 0.25;
           transition: opacity 0.4s ease;
         }
 
         .guest-header.scrolled {
-          background: linear-gradient(135deg, rgba(240, 176, 53, 0.95), rgba(251, 146, 60, 0.95));
+          background: #d9962c;
           padding: 0.8rem 0;
-          box-shadow: 0 12px 35px rgba(251, 146, 60, 0.28);
+          box-shadow: 0 8px 22px rgba(44, 31, 10, 0.18);
         }
 
         .guest-header.scrolled::before {
@@ -870,20 +866,20 @@ function GuestHeader({ sessionUser }) {
 
         .mobile-menu-toggle {
           display: none;
-          background: rgba(255, 255, 255, 0.08);
+          background: transparent;
           border: none;
           border-radius: 12px;
           padding: 0.5rem;
           color: white;
           cursor: pointer;
           transition: all 0.3s ease;
-          backdrop-filter: blur(12px);
           position: relative;
           z-index: 1003;
         }
 
         .mobile-menu-toggle:hover {
-          background: rgba(255, 255, 255, 0.2);
+          background: rgba(255, 255, 255, 0.24);
+          backdrop-filter: blur(10px);
           transform: scale(1.05);
         }
 
@@ -904,20 +900,36 @@ function GuestHeader({ sessionUser }) {
           font-weight: 600;
           padding: 0.45rem 0.95rem;
           border-radius: 999px;
-          transition: transform 0.3s ease, background 0.3s ease, color 0.3s ease;
-          background: rgba(255, 255, 255, 0.08);
-          backdrop-filter: blur(12px);
+          transition: transform 0.3s ease, background 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+          background: transparent;
+          border: 1px solid transparent;
+          box-shadow: none;
           border-bottom: none !important;
         }
 
-        .nav-links :global(a):hover,
-        .nav-links :global(a).active {
+        .nav-links :global(a):hover {
           color: #ffffff;
-          background: linear-gradient(135deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.08));
-          transform: translateY(-3px);
-          box-shadow: 0 8px 18px rgba(255, 255, 255, 0.16);
+          background: rgba(255, 255, 255, 0.2);
+          backdrop-filter: blur(8px);
+          transform: translateY(-1px);
+          box-shadow: 0 6px 14px rgba(33, 27, 16, 0.18);
           text-decoration: none !important;
           border-bottom: none !important;
+        }
+
+        .nav-links :global(a).active {
+          color: #ffffff;
+          background: transparent;
+          border: 1px solid transparent;
+          box-shadow: none;
+        }
+
+        .nav-links :global(a).active:hover {
+          color: #ffffff;
+          background: rgba(255, 255, 255, 0.2);
+          backdrop-filter: blur(8px);
+          transform: translateY(-1px);
+          box-shadow: 0 6px 14px rgba(33, 27, 16, 0.18);
         }
 
         .mobile-book-container {
@@ -929,45 +941,26 @@ function GuestHeader({ sessionUser }) {
         }
 
         .mobile-book-btn {
-          background: rgba(255, 255, 255, 0.95);
-          color: #d97706;
-          border: 2px solid rgba(217, 119, 6, 0.2);
+          background: transparent;
+          color: rgba(255, 255, 255, 0.95);
+          border: 1px solid transparent;
           padding: 0.75rem 1.75rem;
           border-radius: 12px;
           font-weight: 600;
           cursor: pointer;
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-          box-shadow: 0 4px 16px rgba(255, 255, 255, 0.2), 
-                      0 2px 8px rgba(0, 0, 0, 0.1);
-          position: relative;
-          overflow: hidden;
+          transition: all 0.25s ease;
+          box-shadow: none;
           letter-spacing: 0.25px;
-          backdrop-filter: blur(20px);
-          width: 100%;
-        }
-
-        .mobile-book-btn::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 0;
-          height: 100%;
-          background: linear-gradient(135deg, #d97706, #b45309);
-          transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-          z-index: -1;
-        }
-
-        .mobile-book-btn:hover::before {
           width: 100%;
         }
 
         .mobile-book-btn:hover {
-          color: white;
-          border-color: #d97706;
-          transform: translateY(-2px);
-          box-shadow: 0 8px 24px rgba(217, 119, 6, 0.3), 
-                      0 4px 12px rgba(0, 0, 0, 0.15);
+          background: rgba(255, 255, 255, 0.22);
+          color: #ffffff;
+          border-color: rgba(255, 255, 255, 0.28);
+          backdrop-filter: blur(8px);
+          transform: translateY(-1px);
+          box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14);
         }
 
         /* Mobile Actions Container */
@@ -991,9 +984,9 @@ function GuestHeader({ sessionUser }) {
           text-align: left;
           padding: 1rem;
           border-radius: 12px;
-          background: rgba(255, 255, 255, 0.1);
+          background: transparent;
+          border: 1px solid transparent;
           color: white;
-          border: none;
           font-size: 1rem;
           font-weight: 600;
           cursor: pointer;
@@ -1004,8 +997,9 @@ function GuestHeader({ sessionUser }) {
         .mobile-notification-btn:hover,
         .mobile-profile-btn:hover,
         .mobile-logout-btn:hover {
-          background: rgba(255, 255, 255, 0.2);
-          transform: translateX(8px);
+          background: rgba(255, 255, 255, 0.22);
+          backdrop-filter: blur(8px);
+          transform: translateX(4px);
         }
 
         .mobile-profile-avatar {
@@ -1046,19 +1040,19 @@ function GuestHeader({ sessionUser }) {
         }
 
         .notification-bell {
-          background: rgba(255, 255, 255, 0.1);
-          border: none;
+          background: transparent;
+          border: 1px solid transparent;
           border-radius: 12px;
           padding: 0.75rem;
           cursor: pointer;
           transition: all 0.2s ease;
-          backdrop-filter: blur(10px);
           position: relative;
         }
 
         .notification-bell:hover {
-          background: rgba(255, 255, 255, 0.2);
-          transform: scale(1.05);
+          background: rgba(255, 255, 255, 0.24);
+          backdrop-filter: blur(8px);
+          transform: translateY(-1px);
         }
 
         .notification-count {
@@ -1439,8 +1433,8 @@ function GuestHeader({ sessionUser }) {
         }
 
         .profile-btn {
-          background: rgba(255, 255, 255, 0.1);
-          border: none;
+          background: transparent;
+          border: 1px solid transparent;
           border-radius: 12px;
           padding: 0.5rem 0.75rem;
           cursor: pointer;
@@ -1449,12 +1443,12 @@ function GuestHeader({ sessionUser }) {
           gap: 0.5rem;
           color: white;
           transition: all 0.2s ease;
-          backdrop-filter: blur(10px);
         }
 
         .profile-btn:hover {
-          background: rgba(255, 255, 255, 0.2);
-          transform: scale(1.02);
+          background: rgba(255, 255, 255, 0.24);
+          backdrop-filter: blur(8px);
+          transform: translateY(-1px);
         }
 
         .profile-avatar,
@@ -1665,14 +1659,16 @@ function GuestHeader({ sessionUser }) {
             text-align: left;
             padding: 1rem 1.2rem;
             margin-bottom: 0.5rem;
-            background: rgba(255, 255, 255, 0.1);
+            background: transparent;
+            border: 1px solid transparent;
             border-radius: 12px;
             justify-content: flex-start;
           }
 
           .nav-links :global(a):hover {
             background: rgba(255, 255, 255, 0.2);
-            transform: translateX(8px);
+            backdrop-filter: blur(8px);
+            transform: translateX(4px);
           }
 
           /* Show mobile book now link */
@@ -1683,20 +1679,21 @@ function GuestHeader({ sessionUser }) {
             text-align: left;
             padding: 1rem 1.2rem;
             margin-bottom: 0.5rem;
-            background: rgba(255, 255, 255, 0.1);
+            background: transparent;
+            border: 1px solid transparent;
             border-radius: 12px;
             justify-content: flex-start;
             color: rgba(255, 255, 255, 0.95);
             font-size: 1rem;
             font-weight: 600;
-            border: none;
             cursor: pointer;
             transition: all 0.3s ease;
           }
 
           .mobile-book-now-link:hover {
             background: rgba(255, 255, 255, 0.2);
-            transform: translateX(8px);
+            backdrop-filter: blur(8px);
+            transform: translateX(4px);
           }
 
           /* Show mobile actions */
@@ -1897,13 +1894,13 @@ function GuestHeader({ sessionUser }) {
           display: flex;
           align-items: center;
           justify-content: center;
-          backdrop-filter: blur(12px);
           position: relative;
           z-index: 1;
         }
 
         .modal-close:hover {
           background: rgba(255, 255, 255, 0.2);
+          backdrop-filter: blur(8px);
           transform: rotate(90deg) scale(1.05);
         }
 

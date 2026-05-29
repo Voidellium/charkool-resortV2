@@ -283,7 +283,7 @@ const BookNowButton = ({ variant = 'primary' }) => (
   </motion.button>
 );
 
-export default function ChatInterface({ isModal, onClose }) {
+export default function ChatInterface({ isModal, onClose, session }) {
   const [messages, setMessages] = useState([]);
   const [currentCategory, setCurrentCategory] = useState(null);
   const [showCategories, setShowCategories] = useState(false);
@@ -1025,6 +1025,7 @@ export default function ChatInterface({ isModal, onClose }) {
           timestamp: new Date(),
           id: responseId,
           showBookNow: true
+          , showRequestAdmin: true
         };
         setMessages((prev) => [...prev, response]);
         setMessageStatus(prev => ({ ...prev, [responseId]: 'delivered' }));
@@ -1263,7 +1264,9 @@ export default function ChatInterface({ isModal, onClose }) {
           { id: 'room_rates_suggestion', text: '💰 Room rates', answer: '', showBookNow: true },
           { id: 'how_to_book_suggestion', text: '📅 How to book', answer: '', showBookNow: true },
           { id: 'amenities_suggestion', text: '🏊‍♂️ Amenities', answer: '', showBookNow: false },
-        ]
+        ],
+        // Offer a direct admin contact option when the bot cannot help
+        showRequestAdmin: true,
       };
 
       setMessages((prev) => [...prev, predefinedMessage, noticeMessage, fallbackMessage]);
@@ -1271,6 +1274,55 @@ export default function ChatInterface({ isModal, onClose }) {
       setCurrentSuggestions(fallbackMessage.suggestions);
       setShowSuggestions(true);
     };
+
+  // Request admin contact (guest must be logged in)
+  const requestAdminContact = async (reasonText) => {
+    try {
+      const res = await fetch('/api/chat/escalate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: reasonText || 'Guest requested admin contact via chatbot' })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        const err = data?.error || 'Failed to request admin contact';
+        const failMsg = { type: 'bot', text: `Unable to request admin contact: ${err}`, timestamp: new Date(), id: Date.now() };
+        setMessages(prev => [...prev, failMsg]);
+        return;
+      }
+
+      const successMsg = {
+        type: 'bot',
+        text: data?.message || 'Thank you. A Super Admin will contact you within 24 hours via email or the contact details you provided.',
+        timestamp: new Date(),
+        id: Date.now()
+      };
+      setMessages(prev => [...prev, successMsg]);
+    } catch (e) {
+      const failMsg = { type: 'bot', text: `Unable to request admin contact: ${e.message}`, timestamp: new Date(), id: Date.now() };
+      setMessages(prev => [...prev, failMsg]);
+    }
+  };
+
+  // Wrapper to check client-side auth before requesting admin contact
+  const handleRequestAdminClick = (reasonText) => {
+    if (!session || !session.user || !session.user.id) {
+      // Show contact modal for anonymous escalation
+      setContactReason(reasonText || 'Guest requested admin contact via chatbot');
+      setShowContactModal(true);
+      return;
+    }
+
+    requestAdminContact(reasonText);
+  };
+
+  // Contact modal state
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [contactEmail, setContactEmail] = useState('');
+  const [contactName, setContactName] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+  const [contactReason, setContactReason] = useState('');
 
   if (isLoading) return (
     <div className="chat-loading">
@@ -1322,6 +1374,27 @@ export default function ChatInterface({ isModal, onClose }) {
                   </span>
                 )}
               </div>
+              {/* Show sign-in hint for unauthenticated users */}
+              {(!session || !session.user) && (
+                <div style={{ marginTop: 8 }}>
+                  <button
+                    onClick={() => {
+                      const callback = encodeURIComponent(window.location.href);
+                      window.location.href = `/login?callbackUrl=${callback}`;
+                    }}
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid rgba(0,0,0,0.06)',
+                      padding: '6px 10px',
+                      borderRadius: 10,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Sign in to request admin contact
+                  </button>
+                </div>
+              )}
             </div>
           </div>
           <div className="chat-actions">
@@ -1362,6 +1435,30 @@ export default function ChatInterface({ isModal, onClose }) {
                         <div className="suggestion-arrow">→</div>
                       </button>
                     ))}
+                    {msg.showRequestAdmin && (
+                      <div style={{ marginTop: 12 }}>
+                        <button
+                          className="request-admin-btn"
+                          onClick={() => {
+                            const lastUser = [...messages].reverse().find(m => m.type === 'user');
+                            const reasonText = lastUser?.text || 'Guest requested admin contact via chatbot';
+                            handleRequestAdminClick(reasonText);
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '0.6rem 0.85rem',
+                            borderRadius: 12,
+                            border: '1px solid rgba(0,0,0,0.06)',
+                            background: '#fff',
+                            color: '#1f2937',
+                            fontWeight: 800,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Request Direct Admin Contact
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : (msg.showQuestions || msg.questions) ? (
                   <div className="question-list-container">
@@ -1429,6 +1526,82 @@ export default function ChatInterface({ isModal, onClose }) {
 
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Contact modal for anonymous escalation */}
+      {showContactModal && (
+        <div className="contact-modal-backdrop" onClick={() => setShowContactModal(false)}>
+          <div className="contact-modal" onClick={(e) => e.stopPropagation()}>
+            <h4>Provide contact details</h4>
+            <p>We need an email so we can contact you about this request.</p>
+            <input placeholder="Your name (optional)" value={contactName} onChange={(e) => setContactName(e.target.value)} />
+            <input placeholder="Email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} />
+            <input placeholder="Phone (optional)" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} />
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <button onClick={() => setShowContactModal(false)} style={{ flex: 1 }}>Cancel</button>
+              <button style={{ flex: 1 }} onClick={async () => {
+                // Basic validation
+                if (!contactEmail || contactEmail.indexOf('@') === -1) {
+                  const errMsg = { type: 'bot', text: 'Please provide a valid email address.', timestamp: new Date(), id: Date.now() };
+                  setMessages(prev => [...prev, errMsg]);
+                  return;
+                }
+                setShowContactModal(false);
+                // call API with contact fields (only once)
+                try {
+                  const res = await fetch('/api/chat/escalate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reason: contactReason || contactEmail, guestEmail: contactEmail.trim(), guestName: contactName.trim(), contactNumber: contactPhone.trim() })
+                  });
+                  const data = await res.json();
+                  if (!res.ok) {
+                    const failMsg = { type: 'bot', text: `Unable to request admin contact: ${data?.error || 'Unknown error'}`, timestamp: new Date(), id: Date.now() };
+                    setMessages(prev => [...prev, failMsg]);
+                    return;
+                  }
+                  const successMsg = {
+                    type: 'bot',
+                    text: data?.message || 'Thank you. A Super Admin will contact you within 24 hours via email or the contact details you provided.',
+                    timestamp: new Date(),
+                    id: Date.now()
+                  };
+                  setMessages(prev => [...prev, successMsg]);
+                } catch (e) {
+                  const failMsg = { type: 'bot', text: `Unable to request admin contact: ${e.message}`, timestamp: new Date(), id: Date.now() };
+                  setMessages(prev => [...prev, failMsg]);
+                }
+              }}>Send</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style jsx>{`
+        .contact-modal-backdrop {
+          position: fixed;
+          inset: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(0,0,0,0.35);
+          z-index: 1100;
+        }
+        .contact-modal {
+          background: #fff;
+          padding: 16px;
+          border-radius: 10px;
+          width: 320px;
+          box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .contact-modal input {
+          padding: 8px 10px;
+          border-radius: 8px;
+          border: 1px solid #e5e7eb;
+        }
+      `}</style>
 
       {/* Quick Replies */}
       <AnimatePresence>

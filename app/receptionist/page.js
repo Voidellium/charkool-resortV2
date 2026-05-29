@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useEarlyCheckInModal, EarlyCheckInModal, NavigationConfirmationModal } from '@/components/CustomModals';
 import { signOut, useSession } from 'next-auth/react';
 import { useNavigationGuard } from '../../hooks/useNavigationGuard.simple';
-import { User, CheckCircle, XCircle, AlertCircle, Info, Lock } from 'lucide-react';
+import { User, CheckCircle, XCircle, AlertCircle, Info, Lock, Bell, X, RefreshCw, Users, Wallet, Smartphone, CreditCard } from 'lucide-react';
 import './receptionist-styles.css';
 import RoomAmenitiesSelector from '@/components/RoomAmenitiesSelector';
 import RentalAmenitiesSelector from '@/components/RentalAmenitiesSelector';
@@ -13,6 +13,7 @@ import RoomUnitSelector from '@/components/RoomUnitSelector';
 import Loading from '@/components/Loading';
 import { useBookingUpdates, useStaffNotifications } from '@/hooks/usePusher';
 import ChangePasswordModal from '@/components/ChangePasswordModal';
+import { useToast } from '@/components/Toast';
 
 // Timezone-safe date formatting utility
 function formatDate(date) {
@@ -23,7 +24,51 @@ function formatDate(date) {
   return `${year}-${month}-${day}`;
 }
 
+function normalizeBookingStatus(status) {
+  const value = String(status || '').trim().toLowerCase();
+  const map = {
+    held: 'Held',
+    pending: 'Pending',
+    confirmed: 'Confirmed',
+    cancelled: 'Cancelled',
+    completed: 'Completed',
+    'checked out': 'CheckedOut',
+    checked_out: 'CheckedOut',
+    checkout: 'CheckedOut',
+    checkedout: 'CheckedOut',
+    'checked in': 'CheckedIn',
+    checkedin: 'CheckedIn',
+  };
+  return map[value] || status;
+}
+
+function getDisplayBookingStatus(booking) {
+  if (!booking) return 'Pending';
+  const normalized = normalizeBookingStatus(booking.status);
+  if (normalized === 'Completed') return 'Completed';
+  if (booking.actualCheckOut) return 'Checked Out';
+  if (booking.actualCheckIn) return 'Checked In';
+  return normalized || 'Pending';
+}
+
+function parseDateValue(value) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function isSameLocalDate(dateLike, compareTo = new Date()) {
+  const date = parseDateValue(dateLike);
+  if (!date) return false;
+  return (
+    date.getFullYear() === compareTo.getFullYear() &&
+    date.getMonth() === compareTo.getMonth() &&
+    date.getDate() === compareTo.getDate()
+  );
+}
+
 export default function ReceptionistDashboard() {
+  const { success: toastSuccess, error: toastError, warning: toastWarning, info: toastInfo } = useToast();
   // Helper function to get room capacity details
   const getRoomCapacityDetails = (type) => {
     switch (type) {
@@ -152,6 +197,7 @@ export default function ReceptionistDashboard() {
   const [guestNameInput, setGuestNameInput] = useState('');
   const [showGuestSuggestions, setShowGuestSuggestions] = useState(false);
   const [activeBookingFilter, setActiveBookingFilter] = useState('all');
+  const [checkActionModal, setCheckActionModal] = useState({ show: false, booking: null, action: null });
   
   // Pagination and search state
   const [currentPage, setCurrentPage] = useState(1);
@@ -185,7 +231,11 @@ export default function ReceptionistDashboard() {
   // Show alert function
   const showAlert = useCallback((title, message, type = 'info', onClose = null) => {
     setAlertModal({ show: true, title, message, type, onClose });
-  }, []);
+    if (type === 'success') toastSuccess(message, { title });
+    else if (type === 'error') toastError(message, { title });
+    else if (type === 'warning') toastWarning(message, { title });
+    else toastInfo(message, { title });
+  }, [toastSuccess, toastError, toastWarning, toastInfo]);
 
   // Status change form
   const [statusChangeData, setStatusChangeData] = useState({
@@ -252,14 +302,12 @@ export default function ReceptionistDashboard() {
   };
 
   const updateNotifications = (allBookings) => {
-    const today = new Date().toISOString().split('T')[0];
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
-  const pendingCheckIns = allBookings.filter(b => b.checkIn && b.checkIn.startsWith(today) && b.status === 'HELD');
-  const pendingCheckOuts = allBookings.filter(b => b.checkOut && b.checkOut.startsWith(today) && b.status === 'Confirmed');
-  const pendingBookingsCount = allBookings.filter(b => b.checkIn && b.checkIn.startsWith(tomorrowStr)).length;
+  const pendingCheckIns = allBookings.filter(b => isSameLocalDate(b.checkIn) && ['Held', 'Pending'].includes(normalizeBookingStatus(b.status)));
+  const pendingCheckOuts = allBookings.filter(b => isSameLocalDate(b.checkOut) && normalizeBookingStatus(b.status) === 'Confirmed');
+  const pendingBookingsCount = allBookings.filter(b => isSameLocalDate(b.checkIn, tomorrow)).length;
 
     setNotifications({
       pendingCheckIns,
@@ -269,18 +317,136 @@ export default function ReceptionistDashboard() {
   };
 
   const generateShiftSummary = () => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toLocaleDateString('en-CA');
     const summary = {
       date: today,
-      walkInBookings: bookings.filter(b => b.createdAt && b.createdAt.startsWith(today) && b.status === 'Confirmed').length,
-      checkedIn: bookings.filter(b => b.checkIn && b.checkIn.startsWith(today) && b.status === 'Confirmed').length,
-      checkedOut: bookings.filter(b => b.checkOut && b.checkOut.startsWith(today) && b.status === 'CHECKED_OUT').length,
+      walkInBookings: bookings.filter(b => isSameLocalDate(b.createdAt) && b.status === 'Confirmed').length,
+      checkedIn: bookings.filter(b => isSameLocalDate(b.checkIn) && b.status === 'Confirmed').length,
+      checkedOut: bookings.filter(b => isSameLocalDate(b.checkOut) && normalizeBookingStatus(b.status) === 'CheckedOut').length,
       cancelled: bookings.filter(b => b.status === 'Cancelled').length,
       noShows: bookings.filter(b => b.status === 'No-Show').length,
-      pendingReservations: bookings.filter(b => b.status === 'HELD').length,
+      pendingReservations: bookings.filter(b => normalizeBookingStatus(b.status) === 'Held').length,
     };
     setShiftSummary(summary);
     setShowShiftSummaryModal(true);
+  };
+
+  const getBookingRoomLabels = (booking) => {
+    const labels = [];
+    const seen = new Set();
+
+    const pushLabel = (rawLabel, quantity = 1) => {
+      const base = String(rawLabel || '').trim();
+      if (!base) return;
+      const qty = Number(quantity) || 1;
+      const label = qty > 1 ? `${base} x${qty}` : base;
+      if (!seen.has(label)) {
+        seen.add(label);
+        labels.push(label);
+      }
+    };
+
+    // New API shape (booking.rooms with nested room)
+    if (Array.isArray(booking?.rooms)) {
+      booking.rooms.forEach((item) => {
+        const roomName = item?.room?.name || item?.roomName || item?.name;
+        const roomType = item?.room?.type || item?.type || '';
+        const unit = item?.unitNumber || item?.roomUnit || item?.unit;
+        const qty = item?.quantity || 1;
+        const baseName = roomName || roomType || 'Room';
+        const label = unit ? `${baseName} (${unit})` : baseName;
+        pushLabel(label, qty);
+      });
+    }
+
+    // Legacy shape
+    if (labels.length === 0 && Array.isArray(booking?.roomAssignments)) {
+      booking.roomAssignments.forEach((room) => {
+        const roomName = room?.roomName || room?.name || room?.type || 'Room';
+        const qty = room?.quantity || 1;
+        pushLabel(roomName, qty);
+      });
+    }
+
+    // Backward compatibility from selectedRooms + allRooms map
+    if (labels.length === 0 && booking?.selectedRooms && typeof booking.selectedRooms === 'object') {
+      Object.entries(booking.selectedRooms).forEach(([roomId, qty]) => {
+        const match = allRooms.find((r) => String(r.id) === String(roomId));
+        const roomName = match?.name || 'Room';
+        pushLabel(roomName, qty);
+      });
+    }
+
+    return labels;
+  };
+
+  const getBookingPrimaryRoomLabel = (booking) => {
+    const labels = getBookingRoomLabels(booking);
+    if (!labels.length) return 'Not assigned';
+    if (labels.length === 1) return labels[0];
+    return `${labels[0]} +${labels.length - 1} more`;
+  };
+
+  const getBookingAssignedUnits = (booking) => {
+    if (Array.isArray(booking?.rooms) && booking.rooms.length > 0) {
+      return booking.rooms.reduce((sum, room) => sum + (Number(room?.quantity) || 1), 0);
+    }
+    if (Array.isArray(booking?.roomAssignments) && booking.roomAssignments.length > 0) {
+      return booking.roomAssignments.reduce((sum, room) => sum + (Number(room?.quantity) || 1), 0);
+    }
+    if (booking?.selectedRooms && typeof booking.selectedRooms === 'object') {
+      return Object.values(booking.selectedRooms).reduce((sum, qty) => sum + (Number(qty) || 0), 0);
+    }
+    return 0;
+  };
+
+  const getBookingGuestCount = (booking) => {
+    const toPositiveNumber = (value) => {
+      const num = Number(value);
+      return Number.isFinite(num) && num > 0 ? num : 0;
+    };
+
+    // New shape: derive from per-room pax configuration
+    if (Array.isArray(booking?.rooms) && booking.rooms.length > 0) {
+      const roomPax = booking.rooms.reduce((sum, room) => {
+        const adults = toPositiveNumber(room?.adults);
+        const additionalPax = toPositiveNumber(room?.additionalPax);
+        const children = toPositiveNumber(room?.children);
+        return sum + adults + additionalPax + children;
+      }, 0);
+
+      if (roomPax > 0) return roomPax;
+
+      // Fallback: at least the booked unit quantity if pax breakdown is unavailable
+      const unitQty = booking.rooms.reduce((sum, room) => sum + (toPositiveNumber(room?.quantity) || 1), 0);
+      if (unitQty > 0) return unitQty;
+    }
+
+    // Primary source from booking payload
+    const directGuestCount = toPositiveNumber(booking?.numberOfGuests);
+    if (directGuestCount > 0) return directGuestCount;
+
+    // Legacy roomAssignments shape
+    if (Array.isArray(booking?.roomAssignments) && booking.roomAssignments.length > 0) {
+      const legacyPax = booking.roomAssignments.reduce((sum, room) => {
+        const guests = toPositiveNumber(room?.numberOfGuests || room?.guests);
+        const adults = toPositiveNumber(room?.adults);
+        const children = toPositiveNumber(room?.children);
+        const resolved = guests || adults + children;
+        return sum + (resolved > 0 ? resolved : 1);
+      }, 0);
+      if (legacyPax > 0) return legacyPax;
+    }
+
+    return 0;
+  };
+
+  const getPaymentModeMeta = (paymentMode) => {
+    const mode = String(paymentMode || 'cash').toLowerCase();
+    if (mode === 'gcash') return { label: 'GCash', Icon: Smartphone };
+    if (mode === 'maya') return { label: 'Maya', Icon: CreditCard };
+    if (mode === 'card') return { label: 'Card', Icon: CreditCard };
+    return { label: 'Cash', Icon: Wallet };
   };
 
   // Pagination and filtering utilities
@@ -298,21 +464,20 @@ export default function ReceptionistDashboard() {
       filteredBookings = confirmedBookings || [];
     } else if (activeBookingFilter === 'checkedIn') {
       filteredBookings = checkedInBookings || [];
-    } else if (activeBookingFilter === 'checkedOut') {
-      filteredBookings = checkedOutBookings || [];
-    } else if (activeBookingFilter === 'completed') {
-      filteredBookings = completedBookings || [];
+    } else if (activeBookingFilter === 'checkedOut' || activeBookingFilter === 'completed') {
+      filteredBookings = [...(checkedOutBookings || []), ...(completedBookings || [])];
     } else {
       filteredBookings = getAllBookings();
     }
 
     // Apply search filter
     if (searchTerm) {
+      const normalizedSearch = searchTerm.toLowerCase();
       filteredBookings = filteredBookings.filter(booking => 
-        booking.guestName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        booking.roomAssignments?.[0]?.roomName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        booking.guestName?.toLowerCase().includes(normalizedSearch) ||
+        getBookingRoomLabels(booking).join(' ').toLowerCase().includes(normalizedSearch) ||
         booking.id?.toString().includes(searchTerm) ||
-        booking.remarks?.toLowerCase().includes(searchTerm.toLowerCase())
+        booking.remarks?.toLowerCase().includes(normalizedSearch)
       );
     }
 
@@ -383,6 +548,31 @@ export default function ReceptionistDashboard() {
     setCurrentPage(1);
   };
 
+  const openCheckActionModal = (action, booking) => {
+    setCheckActionModal({ show: true, booking, action });
+  };
+
+  const closeCheckActionModal = () => {
+    setCheckActionModal({ show: false, booking: null, action: null });
+  };
+
+  const confirmCheckAction = async () => {
+    if (!checkActionModal?.booking?.id || !checkActionModal?.action) {
+      closeCheckActionModal();
+      return;
+    }
+
+    try {
+      if (checkActionModal.action === 'checkin') {
+        await handleCheckIn(checkActionModal.booking.id);
+      } else if (checkActionModal.action === 'checkout') {
+        await handleCheckOut(checkActionModal.booking.id);
+      }
+    } finally {
+      closeCheckActionModal();
+    }
+  };
+
   const handleGuestNameChange = (e) => {
     const name = e.target.value;
     setGuestNameInput(name);
@@ -429,10 +619,10 @@ export default function ReceptionistDashboard() {
   };
 
   const openQuickView = (guest) => {
-    // Ensure numberOfGuests and guestName are always present
+    // Ensure guest count and guestName are always present
     setQuickViewGuest({
       ...guest,
-      numberOfGuests: guest.numberOfGuests ?? 1,
+      numberOfGuests: getBookingGuestCount(guest),
       guestName: guest.guestName ?? 'Unknown Guest',
     });
     setIsQuickViewOpen(true);
@@ -449,7 +639,7 @@ export default function ReceptionistDashboard() {
       guestName: booking.guestName ?? '',
       checkIn: booking.checkIn ? String(booking.checkIn).split('T')[0] : '',
       checkOut: booking.checkOut ? String(booking.checkOut).split('T')[0] : '',
-      numberOfGuests: booking.numberOfGuests ?? 1,
+      numberOfGuests: getBookingGuestCount(booking) || 1,
       selectedAmenities: booking.selectedAmenities || { optional: {}, rental: {}, cottage: null },
       remarks: booking.remarks ?? '',
     });
@@ -649,13 +839,13 @@ export default function ReceptionistDashboard() {
     // Enhanced categorization with timestamps and priority
     const now = new Date();
     const overdueCheckouts = bookings.filter(b => {
-      if (!b.checkOut || b.status !== 'Confirmed') return false;
+      if (!b.checkOut || normalizeBookingStatus(b.status) !== 'Confirmed') return false;
       const checkoutDate = new Date(b.checkOut);
       return checkoutDate < now;
     });
 
     const lateArrivals = bookings.filter(b => {
-      if (!b.checkIn || b.status !== 'HELD') return false;
+      if (!b.checkIn || normalizeBookingStatus(b.status) !== 'Held') return false;
       const checkinDate = new Date(b.checkIn);
       const expectedTime = new Date(checkinDate);
       expectedTime.setHours(15, 0, 0, 0); // 3 PM check-in time
@@ -663,8 +853,8 @@ export default function ReceptionistDashboard() {
     });
 
     setNotificationCategories({
-      checkIns: bookings.filter(b => b.checkIn && b.checkIn.startsWith(today) && b.status === 'HELD'),
-      checkOuts: bookings.filter(b => b.checkOut && b.checkOut.startsWith(today) && b.status === 'Confirmed'),
+      checkIns: bookings.filter(b => b.checkIn && b.checkIn.startsWith(today) && normalizeBookingStatus(b.status) === 'Held'),
+      checkOuts: bookings.filter(b => b.checkOut && b.checkOut.startsWith(today) && normalizeBookingStatus(b.status) === 'Confirmed'),
       overdueCheckouts,
       lateArrivals,
       maintenance: [], // Would be populated from maintenance API
@@ -696,7 +886,7 @@ export default function ReceptionistDashboard() {
     printWindow.document.write(`<div class="detail-row"><span class="label">Booking ID:</span> <span>${booking.id}</span></div>`);
     printWindow.document.write(`<div class="detail-row"><span class="label">Check-in:</span> <span>${new Date(booking.checkIn).toLocaleDateString()}</span></div>`);
     printWindow.document.write(`<div class="detail-row"><span class="label">Check-out:</span> <span>${new Date(booking.checkOut).toLocaleDateString()}</span></div>`);
-    printWindow.document.write(`<div class="detail-row"><span class="label">Guests:</span> <span>${booking.numberOfGuests}</span></div>`);
+    printWindow.document.write(`<div class="detail-row"><span class="label">Guests:</span> <span>${getBookingGuestCount(booking) || 'N/A'}</span></div>`);
     printWindow.document.write(`<div class="detail-row"><span class="label">Status:</span> <span>${booking.status}</span></div>`);
     if (booking.remarks) {
       printWindow.document.write(`<div class="detail-row"><span class="label">Remarks:</span> <span>${booking.remarks}</span></div>`);
@@ -709,9 +899,9 @@ export default function ReceptionistDashboard() {
     printWindow.print();
   };
 
-  const fetchBookings = async () => {
+  const fetchBookings = async ({ silent = true } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError(null);
       const res = await fetch('/api/bookings?page=1&limit=50'); // Fetch first 50 records
       if (!res.ok) {
@@ -724,7 +914,7 @@ export default function ReceptionistDashboard() {
     } catch (error) {
       handleError(error, 'Fetch bookings');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -797,14 +987,18 @@ export default function ReceptionistDashboard() {
     try {
       const bookingToUpdate = bookings.find(b => b.id === bookingId);
       if (!bookingToUpdate) throw new Error('Booking not found');
-      const updatedData = { ...bookingToUpdate, status: 'Confirmed', actualCheckIn: true };
+      const updatedData = { status: 'Confirmed', actualCheckIn: true };
       const res = await fetch(`/api/bookings/${bookingId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedData),
       });
       if (!res.ok) throw new Error('Failed to check in');
-      await fetchBookings();
+      const updatedBooking = await res.json();
+      if (updatedBooking?.id) {
+        setBookings(prev => prev.map(b => b.id === updatedBooking.id ? { ...b, ...updatedBooking } : b));
+        setModalData(prev => (prev && prev.id === updatedBooking.id) ? { ...prev, ...updatedBooking } : prev);
+      }
     } catch (error) {
       console.error('Error checking in guest:', error);
     }
@@ -814,56 +1008,66 @@ export default function ReceptionistDashboard() {
     try {
       const bookingToUpdate = bookings.find(b => b.id === bookingId);
       if (!bookingToUpdate) throw new Error('Booking not found');
-      const updatedData = { ...bookingToUpdate, status: 'CHECKED_OUT', actualCheckOut: true };
+      const updatedData = { status: 'Confirmed', actualCheckOut: true };
       const res = await fetch(`/api/bookings/${bookingId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedData),
       });
       if (!res.ok) throw new Error('Failed to check out');
-      await fetchBookings();
+      const updatedBooking = await res.json();
+      if (updatedBooking?.id) {
+        setBookings(prev => prev.map(b => b.id === updatedBooking.id ? { ...b, ...updatedBooking } : b));
+        setModalData(prev => (prev && prev.id === updatedBooking.id) ? { ...prev, ...updatedBooking } : prev);
+      }
     } catch (error) {
       console.error('Error checking out guest:', error);
     }
   };
 
   useEffect(() => {
-    fetchBookings();
+    fetchBookings({ silent: false });
     fetchAmenities();
     fetchRooms(null, null, true); // Initial load flag
   }, []);
 
-  // 🔔 PUSHER: Real-time booking updates
+  // PUSHER: Real-time booking updates
   // Wrap fetchBookings in useCallback for use in Pusher hooks
   const refetchBookings = useCallback(() => {
     console.log('[Pusher] Received booking update, refreshing data...');
-    fetchBookings();
+    fetchBookings({ silent: true });
   }, []);
 
   // Subscribe to booking events (new bookings, updates, cancellations)
   useBookingUpdates({
     onBookingCreated: (data) => {
       console.log('[Pusher] New booking created:', data.guestName);
+      toastInfo(`New booking${data?.bookingId ? ` #${data.bookingId}` : ''} created`, { title: 'Live Update' });
       refetchBookings();
     },
     onBookingUpdated: (data) => {
       console.log('[Pusher] Booking updated:', data.bookingId);
+      toastInfo(`Booking updated${data?.bookingId ? ` #${data.bookingId}` : ''}`, { title: 'Live Update' });
       refetchBookings();
     },
     onBookingCancelled: (data) => {
       console.log('[Pusher] Booking cancelled:', data.bookingId);
+      toastWarning(`Booking cancelled${data?.bookingId ? ` #${data.bookingId}` : ''}`, { title: 'Live Update' });
       refetchBookings();
     },
     onCheckedIn: (data) => {
       console.log('[Pusher] Guest checked in:', data.guestName);
+      toastSuccess(`${data?.guestName || 'Guest'} checked in`, { title: 'Live Update' });
       refetchBookings();
     },
     onCheckedOut: (data) => {
       console.log('[Pusher] Guest checked out:', data.bookingId);
+      toastSuccess(`${data?.guestName || 'Guest'} checked out`, { title: 'Live Update' });
       refetchBookings();
     },
     onPaymentReceived: (data) => {
       console.log('[Pusher] Payment received:', data.guestName);
+      toastSuccess(`Payment received${data?.bookingId ? ` for booking #${data.bookingId}` : ''}`, { title: 'Live Update' });
       refetchBookings();
     },
   });
@@ -871,6 +1075,15 @@ export default function ReceptionistDashboard() {
   // Subscribe to receptionist-specific notifications
   useStaffNotifications('RECEPTIONIST', (notification) => {
     console.log('[Pusher] New notification:', notification.message);
+    const notifType = String(notification?.type || '').toLowerCase();
+    const notifMessage = notification?.message || 'New notification received';
+    if (notifType.includes('cancel') || notifType.includes('denied') || notifType.includes('failed')) {
+      toastWarning(notifMessage, { title: 'Live Notification' });
+    } else if (notifType.includes('approved') || notifType.includes('verified') || notifType.includes('created') || notifType.includes('check')) {
+      toastSuccess(notifMessage, { title: 'Live Notification' });
+    } else {
+      toastInfo(notifMessage, { title: 'Live Notification' });
+    }
     // Refresh notifications panel
     loadNotifications();
   });
@@ -1211,22 +1424,29 @@ export default function ReceptionistDashboard() {
     );
   }
 
-    const occupiedRoomsCount = bookings.filter(
-    (b) => b.status === 'Confirmed'
-  ).length;
+  const configuredTotalRooms = allRooms.reduce((sum, room) => sum + (Number(room?.quantity) || 0), 0);
+  // Resort baseline inventory: 4 Tepee + 4 Loft + 4 Villa + 1 Family Lodge = 13
+  const totalRoomsCount = Math.max(configuredTotalRooms, 13);
 
-  const totalRoomsCount = allRooms.reduce((sum, room) => sum + room.quantity, 0);
+  const occupiedRoomsCount = bookings
+    .filter((b) => normalizeBookingStatus(b.status) === 'Confirmed')
+    .reduce((sum, booking) => sum + getBookingAssignedUnits(booking), 0);
 
-  // Fix: Ensure the value is a number by providing a default value if 'remaining' is not defined.
-  const availableRoomsCount = allRooms.reduce((sum, room) => sum + (room.remaining || 0), 0);
+  const hasRemainingData = allRooms.some((room) => typeof room?.remaining === 'number');
+  const availableRoomsCount = hasRemainingData
+    ? allRooms.reduce((sum, room) => sum + (Number(room?.remaining) || 0), 0)
+    : Math.max(totalRoomsCount - occupiedRoomsCount, 0);
   
   // Computed booking filters - show all non-cancelled bookings
   const activeBookings = bookings.filter(b => b.status !== 'Cancelled' && !b.isDeleted);
-  const pendingBookings = activeBookings.filter(b => ['HELD', 'PENDING', 'Pending'].includes(b.status));
-  const confirmedBookings = activeBookings.filter(b => b.status === 'Confirmed');
-  const checkedInBookings = activeBookings.filter(b => b.status === 'Checked In');
-  const checkedOutBookings = activeBookings.filter(b => b.status === 'Checked Out');
-  const completedBookings = activeBookings.filter(b => b.status === 'Completed');
+  const pendingBookings = activeBookings.filter(b => ['Held', 'Pending'].includes(normalizeBookingStatus(b.status)));
+  const confirmedBookings = activeBookings.filter(b => normalizeBookingStatus(b.status) === 'Confirmed');
+  const checkedInBookings = activeBookings.filter(b => !!b.actualCheckIn && !b.actualCheckOut && normalizeBookingStatus(b.status) !== 'Completed');
+  const checkedOutBookings = activeBookings.filter(b => !!b.actualCheckOut && normalizeBookingStatus(b.status) !== 'Completed');
+  const completedBookings = activeBookings.filter(b => normalizeBookingStatus(b.status) === 'Completed');
+  const todaysReservationsCount = bookings.filter(
+    (b) => !b.isDeleted && normalizeBookingStatus(b.status) !== 'Cancelled' && isSameLocalDate(b.createdAt)
+  ).length;
 
   return (
     <div className="receptionist-layout">
@@ -1290,7 +1510,9 @@ export default function ReceptionistDashboard() {
             <div style={{ 
               fontSize: '24px',
               animation: 'spin 1s linear infinite'
-            }}>⟳</div>
+            }}>
+              <RefreshCw size={22} />
+            </div>
           </div>
         </div>
       )}
@@ -1299,10 +1521,10 @@ export default function ReceptionistDashboard() {
       <nav className="top-navbar">
         <div className="navbar-left">
           <div className="brand-section">
-            <svg className="brand-icon" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2C7 2 3 6 3 11c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38l-.01-1.49c-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48l-.01 2.2c0 .21.15.46.55.38A8.013 8.013 0 0 0 21 11c0-5-4-9-9-9z"/>
-            </svg>
-            <span className="brand-text">Charkool Leisure</span>
+            <div className="brand-copy">
+              <span className="brand-text">Charkool</span>
+              <span className="brand-subtitle">Beach Resort</span>
+            </div>
           </div>
           
 
@@ -1356,18 +1578,6 @@ export default function ReceptionistDashboard() {
               </svg>
               {isDropdownOpen && (
                 <div className="dropdown-menu">
-                  <div className="dropdown-item">
-                    <svg className="dropdown-icon" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clipRule="evenodd" />
-                    </svg>
-                    Profile
-                  </div>
-                  <div className="dropdown-item">
-                    <svg className="dropdown-icon" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
-                    </svg>
-                    Settings
-                  </div>
                   <div className="dropdown-item" onClick={() => { setIsDropdownOpen(false); setShowChangePassword(true); }}>
                     <Lock size={16} className="dropdown-icon" style={{ marginRight: '8px' }} />
                     Change Password
@@ -1392,7 +1602,7 @@ export default function ReceptionistDashboard() {
       }}>
         {/* Welcome Section */}
         <div style={{
-          background: 'linear-gradient(135deg, #bb8f44ff 0%, #FEBE52 100%)',
+          background: 'linear-gradient(135deg, #c4871d 0%, #febe52 100%)',
           borderRadius: '16px',
           padding: '24px 32px',
           marginBottom: '24px',
@@ -1550,7 +1760,7 @@ export default function ReceptionistDashboard() {
               <span className="kpi-card-total">/{totalRoomsCount}</span>
             </div>
             <div className="kpi-card-subtitle">
-              {Math.round((occupiedRoomsCount / totalRoomsCount) * 100)}% Occupancy Rate
+              {totalRoomsCount > 0 ? Math.round((occupiedRoomsCount / totalRoomsCount) * 100) : 0}% Occupancy Rate
             </div>
           </div>
         </div>
@@ -1582,11 +1792,11 @@ export default function ReceptionistDashboard() {
             <p className="kpi-card-title">Today's Reservations</p>
             <div className="kpi-card-metrics">
               <span className="kpi-card-metric">
-                {notifications.pendingCheckIns.length + notifications.pendingCheckOuts.length}
+                {todaysReservationsCount}
               </span>
             </div>
             <div className="kpi-card-subtitle">
-              Arrivals & Departures pending
+              Reservations created today
             </div>
           </div>
         </div>
@@ -1623,8 +1833,7 @@ export default function ReceptionistDashboard() {
           </h2>
           <div className="section-badge">
             {bookings.filter(b => {
-              const today = new Date().toISOString().split('T')[0];
-              return b.createdAt && b.createdAt.startsWith(today);
+              return isSameLocalDate(b.createdAt);
             }).length} bookings
           </div>
         </div>
@@ -1632,8 +1841,7 @@ export default function ReceptionistDashboard() {
         <div className="recent-bookings-grid">
           {bookings
             .filter(b => {
-              const today = new Date().toISOString().split('T')[0];
-              return b.createdAt && b.createdAt.startsWith(today);
+              return isSameLocalDate(b.createdAt);
             })
             .slice(0, 6)
             .map((booking, index) => (
@@ -1665,14 +1873,14 @@ export default function ReceptionistDashboard() {
                       <path d="M7 14s-3-2-3-6a3 3 0 1 1 6 0c0 4-3 6-3 6z"/>
                       <path d="M7 8a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/>
                     </svg>
-                    <span>{booking.roomAssignments?.[0]?.roomName || 'Unassigned'}</span>
+                    <span>{getBookingPrimaryRoomLabel(booking)}</span>
                   </div>
                   
                   <div className="booking-detail-item">
                     <svg className="detail-icon" viewBox="0 0 16 16" fill="currentColor">
                       <path d="M7 14s-3-2-3-6a3 3 0 1 1 6 0c0 4-3 6-3 6z"/>
                     </svg>
-                    <span>{booking.numberOfGuests || 1} guests</span>
+                    <span>{getBookingGuestCount(booking) || 'N/A'} guests</span>
                   </div>
                 </div>
                 
@@ -1694,8 +1902,7 @@ export default function ReceptionistDashboard() {
             ))}
           
           {bookings.filter(b => {
-            const today = new Date().toISOString().split('T')[0];
-            return b.createdAt && b.createdAt.startsWith(today);
+            return isSameLocalDate(b.createdAt);
           }).length === 0 && (
             <div className="no-recent-bookings">
               <svg viewBox="0 0 20 20" fill="currentColor">
@@ -1712,20 +1919,26 @@ export default function ReceptionistDashboard() {
       {showNotificationPanel && (
         <div className="notification-panel slide-up">
           <div className="notification-panel-header">
-            🔔 Live Notifications
-            <button 
-              style={{ 
-                float: 'right', 
-                background: 'none', 
-                border: 'none', 
-                color: 'white', 
-                fontSize: '1.2rem',
-                cursor: 'pointer'
-              }}
-              onClick={() => setShowNotificationPanel(false)}
-            >
-              ✕
-            </button>
+            <div className="notification-header-title">
+              <Bell size={16} />
+              <span>Live Notifications</span>
+            </div>
+            <div className="notification-header-actions">
+              <span className="notification-header-count">
+                {(notificationCategories.overdueCheckouts?.length || 0)
+                  + (notificationCategories.lateArrivals?.length || 0)
+                  + (notifications.pendingCheckIns?.length || 0)
+                  + (notifications.pendingCheckOuts?.length || 0)
+                  + (notifications.pendingBookings || 0)}
+              </span>
+              <button
+                className="notification-close-btn"
+                onClick={() => setShowNotificationPanel(false)}
+                aria-label="Close notifications"
+              >
+                <X size={16} />
+              </button>
+            </div>
           </div>
           <div className="notification-panel-content">
             {/* High Priority Notifications */}
@@ -1789,7 +2002,7 @@ export default function ReceptionistDashboard() {
                   <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
                     <button 
                       className="notification-action-btn primary"
-                      onClick={() => handleCheckIn(booking)}
+                      onClick={() => openCheckActionModal('checkin', booking)}
                     >
                       Check In
                     </button>
@@ -1821,7 +2034,7 @@ export default function ReceptionistDashboard() {
                   <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
                     <button 
                       className="notification-action-btn primary"
-                      onClick={() => handleCheckOut(booking)}
+                      onClick={() => openCheckActionModal('checkout', booking)}
                     >
                       Check Out
                     </button>
@@ -1890,6 +2103,7 @@ export default function ReceptionistDashboard() {
 
       {isModalOpen(MODALS.CREATE_BOOKING) && (
         <div
+          className="create-booking-overlay"
           style={{
             position: 'fixed',
             top: 0,
@@ -1905,11 +2119,12 @@ export default function ReceptionistDashboard() {
           }}
         >
           <div
+            className="create-booking-modal"
             style={{
               backgroundColor: '#FFF8E1',
               borderRadius: '8px',
               width: '100%',
-              maxWidth: '700px',
+              maxWidth: '1240px',
               maxHeight: '90vh',
               overflowY: 'auto',
               boxShadow: '0 8px 24px rgba(251, 190, 82, 0.5)',
@@ -2019,7 +2234,8 @@ export default function ReceptionistDashboard() {
                     guestName,
                     checkIn: createBookingForm.checkIn,
                     checkOut: createBookingForm.checkOut,
-                    numberOfGuests: createBookingForm.numberOfGuests,
+                    // Always persist the actual configured guest count from room allocations.
+                    numberOfGuests: totalGuests,
                     paymentMode: createBookingForm.paymentMode,
                     optional,
                     rental,
@@ -2068,8 +2284,17 @@ export default function ReceptionistDashboard() {
                   }
 
                   const newBookingData = await response.json();
-                  setBookings([...bookings, newBookingData]);
-                  showAlert('Success', 'Walk-in booking created successfully!', 'success');
+                  const createdBooking = newBookingData?.booking || newBookingData;
+                  const createdBookingId = createdBooking?.id;
+                  setBookings([...bookings, createdBooking]);
+
+                  showAlert(
+                    'Walk-in Created',
+                    createdBookingId
+                      ? `Booking #${createdBookingId} created and handed off to cashier for payment.`
+                      : 'Walk-in booking created and handed off to cashier for payment.',
+                    'success'
+                  );
 
                   // Reset form with new structure
                   closeModal();
@@ -2082,7 +2307,9 @@ export default function ReceptionistDashboard() {
                     checkOut: '',
                     numberOfGuests: 1,
                     paymentMode: 'cash',
+                    selectedRooms: {},
                     rooms: [],
+                    selectedRoomDetails: {},
                     selectedAmenities: { optional: {}, rental: {}, cottage: null },
                   });
                   await fetchBookings();
@@ -2106,12 +2333,13 @@ export default function ReceptionistDashboard() {
               {createBookingStep === 1 && (
                 <>
                   <div style={{ marginBottom: '20px' }}>
-                    <div style={{ display: 'flex', gap: '15px', marginBottom: '20px', alignItems: 'flex-start' }}>
-                      <div style={{ flex: '0 0 300px' }}>
+                    <div className="walkin-step1-grid" style={{ marginBottom: '20px' }}>
+                      <div className="walkin-calendar-col">
                         {/* Left side - Calendar */}
                         <BookingCalendar
                           availabilityData={availabilityData}
                           disabledDates={disabledDates}
+                          minLeadDays={0}
                           onDateChange={({ checkInDate, checkOutDate }) => {
                             setCreateBookingForm(prev => ({
                               ...prev,
@@ -2124,9 +2352,9 @@ export default function ReceptionistDashboard() {
                         />
                       </div>
                       
-                      <div style={{ flex: '1' }}>
+                      <div className="walkin-info-col">
                         {/* Right side - Guest Info and Dates */}
-                        <div style={{ 
+                        <div className="walkin-guest-panel" style={{ 
                           backgroundColor: '#FFF7ED',
                           padding: '15px',
                           borderRadius: '8px',
@@ -2401,7 +2629,7 @@ export default function ReceptionistDashboard() {
                                         alignItems: 'center',
                                         gap: '3px'
                                       }}>
-                                        👥 {roomCapacity} guests
+                                        <Users size={12} /> {roomCapacity} guests
                                       </span>
                                     </div>
                                     {/* Price */}
@@ -2539,7 +2767,12 @@ export default function ReceptionistDashboard() {
                                                 ...prev,
                                                 rooms: prev.rooms.map(r => 
                                                   r.roomId === roomData.roomId && r.instanceNumber === roomData.instanceNumber
-                                                    ? { ...r, adults: Math.max(1, r.adults - 1) }
+                                                    ? {
+                                                        ...r,
+                                                        adults: Math.max(1, r.adults - 1),
+                                                        // Extra pax is allowed only when adults is at base max.
+                                                        additionalPax: Math.max(1, r.adults - 1) < capacity.base ? 0 : r.additionalPax,
+                                                      }
                                                     : r
                                                 )
                                               }));
@@ -2625,6 +2858,7 @@ export default function ReceptionistDashboard() {
                                           <button
                                             type="button"
                                             onClick={() => {
+                                              if (roomData.adults < capacity.base) return;
                                               setCreateBookingForm(prev => ({
                                                 ...prev,
                                                 rooms: prev.rooms.map(r => 
@@ -2634,20 +2868,25 @@ export default function ReceptionistDashboard() {
                                                 )
                                               }));
                                             }}
-                                            disabled={roomData.additionalPax >= capacity.additionalPaxMax}
+                                            disabled={roomData.adults < capacity.base || roomData.additionalPax >= capacity.additionalPaxMax}
                                             style={{
                                               padding: '4px 8px',
                                               backgroundColor: '#FEBE52',
                                               color: 'white',
                                               border: 'none',
                                               borderRadius: '4px',
-                                              cursor: roomData.additionalPax >= capacity.additionalPaxMax ? 'not-allowed' : 'pointer',
-                                              opacity: roomData.additionalPax >= capacity.additionalPaxMax ? 0.5 : 1
+                                              cursor: (roomData.adults < capacity.base || roomData.additionalPax >= capacity.additionalPaxMax) ? 'not-allowed' : 'pointer',
+                                              opacity: (roomData.adults < capacity.base || roomData.additionalPax >= capacity.additionalPaxMax) ? 0.5 : 1
                                             }}
                                           >
                                             +
                                           </button>
                                         </div>
+                                        {roomData.adults < capacity.base && (
+                                          <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '2px' }}>
+                                            Reach max adults first to enable extra pax.
+                                          </div>
+                                        )}
                                         {roomData.additionalPax > 0 && (
                                           <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '2px' }}>
                                             +₱{(additionalPaxFee * roomData.additionalPax).toLocaleString()}/night
@@ -2658,7 +2897,7 @@ export default function ReceptionistDashboard() {
                                       {/* Children */}
                                       <div>
                                         <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px', fontWeight: '600' }}>
-                                          Children (max {capacity.max})
+                                          Children (max {capacity.childrenMax || 2})
                                         </label>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                           <button
@@ -2723,11 +2962,6 @@ export default function ReceptionistDashboard() {
                                       <strong>Room Summary:</strong> {roomData.adults} Adult{roomData.adults !== 1 ? 's' : ''}
                                       {roomData.additionalPax > 0 && ` + ${roomData.additionalPax} Extra`}
                                       {roomData.children > 0 && `, ${roomData.children} ${roomData.children === 1 ? 'Child' : 'Children'}`}
-                                      {roomData.additionalPax > 0 && (
-                                        <div style={{ marginTop: '4px', color: '#059669', fontWeight: '600' }}>
-                                          ✓ {roomData.additionalPax} extra bed{roomData.additionalPax !== 1 ? 's' : ''} included
-                                        </div>
-                                      )}
                                     </div>
                                   </div>
                                 );
@@ -2768,11 +3002,6 @@ export default function ReceptionistDashboard() {
                               {roomTypeName} #{roomData.instanceNumber} ({roomData.adults} adults
                               {roomData.additionalPax > 0 && ` +${roomData.additionalPax} extra`}
                               {roomData.children > 0 && `, ${roomData.children} ${roomData.children === 1 ? 'child' : 'children'}`})
-                              {roomData.additionalPax > 0 && (
-                                <div style={{ fontSize: '11px', color: '#059669', marginTop: '2px' }}>
-                                  ✓ {roomData.additionalPax} extra bed{roomData.additionalPax !== 1 ? 's' : ''}
-                                </div>
-                              )}
                             </div>
                           );
                         })}
@@ -2928,7 +3157,7 @@ export default function ReceptionistDashboard() {
                       <h4 style={{ color: '#92400E', marginBottom: '15px' }}>Price Breakdown</h4>
                       
                       {/* Room Costs */}
-                      {Object.entries(createBookingForm.selectedRooms).map(([roomId, quantity]) => {
+                      {Object.entries(createBookingForm.selectedRooms || {}).map(([roomId, quantity]) => {
                         const roomDetails = createBookingForm.selectedRoomDetails[roomId];
                         if (!roomDetails) return null;
                         const nights = Math.max(1, (new Date(createBookingForm.checkOut) - new Date(createBookingForm.checkIn)) / (1000 * 60 * 60 * 24));
@@ -2942,7 +3171,7 @@ export default function ReceptionistDashboard() {
                       })}
 
                       {/* Optional Amenities */}
-                      {Object.entries(createBookingForm.selectedAmenities.optional).map(([amenityId, quantity]) => {
+                      {Object.entries(createBookingForm.selectedAmenities?.optional || {}).map(([amenityId, quantity]) => {
                         const amenity = optionalAmenitiesData.find(a => a.id === parseInt(amenityId));
                         if (!quantity) return null;
                         const amenityName = amenity ? amenity.name : `Optional Amenity ${amenityId}`;
@@ -2956,7 +3185,7 @@ export default function ReceptionistDashboard() {
                       })}
 
                       {/* Rental Amenities */}
-                      {Object.entries(createBookingForm.selectedAmenities.rental).map(([amenityId, details]) => {
+                      {Object.entries(createBookingForm.selectedAmenities?.rental || {}).map(([amenityId, details]) => {
                         const amenity = rentalAmenitiesData.find(a => a.id === amenityId);
                         if (!amenity || !details.quantity) return null;
                         const total = amenity.price * details.quantity * (details.hoursUsed || 1);
@@ -3089,7 +3318,9 @@ export default function ReceptionistDashboard() {
                       checkOut: '',
                       numberOfGuests: 1,
                       paymentMode: 'cash',
+                      selectedRooms: {},
                       rooms: [],
+                      selectedRoomDetails: {},
                       selectedAmenities: { optional: {}, rental: {}, cottage: null },
                     });
                   }}
@@ -3266,16 +3497,7 @@ export default function ReceptionistDashboard() {
               <svg viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd" />
               </svg>
-              Checked Out ({(checkedOutBookings || []).length})
-            </button>
-            <button 
-              className={`filter-tab ${activeBookingFilter === 'completed' ? 'active' : ''}`}
-              onClick={() => handleFilterChange('completed')}
-            >
-              <svg viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
-              Completed ({(completedBookings || []).length})
+              Checked Out / Completed ({(checkedOutBookings || []).length + (completedBookings || []).length})
             </button>
           </div>
           
@@ -3289,8 +3511,8 @@ export default function ReceptionistDashboard() {
                       <h3 className="guest-name" onClick={() => openQuickView(booking)}>
                         {booking.guestName || 'Unknown Guest'}
                       </h3>
-                      <span className={`status-badge ${booking.status?.toLowerCase() || 'pending'}`}>
-                        {booking.status || 'Pending'}
+                      <span className={`status-badge ${String(getDisplayBookingStatus(booking)).toLowerCase().replace(/\s+/g, '-')}`}>
+                        {getDisplayBookingStatus(booking)}
                       </span>
                     </div>
                     <div className="booking-id">#{booking.id}</div>
@@ -3317,7 +3539,7 @@ export default function ReceptionistDashboard() {
                       </svg>
                       <span className="detail-label">Room:</span>
                       <span className="detail-value">
-                        {booking.roomAssignments?.[0]?.roomName || 'Not assigned'}
+                        {getBookingPrimaryRoomLabel(booking)}
                       </span>
                     </div>
                     
@@ -3326,7 +3548,7 @@ export default function ReceptionistDashboard() {
                         <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z" />
                       </svg>
                       <span className="detail-label">Guests:</span>
-                      <span className="detail-value">{typeof booking.numberOfGuests === 'number' ? booking.numberOfGuests : (booking.numberOfGuests ?? 1)}</span>
+                      <span className="detail-value">{getBookingGuestCount(booking) || 'N/A'}</span>
                     </div>
                     
                     {booking.remarks && (
@@ -3352,10 +3574,10 @@ export default function ReceptionistDashboard() {
                       Details
                     </button>
                     
-                    {booking.status === 'HELD' || booking.status === 'Pending' ? (
+                    {['Held', 'Pending'].includes(normalizeBookingStatus(booking.status)) ? (
                       <>
                         {/* Pending bookings can only be confirmed by super admin or cashier */}
-                        {booking.status === 'Pending' && (
+                        {normalizeBookingStatus(booking.status) === 'Pending' && (
                           <div className="action-btn info" style={{ 
                             backgroundColor: '#FEF3C7', 
                             color: '#92400E', 
@@ -3607,15 +3829,15 @@ export default function ReceptionistDashboard() {
               <p><strong>Booking ID:</strong> {quickViewGuest.id}</p>
               <p><strong>Check-in:</strong> {new Date(quickViewGuest.checkIn).toLocaleDateString()}</p>
               <p><strong>Check-out:</strong> {new Date(quickViewGuest.checkOut).toLocaleDateString()}</p>
-              <p><strong>Guests:</strong> {typeof quickViewGuest.numberOfGuests === 'number' ? quickViewGuest.numberOfGuests : (quickViewGuest.numberOfGuests ?? 1)}</p>
+              <p><strong>Guests:</strong> {getBookingGuestCount(quickViewGuest) || 'N/A'}</p>
               <p><strong>Status:</strong> <span className={`status-${quickViewGuest.status.toLowerCase()}`}>{quickViewGuest.status}</span></p>
               {quickViewGuest.remarks && <p><strong>Remarks:</strong> {quickViewGuest.remarks}</p>}
-              {quickViewGuest.roomAssignments && (
+              {getBookingRoomLabels(quickViewGuest).length > 0 && (
                 <div>
                   <p><strong>Room Assignment:</strong></p>
                   <ul>
-                    {quickViewGuest.roomAssignments.map((room, index) => (
-                      <li key={index}>{room.roomName} ({room.type})</li>
+                    {getBookingRoomLabels(quickViewGuest).map((roomLabel, index) => (
+                      <li key={index}>{roomLabel}</li>
                     ))}
                   </ul>
                 </div>
@@ -3638,16 +3860,18 @@ export default function ReceptionistDashboard() {
         >
           <div
             className="modal-content"
+            data-modal="booking-details"
             style={{
-              background: 'linear-gradient(135deg, #fcd34d 0%, #e6f4f8 100%)',
-              padding: '20px',
-              borderRadius: '8px',
-              width: '600px',
+              background: 'linear-gradient(160deg, #fff8e6 0%, #fff3d2 100%)',
+              padding: '24px',
+              borderRadius: '16px',
+              width: '680px',
               maxWidth: '90%',
-              maxHeight: '80%',
+              maxHeight: '82%',
               overflowY: 'auto',
-              boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
+              boxShadow: '0 14px 34px rgba(68, 47, 9, 0.16)',
               position: 'relative',
+              border: '1px solid rgba(215, 154, 43, 0.38)',
             }}
           >
             <div style={{ position: 'relative', marginBottom: '10px' }}>
@@ -3679,18 +3903,42 @@ export default function ReceptionistDashboard() {
               <strong>Check-in:</strong> {new Date(modalData.checkIn).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
             </div>
             <div style={{ marginBottom: '10px' }}>
+              <strong>Actual Check-in Time:</strong>{' '}
+              {modalData.actualCheckIn
+                ? new Date(modalData.actualCheckIn).toLocaleString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit'
+                  })
+                : 'Not checked in yet'}
+            </div>
+            <div style={{ marginBottom: '10px' }}>
               <strong>Check-out:</strong> {new Date(modalData.checkOut).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
             </div>
             <div style={{ marginBottom: '10px' }}>
-              <strong>Guests:</strong> {typeof modalData.numberOfGuests === 'number' ? modalData.numberOfGuests : (modalData.numberOfGuests ?? 'N/A')}
+              <strong>Actual Check-out Time:</strong>{' '}
+              {modalData.actualCheckOut
+                ? new Date(modalData.actualCheckOut).toLocaleString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit'
+                  })
+                : 'Not checked out yet'}
+            </div>
+            <div style={{ marginBottom: '10px' }}>
+              <strong>Guests:</strong> {getBookingGuestCount(modalData) || 'N/A'}
             </div>
 
             {modalData.rooms && Array.isArray(modalData.rooms) && modalData.rooms.length > 0 && (
-              <div style={{ marginBottom: '10px' }}>
+              <div style={{ marginBottom: '14px' }}>
                 <strong>Selected Rooms:</strong>
                 <ul style={{ marginTop: '5px', paddingLeft: '20px' }}>
-                  {modalData.rooms.map((r) => (
-                    <li key={`room-${r.room.id}`}>{r.room.name} x{r.quantity}</li>
+                  {modalData.rooms.map((r, idx) => (
+                    <li key={`room-${r.room?.id || idx}-${idx}`}>{r.room?.name || 'Room'} x{r.quantity}</li>
                   ))}
                 </ul>
               </div>
@@ -3718,28 +3966,28 @@ export default function ReceptionistDashboard() {
               </div>
             )}
 
-            <div style={{ marginBottom: '10px' }}>
+            <div style={{ marginBottom: '14px' }}>
               <strong>Payment Mode:</strong> 
               <span style={{
                 marginLeft: '10px',
-                padding: '4px 8px',
-                borderRadius: '4px',
-                backgroundColor: '#FEF3C7',
-                border: '1px solid #FEBE52',
+                padding: '6px 10px',
+                borderRadius: '8px',
+                backgroundColor: '#fff8e8',
+                border: '1px solid #d79a2b',
                 fontSize: '14px',
-                fontWeight: '500',
+                fontWeight: '600',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '4px'
+                gap: '6px',
+                color: '#8f5a12'
               }}>
                 {(() => {
-                  const mode = modalData.paymentMode?.toLowerCase() || 'cash';
-                  const icons = { cash: '💵', gcash: '📱', maya: '💳', card: '💳' };
-                  const labels = { cash: 'Cash', gcash: 'GCash', maya: 'Maya', card: 'Card' };
+                  const payment = getPaymentModeMeta(modalData.paymentMode);
+                  const PaymentIcon = payment.Icon;
                   return (
                     <>
-                      <span>{icons[mode] || '💵'}</span>
-                      <span>{labels[mode] || 'Cash'}</span>
+                      <PaymentIcon size={14} />
+                      <span>{payment.label}</span>
                     </>
                   );
                 })()}
@@ -3752,6 +4000,9 @@ export default function ReceptionistDashboard() {
                 {(() => {
                   if (!modalData) return null;
                   const nights = Math.max(1, (new Date(modalData.checkOut) - new Date(modalData.checkIn)) / (1000 * 60 * 60 * 24));
+                  const baseTotal = Number(modalData.totalBeforeDiscount || modalData.totalCostWithAddons || modalData.totalPrice || 0);
+                  const finalTotal = Number(modalData.totalAfterDiscount || modalData.totalCostWithAddons || modalData.totalPrice || 0);
+                  const discountAmount = Number(modalData.discountAmount || Math.max(0, baseTotal - finalTotal));
                   return (
                     <>
                       {modalData.rooms && Array.isArray(modalData.rooms) && modalData.rooms.map((r, idx) => {
@@ -3775,8 +4026,13 @@ export default function ReceptionistDashboard() {
                           {ra.rentalAmenity.name} x{ra.quantity} {ra.hoursUsed ? `(${ra.hoursUsed}h)` : ''}: ₱{(Number(ra.totalPrice) / 100).toFixed(0)}
                         </li>
                       ))}
+                      {discountAmount > 0 && (
+                        <li style={{ color: '#b45309' }}>
+                          Promotion Discount: -₱{(discountAmount / 100).toFixed(0)}
+                        </li>
+                      )}
                       <li style={{ marginTop: '10px', fontWeight: 'bold' }}>
-                        Total Price: ₱{(Number(modalData.totalCostWithAddons || modalData.totalPrice) / 100).toFixed(0)}
+                        Total Price: ₱{(finalTotal / 100).toFixed(0)}
                       </li>
                     </>
                   );
@@ -3787,9 +4043,9 @@ export default function ReceptionistDashboard() {
             {/* Action Buttons - always show row, buttons conditionally rendered */}
             <div style={{ display: 'flex', gap: '10px', marginTop: '20px', justifyContent: 'flex-end', flexWrap: 'wrap', minHeight: '44px' }}>
               {/* Show Check In button if not checked in yet (actualCheckIn is null and status is HELD, PENDING, or Confirmed) */}
-              {(['HELD', 'PENDING', 'Confirmed'].includes(modalData.status) && !modalData.actualCheckIn) && (
+              {(['Held', 'Pending', 'Confirmed'].includes(normalizeBookingStatus(modalData.status)) && !modalData.actualCheckIn) && (
                 <button
-                  onClick={async () => {
+                      onClick={() => {
                     const today = new Date();
                     const checkInDate = new Date(modalData.checkIn);
                     if (today < new Date(checkInDate.getFullYear(), checkInDate.getMonth(), checkInDate.getDate())) {
@@ -3799,12 +4055,7 @@ export default function ReceptionistDashboard() {
                       });
                       return;
                     }
-                    try {
-                      await handleCheckIn(modalData.id);
-                      closeModal();
-                    } catch (error) {
-                      console.error('Error checking in:', error);
-                    }
+                        openCheckActionModal('checkin', modalData);
                   }}
                   style={{
                     minWidth: '120px',
@@ -3822,11 +4073,10 @@ export default function ReceptionistDashboard() {
               )}
 
               {/* Show Check Out button if checked in but not checked out (actualCheckIn is set, actualCheckOut is null, status is Confirmed or Checked-In) */}
-              {(modalData.actualCheckIn && !modalData.actualCheckOut && ['Confirmed', 'Checked-In'].includes(modalData.status)) && (
+              {(modalData.actualCheckIn && !modalData.actualCheckOut && normalizeBookingStatus(modalData.status) === 'Confirmed') && (
                 <button
                   onClick={() => {
-                    closeModal();
-                    openStatusModal(modalData.id, 'CHECKED_OUT');
+                    openCheckActionModal('checkout', modalData);
                   }}
                   style={{
                     minWidth: '120px',
@@ -3851,8 +4101,105 @@ export default function ReceptionistDashboard() {
 
       {/* Early Check-In Modal (shared) */}
       <EarlyCheckInModal modal={earlyCheckInModal} setModal={setEarlyCheckInModal} />
+
+      {/* Check-in / Check-out Confirmation Modal */}
+      {checkActionModal.show && checkActionModal.booking && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1300,
+          padding: '1rem'
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: '10px',
+            width: '100%',
+            maxWidth: '460px',
+            padding: '1.2rem',
+            boxShadow: '0 16px 40px rgba(0,0,0,0.2)'
+          }}>
+            <h3 style={{ marginTop: 0, marginBottom: '0.75rem' }}>
+              Confirm {checkActionModal.action === 'checkin' ? 'Check In' : 'Check Out'}
+            </h3>
+            <p style={{ marginBottom: '1rem', color: '#374151' }}>
+              {`Are you sure you want to ${checkActionModal.action === 'checkin' ? 'check in' : 'check out'} `}
+              <strong>{checkActionModal.booking.guestName || `Booking #${checkActionModal.booking.id}`}</strong>?
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
+              <button
+                onClick={closeCheckActionModal}
+                style={{
+                  padding: '0.55rem 0.95rem',
+                  borderRadius: '6px',
+                  border: '1px solid #d1d5db',
+                  background: '#fff',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmCheckAction}
+                style={{
+                  padding: '0.55rem 0.95rem',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: checkActionModal.action === 'checkin' ? '#56A86B' : '#E74C3C',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontWeight: 600
+                }}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       <style jsx>{`
+        .create-booking-overlay {
+          padding: 10px;
+        }
+
+        .create-booking-modal {
+          width: min(1240px, 96vw) !important;
+          max-height: 90vh !important;
+          overflow-y: auto;
+        }
+
+        .walkin-step1-grid {
+          display: flex;
+          gap: 15px;
+          align-items: flex-start;
+          flex-wrap: wrap;
+        }
+
+        .walkin-calendar-col {
+          flex: 1 1 680px;
+          min-width: 620px;
+          max-width: none;
+        }
+
+        .walkin-info-col {
+          flex: 0 1 390px;
+          min-width: 320px;
+          max-width: 390px;
+          position: relative;
+          z-index: 1;
+        }
+
+        .walkin-guest-panel {
+          width: 100%;
+        }
+
         .notification-badge.critical {
           background: linear-gradient(45deg, #dc2626, #ef4444);
           animation: pulse 2s infinite;
@@ -3931,6 +4278,29 @@ export default function ReceptionistDashboard() {
         
         /* Mobile responsiveness */
         @media (max-width: 768px) {
+          .create-booking-overlay {
+            padding: 8px;
+          }
+
+          .create-booking-modal {
+            width: 100% !important;
+            max-width: 100% !important;
+            max-height: 92vh !important;
+            padding: 12px !important;
+            border-radius: 12px !important;
+          }
+
+          .walkin-step1-grid {
+            gap: 12px;
+          }
+
+          .walkin-calendar-col,
+          .walkin-info-col {
+            flex: 1 1 100%;
+            min-width: 100%;
+            max-width: 100%;
+          }
+
           .notification-panel {
             width: calc(100vw - 40px);
             right: 20px;
@@ -3958,6 +4328,25 @@ export default function ReceptionistDashboard() {
             margin-top: 20px;
             box-shadow: none !important;
             border: 1px solid #FEBE52 !important;
+          }
+        }
+
+        @media (max-width: 1100px) {
+          .walkin-calendar-col,
+          .walkin-info-col {
+            flex: 1 1 100%;
+            min-width: 100%;
+            max-width: 100%;
+          }
+        }
+
+        @media (max-width: 1360px) {
+          .walkin-calendar-col {
+            min-width: 560px;
+          }
+
+          .walkin-info-col {
+            max-width: 360px;
           }
         }
         
@@ -4030,7 +4419,7 @@ export default function ReceptionistDashboard() {
         }
         
         .kpi-card.available {
-          border-top-color: #3b82f6;
+          border-top-color: #d79a2b;
         }
         
         .kpi-card.bookings {
@@ -4152,7 +4541,7 @@ export default function ReceptionistDashboard() {
         }
         
         .quick-action-btn.guest-search {
-          background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+          background: linear-gradient(135deg, #d79a2b 0%, #c4871d 100%);
           color: white;
         }
         
@@ -4197,8 +4586,8 @@ export default function ReceptionistDashboard() {
         
         .form-input:focus {
           outline: none;
-          border-color: #3b82f6;
-          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1), 0 1px 3px rgba(0, 0, 0, 0.1);
+          border-color: #d79a2b;
+          box-shadow: 0 0 0 3px rgba(215, 154, 43, 0.15), 0 1px 3px rgba(0, 0, 0, 0.1);
           transform: translateY(-1px);
         }
         
@@ -4240,7 +4629,7 @@ export default function ReceptionistDashboard() {
         }
         
         .date-display:hover {
-          border-color: #3b82f6;
+          border-color: #d79a2b;
           transform: translateY(-1px);
           box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
@@ -4254,10 +4643,10 @@ export default function ReceptionistDashboard() {
         .requirements-status {
           margin-bottom: 24px;
           padding: 20px;
-          background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+          background: linear-gradient(135deg, #fff8e8 0%, #fff0cf 100%);
           border-radius: 16px;
-          border: 2px solid #0ea5e9;
-          box-shadow: 0 4px 16px rgba(14, 165, 233, 0.1);
+          border: 2px solid #e7cf98;
+          box-shadow: 0 4px 16px rgba(215, 154, 43, 0.12);
         }
         
         .requirements-title {
@@ -4267,7 +4656,7 @@ export default function ReceptionistDashboard() {
           margin: 0 0 16px 0;
           font-size: 16px;
           font-weight: 700;
-          color: #0c4a6e;
+          color: #8f5a12;
           letter-spacing: -0.025em;
         }
         
@@ -4597,7 +4986,7 @@ export default function ReceptionistDashboard() {
           left: 0;
           right: 0;
           height: 3px;
-          background: linear-gradient(90deg, #FEBE52, #3b82f6, #10b981);
+          background: linear-gradient(90deg, #c4871d, #d79a2b, #febe52);
           transform: translateX(-100%);
           transition: transform 0.3s ease;
         }
@@ -4696,7 +5085,7 @@ export default function ReceptionistDashboard() {
         }
         
         .quick-view-btn {
-          background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+          background: linear-gradient(135deg, #d79a2b 0%, #c4871d 100%);
           color: white;
         }
         
@@ -4886,7 +5275,7 @@ export default function ReceptionistDashboard() {
         }
         
         .kpi-card.available::before {
-          background: linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%);
+          background: linear-gradient(90deg, #d79a2b 0%, #c4871d 100%);
         }
         
         .kpi-card.pending::before {
@@ -4973,7 +5362,7 @@ export default function ReceptionistDashboard() {
               {alertModal.type === 'error' && <XCircle size={48} color="#dc2626" />}
               {alertModal.type === 'warning' && <AlertCircle size={48} color="#f59e0b" />}
               {alertModal.type === 'success' && <CheckCircle size={48} color="#16a34a" />}
-              {alertModal.type === 'info' && <Info size={48} color="#2563eb" />}
+              {alertModal.type === 'info' && <Info size={48} color="#d79a2b" />}
             </div>
             <h3 style={{
               margin: '0 0 12px 0',
@@ -4994,7 +5383,7 @@ export default function ReceptionistDashboard() {
                 if (onCloseCallback) onCloseCallback();
               }}
               style={{
-                backgroundColor: '#56A86B',
+                backgroundColor: '#d79a2b',
                 color: 'white',
                 border: 'none',
                 borderRadius: '8px',
@@ -5004,8 +5393,8 @@ export default function ReceptionistDashboard() {
                 cursor: 'pointer',
                 transition: 'background-color 0.2s',
               }}
-              onMouseOver={(e) => e.target.style.backgroundColor = '#4a9660'}
-              onMouseOut={(e) => e.target.style.backgroundColor = '#56A86B'}
+              onMouseOver={(e) => e.target.style.backgroundColor = '#c4871d'}
+              onMouseOut={(e) => e.target.style.backgroundColor = '#d79a2b'}
             >
               Okay
             </button>

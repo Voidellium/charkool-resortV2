@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { Bell, X, Check, AlertCircle, Info, CalendarCheck2, CreditCard, Printer } from 'lucide-react';
+import { Bell, X, Check, AlertCircle, Info, CalendarCheck2, CreditCard, Printer, AlertTriangle, FileText } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useModelPaths } from '@/hooks/useModelPaths';
 
@@ -2450,14 +2450,14 @@ export function CancelConfirmModal({ modal, setModal, onConfirm, loading }) {
     <div className="modal-overlay fade-in">
       <ModalGlobalStyles />
       <div className="modal-content" style={{ 
-        background: 'linear-gradient(135deg, #fff5f5 0%, #ffe4e6 100%)', 
+        background: '#ffffff', 
         padding: 32, 
         borderRadius: 16, 
         width: 480, 
         maxWidth: '95%', 
-        boxShadow: '0 8px 32px rgba(0,0,0,0.13)', 
+        boxShadow: '0 14px 32px rgba(16, 24, 40, 0.15)', 
         position: 'relative',
-        border: '2px solid #fecaca'
+        border: '1px solid #f3d5d8'
       }}>
         <button 
           style={{ 
@@ -2479,7 +2479,9 @@ export function CancelConfirmModal({ modal, setModal, onConfirm, loading }) {
         </button>
         
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{ fontSize: 48, marginBottom: 8 }}>⚠️</div>
+          <div style={{ marginBottom: 8, display: 'inline-flex', color: '#b42318' }}>
+            <AlertTriangle size={34} />
+          </div>
           <h2 style={{ margin: 0, color: '#991b1b', fontWeight: 700, fontSize: 24 }}>
             Confirm Cancellation
           </h2>
@@ -2499,8 +2501,8 @@ export function CancelConfirmModal({ modal, setModal, onConfirm, loading }) {
 
         {/* Cancellation Policy Notice */}
         <div style={{
-          background: '#fef3c7',
-          border: '2px solid #f59e0b',
+          background: '#fff7ed',
+          border: '1px solid #f9d7a5',
           borderRadius: 12,
           padding: 16,
           marginBottom: 24,
@@ -2595,6 +2597,7 @@ export function useCancelRequestModal() {
 export function CancelRequestModal({ modal, setModal, onSubmit }) {
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [validationModal, setValidationModal] = useState({ show: false, message: '' });
 
   if (!modal?.show || !modal.booking) return null;
 
@@ -2602,7 +2605,7 @@ export function CancelRequestModal({ modal, setModal, onSubmit }) {
 
   const handleSubmit = async () => {
     if (!reason.trim()) {
-      alert('Please provide a reason for cancellation');
+      setValidationModal({ show: true, message: 'Please provide a reason for cancellation.' });
       return;
     }
 
@@ -2622,14 +2625,14 @@ export function CancelRequestModal({ modal, setModal, onSubmit }) {
     <div className="modal-overlay fade-in">
       <ModalGlobalStyles />
       <div className="modal-content" style={{ 
-        background: 'linear-gradient(135deg, #fff7ed 0%, #fed7aa 100%)', 
+        background: '#ffffff', 
         padding: 32, 
         borderRadius: 16, 
         width: 480, 
         maxWidth: '95%', 
-        boxShadow: '0 8px 32px rgba(0,0,0,0.13)', 
+        boxShadow: '0 14px 32px rgba(16, 24, 40, 0.15)', 
         position: 'relative',
-        border: '2px solid #fdba74'
+        border: '1px solid #f4dcc2'
       }}>
         <button 
           style={{ 
@@ -2649,7 +2652,9 @@ export function CancelRequestModal({ modal, setModal, onSubmit }) {
         </button>
         
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{ fontSize: 48, marginBottom: 8 }}>📝</div>
+          <div style={{ marginBottom: 8, display: 'inline-flex', color: '#9a3412' }}>
+            <FileText size={34} />
+          </div>
           <h2 style={{ margin: 0, color: '#9a3412', fontWeight: 700, fontSize: 24 }}>
             Request Cancellation
           </h2>
@@ -2669,8 +2674,8 @@ export function CancelRequestModal({ modal, setModal, onSubmit }) {
 
         {/* Policy Notice */}
         <div style={{
-          background: '#fef3c7',
-          border: '2px solid #f59e0b',
+          background: '#fff7ed',
+          border: '1px solid #f9d7a5',
           borderRadius: 12,
           padding: 16,
           marginBottom: 24,
@@ -2707,7 +2712,7 @@ export function CancelRequestModal({ modal, setModal, onSubmit }) {
             style={{
               width: '100%',
               padding: 12,
-              border: '2px solid #fdba74',
+              border: '1px solid #e9d3b5',
               borderRadius: 8,
               fontSize: 14,
               resize: 'vertical',
@@ -2756,6 +2761,56 @@ export function CancelRequestModal({ modal, setModal, onSubmit }) {
           </button>
         </div>
       </div>
+
+      {validationModal.show && (
+        <div className="modal-overlay fade-in" style={{ zIndex: 1300 }}>
+          <ModalGlobalStyles />
+          <div className="modal-content" style={{
+            background: 'linear-gradient(135deg, #febe52 0%, #ebd591 100%)',
+            padding: 24,
+            borderRadius: 14,
+            width: 360,
+            maxWidth: '92%',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.13)',
+            position: 'relative'
+          }}>
+            <button
+              style={{
+                position: 'absolute',
+                top: 12,
+                right: 12,
+                fontSize: 20,
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#6b4700'
+              }}
+              onClick={() => setValidationModal({ show: false, message: '' })}
+            >
+              ×
+            </button>
+            <h3 style={{ margin: 0, color: '#6b4700', fontWeight: 700 }}>Missing Details</h3>
+            <p style={{ margin: '12px 0 20px', color: '#6b4700', lineHeight: 1.5 }}>{validationModal.message}</p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setValidationModal({ show: false, message: '' })}
+                style={{
+                  backgroundColor: '#56A86B',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '10px 24px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
+                Okay
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

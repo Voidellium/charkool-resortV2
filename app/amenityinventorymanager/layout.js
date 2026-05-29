@@ -1,10 +1,12 @@
 'use client';
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { signOut } from 'next-auth/react';
-import { Home, Layers, ListTree, Clock, Menu, X, ChevronLeft, ChevronRight, User as UserIcon, LogOut } from 'lucide-react';
+import { Home, Layers, Clock, Menu, X, ChevronLeft, ChevronRight, User as UserIcon, LogOut } from 'lucide-react';
+import ChangePasswordModal from '@/components/ChangePasswordModal';
 import styles from './AmenityManagerLayout.module.css';
+import { ToastProvider } from '@/components/Toast';
 
 export default function AmenityManagerLayout({ children }) {
   const router = useRouter();
@@ -13,14 +15,15 @@ export default function AmenityManagerLayout({ children }) {
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  
+  const [showChangePassword, setShowChangePassword] = useState(false);
+
   // Confirm modal state for logout
   const [confirmModal, setConfirmModal] = useState({ show: false });
 
   const showLogoutConfirm = useCallback(() => {
     setConfirmModal({ show: true });
+    setProfileOpen(false);
   }, []);
-  const fileInputRef = useRef(null);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
@@ -44,12 +47,12 @@ export default function AmenityManagerLayout({ children }) {
   const navItems = [
     { name: 'Dashboard', href: '/amenityinventorymanager', icon: <Home size={18} /> },
     { name: 'Amenities', href: '/amenityinventorymanager/amenities', icon: <Layers size={18} /> },
-    { name: 'Categorization', href: '/amenityinventorymanager/categorization', icon: <ListTree size={18} /> },
     { name: 'Usage Logs', href: '/amenityinventorymanager/logs', icon: <Clock size={18} /> },
   ];
 
   return (
-    <div className={styles.container}>
+    <ToastProvider>
+      <div className={styles.container}>
       {/* Toggle Button */}
       <button
         className={styles.toggleButton}
@@ -100,9 +103,8 @@ export default function AmenityManagerLayout({ children }) {
             {profileOpen && (
               <div className={styles.profilePanel}>
                 <div className={styles.profileHeader}>Amenity Manager</div>
-                <div className={`${styles.profileAction} ${styles.profileActionPrimary}`} onClick={() => fileInputRef.current?.click()}>Change Picture</div>
+                <div className={`${styles.profileAction} ${styles.profileActionPrimary}`} onClick={() => { setShowChangePassword(true); setProfileOpen(false); }}>Change Password</div>
                 <div className={`${styles.profileAction} ${styles.profileActionDanger}`} onClick={showLogoutConfirm}>Log out</div>
-                <input type="file" accept="image/*" ref={fileInputRef} style={{ display: 'none' }} />
               </div>
             )}
           </div>
@@ -124,6 +126,9 @@ export default function AmenityManagerLayout({ children }) {
           justifyContent: 'center',
           alignItems: 'center',
           zIndex: 99999,
+          cursor: 'default',
+          userSelect: 'none',
+          pointerEvents: 'auto'
         }}>
           <div style={{
             background: 'linear-gradient(135deg, #febe52 0%, #fcd34d 50%, #f6e27a 100%)',
@@ -133,6 +138,7 @@ export default function AmenityManagerLayout({ children }) {
             width: '90%',
             boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
             textAlign: 'center',
+            cursor: 'default',
           }}>
             <div style={{ marginBottom: '16px' }}>
               <LogOut size={48} color="#dc2626" />
@@ -193,6 +199,14 @@ export default function AmenityManagerLayout({ children }) {
           </div>
         </div>
       )}
-    </div>
+      <ChangePasswordModal
+        isOpen={showChangePassword}
+        onClose={() => setShowChangePassword(false)}
+        onSuccess={() => {
+          setShowChangePassword(false);
+        }}
+      />
+      </div>
+    </ToastProvider>
   );
 }

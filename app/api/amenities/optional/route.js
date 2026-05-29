@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { recordAudit } from '@/src/lib/audit';
 import { getToken } from 'next-auth/jwt';
+import { triggerEvent, CHANNELS, EVENTS } from '@/lib/pusher-server';
 
 const JWT_SECRET = process.env.NEXTAUTH_SECRET;
 
@@ -92,6 +93,19 @@ export async function POST(request) {
       });
     } catch (auditErr) {
       console.error('Failed to record audit for optional amenity create', auditErr);
+    }
+
+    try {
+      await triggerEvent(CHANNELS.AMENITIES, EVENTS.AMENITY_STOCK_CHANGED, {
+        action: 'created',
+        category: 'optional',
+        amenityId: newAmenity.id,
+        name: newAmenity.name,
+        quantity: newAmenity.quantity,
+        updatedAt: newAmenity.updatedAt,
+      });
+    } catch (pusherErr) {
+      console.warn('[Pusher] Failed to emit optional amenity create event:', pusherErr?.message || pusherErr);
     }
 
     return NextResponse.json(newAmenity, { status: 201 });

@@ -3,13 +3,21 @@ import { useState, useEffect } from 'react';
 
 export default function RentalAmenitiesSelector({
   selectedAmenities,
-  onAmenitiesChange
+  onAmenitiesChange,
+  amenities = null
 }) {
   const [rentalAmenities, setRentalAmenities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
+    if (Array.isArray(amenities)) {
+      setRentalAmenities(amenities);
+      setLoading(false);
+      setError('');
+      return;
+    }
+
     const loadRentalAmenities = async () => {
       try {
         setLoading(true);
@@ -30,17 +38,49 @@ export default function RentalAmenitiesSelector({
     };
 
     loadRentalAmenities();
-  }, []);
+  }, [amenities]);
+
+  useEffect(() => {
+    let hasAdjustment = false;
+    const adjusted = { ...selectedAmenities };
+
+    for (const amenity of rentalAmenities) {
+      const key = String(amenity.id);
+      const selected = selectedAmenities[key] || selectedAmenities[amenity.id] || { quantity: 0, hoursUsed: 0 };
+      const quantity = Number(selected.quantity) || 0;
+      const available = Number.isFinite(Number(amenity.quantity)) ? Math.max(0, Number(amenity.quantity)) : 0;
+      const clamped = Math.max(0, Math.min(quantity, available));
+
+      if (clamped !== quantity) {
+        hasAdjustment = true;
+        if (clamped > 0) {
+          adjusted[amenity.id] = { ...selected, quantity: clamped };
+        } else {
+          delete adjusted[amenity.id];
+          delete adjusted[key];
+        }
+      }
+    }
+
+    if (hasAdjustment) {
+      onAmenitiesChange(adjusted);
+    }
+  }, [onAmenitiesChange, rentalAmenities, selectedAmenities]);
 
   const handleRentalChange = (amenityId, field, value) => {
+    const amenity = rentalAmenities.find((item) => item.id === amenityId);
+    const available = amenity && Number.isFinite(Number(amenity.quantity))
+      ? Math.max(0, Number(amenity.quantity))
+      : 0;
     const newSelectedAmenities = { ...selectedAmenities };
     const currentSelection = newSelectedAmenities[amenityId] || { quantity: 0, hoursUsed: 0 };
 
     if (field === 'quantity') {
-      if (value > 0) {
+      const normalizedValue = Math.max(0, Math.min(value, available));
+      if (normalizedValue > 0) {
         newSelectedAmenities[amenityId] = {
           ...currentSelection,
-          quantity: value
+          quantity: normalizedValue
         };
       } else {
         delete newSelectedAmenities[amenityId];
@@ -98,21 +138,26 @@ export default function RentalAmenitiesSelector({
       <div className="amenities-grid">
         {rentalAmenities
           .filter(amenity => {
-            // Filter out Billiard Access and Karaoke
             const name = amenity.name.toLowerCase();
-            return !name.includes('billiard') && !name.includes('karaoke');
+            return !name.includes('billiard') && !name.includes('karaoke') && !name.includes('transportation');
           })
           .map((amenity) => {
-          const currentSelection = selectedAmenities[amenity.id] || { quantity: 0, hoursUsed: 0 };
+          const currentSelection = selectedAmenities[amenity.id] || selectedAmenities[String(amenity.id)] || { quantity: 0, hoursUsed: 0 };
+          const available = Number.isFinite(Number(amenity.quantity)) ? Math.max(0, Number(amenity.quantity)) : 0;
+          const isUnavailable = available <= 0;
+          const isLowAvailability = !isUnavailable && available <= 3;
           const totalPrice = calculatePrice(amenity, currentSelection.quantity, currentSelection.hoursUsed);
 
           return (
-            <div key={amenity.id} className="rental-card">
+            <div key={amenity.id} className={`rental-card ${isUnavailable ? 'unavailable' : ''}`}>
               <div className="rental-header">
                 <h5 className="rental-name">{amenity.name}</h5>
                 {amenity.description && (
                   <p className="rental-description">{amenity.description}</p>
                 )}
+                <p className={`availability-status ${isUnavailable ? 'unavailable' : isLowAvailability ? 'low' : 'available'}`}>
+                  {isUnavailable ? 'Unavailable' : isLowAvailability ? `Only ${available} left` : `${available} available`}
+                </p>
               </div>
 
               <div className="pricing-info">
@@ -139,7 +184,7 @@ export default function RentalAmenitiesSelector({
                       type="button"
                       onClick={() => handleRentalChange(amenity.id, 'quantity', currentSelection.quantity - 1)}
                       className="quantity-btn"
-                      disabled={currentSelection.quantity === 0}
+                      disabled={currentSelection.quantity === 0 || isUnavailable}
                     >
                       −
                     </button>
@@ -149,11 +194,13 @@ export default function RentalAmenitiesSelector({
                       value={currentSelection.quantity}
                       onChange={(e) => handleRentalChange(amenity.id, 'quantity', parseInt(e.target.value) || 0)}
                       className="quantity-input"
+                      disabled={isUnavailable}
                     />
                     <button
                       type="button"
                       onClick={() => handleRentalChange(amenity.id, 'quantity', currentSelection.quantity + 1)}
                       className="quantity-btn"
+                      disabled={currentSelection.quantity >= available || isUnavailable}
                     >
                       +
                     </button>
@@ -240,6 +287,12 @@ export default function RentalAmenitiesSelector({
           box-shadow: 0 4px 12px rgba(253, 126, 20, 0.25);
         }
 
+        .rental-card.unavailable {
+          opacity: 0.7;
+          background: #f3f4f6;
+          border-color: #d1d5db;
+        }
+
         .rental-header {
           margin-bottom: 12px;
         }
@@ -256,6 +309,24 @@ export default function RentalAmenitiesSelector({
           font-size: 14px;
           color: #666;
           line-height: 1.4;
+        }
+
+        .availability-status {
+          margin: 8px 0 0 0;
+          font-size: 12px;
+          font-weight: 600;
+        }
+
+        .availability-status.available {
+          color: #166534;
+        }
+
+        .availability-status.low {
+          color: #b45309;
+        }
+
+        .availability-status.unavailable {
+          color: #b91c1c;
         }
 
         .pricing-info {

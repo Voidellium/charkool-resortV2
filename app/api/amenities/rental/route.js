@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { recordAudit } from '@/src/lib/audit';
+import { triggerEvent, CHANNELS, EVENTS } from '@/lib/pusher-server';
 
 import { getToken } from 'next-auth/jwt';
 
@@ -104,6 +105,19 @@ export async function POST(request) {
       });
     } catch (auditErr) {
       console.error('Failed to record audit for rental amenity create', auditErr);
+    }
+
+    try {
+      await triggerEvent(CHANNELS.AMENITIES, EVENTS.AMENITY_STOCK_CHANGED, {
+        action: 'created',
+        category: 'rental',
+        amenityId: newAmenity.id,
+        name: newAmenity.name,
+        quantity: newAmenity.quantity,
+        updatedAt: newAmenity.updatedAt,
+      });
+    } catch (pusherErr) {
+      console.warn('[Pusher] Failed to emit rental amenity create event:', pusherErr?.message || pusherErr);
     }
 
     return NextResponse.json(newAmenity, { status: 201 });

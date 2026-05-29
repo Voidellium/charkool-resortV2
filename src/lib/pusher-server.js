@@ -22,6 +22,9 @@ export const CHANNELS = {
   
   // Room availability updates
   AVAILABILITY: 'availability',
+
+  // Amenity stock updates
+  AMENITIES: 'amenities',
   
   // Role-based notification channels
   NOTIFICATIONS_RECEPTIONIST: 'notifications-receptionist',
@@ -52,6 +55,9 @@ export const EVENTS = {
   // Availability events
   AVAILABILITY_CHANGED: 'availability-changed',
   ROOM_BOOKED: 'room-booked',
+
+  // Amenity events
+  AMENITY_STOCK_CHANGED: 'amenity-stock-changed',
   
   // Notification events
   NEW_NOTIFICATION: 'new-notification',

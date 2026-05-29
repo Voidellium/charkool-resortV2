@@ -100,6 +100,7 @@ export default function CashierDashboard() {
                 const [showChangePassword, setShowChangePassword] = useState(false);
                 const [loading, setLoading] = useState(true);
                 const [isLoading, setIsLoading] = useState(false);
+                const [handoffNotice, setHandoffNotice] = useState("");
 
                 // Data state
                 const [bookings, setBookings] = useState([]);
@@ -141,6 +142,9 @@ export default function CashierDashboard() {
                 // Pagination for Upcoming Reservations
                 const [upcomingPage, setUpcomingPage] = useState(1);
                 const upcomingPageSize = 5;
+                // Pagination for same-day arrivals payment queue
+                const [sameDayPage, setSameDayPage] = useState(1);
+                const sameDayPageSize = 5;
                 const [refreshLoading, setRefreshLoading] = useState(false);
 
                 // Completed transactions by cashier
@@ -183,6 +187,7 @@ export default function CashierDashboard() {
                 const [datePaid, setDatePaid] = useState("");
                 const [bookingType, setBookingType] = useState("Walk-in");
                 const [noteText, setNoteText] = useState("");
+                const [showAdvancedFields, setShowAdvancedFields] = useState(false);
                 const [actionLoading, setActionLoading] = useState(false);
                 // Track existing payments for detection of down payments
                 const [previousPaid, setPreviousPaid] = useState(0);
@@ -392,33 +397,9 @@ export default function CashierDashboard() {
                 }
 
                 async function fetchCheckoutTransactions() {
-                  setCheckoutLoading(true);
-                  try {
-                    const today = new Date().toISOString().split('T')[0];
-                    
-                    // Fetch bookings with checkout scheduled for today
-                    const checkoutRes = await fetch(`/api/bookings/checkout?date=${today}`);
-                    let checkouts = [];
-                    if (checkoutRes.ok) {
-                      const data = await checkoutRes.json();
-                      checkouts = Array.isArray(data) ? data : data.checkouts || [];
-                    }
-
-                    // Only use bookings that are scheduled to checkout today (do NOT mix bookings created today)
-                    const unpaidCheckouts = (checkouts || []).filter(b => (b.paymentStatus || '').toLowerCase() !== 'paid');
-                    setCheckoutTransactions(unpaidCheckouts);
-                  } catch (e) {
-                    // Fallback to local filtering
-                    const today = new Date().toISOString().split('T')[0];
-                    const todayCheckouts = bookings.filter(booking => {
-                      const checkoutDate = new Date(booking.checkOut).toISOString().split('T')[0];
-                      const createdDate = new Date(booking.createdAt).toISOString().split('T')[0];
-                      return (checkoutDate === today && (booking.status || '').toLowerCase() === 'confirmed' && booking.paymentStatus !== 'Paid');
-                    });
-                    setCheckoutTransactions(todayCheckouts);
-                  } finally {
-                    setCheckoutLoading(false);
-                  }
+                  // Checkout processing is restricted to Booking Management (Receptionist/Superadmin).
+                  setCheckoutTransactions([]);
+                  setCheckoutLoading(false);
                 }
 
                 useEffect(() => {
@@ -427,31 +408,27 @@ export default function CashierDashboard() {
                     await Promise.all([fetchPaidPayments(), fetchBookings(), fetchNotifications(), fetchTotalTransactions(), fetchPendingTransactions(), fetchUpcomingReservations(), fetchCheckoutTransactions(), fetchCompletedTransactions(), fetchCancelledTransactions()]);
                     if (mounted) setLoading(false);
                   })();
-                  
-                  // Auto-refresh every 30 seconds. Use a lightweight summary check for upcoming
-                  // reservations so we only fetch the full upcoming list when something changed.
-                  const intervalId = setInterval(async () => {
-                    if (!mounted) return;
-                    try {
-                      console.log('Auto-refreshing data (summary-first)...');
-                      // Trigger other refreshes in parallel, but use summary check for upcoming
-                      await Promise.all([fetchPaidPayments(), fetchBookings(), fetchNotifications(), fetchTotalTransactions(), fetchPendingTransactions(), fetchCheckoutTransactions(), fetchCompletedTransactions(), fetchCancelledTransactions()]);
-                      // Check upcoming summary and conditionally refresh full upcoming lists
-                      if (typeof fetchUpcomingSummary === 'function') {
-                        await fetchUpcomingSummary();
-                      } else {
-                        await fetchUpcomingReservations();
-                      }
-                    } catch (err) {
-                      console.warn('Auto-refresh error', err);
-                    }
-                  }, 30000); // 30 seconds
-                  
+
+                  // Polling removed: cashier now refreshes via websockets and manual refresh only.
                   return () => {
                     mounted = false;
-                    clearInterval(intervalId);
                   };
                 }, []);
+
+                // Handle receptionist -> cashier handoff deep-links.
+                useEffect(() => {
+                  if (typeof window === 'undefined') return;
+                  const params = new URLSearchParams(window.location.search);
+                  const bookingId = params.get('bookingId');
+                  const source = params.get('source');
+
+                  if (source === 'receptionist-walkin' && bookingId) {
+                    setSearchQuery(bookingId);
+                    setSearchDebounced(bookingId);
+                    setHandoffNotice(`Walk-in booking #${bookingId} was handed off by Receptionist and is ready for payment processing.`);
+                    toastSuccess(`Walk-in booking #${bookingId} received from Receptionist. Please process payment.`);
+                  }
+                }, [toastSuccess]);
 
                 // 🔔 PUSHER: Real-time updates for cashier dashboard
                 // Callback to refresh all cashier data
@@ -659,24 +636,41 @@ export default function CashierDashboard() {
                       listTomorrow = Array.isArray(data) ? data : data.reservations || data.bookings || [];
                     }
 
+                    const isUpcomingBooking = (booking, startBoundary, endInclusive, includeStartDate = false) => {
+                      const checkIn = booking.checkInDate || booking.checkIn || booking.startDate;
+                      if (!checkIn) return false;
+                      const d = new Date(checkIn);
+                      if (isNaN(d.getTime())) return false;
+                      const dOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+                      const status = (booking.status || '').toLowerCase();
+                      const paymentStatus = (booking.paymentStatus || '').toLowerCase();
+
+                      const isCancelled = status === 'cancelled' || status === 'cancellationpending';
+                      const isCompleted = status === 'completed';
+                      const isFullyPaid = paymentStatus === 'paid';
+
+                      const isWithinRange = includeStartDate
+                        ? dOnly >= startBoundary && dOnly <= endInclusive
+                        : dOnly > startBoundary && dOnly <= endInclusive;
+
+                      return isWithinRange && !isCancelled && !isCompleted && !isFullyPaid;
+                    };
+
+                    // Today-window should include same-day walk-ins so cashier can process immediately.
+                    listToday = (listToday || []).filter((booking) => isUpcomingBooking(booking, today, fifteenFromToday, true));
+                    listTomorrow = (listTomorrow || []).filter((booking) => isUpcomingBooking(booking, today, fifteenFromTomorrow));
+
                     // If endpoints didn't return data, fallback to local filtering
                     if (!resToday.ok || !Array.isArray(listToday) || listToday.length === 0) {
                       listToday = (bookings || []).filter(booking => {
-                        const checkIn = booking.checkInDate || booking.checkIn || booking.startDate;
-                        if (!checkIn) return false;
-                        const d = new Date(checkIn);
-                        const dOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-                        return dOnly >= today && dOnly <= fifteenFromToday && (booking.status || '').toLowerCase() !== 'cancelled';
+                        return isUpcomingBooking(booking, today, fifteenFromToday, true);
                       });
                     }
 
                     if (!resTomorrow.ok || !Array.isArray(listTomorrow) || listTomorrow.length === 0) {
                       listTomorrow = (bookings || []).filter(booking => {
-                        const checkIn = booking.checkInDate || booking.checkIn || booking.startDate;
-                        if (!checkIn) return false;
-                        const d = new Date(checkIn);
-                        const dOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-                        return dOnly >= tomorrowObj && dOnly <= fifteenFromTomorrow && (booking.status || '').toLowerCase() !== 'cancelled';
+                        return isUpcomingBooking(booking, today, fifteenFromTomorrow);
                       });
                     }
 
@@ -797,7 +791,9 @@ export default function CashierDashboard() {
                         if (!checkIn) return false;
                         const d = new Date(checkIn);
                         const dOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-                        return dOnly >= today && dOnly <= fifteenFromToday && (booking.status || '').toLowerCase() !== 'cancelled';
+                        const status = (booking.status || '').toLowerCase();
+                        const paymentStatus = (booking.paymentStatus || '').toLowerCase();
+                        return dOnly >= today && dOnly <= fifteenFromToday && status !== 'cancelled' && status !== 'completed' && paymentStatus !== 'paid';
                       });
 
                       const listTomorrow = (bookings || []).filter(booking => {
@@ -805,7 +801,9 @@ export default function CashierDashboard() {
                         if (!checkIn) return false;
                         const d = new Date(checkIn);
                         const dOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-                        return dOnly >= tomorrow && dOnly <= fifteenFromTomorrow && (booking.status || '').toLowerCase() !== 'cancelled';
+                        const status = (booking.status || '').toLowerCase();
+                        const paymentStatus = (booking.paymentStatus || '').toLowerCase();
+                        return dOnly > today && dOnly <= fifteenFromTomorrow && status !== 'cancelled' && status !== 'completed' && paymentStatus !== 'paid';
                       });
 
                       setUpcomingReservations(listToday);
@@ -880,7 +878,7 @@ export default function CashierDashboard() {
                     });
                   }
 
-                  // Exclude reservations whose check-in date is before today (date-only comparison)
+                  // Upcoming should be future reservations only (tomorrow onward).
                   try {
                     const now = new Date();
                     const todayOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -890,7 +888,9 @@ export default function CashierDashboard() {
                       const d = new Date(checkInRaw);
                       if (isNaN(d.getTime())) return false;
                       const dOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-                      return dOnly.getTime() >= todayOnly.getTime();
+                      const status = (r.status || '').toLowerCase();
+                      const paymentStatus = (r.paymentStatus || '').toLowerCase();
+                      return dOnly.getTime() > todayOnly.getTime() && status !== 'cancelled' && status !== 'completed' && paymentStatus !== 'paid';
                     });
                   } catch (e) {
                     // if anything fails, proceed without dropping items
@@ -941,6 +941,59 @@ export default function CashierDashboard() {
                   const start = (upcomingPage - 1) * upcomingPageSize;
                   return (upcomingTransactionsList || []).slice(start, start + upcomingPageSize);
                 }, [upcomingTransactionsList, upcomingPage]);
+
+                const sameDayPaymentQueue = useMemo(() => {
+                  try {
+                    const now = new Date();
+                    const todayOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+                    let list = (bookings || []).filter((booking) => {
+                      const checkInRaw = booking.checkInDate || booking.checkIn || booking.startDate;
+                      if (!checkInRaw) return false;
+                      const d = new Date(checkInRaw);
+                      if (isNaN(d.getTime())) return false;
+                      const dOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+                      const status = (booking.status || '').toLowerCase();
+                      const paymentStatus = (booking.paymentStatus || '').toLowerCase();
+
+                      const totalAmount = Number(booking.totalPrice || booking.totalAmount || booking.total || booking.amount || 0);
+                      const paidAmount = (booking.payments || []).reduce((sum, p) => {
+                        const pStatus = (p?.status || '').toLowerCase();
+                        if (!['paid', 'partial', 'reservation', 'completed'].includes(pStatus)) return sum;
+                        return sum + Number(p?.amount || 0);
+                      }, 0);
+                      const remainingBalance = Math.max(0, totalAmount - paidAmount);
+
+                      return dOnly.getTime() === todayOnly.getTime()
+                        && status !== 'cancelled'
+                        && status !== 'completed'
+                        && paymentStatus !== 'paid'
+                        && remainingBalance > 0;
+                    });
+
+                    const q = (searchDebounced || '').toLowerCase();
+                    if (q) {
+                      list = list.filter((b) => (
+                        (b.guestName || '').toLowerCase().includes(q)
+                        || (b.user?.name || '').toLowerCase().includes(q)
+                        || (b.user?.email || '').toLowerCase().includes(q)
+                        || String(b.id || '').includes(q)
+                      ));
+                    }
+
+                    return list;
+                  } catch (e) {
+                    console.error('Failed to compute same-day payment queue:', e);
+                    return [];
+                  }
+                }, [bookings, searchDebounced]);
+
+                const sameDayTotalPages = Math.max(1, Math.ceil((sameDayPaymentQueue?.length || 0) / sameDayPageSize));
+                const pagedSameDay = useMemo(() => {
+                  const start = (sameDayPage - 1) * sameDayPageSize;
+                  return (sameDayPaymentQueue || []).slice(start, start + sameDayPageSize);
+                }, [sameDayPaymentQueue, sameDayPage]);
 
                 const totalTotalPages = Math.max(1, Math.ceil((upcomingTransactionsList?.length || 0) / totalPageSize));
                 const pagedTotal = useMemo(() => {
@@ -1005,6 +1058,10 @@ export default function CashierDashboard() {
                   if (upcomingPage > upcomingTotalPages) setUpcomingPage(1);
                 }, [upcomingPage, upcomingTotalPages]);
 
+                useEffect(() => {
+                  if (sameDayPage > sameDayTotalPages) setSameDayPage(1);
+                }, [sameDayPage, sameDayTotalPages]);
+
                 // Modal focus trap and autofocus
                 useEffect(() => {
                   if (!decisionModal.show) return;
@@ -1035,16 +1092,9 @@ export default function CashierDashboard() {
                   return () => root.removeEventListener('keydown', handleKeyDown);
                 }, [decisionModal.show]);
 
-                // KPIs - Updated to focus on active checkout work and completed transactions
-                const totalTransactions = checkoutTransactions.length + completedTransactions.length + upcomingTransactionsList.length;
-                // KPI: count checkout transactions that need payment processing (unpaid)
-                const pendingTransactions = checkoutTransactions.filter(checkout => {
-                  const totalAmount = checkout.totalPrice || 0;
-                  const paidAmount = (checkout.payments || [])
-                    .filter(p => p.status === 'Paid')
-                    .reduce((sum, p) => sum + Number(p.amount || 0), 0);
-                  return (totalAmount - paidAmount) > 0; // Has remaining balance
-                }).length;
+                // KPIs centered on reservations + completed cashier processing.
+                const totalTransactions = completedTransactions.length + upcomingTransactionsList.length;
+                const pendingTransactions = pendingTransactionsList.length;
                 
                 // Daily totals from completed transactions processed by cashier
                 const completedTransactionsTotal = completedTransactions.reduce((sum, t) => sum + Number(t.amountPaid || 0), 0);
@@ -1085,17 +1135,16 @@ export default function CashierDashboard() {
                   }
                 }, [upcomingReservationsTomorrow]);
 
-                // System-wide quick total: upcoming windows + checkout remaining + completed processed amounts + paidPayments
+                // System-wide quick total: upcoming windows + completed processed amounts + paidPayments
                 const systemTotalAmount = useMemo(() => {
                   try {
-                    const checkoutTotal = (checkoutTransactions || []).reduce((s, c) => s + Number(c.totalPrice || c.totalAmount || c.amount || 0), 0);
                     const completedTotal = (completedTransactions || []).reduce((s, t) => s + Number(t.amountPaid || t.paidAmount || 0), 0);
                     const paidPaymentsTotal = (paidPayments || []).reduce((s, p) => s + Number(p.amount || 0), 0);
-                    return upcomingTodayTotalAmount + upcomingTomorrowTotalAmount + checkoutTotal + completedTotal + paidPaymentsTotal;
+                    return upcomingTodayTotalAmount + upcomingTomorrowTotalAmount + completedTotal + paidPaymentsTotal;
                   } catch (e) {
                     return 0;
                   }
-                }, [upcomingTodayTotalAmount, upcomingTomorrowTotalAmount, checkoutTransactions, completedTransactions, paidPayments]);
+                }, [upcomingTodayTotalAmount, upcomingTomorrowTotalAmount, completedTransactions, paidPayments]);
 
                 // Actions: refresh + export
                 async function refreshAll() {
@@ -1192,6 +1241,7 @@ export default function CashierDashboard() {
                   if (!payment) return;
                   try { console.debug('[cashier] openPaymentModal ->', payment?.id, payment); } catch {}
                   setDecisionModal({ show: true, payment });
+                  setShowAdvancedFields(false);
                   const cents = Number(payment?.amount || payment?.totalPrice || 0);
                   const requiredAmount = (cents / 100).toFixed(2);
                   // Detect any existing payments associated with this booking/payment
@@ -1331,6 +1381,13 @@ export default function CashierDashboard() {
                   if (!payment) return;
                   setActionLoading(true);
                   try {
+                    const isCheckoutPayment = payment?.isCheckout || payment?.type === 'checkout';
+                    if (isCheckoutPayment) {
+                      toastError('Checkout processing is not available for cashier. Please use Booking Management.');
+                      setActionLoading(false);
+                      return;
+                    }
+
                     // Calculate amounts
                     const customerPaidInCents = Math.round((parseFloat(amountCustomerPaid || amountTendered || "0") || 0) * 100);
                     const requiredAmount = payment?.totalPrice || payment?.amount || 0;
@@ -1381,12 +1438,15 @@ export default function CashierDashboard() {
                     }
 
                     // Handle checkout transactions (bookings) and regular payments
-                    if (payment?.isCheckout || payment?.type === 'checkout' || payment.booking || payment.type === 'booking') {
+                    if (payment.booking || payment.type === 'booking') {
                       // For bookings: update booking payment records and booking.paymentStatus
                       try {
-                        // Create or update a payment record first
+                        const targetBookingId = payment.id || payment.booking?.id || payment.bookingId;
+                        const processContext = 'arrival';
+
+                        // Update booking status and create payment record in one endpoint.
                         const paymentPayload = {
-                          bookingId: payment.id || payment.booking?.id,
+                          bookingId: targetBookingId,
                           amountPaid: customerPaidInCents,
                           amountRequired: requiredAmount,
                           method: paymentMethod,
@@ -1398,21 +1458,6 @@ export default function CashierDashboard() {
                           downPayment: isPartial
                         };
 
-                        const payRes = await fetch('/api/payments/create-or-update', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify(paymentPayload)
-                        });
-
-                        if (!payRes.ok) {
-                          // Try update endpoint as fallback
-                          await fetch('/api/payments/update', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ paymentId: payment.id, ...paymentPayload })
-                          });
-                        }
-
                         // Update booking status depending on payment
                         const newBookingPaymentStatus = isFullPayment ? 'Paid' : (isPartial ? 'Partial' : (requiredAmount === 0 ? 'Paid' : 'Pending'));
 
@@ -1420,21 +1465,23 @@ export default function CashierDashboard() {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
-                            bookingId: payment.id || payment.booking?.id,
+                            bookingId: targetBookingId,
                             paymentStatus: newBookingPaymentStatus,
                             paymentMethod,
                             referenceNo,
                             amountPaid: customerPaidInCents,
-                            receiptData
+                            receiptData,
+                            processContext
                           })
                         });
 
                         if (!bookingRes.ok) {
-                          console.warn('Booking update returned non-ok');
+                          const errorData = await bookingRes.json().catch(() => ({}));
+                          throw new Error(errorData?.error || 'Booking payment update failed');
                         }
                       } catch (error) {
                         console.error('Error updating booking/payment for checkout:', error);
-                        toastError('Failed to update booking/payment');
+                        toastError(error?.message || 'Failed to update booking/payment');
                         setActionLoading(false);
                         return;
                       }
@@ -1455,7 +1502,7 @@ export default function CashierDashboard() {
 
                       setBookings(prev => prev.map(booking => 
                         booking.id === (payment.id || payment.booking?.id) 
-                          ? { ...booking, paymentStatus: isFullPayment ? 'Paid' : (isPartial ? 'Partial' : booking.paymentStatus || 'Pending'), status: isFullPayment ? 'Completed' : booking.status }
+                          ? { ...booking, paymentStatus: isFullPayment ? 'Paid' : (isPartial ? 'Partial' : booking.paymentStatus || 'Pending'), status: isFullPayment ? 'Confirmed' : booking.status }
                           : booking
                       ));
 
@@ -1541,7 +1588,7 @@ export default function CashierDashboard() {
                     resetForm();
                     
                     // Refresh data to ensure consistency with backend
-                    await Promise.all([fetchPaidPayments(), fetchBookings(), fetchCheckoutTransactions(), fetchCompletedTransactions()]);
+                    await Promise.all([fetchPaidPayments(), fetchBookings(), fetchUpcomingReservations(), fetchCheckoutTransactions(), fetchCompletedTransactions()]);
 
                     // Audit trail with receipt information and KPI impact
                     try {
@@ -1720,6 +1767,61 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                     } catch {}
                   } catch (e) {
                     toastError("Failed to cancel transaction");
+                  } finally {
+                    setActionLoading(false);
+                  }
+                }
+
+                async function requestSupervisorReview() {
+                  const payment = decisionModal.payment;
+                  if (!payment) return;
+
+                  const reviewReason = (noteText || '').trim();
+                  if (!reviewReason) {
+                    toastError('Please provide a review reason in Internal Notes before requesting supervisor review.');
+                    return;
+                  }
+
+                  setActionLoading(true);
+                  try {
+                    const paymentIdOrBookingId = payment?.paymentId || payment?.id || payment?.bookingId;
+                    const res = await fetch('/api/payments/actions', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        paymentId: String(paymentIdOrBookingId),
+                        action: 'request_review',
+                        reason: reviewReason,
+                      })
+                    });
+
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || !data?.success) {
+                      throw new Error(data?.error || 'Failed to request supervisor review');
+                    }
+
+                    toastSuccess('Supervisor review requested successfully.');
+
+                    try {
+                      await fetch('/api/audit-trails', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          actorId: session?.user?.id,
+                          actorName: session?.user?.name,
+                          actorRole: 'CASHIER',
+                          action: 'REQUEST_PAYMENT_REVIEW',
+                          entity: 'PAYMENT',
+                          entityId: String(paymentIdOrBookingId),
+                          details: `Cashier requested supervisor review: ${reviewReason}`,
+                        }),
+                      });
+                    } catch {}
+
+                    await Promise.all([fetchPaidPayments(), fetchBookings(), fetchUpcomingReservations(), fetchCheckoutTransactions(), fetchNotifications()]);
+                  } catch (e) {
+                    console.error('requestSupervisorReview error', e);
+                    toastError(e?.message || 'Failed to request supervisor review');
                   } finally {
                     setActionLoading(false);
                   }
@@ -2182,6 +2284,39 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                       </div>
                     </div>
 
+                    {handoffNotice && (
+                      <div style={{
+                        margin: '0 12px 8px',
+                        padding: '10px 14px',
+                        borderRadius: '10px',
+                        background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
+                        border: '1px solid #fdba74',
+                        color: '#9a3412',
+                        fontSize: '0.9rem',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '10px',
+                      }}>
+                        <span>{handoffNotice}</span>
+                        <button
+                          onClick={() => setHandoffNotice('')}
+                          style={{
+                            border: 'none',
+                            background: 'transparent',
+                            color: '#9a3412',
+                            cursor: 'pointer',
+                            fontWeight: 700,
+                            fontSize: '0.95rem',
+                          }}
+                          aria-label="Dismiss handoff notice"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    )}
+
                     <main className={styles.main}>
                       <div className={styles.leftColumn}>
           {/* KPI Cards */}
@@ -2246,197 +2381,6 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                               </div>
                             </div>
                           </div>
-                        </div>
-
-                        {/* Priority Section: Transactions to Pay Today (Checkout) */}
-                        <div className={styles.card}>
-                          <div className={`px-4 py-3 border-b border-slate-200 ${styles.cardHeaderPrimary}`}>
-                            <div className={styles.sectionTitleBar}>
-                              <div className={`${styles.sectionTitle} text-white`} style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-                                <CreditCard className="h-5 w-5" />
-                                Today's Scheduled Checkouts (Priority)
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <div className={styles.sectionBadge}>{checkoutTransactions.length}</div>
-                                <button
-                                  onClick={refreshAll}
-                                  className={styles.toolbarButton}
-                                  aria-label="Refresh checkout transactions"
-                                >
-                                  Refresh
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className={styles.tableWrap}>
-                            <table className={styles.table}>
-                              <thead>
-                                <tr>
-                                  <th className={styles.th}>Booking ID</th>
-                                  <th className={styles.th}>Guest Name</th>
-                                  <th className={styles.th}>Checkout Date</th>
-                                  <th className={styles.th}>Total Amount</th>
-                                  <th className={styles.th}>Payment Status</th>
-                                  <th className={styles.th}>Balance Due</th>
-                                  <th className={styles.th}>Actions</th>
-                                </tr>
-                              </thead>
-                              <tbody className={styles.fadeIn}>
-                                {checkoutTransactions.length === 0 ? (
-                                  <tr>
-                                    <td colSpan="7" className="text-center py-12 text-gray-500">
-                                      <CreditCard className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-                                      <p>No checkout transactions scheduled for today</p>
-                                    </td>
-                                  </tr>
-                                ) : (
-                                  (() => {
-                                    const checkoutTotalPages = Math.max(1, Math.ceil(checkoutTransactions.length / checkoutPageSize));
-                                    const pagedCheckout = checkoutTransactions.slice(
-                                      (checkoutPage - 1) * checkoutPageSize,
-                                      checkoutPage * checkoutPageSize
-                                    );
-                                    
-                                    return pagedCheckout.map((checkout, index) => {
-                                      const totalAmount = checkout.totalPrice || 0;
-                                      const paidAmount = (checkout.payments || [])
-                                        .filter(p => p.status === 'Paid')
-                                        .reduce((sum, p) => sum + Number(p.amount || 0), 0);
-                                      const remainingBalance = totalAmount - paidAmount;
-                                      const isFullyPaid = remainingBalance <= 0;
-                                      const isUnpaid = remainingBalance > 0;
-
-                                      const paymentStatusBadge = (isPaid) => {
-                                        const common = "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold";
-                                        return isPaid ? 
-                                          `${common} bg-green-100 text-green-700` : 
-                                          `${common} bg-red-100 text-red-700`;
-                                      };
-
-                                      return (
-                                        <tr key={checkout.id} className={`${styles.tr} ${isUnpaid ? 'bg-red-50' : ''}`}>
-                                          <td className={styles.td}>
-                                            <div className="font-mono text-sm text-blue-600">
-                                              {formatPaymentId(checkout.id)}
-                                            </div>
-                                          </td>
-                                          <td className={styles.td}>
-                                            <div className="flex items-center gap-3">
-                                              <div className={`w-8 h-8 ${isUnpaid ? 'bg-red-100' : 'bg-green-100'} rounded-lg flex items-center justify-center`}>
-                                                <User className={`h-4 w-4 ${isUnpaid ? 'text-red-600' : 'text-green-600'}`} />
-                                              </div>
-                                              <div>
-                                                <div className="font-medium text-gray-900">
-                                                  {checkout.user?.name || checkout.guestName || 'Guest'}
-                                                </div>
-                                                <div className="text-xs text-gray-500">
-                                                  {checkout.user?.email || ''}
-                                                </div>
-                                              </div>
-                                            </div>
-                                          </td>
-                                          <td className={`${styles.td} ${styles.actionsCell}`}>
-                                            <div className="flex items-center gap-2">
-                                              <Calendar className="h-4 w-4 text-gray-400" />
-                                              <span className="text-sm">
-                                                {new Date(checkout.checkOut).toLocaleDateString('en-US', {
-                                                  month: 'short',
-                                                  day: 'numeric',
-                                                  year: 'numeric'
-                                                })}
-                                              </span>
-                                            </div>
-                                          </td>
-                                          <td className={styles.td}>
-                                            <div className="font-semibold text-blue-600">
-                                              ₱{(totalAmount / 100).toLocaleString()}
-                                            </div>
-                                          </td>
-                                          <td className={styles.td}>
-                                            <span className={paymentStatusBadge(isFullyPaid)}>
-                                              {isFullyPaid ? 'Fully Paid' : 'Unpaid'}
-                                            </span>
-                                          </td>
-                                          <td className={styles.td}>
-                                            {isUnpaid ? (
-                                              <div className="font-semibold text-red-600">
-                                                  ₱{(remainingBalance / 100).toLocaleString()}
-                                              </div>
-                                            ) : (
-                                              <div className="text-green-600 font-medium">
-                                                 Paid
-                                              </div>
-                                            )}
-                                          </td>
-                                          <td className={`${styles.td} ${styles.actionsCell}`}>
-                                            <div className="flex items-center gap-2">
-                                              {isUnpaid ? (
-                                                <button
-                                                  onClick={() => {
-                                                    // Create a payment object for checkout
-                                                    const checkoutPayment = {
-                                                      ...checkout,
-                                                      amount: remainingBalance,
-                                                      totalPrice: remainingBalance,
-                                                      type: 'checkout',
-                                                      isCheckout: true
-                                                    };
-                                                    openPaymentModal(checkoutPayment);
-                                                  }}
-                                                  className={`${styles.button} ${styles.btnReview}`}
-                                                >
-                                                  <CreditCard className="h-4 w-4" />
-                                                  Process Payment
-                                                </button>
-                                              ) : (
-                                                <button
-                                                  onClick={() => openViewDetails(checkout)}
-                                                  className={`${styles.actionButton} ${styles.actionButtonSmall}`}
-                                                  aria-label={`View details for ${checkout.id}`}
-                                                >
-                                                  <Eye className="h-3 w-3" />
-                                                  View Details
-                                                </button>
-                                              )}
-                                            </div>
-                                          </td>
-                                        </tr>
-                                      );
-                                    });
-                                  })()
-                                )}
-                              </tbody>
-                            </table>
-                          </div>
-                            
-                          {/* Pagination for Checkout Transactions */}
-                          {(() => {
-                            const checkoutTotalPages = Math.max(1, Math.ceil(checkoutTransactions.length / checkoutPageSize));
-                            return checkoutTotalPages > 1 && (
-                              <div className={`${styles.paginationBar} ${styles.barRelative}`} style={{marginTop: '16px'}}>
-                                <div className={styles.paginationInfo}>
-                                  Page {checkoutPage} of {checkoutTotalPages} {checkoutTransactions.length} checkouts
-                                </div>
-                                <div className={styles.paginationButtons}>
-                                  <button
-                                    onClick={() => setCheckoutPage((p) => Math.max(1, p - 1))}
-                                    disabled={checkoutPage === 1}
-                                    className={styles.paginationBtn}
-                                  >
-                                    Prev
-                                  </button>
-                                  <button
-                                    onClick={() => setCheckoutPage((p) => Math.min(checkoutTotalPages, p + 1))}
-                                    disabled={checkoutPage === checkoutTotalPages}
-                                    className={styles.paginationBtn}
-                                  >
-                                    Next
-                                  </button>
-                                </div>
-                              </div>
-                            );
-                          })()}
                         </div>
 
                         {/* Search and filters */}
@@ -2517,7 +2461,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                             <div className={styles.sectionTitleBar}>
                               <div className={`${styles.sectionTitle} text-white`} style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
                                 <Hotel className="h-5 w-5" />
-                                Upcoming Reservations
+                                Upcoming Reservations (Future Only)
                               </div>
                               <div className="flex items-center gap-2">
                                 <div className={styles.sectionBadge}>{upcomingTransactionsList.length}</div>
@@ -2684,7 +2628,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                                 aria-label={`View reservation ${reservation.id}`}
                                                 disabled={isDisabled}
                                               >
-                                                {isDisabled ? 'Awaiting Approval' : 'Review'}
+                                                {isDisabled ? 'Awaiting Approval' : 'View'}
                                               </button>
                                             );
                                           })()}
@@ -2723,20 +2667,20 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                           )}
                         </div>
 
-                        {/* Completed Transactions Section */}
+                        {/* Same-Day Arrivals Payment Queue */}
                         <div className={styles.card}>
                           <div className={`px-4 py-3 border-b border-slate-200 ${styles.cardHeaderPrimary}`}>
                             <div className={styles.sectionTitleBar}>
                               <div className={`${styles.sectionTitle} text-white`} style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
                                 <CreditCard className="h-5 w-5" />
-                                Transactions to Pay Today (Checkout)
+                                Same-Day Arrivals Payment Queue
                               </div>
                               <div className="flex items-center gap-2">
-                                <div className={styles.sectionBadge}>{checkoutTransactions.length}</div>
+                                <div className={styles.sectionBadge}>{sameDayPaymentQueue.length}</div>
                                 <button
                                   onClick={refreshAll}
                                   className={styles.toolbarButton}
-                                  aria-label="Refresh checkout transactions"
+                                  aria-label="Refresh same-day arrivals"
                                 >
                                   Refresh
                                 </button>
@@ -2750,41 +2694,25 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                 <tr>
                                   <th className={styles.th}>Booking ID</th>
                                   <th className={styles.th}>Guest Name</th>
-                                  <th className={styles.th}>Check-out Date</th>
+                                  <th className={styles.th}>Check-in Date</th>
                                   <th className={styles.th}>Total Amount</th>
                                   <th className={styles.th}>Payment Status</th>
-                                  <th className={styles.th}>Amount to Pay</th>
+                                  <th className={styles.th}>Balance Due</th>
                                   <th className={styles.th}>Actions</th>
                                 </tr>
                               </thead>
                               <tbody className={styles.fadeIn}>
-                                {checkoutLoading ? (
-                                  <tr>
-                                    <td colSpan="7" className="text-center py-8">
-                                      <div className="space-y-3">
-                                        <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto"></div>
-                                        <p className="text-gray-600">Loading checkout transactions...</p>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                ) : checkoutTransactions.length === 0 ? (
+                                {pagedSameDay.length === 0 ? (
                                   <tr>
                                     <td colSpan="7" className="text-center py-12 text-gray-500">
                                       <CreditCard className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-                                      <p>No checkout transactions scheduled for today</p>
+                                      <p>No same-day arrival payments to process</p>
                                     </td>
                                   </tr>
                                 ) : (
-                                  (() => {
-                                    const checkoutTotalPages = Math.max(1, Math.ceil(checkoutTransactions.length / checkoutPageSize));
-                                    const pagedCheckout = checkoutTransactions.slice(
-                                      (checkoutPage - 1) * checkoutPageSize,
-                                      checkoutPage * checkoutPageSize
-                                    );
-                                    
-                                    return pagedCheckout.map((checkout, index) => {
-                                      const totalAmount = checkout.totalPrice || 0;
-                                      const paidAmount = (checkout.payments || [])
+                                  pagedSameDay.map((arrival) => {
+                                      const totalAmount = Number(arrival.totalPrice || arrival.totalAmount || arrival.total || arrival.amount || 0);
+                                      const paidAmount = (arrival.payments || [])
                                         .filter(p => p.status === 'Paid')
                                         .reduce((sum, p) => sum + Number(p.amount || 0), 0);
                                       const remainingBalance = totalAmount - paidAmount;
@@ -2799,10 +2727,10 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                       };
 
                                       return (
-                                        <tr key={checkout.id} className={`${styles.tr} ${isUnpaid ? 'bg-red-50' : ''}`}>
+                                        <tr key={arrival.id} className={`${styles.tr} ${isUnpaid ? 'bg-red-50' : ''}`}>
                                           <td className={styles.td}>
                                             <div className="font-mono text-sm text-blue-600">
-                                              {formatPaymentId(checkout.id)}
+                                              {formatPaymentId(arrival.id)}
                                             </div>
                                           </td>
                                           <td className={styles.td}>
@@ -2812,10 +2740,10 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                               </div>
                                               <div>
                                                 <div className="font-medium text-gray-900">
-                                                  {checkout.user?.name || checkout.guestName || 'Guest'}
+                                                  {arrival.user?.name || arrival.guestName || 'Guest'}
                                                 </div>
                                                 <div className="text-xs text-gray-500">
-                                                  {checkout.user?.email || ''}
+                                                  {arrival.user?.email || ''}
                                                 </div>
                                               </div>
                                             </div>
@@ -2824,7 +2752,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                             <div className="flex items-center gap-2">
                                               <Calendar className="h-4 w-4 text-gray-400" />
                                               <span className="text-sm">
-                                                {new Date(checkout.checkOut).toLocaleDateString('en-US', {
+                                                {new Date(arrival.checkInDate || arrival.checkIn).toLocaleDateString('en-US', {
                                                   month: 'short',
                                                   day: 'numeric',
                                                   year: 'numeric'
@@ -2858,15 +2786,15 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                               {isUnpaid ? (
                                                 <button
                                                   onClick={() => {
-                                                    // Create a payment object for checkout
-                                                    const checkoutPayment = {
-                                                      ...checkout,
+                                                    const arrivalPayment = {
+                                                      ...arrival,
                                                       amount: remainingBalance,
                                                       totalPrice: remainingBalance,
-                                                      type: 'checkout',
-                                                      isCheckout: true
+                                                      type: 'booking',
+                                                      processingContext: 'arrival',
+                                                      isCheckout: false
                                                     };
-                                                    openPaymentModal(checkoutPayment);
+                                                    openPaymentModal(arrivalPayment);
                                                   }}
                                                   className={`${styles.button} ${styles.btnReview}`}
                                                 >
@@ -2875,9 +2803,9 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                                 </button>
                                               ) : (
                                                 <button
-                                                  onClick={() => openViewDetails(checkout)}
+                                                  onClick={() => openViewDetails(arrival)}
                                                   className={`${styles.actionButton} ${styles.actionButtonSmall}`}
-                                                  aria-label={`View details for ${checkout.id}`}
+                                                  aria-label={`View details for ${arrival.id}`}
                                                 >
                                                   <Eye className="h-3 w-3" />
                                                   View Details
@@ -2887,40 +2815,36 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                           </td>
                                         </tr>
                                       );
-                                    });
-                                  })()
+                                    })
                                 )}
                               </tbody>
                             </table>
                           </div>
                             
-                          {/* Pagination for Checkout Transactions */}
-                          {(() => {
-                            const checkoutTotalPages = Math.max(1, Math.ceil(checkoutTransactions.length / checkoutPageSize));
-                            return checkoutTotalPages > 1 && (
+                          {/* Pagination for Same-Day Arrivals */}
+                          {sameDayTotalPages > 1 && (
                               <div className={`${styles.paginationBar} ${styles.barRelative}`} style={{marginTop: '16px'}}>
                                 <div className={styles.paginationInfo}>
-                                  Page {checkoutPage} of {checkoutTotalPages} {checkoutTransactions.length} checkouts
+                                  Page {sameDayPage} of {sameDayTotalPages} • {sameDayPaymentQueue.length} arrivals
                                 </div>
                                 <div className={styles.paginationButtons}>
                                   <button
-                                    onClick={() => setCheckoutPage((p) => Math.max(1, p - 1))}
-                                    disabled={checkoutPage === 1}
+                                    onClick={() => setSameDayPage((p) => Math.max(1, p - 1))}
+                                    disabled={sameDayPage === 1}
                                     className={styles.paginationBtn}
                                   >
                                     Prev
                                   </button>
                                   <button
-                                    onClick={() => setCheckoutPage((p) => Math.min(checkoutTotalPages, p + 1))}
-                                    disabled={checkoutPage === checkoutTotalPages}
+                                    onClick={() => setSameDayPage((p) => Math.min(sameDayTotalPages, p + 1))}
+                                    disabled={sameDayPage === sameDayTotalPages}
                                     className={styles.paginationBtn}
                                   >
                                     Next
                                   </button>
                                 </div>
                               </div>
-                            );
-                          })()}
+                          )}
                         </div>
 
                         {/* Completed Transactions Section */}
@@ -3498,6 +3422,15 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                   />
                                 </div>
                               </div>
+                              <div style={{ marginTop: '14px', display: 'flex', justifyContent: 'flex-end' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowAdvancedFields((v) => !v)}
+                                  className={styles.toolbarButton}
+                                >
+                                  {showAdvancedFields ? 'Hide Advanced Fields' : 'Show Advanced Fields'}
+                                </button>
+                              </div>
                             </div>
 
                             {/* Change Calculation Display */}
@@ -3557,6 +3490,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                             )}
 
                             {/* Guest Information Section */}
+                            {showAdvancedFields && (
                             <div className="bg-amber-50 rounded-xl p-6 border border-amber-200" style={{marginBottom: '24px'}}>
                               <h4 className="text-lg font-semibold text-slate-800 mb-6 flex items-center gap-2">
                                 <User className="h-5 w-5 text-amber-600" />
@@ -3622,8 +3556,10 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                 </div>
                               </div>
                             </div>
+                            )}
 
                             {/* Notes Section */}
+                            {showAdvancedFields && (
                             <div className="bg-green-50 rounded-xl p-6 border border-green-200" style={{marginBottom: '24px'}}>
                               <h4 className="text-lg font-semibold text-slate-800 mb-6 flex items-center gap-2">
                                 <BookOpen className="h-5 w-5 text-green-600" />
@@ -3641,6 +3577,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                 />
                               </div>
                             </div>
+                            )}
 
                             {/* Calculated Change Preview */}
                             <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-200">
@@ -3702,6 +3639,15 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                     {actionLoading && <span className={styles.inlineSpinner} />}
                                   </button>
                                   <button
+                                    onClick={requestSupervisorReview}
+                                    disabled={actionLoading}
+                                    className={`${styles.button} ${styles.btnNote}`}
+                                    title="Escalate suspicious transaction to Super Admin review"
+                                  >
+                                    Request Review
+                                    {actionLoading && <span className={styles.inlineSpinner} />}
+                                  </button>
+                                  <button
                                     onClick={approveTransaction}
                                     disabled={!canConfirm}
                                     className={`${styles.button} ${styles.btnVerify}`}
@@ -3753,9 +3699,9 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                           
                           {/* Tab Headers */}
                           <div className="flex border-b border-slate-200 mb-4">
-                            <button className="px-4 py-2 text-sm font-medium text-blue-600 border-b-2 border-blue-600">
+                            <div className={styles.notificationTab}>
                               All Notifications ({notifications.length})
-                            </button>
+                            </div>
                           </div>
                           
                           <div className="grid gap-4 max-h-[60vh] overflow-y-auto p-2">
@@ -4234,13 +4180,6 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                               <AlertTriangle className="h-5 w-5" style={{ color: '#f59e0b' }} />
                               Cancelled Transaction Details
                             </h3>
-                            <button
-                              onClick={() => setCancelDetailsModal({ show: false, transaction: null })}
-                              className="p-2 hover:bg-gray-100 rounded"
-                              aria-label="Close cancelled details modal"
-                            >
-                              <X className="h-5 w-5" />
-                            </button>
                           </div>
 
                           {cancelDetailsModal.transaction && (
@@ -4283,7 +4222,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                               <div className="flex items-center justify-end gap-3 pt-2">
                                 <button
                                   onClick={() => setCancelDetailsModal({ show: false, transaction: null })}
-                                  className="px-4 py-2 bg-gray-200 rounded font-medium hover:bg-gray-300"
+                                  className={styles.modalCloseAction}
                                 >
                                   Close
                                 </button>
@@ -4330,11 +4269,23 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                               };
                               const formattedCheckIn = formatDateIfFuture(md.checkInDate || md.checkIn || md.startDate);
                               const formattedCheckOut = formatDateIfFuture(md.checkOut || md.checkOutDate || md.endDate);
-                              const total = Number(md.totalPrice || md.totalCostWithAddons || md.totalAmount || md.total || md.amount || 0);
+                              const baseTotal = Number(md.totalBeforeDiscount || md.totalPrice || md.totalCostWithAddons || md.totalAmount || md.total || md.amount || 0);
+                              const finalTotal = Number(md.totalAfterDiscount || md.totalPrice || md.totalCostWithAddons || md.totalAmount || md.total || md.amount || 0);
+                              const discountAmount = Number(md.discountAmount || Math.max(0, baseTotal - finalTotal));
+                              const total = finalTotal;
                               const paid = Number(md.totalPaid || md.paidAmount || (md.payments || []).reduce((s,p)=>s+Number(p.amount||0),0) || 0);
                               const balance = Math.max(0, total - paid);
                               const status = (md.paymentStatus || md.status || '').toLowerCase();
                               const statusClass = status.includes('cancel') ? 'bg-red-100 text-red-700' : status.includes('paid') ? 'bg-green-100 text-green-700' : status.includes('pending') || status.includes('reservation') ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-700';
+                              const checkInRaw = md.checkInDate || md.checkIn || md.startDate;
+                              const checkInDate = checkInRaw ? new Date(checkInRaw) : null;
+                              const today = new Date();
+                              const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                              const checkInOnly = checkInDate && !isNaN(checkInDate.getTime())
+                                ? new Date(checkInDate.getFullYear(), checkInDate.getMonth(), checkInDate.getDate())
+                                : null;
+                              const isSameDayArrival = !!checkInOnly && checkInOnly.getTime() === todayOnly.getTime();
+                              const canOpenPayment = !!md.isCheckout || md.type === 'checkout' || md.type === 'arrival' || isSameDayArrival;
                               return (
                                 <div className="space-y-4">
                                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
@@ -4366,6 +4317,15 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
 
                                             <div className={styles.detailLabel}>Email</div>
                                             <div className={styles.detailValue}>{md.user?.email || md.email || 'N/A'}</div>
+
+                                            {discountAmount > 0 && (
+                                              <>
+                                                <div className={styles.detailLabel}>Promotion</div>
+                                                <div className={styles.detailValue}>{md.discountLabel || 'Promotion Applied'}</div>
+                                                <div className={styles.detailLabel}>Discount</div>
+                                                <div className={styles.detailValue}>₱{(discountAmount / 100).toLocaleString()}</div>
+                                              </>
+                                            )}
 
                                             {formattedCheckIn && (
                                               <>
@@ -4414,7 +4374,13 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                       </div>
 
                                       <div>
-                                        <button onClick={() => { setViewDetailsModal({ show: false, data: null }); if (md) openPaymentModal(md); }} className={`${styles.openPaymentBtn} w-full`}>Open Payment</button>
+                                        {canOpenPayment ? (
+                                          <button onClick={() => { setViewDetailsModal({ show: false, data: null }); if (md) openPaymentModal(md); }} className={`${styles.openPaymentBtn} w-full`}>Open Payment</button>
+                                        ) : (
+                                          <button className={`${styles.openPaymentBtn} w-full`} style={{ opacity: 0.5, cursor: 'not-allowed' }} disabled>
+                                            View Only (Future Reservation)
+                                          </button>
+                                        )}
                                       </div>
 
                                       <div className={styles.paymentsSection}>

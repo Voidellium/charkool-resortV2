@@ -94,6 +94,8 @@ export default function RoomUnitSelector({
     return labels[type] || type;
   };
 
+  const showUnitDetails = !['LOFT', 'TEPEE', 'VILLA'].includes(roomType);
+
   // Get icon for feature
   const getFeatureIcon = (feature) => {
     const icons = {
@@ -177,19 +179,19 @@ export default function RoomUnitSelector({
                 {getRoomTypeLabel(roomType)} #{unit.unitNumber}
               </div>
 
-              {unit.description && (
+              {showUnitDetails && unit.description && (
                 <div className={styles.description}>
                   📍 {unit.description}
                 </div>
               )}
 
-              {unit.location && (
+              {showUnitDetails && unit.location && (
                 <div className={styles.location}>
                   {unit.location}
                 </div>
               )}
 
-              {unit.features && Array.isArray(unit.features) && unit.features.length > 0 && (
+              {showUnitDetails && unit.features && Array.isArray(unit.features) && unit.features.length > 0 && (
                 <div className={styles.features}>
                   {unit.features.map((feature, idx) => (
                     <span key={idx} className={styles.feature}>

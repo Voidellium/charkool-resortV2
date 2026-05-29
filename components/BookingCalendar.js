@@ -45,7 +45,7 @@ function getCalendarDays(year, month) {
   return calendarDays;
 }
 
-export default function BookingCalendar({ availabilityData, onDateChange, disabledDates = [], maxBookingMonths = 2 }) {
+export default function BookingCalendar({ availabilityData, onDateChange, disabledDates = [], maxBookingMonths = 2, minLeadDays = 1 }) {
   // availabilityData: { 'yyyy-mm-dd': boolean } true=available, false=not available
   // onDateChange: callback with { checkInDate, checkOutDate }
   // disabledDates: array of date strings ['yyyy-mm-dd'] - dates disabled by super admin
@@ -54,10 +54,10 @@ export default function BookingCalendar({ availabilityData, onDateChange, disabl
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Minimum date is tomorrow
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  tomorrow.setHours(0, 0, 0, 0);
+  // Minimum selectable date is configurable: default keeps website behavior (tomorrow).
+  const minimumSelectableDate = new Date(today);
+  minimumSelectableDate.setDate(minimumSelectableDate.getDate() + Number(minLeadDays || 0));
+  minimumSelectableDate.setHours(0, 0, 0, 0);
 
   // Maximum allowed booking date
   const maxAllowedDate = new Date(today);
@@ -83,8 +83,8 @@ export default function BookingCalendar({ availabilityData, onDateChange, disabl
     if (!date) return;
     const dateStr = formatDate(date);
 
-    // Disable dates before tomorrow
-    if (date < tomorrow) return;
+    // Disable dates before the minimum selectable date.
+    if (date < minimumSelectableDate) return;
 
     // Check if date exceeds max booking window
     if (date > maxAllowedDate) return;
@@ -155,7 +155,7 @@ export default function BookingCalendar({ availabilityData, onDateChange, disabl
     const inStay = isInStayPeriod(date);
 
     let className = 'day';
-    if (date < tomorrow) className += ' not-available';
+    if (date < minimumSelectableDate) className += ' not-available';
     else if (isBeyondMaxBooking) className += ' not-available';
     else if (isDisabledByAdmin) className += ' invalid';
     else if (!isAvailable) className += ' not-available';
@@ -391,6 +391,16 @@ export default function BookingCalendar({ availabilityData, onDateChange, disabl
           text-align: center;
           flex: 1;
           letter-spacing: 0.02em;
+          font-size: 1.05rem;
+          font-weight: 700;
+          color: #ffffff;
+          line-height: 1.2;
+          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+          background: none !important;
+          -webkit-text-fill-color: #ffffff !important;
+          -webkit-background-clip: initial !important;
+          background-clip: initial !important;
+          transform: none !important;
         }
         .nav-btn {
           background: rgba(255, 255, 255, 0.2);

@@ -35,7 +35,16 @@ const Toast = ({ toast, onDismiss }) => {
   return (
     <div 
       className={`${styles.toast} ${styles[toast.type]} ${toast.isExiting ? styles.exiting : ''}`}
-      onClick={() => onDismiss(toast.id)}
+      onClick={() => {
+        try {
+          if (typeof toast.onClick === 'function') {
+            toast.onClick();
+          }
+        } catch (err) {
+          console.error('Toast onClick handler error:', err);
+        }
+        onDismiss(toast.id);
+      }}
     >
       <div className={styles.toastIcon}>
         {getIcon()}
@@ -87,6 +96,8 @@ export const ToastProvider = ({ children }) => {
       id,
       type: TOAST_TYPES.INFO,
       duration: 5000,
+      // allow optional onClick or metadata to be attached
+      onClick: toast.onClick,
       ...toast,
     };
 

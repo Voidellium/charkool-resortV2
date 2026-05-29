@@ -150,6 +150,23 @@ export const POST = async (req) => {
     let imageUrl = null;
     const image = formData.get('image');
     if (image && image.name) {
+      const MAX_SIZE = 25 * 1024 * 1024;
+      const ALLOWED_TYPES = ['image/jpeg', 'image/pjpeg', 'image/png'];
+
+      if (image.size > MAX_SIZE) {
+        return NextResponse.json(
+          { error: 'File size exceeds 25MB limit' },
+          { status: 400 }
+        );
+      }
+
+      if (!ALLOWED_TYPES.includes(image.type)) {
+        return NextResponse.json(
+          { error: 'Only JPG, JPEG, JFIF, and PNG image files are allowed' },
+          { status: 400 }
+        );
+      }
+
       const buffer = Buffer.from(await image.arrayBuffer());
       const filePath = path.join(process.cwd(), 'public/uploads', image.name);
       await writeFile(filePath, buffer);

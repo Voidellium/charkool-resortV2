@@ -108,7 +108,7 @@ async function main() {
       type: 'LOFT',
       price: 500000, // ₱5,000.00
       status: 'available',
-      quantity: 2, // 2 Loft units available
+      quantity: 4, // 4 Loft units available
     },
   });
 
@@ -120,7 +120,7 @@ async function main() {
       type: 'TEPEE',
       price: 600000, // ₱6,000.00
       status: 'available',
-      quantity: 3, // 3 Tepee units available
+      quantity: 4, // 4 Tepee units available
     },
   });
 
@@ -132,7 +132,7 @@ async function main() {
       type: 'VILLA',
       price: 800000, // ₱8,000.00
       status: 'available',
-      quantity: 2, // 2 Villa units available
+      quantity: 4, // 4 Villa units available
     },
   });
 
@@ -207,12 +207,9 @@ async function main() {
   console.log("🔧 Seeding optional amenities...");
 
   const optionalAmenities = [
-    { name: 'Broom & Dustpan', description: 'Cleaning set for room', maxQuantity: 1 },
-    { name: 'Extra Bed', description: 'Additional sleeping accommodation', maxQuantity: 2 },
     { name: 'Extra Pillow', description: 'Additional pillow for comfort', maxQuantity: 5 },
     { name: 'Extra Blanket', description: 'Additional blanket for warmth', maxQuantity: 3 },
     { name: 'Towels Set', description: 'Complete set of towels', maxQuantity: 2 },
-    { name: 'Toiletries Kit', description: 'Basic toiletries', maxQuantity: 2 },
   ];
 
   const createdOptionalAmenities = [];
@@ -233,10 +230,7 @@ async function main() {
   const rentalAmenities = [
     { name: 'ATV', description: 'All-terrain vehicle rental', pricePerUnit: 20000, unitType: 'Hour' }, // ₱200
     { name: 'Island Hopping', description: 'Boat trip to nearby islands', pricePerUnit: 60000, unitType: '3pax' }, // ₱600
-    { name: 'Billiard Access', description: 'Access to billiard table', pricePerUnit: 15000, unitType: 'Hour' }, // ₱150
-    { name: 'Karaoke', description: 'Karaoke machine rental', pricePerUnit: 500, unitType: 'song' },
     { name: 'Banana Boat', description: 'Water recreation activity', pricePerUnit: 70000, unitType: '30minutes' }, // ₱700
-    { name: 'Transportation Service', description: 'Door-to-door transport service', pricePerUnit: 500000, unitType: 'trip' }, // ₱5,000
     { name: 'Kayak Rental', description: 'Single kayak rental', pricePerUnit: 30000, unitType: 'hour' },
     { name: 'Snorkeling Gear', description: 'Complete snorkeling equipment', pricePerUnit: 25000, unitType: 'day' },
   ];
@@ -252,26 +246,6 @@ async function main() {
   }
 
   console.log("✅ Rental amenities seeded");
-
-  // Cottage Add-on
-  console.log("🏠 Seeding cottage add-on...");
-
-  // Check if cottage already exists
-  let cottage = await prisma.cottage.findFirst({
-    where: { name: "Cottage" }
-  });
-
-  if (!cottage) {
-    cottage = await prisma.cottage.create({
-      data: {
-        name: "Cottage",
-        price: 30000, // ₱300 in cents
-        isActive: true,
-      },
-    });
-  }
-
-  console.log("✅ Cottage add-on seeded");
 
   // Legacy Amenities (keeping for backward compatibility)
   await prisma.amenity.createMany({
@@ -330,21 +304,15 @@ async function main() {
       // Add optional amenities - using actual created amenity IDs
       optionalAmenities: {
         create: [
-          { optionalAmenity: { connect: { id: createdOptionalAmenities[0].id } }, quantity: 1 }, // Broom & Dustpan
-          { optionalAmenity: { connect: { id: createdOptionalAmenities[2].id } }, quantity: 2 }, // Extra Pillows
+          { optionalAmenity: { connect: { id: createdOptionalAmenities[0].id } }, quantity: 2 }, // Extra Pillows
+          { optionalAmenity: { connect: { id: createdOptionalAmenities[2].id } }, quantity: 1 }, // Towels Set
         ],
       },
       // Add rental amenities - using actual created amenity IDs
       rentalAmenities: {
         create: [
           { rentalAmenity: { connect: { id: createdRentalAmenities[0].id } }, quantity: 2, hoursUsed: 2, totalPrice: 40000 }, // ATV for 2 hours
-          { rentalAmenity: { connect: { id: createdRentalAmenities[2].id } }, quantity: 1, hoursUsed: 1, totalPrice: 15000 }, // Billiard for 1 hour
-        ],
-      },
-      // Add cottage
-      cottage: {
-        create: [
-          { cottage: { connect: { id: cottage.id } }, quantity: 1, totalPrice: 30000 },
+          { rentalAmenity: { connect: { id: createdRentalAmenities[1].id } }, quantity: 1, hoursUsed: 1, totalPrice: 60000 }, // Island Hopping
         ],
       },
       // Legacy amenities (keeping for backward compatibility)
@@ -673,20 +641,25 @@ async function main() {
 
   const roomUnitMetadata = [
     // Loft units
-    { roomId: standardRoom.id, unitNumber: '1', description: 'Ground floor, near pool', location: 'Ground Floor', isActive: true },
-    { roomId: standardRoom.id, unitNumber: '2', description: 'Second floor, garden view', location: 'Second Floor', isActive: true },
+    { roomId: standardRoom.id, unitNumber: '1', location: 'Ground Floor', isActive: true },
+    { roomId: standardRoom.id, unitNumber: '2', location: 'Second Floor', isActive: true },
+    { roomId: standardRoom.id, unitNumber: '3', location: 'Third Floor', isActive: true },
+    { roomId: standardRoom.id, unitNumber: '4', location: 'Fourth Floor', isActive: true },
     
     // Tepee units
-    { roomId: deluxeRoom.id, unitNumber: '1', description: 'Near beach, ocean view', location: 'Beachfront', isActive: true },
-    { roomId: deluxeRoom.id, unitNumber: '2', description: 'Garden side, quiet area', location: 'Garden Area', isActive: true },
-    { roomId: deluxeRoom.id, unitNumber: '3', description: 'Near pool and amenities', location: 'Pool Area', isActive: true },
+    { roomId: deluxeRoom.id, unitNumber: '1', location: 'Beachfront', isActive: true },
+    { roomId: deluxeRoom.id, unitNumber: '2', location: 'Garden Area', isActive: true },
+    { roomId: deluxeRoom.id, unitNumber: '3', location: 'Pool Area', isActive: true },
+    { roomId: deluxeRoom.id, unitNumber: '4', location: 'Hillside', isActive: true },
     
     // Villa units
-    { roomId: suiteRoom.id, unitNumber: '1', description: 'Premium ocean view', location: 'Beachfront Prime', isActive: true },
-    { roomId: suiteRoom.id, unitNumber: '2', description: 'Corner unit with balcony', location: 'Corner Unit', isActive: true },
+    { roomId: suiteRoom.id, unitNumber: '1', location: 'Beachfront Prime', isActive: true },
+    { roomId: suiteRoom.id, unitNumber: '2', location: 'Corner Unit', isActive: true },
+    { roomId: suiteRoom.id, unitNumber: '3', location: 'Garden View', isActive: true },
+    { roomId: suiteRoom.id, unitNumber: '4', location: 'Poolside', isActive: true },
     
     // Family Lodge units
-    { roomId: beachfrontRoom.id, unitNumber: '1', description: 'Main building, accessible', location: 'Main Building', isActive: true },
+    { roomId: beachfrontRoom.id, unitNumber: '1', location: 'Main Building', isActive: true },
   ];
 
   for (const metadata of roomUnitMetadata) {
@@ -703,29 +676,6 @@ async function main() {
   }
 
   console.log("✅ Room unit metadata seeded");
-
-  // Amenity Categories
-  console.log("🏷️ Seeding amenity categories...");
-
-  const categories = [
-    { name: 'General' },
-    { name: 'Cleaning' },
-    { name: 'Bedding' },
-    { name: 'Kitchen' },
-    { name: 'Entertainment' },
-    { name: 'Water Sports' },
-    { name: 'Transportation' },
-  ];
-
-  for (const category of categories) {
-    await prisma.amenityCategory.upsert({
-      where: { name: category.name },
-      update: {},
-      create: category,
-    });
-  }
-
-  console.log("✅ Amenity categories seeded");
 
   // Promotions
   console.log("🎉 Seeding promotions...");

@@ -107,6 +107,11 @@ model User {
   
   // NEW: 3D Model configuration updates
   modelConfigUpdates      ThreeDModelConfig[]        @relation("ModelConfigUpdater")
+  
+  // NEW: Chat messages and escalations
+  chatMessages    ChatMessage[]
+  chatEscalations ChatEscalation[]
+  escalationsContactedBy ChatEscalation[] @relation("EscalationContactedBy")
 }
 
 model OTP {
@@ -190,42 +195,45 @@ model RoomTypeDefaultAmenity {
 
 // Optional amenities that can be added to bookings (with quantity limits)
 model OptionalAmenity {
-  id          Int      @id @default(autoincrement())
-  name        String   @unique
-  description String?
-  maxQuantity Int      @default(1) // Maximum quantity per booking
-  quantity    Int      @default(0) // Total available stock
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  bookings    BookingOptionalAmenity[]
+  id              Int      @id @default(autoincrement())
+  name            String   @unique
+  description     String?
+  maxQuantity     Int      @default(1) // Maximum quantity per booking
+  quantity        Int      @default(0) // Total available stock
+  isActive        Boolean  @default(true)
+  isPublicVisible Boolean  @default(true) // Show in guest amenities browsing page
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  bookings        BookingOptionalAmenity[]
 }
 
 // Rental amenities that are paid per use/unit
 model RentalAmenity {
-  id          Int      @id @default(autoincrement())
-  name        String   @unique
-  description String?
-  pricePerUnit Int    // Price in cents (e.g., ₱200/hour = 20000)
-  pricePerHour Int?   // Alternative pricing per hour
-  unitType    String   // "hour", "unit", "song", "30minutes", etc.
-  unitNote    String?
-  isActive    Boolean  @default(true)
-  quantity      Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  bookings    BookingRentalAmenity[]
+  id              Int      @id @default(autoincrement())
+  name            String   @unique
+  description     String?
+  pricePerUnit    Int    // Price in cents (e.g., ₱200/hour = 20000)
+  pricePerHour    Int?   // Alternative pricing per hour
+  unitType        String   // "hour", "unit", "song", "30minutes", etc.
+  unitNote        String?
+  isActive        Boolean  @default(true)
+  isPublicVisible Boolean  @default(true) // Show in guest amenities browsing page
+  quantity        Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  bookings        BookingRentalAmenity[]
 }
 
 // Cottage add-on option
 model Cottage {
-  id        Int      @id @default(autoincrement())
-  name      String   @default("Cottage")
-  price     Int      @default(30000) // ₱300 in cents
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  bookings  BookingCottage[]
+  id              Int      @id @default(autoincrement())
+  name            String   @default("Cottage")
+  price           Int      @default(30000) // ₱300 in cents
+  isActive        Boolean  @default(true)
+  isPublicVisible Boolean  @default(true) // Show in guest amenities browsing page
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  bookings        BookingCottage[]
 }
 
 model Amenity {
@@ -275,6 +283,16 @@ model Booking {
   guestName     String           @default("Walk-in Guest")
   paymentStatus PaymentStatus    @default(Pending)
   totalPrice    Int              @default(0)
+  appliedPromotionId Int?
+  discountLabel String?
+  discountTypeSnapshot String?
+  discountValueSnapshot Int?
+  discountAmount Int?
+  totalBeforeDiscount Int?
+  totalAfterDiscount Int?
+  discountAppliedAt DateTime?
+  discountAppliedByRole Role?
+  discountAppliedById Int?
   numberOfGuests Int             @default(1)
   paymentMode   String           @default("cash") // Required: "cash", "gcash", "maya", "card"
   isDeleted     Boolean          @default(false)
@@ -658,4 +676,61 @@ enum ModelType {
   INTERIOR_TEEPEE
   INTERIOR_VILLA
   INTERIOR_LOFT
+}
+
+
+// Chat Messages for escalation system
+model ChatMessage {
+  id            String    @id @default(cuid())
+  userId        Int?      // NULL if guest not logged in when asking
+  guestEmail    String?   // Capture email if guest provides
+  message       String    @db.Text
+  senderType    String    @default("guest") // "guest" | "bot" | "admin"
+  
+  // Bot response info
+  isBotMatched  Boolean   @default(false)
+  botResponse   String?   @db.Text
+  
+  // Escalation fields
+  isEscalated   Boolean   @default(false)
+  escalatedAt   DateTime?
+  
+  // Admin reply
+  adminReply    String?   @db.Text
+  resolvedBy    Int?      // admin user ID
+  resolvedAt    DateTime?
+  
+  // Metadata
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relationships
+  user          User?     @relation(fields: [userId], references: [id])
+  
+  @@index([userId])
+  @@index([isEscalated])
+  @@index([createdAt])
+}
+
+// Chat Escalation Requests (when guest clicks "Request Admin Contact")
+model ChatEscalation {
+  id            String    @id @default(cuid())
+  userId        Int?      // Nullable: allow anonymous guests to escalate
+  guestEmail    String
+  reason        String    @db.Text  // Why guest needs admin contact
+  status        String    @default("pending") // pending | contacted | resolved
+  contactedAt   DateTime?
+  contactedBy   Int?      // admin user ID who responded
+  notes         String?   @db.Text  // Admin notes
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relationships
+  user          User?     @relation(fields: [userId], references: [id])
+  contactedByUser User?   @relation("EscalationContactedBy", fields: [contactedBy], references: [id])
+  
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
 }

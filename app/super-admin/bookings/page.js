@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { 
-  Plus, Search, Filter, Calendar, Users, DollarSign, 
+  Plus, Search, Filter, Calendar, Users, 
   TrendingUp, Eye, Edit, Trash2, CheckCircle, XCircle, 
   Clock, MapPin, Phone, Mail, Star, MoreHorizontal,
   Download, RefreshCw, Settings, ArrowUpDown, ChevronDown, Circle, AlertCircle, Info
@@ -93,6 +93,7 @@ export default function BookingsPage() {
   const [historyBookingDetails, setHistoryBookingDetails] = useState(null);
   const [currentTab, setCurrentTab] = useState('active');
   const [showCreateBookingModal, setShowCreateBookingModal] = useState(false);
+  const [checkActionModal, setCheckActionModal] = useState({ show: false, bookingId: null, guestName: '', action: null });
 
   // Override modal for early check-in/out (shared)
   const [overrideModal, setOverrideModal] = useOverrideModal();
@@ -154,7 +155,11 @@ export default function BookingsPage() {
   // Helper function to show alert modal
   const showAlert = useCallback((title, message, type = 'info') => {
     setAlertModal({ show: true, title, message, type });
-  }, []);
+    if (type === 'success') success(message, { title });
+    else if (type === 'error') error(message, { title });
+    else if (type === 'warning') warning(message, { title });
+    else info(message, { title });
+  }, [success, error, warning, info]);
 
   // Fetch initial availability data
   useEffect(() => {
@@ -477,31 +482,49 @@ export default function BookingsPage() {
 
   useEffect(() => { fetchBookings(); }, []);
 
+  const normalizeStatus = (status) => String(status || '').trim().toLowerCase();
+  const isCancelledBooking = (booking) => normalizeStatus(booking?.status) === 'cancelled';
+  const isCompletedBooking = (booking) => normalizeStatus(booking?.status) === 'completed';
+  const isActiveBooking = (booking) => !isCancelledBooking(booking) && !isCompletedBooking(booking);
+
+  const activeBookingsCount = bookings.filter(isActiveBooking).length;
+  const totalRevenue = bookings.reduce((sum, booking) => {
+    if (!booking) return sum;
+    const totalPaid = Number(booking.totalPaid || 0);
+    return sum + (totalPaid / 100);
+  }, 0);
+
   // 🔔 PUSHER: Subscribe to real-time booking updates
   useBookingUpdates({
-    onBookingCreated: () => {
+    onBookingCreated: (data) => {
       console.log('[Pusher] New booking created - refreshing list');
+      info(`New booking received${data?.bookingId ? ` (#${data.bookingId})` : ''}`, { title: 'Live Update' });
       fetchBookings();
     },
     onBookingUpdated: (data) => {
       console.log('[Pusher] Booking updated:', data);
       // Refresh to get latest payment/balance data
+      info(`Booking updated${data?.bookingId ? ` (#${data.bookingId})` : ''}`, { title: 'Live Update' });
       fetchBookings();
     },
-    onBookingCancelled: () => {
+    onBookingCancelled: (data) => {
       console.log('[Pusher] Booking cancelled - refreshing list');
+      warning(`Booking cancelled${data?.bookingId ? ` (#${data.bookingId})` : ''}`, { title: 'Live Update' });
       fetchBookings();
     },
-    onCheckedIn: () => {
+    onCheckedIn: (data) => {
       console.log('[Pusher] Guest checked in - refreshing list');
+      success(`${data?.guestName || 'Guest'} checked in`, { title: 'Live Update' });
       fetchBookings();
     },
-    onCheckedOut: () => {
+    onCheckedOut: (data) => {
       console.log('[Pusher] Guest checked out - refreshing list');
+      success(`${data?.guestName || 'Guest'} checked out`, { title: 'Live Update' });
       fetchBookings();
     },
     onPaymentReceived: (data) => {
       console.log('[Pusher] Payment received:', data);
+      success(`Payment received${data?.bookingId ? ` for booking #${data.bookingId}` : ''}`, { title: 'Live Update' });
       fetchBookings();
     },
   });
@@ -651,6 +674,90 @@ export default function BookingsPage() {
     }
   };
 
+  const handleCheckIn = async (bookingId) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/bookings/${bookingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'Confirmed', actualCheckIn: true }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData?.error || 'Failed to check in booking');
+      }
+
+      const updatedBooking = await res.json();
+      setBookings(prev => prev.map(b => b.id === updatedBooking.id ? updatedBooking : b));
+      setCurrentBooking(prev => (prev && prev.id === updatedBooking.id ? updatedBooking : prev));
+      success('Guest checked in successfully');
+    } catch (err) {
+      console.error('Check-in failed:', err);
+      error(err.message || 'Failed to check in booking');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCheckOut = async (bookingId) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/bookings/${bookingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'Confirmed', actualCheckOut: true }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData?.error || 'Failed to check out booking');
+      }
+
+      const updatedBooking = await res.json();
+      setBookings(prev => prev.map(b => b.id === updatedBooking.id ? updatedBooking : b));
+      setCurrentBooking(prev => (prev && prev.id === updatedBooking.id ? updatedBooking : prev));
+      success('Guest checked out successfully');
+    } catch (err) {
+      console.error('Check-out failed:', err);
+      error(err.message || 'Failed to check out booking');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openCheckActionModal = (action, booking) => {
+    setCheckActionModal({
+      show: true,
+      action,
+      bookingId: booking?.id || null,
+      guestName: booking?.guestName || '',
+    });
+  };
+
+  const closeCheckActionModal = () => {
+    setCheckActionModal({ show: false, bookingId: null, guestName: '', action: null });
+  };
+
+  const confirmCheckAction = async () => {
+    if (!checkActionModal.bookingId || !checkActionModal.action) {
+      closeCheckActionModal();
+      return;
+    }
+
+    try {
+      if (checkActionModal.action === 'checkin') {
+        await handleCheckIn(checkActionModal.bookingId);
+      } else if (checkActionModal.action === 'checkout') {
+        await handleCheckOut(checkActionModal.bookingId);
+      }
+      setShowDetailsModal(false);
+      setCurrentBooking(null);
+    } finally {
+      closeCheckActionModal();
+    }
+  };
+
   // Handle cancellation with remarks
   const handleCancelWithRemarks = async (id, remarks) => {
     setLoading(true);
@@ -768,14 +875,11 @@ export default function BookingsPage() {
                 style={styles.primaryButton}
               >
                 <Plus size={20} />
-                New Booking
-              </button>
-              <button style={styles.secondaryButton}>
-                <Download size={20} />
-                Export
+                Create Booking
               </button>
               <button style={styles.iconButton}>
                 <RefreshCw size={20} />
+                Refresh
               </button>
             </div>
           </div>
@@ -806,7 +910,7 @@ export default function BookingsPage() {
                   <Users size={24} style={{ color: '#f59e0b' }} />
                 </div>
                 <div style={styles.kpiInfo}>
-                  <h3 style={styles.kpiValue}>{bookings.filter(b => b.status === 'confirmed').length}</h3>
+                  <h3 style={styles.kpiValue}>{activeBookingsCount}</h3>
                   <p style={styles.kpiLabel}>Active Bookings</p>
                 </div>
               </div>
@@ -819,11 +923,11 @@ export default function BookingsPage() {
             <div style={styles.kpiCard}>
               <div style={styles.kpiContent}>
                 <div style={{ ...styles.kpiIcon, backgroundColor: '#ddd6fe' }}>
-                  <DollarSign size={24} style={{ color: '#8b5cf6' }} />
+                  <span style={{ fontSize: '24px', fontWeight: 700, color: '#7c3aed', lineHeight: 1 }}>₱</span>
                 </div>
                 <div style={styles.kpiInfo}>
-                  <h3 style={styles.kpiValue}>₱{(bookings.reduce((sum, b) => sum + (b.totalPrice || 0), 0)).toLocaleString()}</h3>
-                  <p style={styles.kpiLabel}>Total Revenue</p>
+                  <h3 style={styles.kpiValue}>₱{totalRevenue.toLocaleString()}</h3>
+                  <p style={styles.kpiLabel}>Total Revenue (Paid)</p>
                 </div>
               </div>
               <div style={styles.kpiTrend}>
@@ -833,147 +937,6 @@ export default function BookingsPage() {
             </div>
           </div>
         </div>
-
-        {/* Enhanced Search and Filters Section */}
-        <div style={styles.filtersCard}>
-          <div style={styles.filtersHeader}>
-            <div style={styles.searchContainer}>
-              <Search size={20} style={styles.searchIcon} />
-              <input
-                type="text"
-                placeholder="Search by guest name..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                style={styles.searchInput}
-              />
-            </div>
-            
-            <div style={styles.quickFilters}>
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                style={styles.quickFilterSelect}
-              >
-                <option value="">All Statuses</option>
-                <option value="confirmed">Confirmed</option>
-                <option value="pending">Pending</option>
-                <option value="cancelled">Cancelled</option>
-                <option value="completed">Completed</option>
-              </select>
-              
-              <select
-                value={filterPaymentOption}
-                onChange={(e) => setFilterPaymentOption(e.target.value)}
-                style={styles.quickFilterSelect}
-              >
-                <option value="">All Payment Options</option>
-                <option value="full">Full Payment</option>
-                <option value="partial">Partial Payment</option>
-                <option value="deposit">Deposit Only</option>
-              </select>
-              
-              <select
-                value={filterPaymentMethod}
-                onChange={(e) => setFilterPaymentMethod(e.target.value)}
-                style={styles.quickFilterSelect}
-              >
-                <option value="">All Payment Methods</option>
-                <option value="cash">Cash</option>
-                <option value="card">Card</option>
-                <option value="bank">Bank Transfer</option>
-                <option value="gcash">GCash</option>
-              </select>
-              
-              <button
-                onClick={() => {
-                  setShowCreateBookingModal(true);
-                }}
-                style={styles.addBookingButton}
-              >
-                <Plus size={20} />
-              </button>
-            </div>
-            
-            <div style={styles.filterActions}>
-              {selectedBookings.length > 0 && (
-                <div style={styles.bulkActionsContainer}>
-                  <span style={styles.selectedCount}>
-                    {selectedBookings.length} selected
-                  </span>
-                  <button
-                    onClick={() => handleBulkAction('cancel')}
-                    style={styles.bulkActionButton}
-                  >
-                    <Trash2 size={16} />
-                    Cancel Selected
-                  </button>
-                  <button
-                    onClick={() => setSelectedBookings([])}
-                    style={styles.bulkActionButtonSecondary}
-                  >
-                    Clear Selection
-                  </button>
-                </div>
-              )}
-              <button
-                onClick={exportBookings}
-                style={styles.exportButton}
-              >
-                <Download size={20} />
-                Export
-              </button>
-              <div style={styles.viewToggle}>
-                <button
-                  onClick={() => setViewMode('table')}
-                  style={{
-                    ...styles.viewToggleButton,
-                    backgroundColor: viewMode === 'table' ? '#3b82f6' : '#f8fafc',
-                    color: viewMode === 'table' ? '#ffffff' : '#64748b'
-                  }}
-                >
-                  Table
-                </button>
-                <button
-                  onClick={() => setViewMode('cards')}
-                  style={{
-                    ...styles.viewToggleButton,
-                    backgroundColor: viewMode === 'cards' ? '#3b82f6' : '#f8fafc',
-                    color: viewMode === 'cards' ? '#ffffff' : '#64748b'
-                  }}
-                >
-                  Cards
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Modern Message Display */}
-        {message && (
-          <div style={styles.messageCard}>
-            <div style={{
-              ...styles.messageContent,
-              backgroundColor: message.type === 'success' ? '#f0f9ff' : '#fef2f2',
-              borderColor: message.type === 'success' ? '#0ea5e9' : '#ef4444',
-            }}>
-              <div style={styles.messageIcon}>
-                {message.type === 'success' ? 
-                  <CheckCircle size={20} style={{ color: '#0ea5e9' }} /> : 
-                  <XCircle size={20} style={{ color: '#ef4444' }} />
-                }
-              </div>
-              <div style={styles.messageText}>
-                {message.text}
-              </div>
-              <button
-                onClick={() => setMessage(null)}
-                style={styles.messageClose}
-              >
-                <XCircle size={16} />
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Modern Tab Navigation */}
         <div style={styles.tabsCard}>
@@ -989,7 +952,7 @@ export default function BookingsPage() {
                 <Calendar size={18} />
                 Active Bookings
                 <span style={styles.tabBadge}>
-                  {bookings.filter(b => b.status !== 'cancelled' && b.status !== 'completed').length}
+                  {activeBookingsCount}
                 </span>
               </button>
               <button
@@ -1028,6 +991,152 @@ export default function BookingsPage() {
           </div>
         </div>
 
+        {/* Enhanced Search and Filters Section */}
+        <div style={styles.filtersCard}>
+          <div style={styles.filtersHeader}>
+            <div style={styles.filtersTopRow}>
+              <div style={styles.searchContainer}>
+                <Search size={20} style={styles.searchIcon} />
+                <input
+                  type="text"
+                  placeholder="Search by guest name..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  style={styles.searchInput}
+                />
+              </div>
+
+              <div style={styles.quickFilters}>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  style={styles.quickFilterSelect}
+                >
+                  <option value="">All Statuses</option>
+                  <option value="confirmed">Confirmed</option>
+                  <option value="pending">Pending</option>
+                  <option value="cancelled">Cancelled</option>
+                  <option value="completed">Completed</option>
+                </select>
+
+                <select
+                  value={filterPaymentOption}
+                  onChange={(e) => setFilterPaymentOption(e.target.value)}
+                  style={styles.quickFilterSelect}
+                >
+                  <option value="">All Payment Options</option>
+                  <option value="full">Full Payment</option>
+                  <option value="partial">Partial Payment</option>
+                  <option value="deposit">Deposit Only</option>
+                </select>
+
+                <select
+                  value={filterPaymentMethod}
+                  onChange={(e) => setFilterPaymentMethod(e.target.value)}
+                  style={styles.quickFilterSelect}
+                >
+                  <option value="">All Payment Methods</option>
+                  <option value="cash">Cash</option>
+                  <option value="card">Card</option>
+                  <option value="bank">Bank Transfer</option>
+                  <option value="gcash">GCash</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={styles.filtersBottomRow}>
+              <button
+                onClick={() => {
+                  setShowCreateBookingModal(true);
+                }}
+                style={styles.addBookingButton}
+              >
+                <Plus size={20} />
+                Create Booking
+              </button>
+
+              <div style={styles.filterActions}>
+                {selectedBookings.length > 0 && (
+                  <div style={styles.bulkActionsContainer}>
+                    <span style={styles.selectedCount}>
+                      {selectedBookings.length} selected
+                    </span>
+                    <button
+                      onClick={() => handleBulkAction('cancel')}
+                      style={styles.bulkActionButton}
+                    >
+                      <Trash2 size={16} />
+                      Cancel Selected
+                    </button>
+                    <button
+                      onClick={() => setSelectedBookings([])}
+                      style={styles.bulkActionButtonSecondary}
+                    >
+                      Clear Selection
+                    </button>
+                  </div>
+                )}
+                <button
+                  onClick={exportBookings}
+                  style={styles.exportButton}
+                >
+                  <Download size={20} />
+                  Export
+                </button>
+                <div style={styles.viewToggle}>
+                  <button
+                    onClick={() => setViewMode('table')}
+                    style={{
+                      ...styles.viewToggleButton,
+                      backgroundColor: viewMode === 'table' ? '#d79a2b' : '#f8fafc',
+                      color: viewMode === 'table' ? '#ffffff' : '#64748b'
+                    }}
+                  >
+                    Table
+                  </button>
+                  <button
+                    onClick={() => setViewMode('cards')}
+                    style={{
+                      ...styles.viewToggleButton,
+                      backgroundColor: viewMode === 'cards' ? '#d79a2b' : '#f8fafc',
+                      color: viewMode === 'cards' ? '#ffffff' : '#64748b'
+                    }}
+                  >
+                    Cards
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Modern Message Display */}
+        {message && (
+          <div style={styles.messageCard}>
+            <div style={{
+              ...styles.messageContent,
+              backgroundColor: message.type === 'success' ? '#f0f9ff' : '#fef2f2',
+              borderColor: message.type === 'success' ? '#0ea5e9' : '#ef4444',
+            }}>
+              <div style={styles.messageIcon}>
+                {message.type === 'success' ? 
+                  <CheckCircle size={20} style={{ color: '#0ea5e9' }} /> : 
+                  <XCircle size={20} style={{ color: '#ef4444' }} />
+                }
+              </div>
+              <div style={styles.messageText}>
+                {message.text}
+              </div>
+              <button
+                onClick={() => setMessage(null)}
+                style={styles.messageClose}
+              >
+                <XCircle size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Create Booking Modal */}
         {showCreateBookingModal && (
           <div
@@ -1050,7 +1159,7 @@ export default function BookingsPage() {
                 backgroundColor: '#FFF8E1',
                 borderRadius: '8px',
                 width: '100%',
-                maxWidth: '700px',
+                maxWidth: '1240px',
                 maxHeight: '90vh',
                 overflowY: 'auto',
                 boxShadow: '0 8px 24px rgba(251, 190, 82, 0.5)',
@@ -1235,12 +1344,13 @@ export default function BookingsPage() {
                 {createBookingStep === 1 && (
                   <>
                     <div style={{ marginBottom: '20px' }}>
-                      <div style={{ display: 'flex', gap: '15px', marginBottom: '20px', alignItems: 'flex-start' }}>
-                        <div style={{ flex: '0 0 300px' }}>
+                      <div style={{ display: 'flex', gap: '15px', marginBottom: '20px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                        <div style={{ flex: '1 1 760px', maxWidth: '760px', width: '100%' }}>
                           {/* Left side - Calendar */}
                           <BookingCalendar
                             availabilityData={availabilityData}
                             disabledDates={disabledDates}
+                            minLeadDays={0}
                             onDateChange={({ checkInDate, checkOutDate }) => {
                               setCreateBookingForm(prev => ({
                                 ...prev,
@@ -1253,7 +1363,7 @@ export default function BookingsPage() {
                           />
                         </div>
                         
-                        <div style={{ flex: '1' }}>
+                        <div style={{ flex: '1 1 320px', minWidth: '300px' }}>
                           {/* Right side - Guest Info and Dates */}
                           <div style={{ 
                             backgroundColor: '#FFF7ED',
@@ -1842,11 +1952,6 @@ export default function BookingsPage() {
                                         <strong>Room Summary:</strong> {roomData.adults} Adult{roomData.adults !== 1 ? 's' : ''}
                                         {roomData.additionalPax > 0 && ` + ${roomData.additionalPax} Extra`}
                                         {roomData.children > 0 && `, ${roomData.children} ${roomData.children === 1 ? 'Child' : 'Children'}`}
-                                        {roomData.additionalPax > 0 && (
-                                          <div style={{ marginTop: '4px', color: '#059669', fontWeight: '600' }}>
-                                            ✓ {roomData.additionalPax} extra bed{roomData.additionalPax !== 1 ? 's' : ''} included
-                                          </div>
-                                        )}
                                       </div>
                                     </div>
                                   );
@@ -1887,11 +1992,6 @@ export default function BookingsPage() {
                                 {roomTypeName} #{roomData.instanceNumber} ({roomData.adults} adults
                                 {roomData.additionalPax > 0 && ` +${roomData.additionalPax} extra`}
                                 {roomData.children > 0 && `, ${roomData.children} ${roomData.children === 1 ? 'child' : 'children'}`})
-                                {roomData.additionalPax > 0 && (
-                                  <div style={{ fontSize: '11px', color: '#059669', marginTop: '2px' }}>
-                                    ✓ {roomData.additionalPax} extra bed{roomData.additionalPax !== 1 ? 's' : ''}
-                                  </div>
-                                )}
                               </div>
                             );
                           })}
@@ -2376,7 +2476,7 @@ export default function BookingsPage() {
                               </td>
                               <td style={styles.tableCell}>
                                 <div style={styles.totalAmount}>
-                                  ₱{(Number(booking.totalCostWithAddons || booking.totalPrice) / 100).toLocaleString()}
+                                  ₱{(Number(booking.totalAfterDiscount || booking.totalCostWithAddons || booking.totalPrice) / 100).toLocaleString()}
                                 </div>
                               </td>
                               <td style={styles.tableCell}>
@@ -2507,10 +2607,10 @@ export default function BookingsPage() {
                           </div>
                           <div style={styles.cardRow}>
                             <div style={styles.cardIcon}>
-                              <DollarSign size={16} />
+                              <span style={{ fontSize: '16px', fontWeight: 700, lineHeight: 1 }}>₱</span>
                             </div>
                             <div>
-                              <strong>Total:</strong> ₱{(Number(booking.totalCostWithAddons || booking.totalPrice) / 100).toLocaleString()}
+                              <strong>Total:</strong> ₱{(Number(booking.totalAfterDiscount || booking.totalCostWithAddons || booking.totalPrice) / 100).toLocaleString()}
                             </div>
                           </div>
                         </div>
@@ -2885,7 +2985,7 @@ export default function BookingsPage() {
                     }}
                     style={{
                       padding: '10px 20px',
-                      backgroundColor: '#3b82f6',
+                      backgroundColor: '#d79a2b',
                       color: '#fff',
                       border: 'none',
                       borderRadius: '4px',
@@ -2953,9 +3053,7 @@ export default function BookingsPage() {
                           });
                           return;
                         }
-                        await handleCheckIn(currentBooking.id);
-                        setShowDetailsModal(false);
-                        setCurrentBooking(null);
+                        openCheckActionModal('checkin', currentBooking);
                       }}
                       style={{
                         padding: '10px 20px',
@@ -3001,9 +3099,7 @@ export default function BookingsPage() {
                         });
                         return;
                       }
-                      await handleCheckOut(currentBooking.id);
-                      setShowDetailsModal(false);
-                      setCurrentBooking(null);
+                      openCheckActionModal('checkout', currentBooking);
                     }}
                     style={{
                       padding: '10px 20px',
@@ -3036,6 +3132,72 @@ export default function BookingsPage() {
             setCurrentBooking(null);
           }}
         />
+
+        {/* Check-in / Check-out Confirmation Modal */}
+        {checkActionModal.show && (
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              background: 'rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 1100,
+              padding: '1rem',
+            }}
+          >
+            <div
+              style={{
+                background: '#fff',
+                borderRadius: '10px',
+                width: '100%',
+                maxWidth: '460px',
+                padding: '1.2rem',
+                boxShadow: '0 16px 40px rgba(0,0,0,0.2)',
+              }}
+            >
+              <h3 style={{ marginTop: 0, marginBottom: '0.75rem' }}>
+                Confirm {checkActionModal.action === 'checkin' ? 'Check In' : 'Check Out'}
+              </h3>
+              <p style={{ marginBottom: '1rem', color: '#374151' }}>
+                {`Are you sure you want to ${checkActionModal.action === 'checkin' ? 'check in' : 'check out'} `}
+                <strong>{checkActionModal.guestName || `Booking #${checkActionModal.bookingId}`}</strong>?
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
+                <button
+                  onClick={closeCheckActionModal}
+                  style={{
+                    padding: '0.55rem 0.95rem',
+                    borderRadius: '6px',
+                    border: '1px solid #d1d5db',
+                    background: '#fff',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmCheckAction}
+                  style={{
+                    padding: '0.55rem 0.95rem',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: checkActionModal.action === 'checkin' ? '#56A86B' : '#E74C3C',
+                    color: '#fff',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                  }}
+                >
+                  Confirm
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Edit Booking Date Modal */}
         <EditBookingDateModal
@@ -3161,6 +3323,17 @@ export default function BookingsPage() {
               <div style={{ marginBottom: '10px' }}>
                 <strong>Total Price:</strong> ₱{(Number(historyBookingDetails.totalPrice) / 100).toFixed(0)}
               </div>
+              {(() => {
+                const baseTotal = Number(historyBookingDetails.totalBeforeDiscount || historyBookingDetails.totalPrice || 0);
+                const finalTotal = Number(historyBookingDetails.totalAfterDiscount || historyBookingDetails.totalPrice || 0);
+                const discountAmount = Number(historyBookingDetails.discountAmount || Math.max(0, baseTotal - finalTotal));
+                if (discountAmount <= 0) return null;
+                return (
+                  <div style={{ marginBottom: '10px', color: '#b45309' }}>
+                    <strong>Promotion Discount:</strong> -₱{(discountAmount / 100).toFixed(0)}
+                  </div>
+                );
+              })()}
               {historyBookingDetails.optionalAmenities && Array.isArray(historyBookingDetails.optionalAmenities) && historyBookingDetails.optionalAmenities.length > 0 && (
                 <div style={{ marginBottom: '10px' }}>
                   <strong>Optional Amenities:</strong>
@@ -3289,7 +3462,7 @@ export default function BookingsPage() {
               </div>
               
               <div style={{ color: '#64748b', textAlign: 'center', padding: '2rem' }}>
-                <Edit size={48} style={{ marginBottom: '1rem', color: '#3b82f6' }} />
+                <Edit size={48} style={{ marginBottom: '1rem', color: '#d79a2b' }} />
                 <p>Edit booking functionality coming soon...</p>
                 <p>Guest: {currentBooking.guestName}</p>
                 <p>Room: {currentBooking.roomNumber}</p>
@@ -3704,7 +3877,7 @@ ${currentBooking.id},${currentBooking.guestName},${currentBooking.checkInDate},$
                   </div>
                 ) : (
                   <div style={{ backgroundColor: '#dbeafe', borderRadius: '50%', padding: '8px' }}>
-                    <Info size={24} color="#2563eb" />
+                    <Info size={24} color="#d79a2b" />
                   </div>
                 )}
                 <h3 style={{
@@ -3752,24 +3925,24 @@ ${currentBooking.id},${currentBooking.guestName},${currentBooking.checkInDate},$
 const styles = {
   container: {
     padding: '0',
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#f9fafb',
     minHeight: '100vh',
   },
   
   // Header Section
   header: {
-  background: 'linear-gradient(135deg, #FEBE52 0%, #E89C1A 100%)',
+    background: '#d79a2b',
     color: '#ffffff',
     padding: '2rem 2rem 3rem',
-    borderRadius: '0 0 24px 24px',
+    borderRadius: '0',
     marginBottom: '2rem',
   },
   headerContent: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'flex-end',
-    maxWidth: '1400px',
-    margin: '0 auto',
+    maxWidth: '100%',
+    margin: 0,
   },
   titleSection: {
     flex: 1,
@@ -3782,9 +3955,10 @@ const styles = {
   },
   subtitle: {
     fontSize: '1.125rem',
-    opacity: 0.9,
+    opacity: 1,
+    color: 'rgba(255,255,255,0.92)',
     margin: 0,
-    fontWeight: '400',
+    fontWeight: '600',
   },
   headerActions: {
     display: 'flex',
@@ -3797,9 +3971,9 @@ const styles = {
     gap: '0.5rem',
     padding: '0.75rem 1.5rem',
     backgroundColor: '#ffffff',
-    color: '#667eea',
+    color: '#5b3f00',
     border: 'none',
-    borderRadius: '12px',
+    borderRadius: '10px',
     fontSize: '1rem',
     fontWeight: '600',
     cursor: 'pointer',
@@ -3811,36 +3985,34 @@ const styles = {
     alignItems: 'center',
     gap: '0.5rem',
     padding: '0.75rem 1.5rem',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    color: '#ffffff',
-    border: '1px solid rgba(255,255,255,0.3)',
-    borderRadius: '12px',
+    backgroundColor: 'rgba(255,255,255,0.75)',
+    color: '#5b3f00',
+    border: '1px solid #d6a53b',
+    borderRadius: '8px',
     fontSize: '1rem',
     fontWeight: '500',
     cursor: 'pointer',
     transition: 'all 0.2s ease',
-    backdropFilter: 'blur(10px)',
   },
   iconButton: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: '48px',
-    height: '48px',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    color: '#ffffff',
-    border: '1px solid rgba(255,255,255,0.3)',
-    borderRadius: '12px',
+    gap: '0.5rem',
+    padding: '0.75rem 1rem',
+    backgroundColor: 'rgba(255,255,255,0.75)',
+    color: '#5b3f00',
+    border: '1px solid #d6a53b',
+    borderRadius: '8px',
     cursor: 'pointer',
     transition: 'all 0.2s ease',
-    backdropFilter: 'blur(10px)',
   },
   
   // KPI Section
   kpiSection: {
-    maxWidth: '1400px',
-    margin: '0 auto 2rem',
-    padding: '0 2rem',
+    maxWidth: '100%',
+    margin: '0 0 1.25rem',
+    padding: '0',
   },
   kpiGrid: {
     display: 'grid',
@@ -3871,7 +4043,7 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    color: '#0284c7',
+    color: '#b7791f',
   },
   kpiInfo: {
     flex: 1,
@@ -3884,7 +4056,7 @@ const styles = {
   },
   kpiLabel: {
     fontSize: '0.875rem',
-    color: '#64748b',
+    color: '#334155',
     margin: 0,
     fontWeight: '500',
   },
@@ -3896,9 +4068,9 @@ const styles = {
   
   // Filters Section
   filtersCard: {
-    maxWidth: '1400px',
-    margin: '0 auto 2rem',
-    padding: '0 2rem',
+    maxWidth: '100%',
+    margin: '0 0 1.25rem',
+    padding: '0',
   },
   filtersHeader: {
     backgroundColor: '#ffffff',
@@ -3907,16 +4079,29 @@ const styles = {
     boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
     border: '1px solid #e2e8f0',
     display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+  },
+  filtersTopRow: {
+    width: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+    alignItems: 'flex-start',
+  },
+  filtersBottomRow: {
+    width: '100%',
+    display: 'flex',
+    gap: '0.75rem',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: '1rem',
     flexWrap: 'wrap',
   },
   searchContainer: {
     position: 'relative',
-    flex: '1 1 300px',
-    minWidth: '250px',
-    maxWidth: '400px',
+    width: '100%',
+    minWidth: 0,
+    maxWidth: '520px',
   },
   searchIcon: {
     position: 'absolute',
@@ -3928,25 +4113,27 @@ const styles = {
   },
   searchInput: {
     width: '100%',
+    boxSizing: 'border-box',
     padding: '0.75rem 1rem 0.75rem 3rem',
-    border: '2px solid #e2e8f0',
+    border: '2px solid #cbd5e1',
     borderRadius: '12px',
     fontSize: '1rem',
     backgroundColor: '#f8fafc',
     transition: 'all 0.2s ease',
     outline: 'none',
     '&:focus': {
-      borderColor: '#3b82f6',
+      borderColor: '#d79a2b',
       backgroundColor: '#ffffff',
-      boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.1)',
+      boxShadow: '0 0 0 3px rgba(215, 154, 43, 0.15)',
     },
   },
   quickFilters: {
-    display: 'flex',
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
     alignItems: 'center',
     gap: '0.75rem',
-    flexShrink: 0,
-    flexWrap: 'wrap',
+    width: '100%',
+    minWidth: 0,
   },
   quickFilterSelect: {
     padding: '0.75rem 1rem',
@@ -3954,30 +4141,34 @@ const styles = {
     borderRadius: '12px',
     fontSize: '0.875rem',
     backgroundColor: '#ffffff',
-    color: '#475569',
+    color: '#1e293b',
     cursor: 'pointer',
     transition: 'all 0.2s ease',
     outline: 'none',
-    minWidth: '140px',
+    minWidth: 0,
+    width: '100%',
     '&:hover': {
       borderColor: '#cbd5e1',
       backgroundColor: '#f8fafc',
     },
     '&:focus': {
-      borderColor: '#3b82f6',
-      boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.1)',
+      borderColor: '#d79a2b',
+      boxShadow: '0 0 0 3px rgba(215, 154, 43, 0.15)',
     },
   },
   addBookingButton: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: '48px',
-    height: '48px',
+    gap: '0.5rem',
+    height: '46px',
+    padding: '0 1rem',
     backgroundColor: '#10b981',
     color: '#ffffff',
     border: 'none',
-    borderRadius: '50%',
+    borderRadius: '12px',
+    fontSize: '0.875rem',
+    fontWeight: '600',
     cursor: 'pointer',
     transition: 'all 0.2s ease',
     boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
@@ -3991,6 +4182,7 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '1rem',
+    marginLeft: 'auto',
     flexWrap: 'wrap',
   },
   filterButton: {
@@ -4086,9 +4278,9 @@ const styles = {
   
   // Message Card
   messageCard: {
-    maxWidth: '1400px',
-    margin: '0 auto 1.5rem',
-    padding: '0 2rem',
+    maxWidth: '100%',
+    margin: '0 0 1rem',
+    padding: '0',
   },
   messageContent: {
     display: 'flex',
@@ -4124,9 +4316,9 @@ const styles = {
   
   // Tabs
   tabsCard: {
-    maxWidth: '1400px',
-    margin: '0 auto 2rem',
-    padding: '0 2rem',
+    maxWidth: '100%',
+    margin: '0 0 1.25rem',
+    padding: '0',
   },
   tabsContainer: {
     backgroundColor: '#ffffff',
@@ -4141,7 +4333,7 @@ const styles = {
   tabsList: {
     display: 'flex',
     gap: '0.5rem',
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#f0f4f8',
     borderRadius: '12px',
     padding: '0.5rem',
   },
@@ -4160,9 +4352,9 @@ const styles = {
     color: '#64748b',
   },
   tabButtonActive: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#d79a2b',
     color: '#ffffff',
-    boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
   },
   tabBadge: {
     backgroundColor: 'rgba(255,255,255,0.2)',
@@ -4182,16 +4374,16 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '0.5rem',
-    color: '#64748b',
+    color: '#334155',
     fontSize: '0.875rem',
     fontWeight: '500',
   },
   
   // Modern Table Styles
   bookingsCard: {
-    maxWidth: '1400px',
-    margin: '0 auto 2rem',
-    padding: '0 2rem',
+    maxWidth: '100%',
+    margin: '0 0 1.25rem',
+    padding: '0',
   },
   tableContainer: {
     backgroundColor: '#ffffff',
@@ -4279,7 +4471,7 @@ const styles = {
     width: '40px',
     height: '40px',
     borderRadius: '50%',
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#d79a2b',
     color: '#ffffff',
     display: 'flex',
     alignItems: 'center',
@@ -4457,7 +4649,7 @@ const styles = {
     width: '48px',
     height: '48px',
     borderRadius: '50%',
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#d79a2b',
     color: '#ffffff',
     display: 'flex',
     alignItems: 'center',
@@ -4512,7 +4704,7 @@ const styles = {
     justifyContent: 'center',
     gap: '0.5rem',
     padding: '0.75rem',
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#d79a2b',
     color: '#ffffff',
     border: 'none',
     borderRadius: '8px',
@@ -4540,9 +4732,9 @@ const styles = {
   
   // Pagination Styles
   paginationContainer: {
-    maxWidth: '1400px',
-    margin: '2rem auto 0',
-    padding: '0 2rem',
+    maxWidth: '100%',
+    margin: '1rem 0 0',
+    padding: '0',
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -4566,9 +4758,9 @@ const styles = {
     transition: 'all 0.2s ease',
   },
   paginationButtonActive: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#d79a2b',
     color: '#ffffff',
-    border: '1px solid #3b82f6',
+    border: '1px solid #d79a2b',
   },
   
   // Bulk Actions Styles

@@ -22,9 +22,12 @@ import {
   ChevronRight,
   MoreVertical
 } from 'lucide-react';
+import { useStaffNotifications } from '@/hooks/usePusher';
+import { useToast } from '@/components/Toast';
 
 export default function NotificationsPage() {
   const router = useRouter();
+  const { success, warning, info } = useToast();
   const [notifications, setNotifications] = useState([]);
   const [filteredNotifications, setFilteredNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -40,6 +43,33 @@ export default function NotificationsPage() {
   useEffect(() => {
     filterNotifications();
   }, [notifications, filter, searchTerm]);
+
+  // 🔔 PUSHER: Listen for real-time notifications
+  useStaffNotifications('SUPERADMIN', (notification) => {
+    if (!notification) return;
+    
+    console.log('[Pusher] New SuperAdmin notification received:', notification.type);
+    
+    // Add new notification to the top of the list (mark as unread)
+    const newNotification = {
+      id: Math.random().toString(36).substr(2, 9),
+      message: notification.message || 'New notification',
+      type: notification.type || 'notification',
+      isRead: false,
+      createdAt: new Date().toISOString(),
+    };
+
+    const notifType = String(newNotification.type || '').toLowerCase();
+    if (notifType.includes('denied') || notifType.includes('cancelled') || notifType.includes('failed')) {
+      warning(newNotification.message, { title: 'Live Update' });
+    } else if (notifType.includes('approved') || notifType.includes('received') || notifType.includes('created') || notifType.includes('updated')) {
+      success(newNotification.message, { title: 'Live Update' });
+    } else {
+      info(newNotification.message, { title: 'Live Update' });
+    }
+    
+    setNotifications((prev) => [newNotification, ...prev]);
+  });
 
   const fetchNotifications = async () => {
     try {

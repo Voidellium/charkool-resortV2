@@ -84,6 +84,9 @@ export async function POST(req) {
         provider: paymentMethod ? (paymentMethod === 'gcash' || paymentMethod === 'paymaya' ? 'paymongo' : paymentMethod) : payment.provider,
         method: paymentMethod || payment.method,
         referenceId: referenceNo || payment.referenceId,
+        verificationStatus: 'Verified',
+        verifiedById: session?.user?.id || null,
+        verifiedAt: new Date(),
         updatedAt: new Date(),
       },
     });

@@ -11,23 +11,27 @@ import gsap from "gsap";
 /* ---------- Interior Camera Configuration per Room Type ---------- */
 const INTERIOR_CAMERA_CONFIG = {
   Teepee: {
-    // Teepee is smaller, camera needs to be closer and centered
-    positionMultiplier: { y: 0.4, z: 0.4 },
-    targetOffset: { x: 0, y: 0, z: 0 }
+    // Teepee needs very close framing and tighter radius clamp
+    positionMultiplier: { y: 0.16, z: 0.2 },
+    targetOffset: { x: 0, y: 0, z: 0 },
+    radiusClamp: { min: 2.8, max: 9 }
   },
   Loft: {
-    // Loft has vertical space, adjust for better view
-    positionMultiplier: { y: 0.35, z: 0.45 },
-    targetOffset: { x: 0, y: 0, z: 0 }
+    // Loft also benefits from tighter interior framing
+    positionMultiplier: { y: 0.2, z: 0.26 },
+    targetOffset: { x: 0, y: 0, z: 0 },
+    radiusClamp: { min: 3.2, max: 11 }
   },
   Villa: {
     // Villa is larger, needs moderate distance
     positionMultiplier: { y: 0.3, z: 0.5 },
-    targetOffset: { x: 0, y: 0, z: 0 }
+    targetOffset: { x: 0, y: 0, z: 0 },
+    radiusClamp: { min: 4, max: 28 }
   },
   default: {
     positionMultiplier: { y: 0.3, z: 0.5 },
-    targetOffset: { x: 0, y: 0, z: 0 }
+    targetOffset: { x: 0, y: 0, z: 0 },
+    radiusClamp: { min: 3, max: 20 }
   }
 };
 
@@ -414,6 +418,7 @@ function Model({ url, onObjectClick, onPositionsComputed, onError }) {
   useEffect(() => {
     if (!gltf || !onPositionsComputed) return;
     const pos = {};
+    const meshStats = [];
     gltf.scene.traverse((child) => {
       if ((child.isMesh || child.isGroup) && child.name) {
         const box = new THREE.Box3().setFromObject(child);
@@ -424,13 +429,48 @@ function Model({ url, onObjectClick, onPositionsComputed, onError }) {
           center: [center.x, center.y, center.z],
           radius: radius * 1.5
         };
+
+        if (child.isMesh) {
+          const diagonal = size.length();
+          const volume = size.x * size.y * size.z;
+          if (Number.isFinite(diagonal) && diagonal > 0.001 && Number.isFinite(volume) && volume > 0) {
+            meshStats.push({ center, diagonal, volume });
+          }
+        }
       }
     });
-    const overallBox = new THREE.Box3().setFromObject(gltf.scene);
-    const overallCenter = overallBox.getCenter(new THREE.Vector3());
-    const overallSize = overallBox.getSize(new THREE.Vector3());
-    const overallRadius = Math.max(overallSize.x, overallSize.y, overallSize.z) * 1.5;
-    pos.overall = { center: [overallCenter.x, overallCenter.y, overallCenter.z], radius: overallRadius };
+
+    if (meshStats.length > 0) {
+      const weightedCenter = new THREE.Vector3();
+      let totalWeight = 0;
+
+      for (const item of meshStats) {
+        const weight = Math.max(item.volume, 0.0001);
+        weightedCenter.add(item.center.clone().multiplyScalar(weight));
+        totalWeight += weight;
+      }
+
+      weightedCenter.divideScalar(totalWeight || 1);
+
+      const spread = meshStats
+        .map((item) => item.center.distanceTo(weightedCenter) + item.diagonal * 0.5)
+        .sort((a, b) => a - b);
+
+      const p85Index = Math.min(spread.length - 1, Math.floor(spread.length * 0.85));
+      const robustRadius = Math.max(3, (spread[p85Index] || 10) * 1.25);
+
+      pos.overall = {
+        center: [weightedCenter.x, weightedCenter.y, weightedCenter.z],
+        radius: robustRadius,
+      };
+    } else {
+      const overallBox = new THREE.Box3().setFromObject(gltf.scene);
+      const overallCenter = overallBox.getCenter(new THREE.Vector3());
+      const overallSize = overallBox.getSize(new THREE.Vector3());
+      const overallRadius = Math.max(overallSize.x, overallSize.y, overallSize.z) * 1.5;
+      pos.overall = { center: [overallCenter.x, overallCenter.y, overallCenter.z], radius: overallRadius };
+    }
+
     onPositionsComputed(pos);
   }, [gltf, onPositionsComputed]);
 
@@ -514,6 +554,13 @@ function AnimatedControls({ target, position, isLocked, onAnimationStart, onAnim
       prevPosition.current = position;
     }
   }, [target, position, onAnimationStart]);
+
+  useEffect(() => {
+    if (!controlsRef.current || viewMode !== 'interior') return;
+    camera.position.set(position[0], position[1], position[2]);
+    controlsRef.current.target.set(target[0], target[1], target[2]);
+    controlsRef.current.update();
+  }, [camera, position, target, viewMode]);
 
   // WASD keyboard navigation
   useEffect(() => {
@@ -751,6 +798,9 @@ function EnhancedThreeDModelViewerInner({ selectedObject: externalSelected, onSe
         // Get room-specific config or use default
         const roomName = objectName || 'default';
         const config = INTERIOR_CAMERA_CONFIG[roomName] || INTERIOR_CAMERA_CONFIG.default;
+        const minRadius = config.radiusClamp?.min ?? 3;
+        const maxRadius = config.radiusClamp?.max ?? 20;
+        const interiorRadius = Math.min(Math.max(radius, minRadius), maxRadius);
         
         // Calculate target with offset (where camera looks at)
         const targetX = center[0] + config.targetOffset.x;
@@ -758,8 +808,8 @@ function EnhancedThreeDModelViewerInner({ selectedObject: externalSelected, onSe
         const targetZ = center[2] + config.targetOffset.z;
         
         // Calculate camera position using room-specific multipliers
-        const posY = center[1] + radius * config.positionMultiplier.y;
-        const posZ = center[2] + radius * config.positionMultiplier.z;
+        const posY = center[1] + interiorRadius * config.positionMultiplier.y;
+        const posZ = center[2] + interiorRadius * config.positionMultiplier.z;
         
         return {
           target: [targetX, targetY, targetZ],
@@ -921,9 +971,12 @@ function ControlsStarter({ initialReady, overall, animatedTarget, animatedPositi
       // Use room-specific config for interior views
       const roomName = selectedObject || 'default';
       const config = INTERIOR_CAMERA_CONFIG[roomName] || INTERIOR_CAMERA_CONFIG.default;
+      const minRadius = config.radiusClamp?.min ?? 3;
+      const maxRadius = config.radiusClamp?.max ?? 20;
+      const interiorRadius = Math.min(Math.max(radius, minRadius), maxRadius);
       
-      const posY = cy + radius * config.positionMultiplier.y;
-      const posZ = cz + radius * config.positionMultiplier.z;
+      const posY = cy + interiorRadius * config.positionMultiplier.y;
+      const posZ = cz + interiorRadius * config.positionMultiplier.z;
       startPos = [cx, posY, posZ];
       lookAtPos = [
         cx + config.targetOffset.x,

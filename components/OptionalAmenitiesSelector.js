@@ -4,13 +4,33 @@ import { useState, useEffect } from 'react';
 export default function OptionalAmenitiesSelector({
   selectedAmenities,
   onAmenitiesChange,
+  amenities = null,
   excludedAmenityNames = []
 }) {
   const [optionalAmenities, setOptionalAmenities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const applyExclusions = (amenityList = []) => {
+    const excludedSet = new Set(
+      excludedAmenityNames.map((name) => name.toLowerCase().trim())
+    );
+    excludedSet.add('extra bed');
+
+    return amenityList.filter((amenity) => {
+      const normalizedName = (amenity.name || '').toLowerCase().trim();
+      return !excludedSet.has(normalizedName);
+    });
+  };
+
   useEffect(() => {
+    if (Array.isArray(amenities)) {
+      setOptionalAmenities(applyExclusions(amenities));
+      setLoading(false);
+      setError('');
+      return;
+    }
+
     const loadOptionalAmenities = async () => {
       try {
         setLoading(true);
@@ -18,18 +38,7 @@ export default function OptionalAmenitiesSelector({
 
         if (response.ok) {
           const data = await response.json();
-          // Filter out "Extra Bed" as it's automatically handled by additional pax,
-          // plus any per-page exclusions passed via props.
-          const excludedSet = new Set(
-            excludedAmenityNames.map((name) => name.toLowerCase().trim())
-          );
-          excludedSet.add('extra bed');
-
-          const filtered = data.filter((amenity) => {
-            const normalizedName = (amenity.name || '').toLowerCase().trim();
-            return !excludedSet.has(normalizedName);
-          });
-          setOptionalAmenities(filtered);
+          setOptionalAmenities(applyExclusions(data));
         } else {
           setError('Failed to load optional amenities');
         }
@@ -42,14 +51,41 @@ export default function OptionalAmenitiesSelector({
     };
 
     loadOptionalAmenities();
-  }, []);
+  }, [amenities, excludedAmenityNames]);
+
+  useEffect(() => {
+    let hasAdjustment = false;
+    const adjusted = { ...selectedAmenities };
+
+    for (const amenity of optionalAmenities) {
+      const key = String(amenity.id);
+      const selected = selectedAmenities[key] || selectedAmenities[amenity.id] || 0;
+      const available = Number.isFinite(Number(amenity.quantity)) ? Math.max(0, Number(amenity.quantity)) : 0;
+      const maxAllowed = Math.max(0, Math.min(Number(amenity.maxQuantity) || 0, available));
+
+      if (selected > maxAllowed) {
+        hasAdjustment = true;
+        if (maxAllowed > 0) {
+          adjusted[amenity.id] = maxAllowed;
+        } else {
+          delete adjusted[amenity.id];
+          delete adjusted[key];
+        }
+      }
+    }
+
+    if (hasAdjustment) {
+      onAmenitiesChange(adjusted);
+    }
+  }, [optionalAmenities, onAmenitiesChange, selectedAmenities]);
 
   const handleQuantityChange = (amenityId, newQuantity) => {
     const amenity = optionalAmenities.find(a => a.id === amenityId);
     if (!amenity) return;
 
-    // Ensure quantity doesn't exceed maxQuantity
-    const clampedQuantity = Math.max(0, Math.min(newQuantity, amenity.maxQuantity));
+    const available = Number.isFinite(Number(amenity.quantity)) ? Math.max(0, Number(amenity.quantity)) : 0;
+    const maxAllowed = Math.max(0, Math.min(Number(amenity.maxQuantity) || 0, available));
+    const clampedQuantity = Math.max(0, Math.min(newQuantity, maxAllowed));
 
     const newSelectedAmenities = { ...selectedAmenities };
 
@@ -105,11 +141,15 @@ export default function OptionalAmenitiesSelector({
 
       <div className="amenities-grid">
         {optionalAmenities.map((amenity) => {
-          const currentQuantity = selectedAmenities[amenity.id] || 0;
+          const currentQuantity = selectedAmenities[amenity.id] || selectedAmenities[String(amenity.id)] || 0;
           const isBroomDustpan = amenity.name.toLowerCase().includes('broom') && amenity.name.toLowerCase().includes('dustpan');
+          const available = Number.isFinite(Number(amenity.quantity)) ? Math.max(0, Number(amenity.quantity)) : 0;
+          const maxAllowed = Math.max(0, Math.min(Number(amenity.maxQuantity) || 0, available));
+          const isUnavailable = available <= 0;
+          const isLowAvailability = !isUnavailable && available <= 3;
 
           return (
-            <div key={amenity.id} className="amenity-card">
+            <div key={amenity.id} className={`amenity-card ${isUnavailable ? 'unavailable' : ''}`}>
               <div className="amenity-header">
                 <h5 className="amenity-name">{amenity.name}</h5>
                 {amenity.description && !isBroomDustpan && (
@@ -120,6 +160,9 @@ export default function OptionalAmenitiesSelector({
                     {amenity.description.replace(/\(Quantity:.*?\)/i, '').trim()}
                   </p>
                 )}
+                <p className={`availability-status ${isUnavailable ? 'unavailable' : isLowAvailability ? 'low' : 'available'}`}>
+                  {isUnavailable ? 'Unavailable' : isLowAvailability ? `Only ${available} left` : `${available} available`}
+                </p>
               </div>
 
               {isBroomDustpan ? (
@@ -129,6 +172,7 @@ export default function OptionalAmenitiesSelector({
                     <input
                       type="checkbox"
                       checked={currentQuantity > 0}
+                      disabled={isUnavailable}
                       onChange={(e) => {
                         if (e.target.checked) {
                           onAmenitiesChange({ ...selectedAmenities, [amenity.id]: 1 });
@@ -140,7 +184,7 @@ export default function OptionalAmenitiesSelector({
                       }}
                     />
                     <span className="checkbox-label">
-                      {currentQuantity > 0 ? 'Selected' : 'Select this amenity'}
+                      {isUnavailable ? 'Currently unavailable' : currentQuantity > 0 ? 'Selected' : 'Select this amenity'}
                     </span>
                   </label>
                 </div>
@@ -150,7 +194,7 @@ export default function OptionalAmenitiesSelector({
                   <div className="amenity-controls">
                     <div className="quantity-info">
                       <span className="quantity-label">Quantity:</span>
-                      <span className="max-quantity">Max: {amenity.maxQuantity}</span>
+                      <span className="max-quantity">Max now: {maxAllowed}</span>
                     </div>
 
                     <div className="quantity-selector">
@@ -158,7 +202,7 @@ export default function OptionalAmenitiesSelector({
                         type="button"
                         onClick={() => decrementQuantity(amenity.id)}
                         className="quantity-btn"
-                        disabled={currentQuantity === 0}
+                        disabled={currentQuantity === 0 || isUnavailable}
                       >
                         −
                       </button>
@@ -169,7 +213,7 @@ export default function OptionalAmenitiesSelector({
                         type="button"
                         onClick={() => incrementQuantity(amenity.id)}
                         className="quantity-btn"
-                        disabled={currentQuantity >= amenity.maxQuantity}
+                        disabled={currentQuantity >= maxAllowed || isUnavailable}
                       >
                         +
                       </button>
@@ -237,6 +281,12 @@ export default function OptionalAmenitiesSelector({
           box-shadow: 0 4px 12px rgba(0, 123, 255, 0.25);
         }
 
+        .amenity-card.unavailable {
+          opacity: 0.7;
+          background: #f3f4f6;
+          border-color: #d1d5db;
+        }
+
         .amenity-header {
           margin-bottom: 16px;
         }
@@ -253,6 +303,24 @@ export default function OptionalAmenitiesSelector({
           font-size: 14px;
           color: #666;
           line-height: 1.4;
+        }
+
+        .availability-status {
+          margin: 8px 0 0 0;
+          font-size: 12px;
+          font-weight: 600;
+        }
+
+        .availability-status.available {
+          color: #166534;
+        }
+
+        .availability-status.low {
+          color: #b45309;
+        }
+
+        .availability-status.unavailable {
+          color: #b91c1c;
         }
 
         .amenity-controls {

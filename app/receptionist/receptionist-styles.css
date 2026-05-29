@@ -2,33 +2,34 @@
 
 /* Resort Management System - Aligned with Global Colors */
 :root {
-  /* Primary Brand Colors - Using system globals */
-  --color-primary: #febd52; /* From global --primary-end */
-  --color-primary-hover: #ffb347; /* From global --primary-start */
-  --color-primary-light: #fef3c7;
-  --color-primary-dark: #d97706;
+  /* Super Admin-inspired amber palette */
+  --color-primary: #d79a2b;
+  --color-primary-hover: #c4871d;
+  --color-primary-light: #fff4d6;
+  --color-primary-dark: #8f5a12;
   
-  /* Secondary Colors - Complementary warm tones */
-  --color-secondary: #f59e0b; /* Warm amber for resort feel */
-  --color-secondary-hover: #d97706;
-  --color-secondary-light: #fef3c7;
+  /* Secondary Colors - warm blend endpoint */
+  --color-secondary: #febe52;
+  --color-secondary-hover: #d79a2b;
+  --color-secondary-light: #fff1c2;
   
   /* Status Colors */
   --color-success: #059669; /* Growth & positive action (green) */
   --color-success-hover: #047857;
   --color-success-light: #d1fae5;
   
-  --color-warning: #f59e0b; /* Caution & attention (amber) */
-  --color-warning-hover: #d97706;
+  --color-warning: #d79a2b;
+  --color-warning-hover: #c4871d;
   --color-warning-light: #fef3c7;
+  --color-warning-dark: #8f5a12;
   
   --color-danger: #ff4c4c; /* From global --danger-end */
   --color-danger-hover: #ff6b6b; /* From global --danger-start */
   --color-danger-light: #fee2e2;
   
-  --color-info: #06b6d4; /* From global --accent (cyan) */
-  --color-info-hover: #0891b2;
-  --color-info-light: #cffafe;
+  --color-info: #b7791f;
+  --color-info-hover: #8f5a12;
+  --color-info-light: #fef3c7;
   
   /* Neutral Colors */
   --color-gray-50: #f9fafb;
@@ -51,6 +52,7 @@
   --color-text-primary: #1f2937;
   --color-text-secondary: #6b7280;
   --color-text-muted: #9ca3af;
+  --color-text-tertiary: #9ca3af;
   
   /* Shadows */
   --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
@@ -65,6 +67,7 @@
   --radius-lg: 0.75rem;
   --radius-xl: 1rem;
   --radius-2xl: 1.5rem;
+  --radius-full: 999px;
   
   /* Spacing */
   --space-xs: 0.5rem;
@@ -77,8 +80,8 @@
 
 body {
   margin: 0;
-  background: linear-gradient(135deg, var(--color-gray-50) 0%, var(--color-surface) 100%);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  background: linear-gradient(135deg, #fffaf0 0%, #f8f4ea 55%, #f4efe4 100%);
+  font-family: 'Poppins', 'Segoe UI', Roboto, sans-serif;
   color: var(--color-text-primary);
   line-height: 1.6;
 }
@@ -90,8 +93,8 @@ body {
   left: 0;
   right: 0;
   height: 70px;
-  background: linear-gradient(135deg, var(--color-background) 0%, var(--color-gray-50) 100%);
-  border-bottom: 2px solid var(--color-gray-200);
+  background: linear-gradient(135deg, #ffffff 0%, #fff8ea 100%);
+  border-bottom: 1px solid rgba(215, 154, 43, 0.22);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -111,6 +114,13 @@ body {
   gap: var(--space-md);
 }
 
+.brand-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.05;
+}
+
 .brand-icon {
   width: 32px;
   height: 32px;
@@ -125,6 +135,15 @@ body {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+.brand-subtitle {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #9f7a2f;
+  margin-top: 2px;
 }
 
 .navbar-center {
@@ -164,7 +183,7 @@ body {
 }
 
 .navbar-action-btn:hover {
-  background: var(--color-primary-light);
+  background: #fff7e6;
   border-color: var(--color-primary);
   transform: translateY(-1px);
 }
@@ -249,7 +268,7 @@ body {
   padding: var(--space-md) var(--space-lg);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-sm);
-  border: 1px solid var(--color-gray-200);
+  border: 1px solid rgba(215, 154, 43, 0.22);
 }
 
 .dashboard-title {
@@ -310,7 +329,7 @@ body {
 }
 
 .user-id::before {
-  content: "👤";
+  content: '';
   font-size: 1rem;
 }
 
@@ -320,10 +339,10 @@ body {
 .quick-actions {
   display: flex;
   gap: var(--space-sm);
-  background: var(--color-gray-50);
+  background: linear-gradient(135deg, #fff9ee 0%, #fff3d5 100%);
   padding: var(--space-md);
   border-radius: var(--radius-xl);
-  border: 1px solid var(--color-gray-200);
+  border: 1px solid rgba(215, 154, 43, 0.24);
 }
 
 .quick-action-btn {
@@ -1265,6 +1284,57 @@ body {
   padding: var(--space-lg);
   font-weight: 700;
   font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.notification-header-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95rem;
+  letter-spacing: 0.01em;
+}
+
+.notification-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notification-header-count {
+  min-width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.notification-close-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.notification-close-btn:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.26);
 }
 
 .notification-panel-content {
@@ -2411,4 +2481,112 @@ body {
   .pagination-info {
     order: -1;
   }
+}
+
+/* Final palette alignment overrides (keep at end to override legacy rules) */
+.receptionist-layout {
+  background: linear-gradient(135deg, #fffaf0 0%, #f8f4ea 55%, #f4efe4 100%);
+}
+
+.dashboard-container {
+  max-width: 1480px;
+}
+
+.dashboard-header,
+.recent-bookings-section,
+.booking-management,
+.modal-content,
+.booking-card,
+.recent-booking-card,
+.section-card {
+  border-color: rgba(215, 154, 43, 0.2) !important;
+}
+
+.create-booking-btn,
+.create-booking-button,
+.form-button,
+.btn-primary,
+.notification-panel-header {
+  background: linear-gradient(135deg, #d79a2b 0%, #febe52 100%) !important;
+  color: #ffffff !important;
+}
+
+.action-button.adjust,
+.action-btn.success,
+.notification-action-btn.primary {
+  background: linear-gradient(135deg, #c4871d 0%, #d79a2b 100%) !important;
+  color: #ffffff !important;
+}
+
+.action-button.remarks,
+.action-button.details,
+.action-btn.primary,
+.shift-summary-btn,
+.navbar-action-btn.shift-summary:hover {
+  background: #fff1c2 !important;
+  border-color: #d79a2b !important;
+  color: #8f5a12 !important;
+}
+
+.action-button.print,
+.action-btn.secondary,
+.pagination-btn,
+.sort-order-btn,
+.sort-select {
+  background: #fffbf3 !important;
+  border-color: #e7cf98 !important;
+  color: #6b7280 !important;
+}
+
+.action-button.cancel,
+.action-btn.danger,
+.notification-action-btn.urgent {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+  color: #ffffff !important;
+}
+
+.quick-action-btn {
+  background: #fffdf7;
+  border-color: #e7cf98;
+}
+
+.quick-action-btn.arrivals,
+.quick-action-btn.departures,
+.quick-action-btn.guest-search {
+  background: #fff6df;
+  border-left-color: #d79a2b;
+}
+
+.quick-action-btn.arrivals:hover,
+.quick-action-btn.departures:hover,
+.quick-action-btn.guest-search:hover {
+  background: #d79a2b;
+  border-color: #d79a2b;
+  color: #ffffff;
+}
+
+.kpi-card {
+  background: linear-gradient(145deg, #ffffff 0%, #fff7e8 100%);
+}
+
+.kpi-card::before,
+.kpi-card.bookings::before,
+.kpi-card.revenue::before,
+.kpi-card.occupied::before,
+.kpi-card.available::before {
+  background: linear-gradient(90deg, #d79a2b 0%, #febe52 100%) !important;
+}
+
+.kpi-card-icon {
+  background: linear-gradient(135deg, #fff3d0 0%, #ffe4a8 100%) !important;
+  color: #8f5a12 !important;
+}
+
+.brand-text,
+.header-title,
+.modal-title {
+  background: linear-gradient(135deg, #c4871d 0%, #febe52 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }

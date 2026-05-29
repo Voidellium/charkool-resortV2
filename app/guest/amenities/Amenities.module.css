@@ -1,0 +1,501 @@
+.container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #eff6ff 0%, #e0e7ff 100%);
+  padding: 1.5rem;
+}
+
+.wrapper {
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+.header {
+  margin-bottom: 2rem;
+}
+
+.backLink {
+  color: #4f46e5;
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  display: inline-block;
+  margin-top: 0.5rem;
+}
+
+.backLink:hover {
+  text-decoration: underline;
+}
+
+.title {
+  font-size: 2.25rem;
+  font-weight: bold;
+  color: #1f2937;
+  margin-top: 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .title {
+    font-size: 1.875rem;
+  }
+}
+
+.subtitle {
+  color: #4b5563;
+  margin-top: 0.5rem;
+  font-size: 1rem;
+}
+
+@media (max-width: 768px) {
+  .subtitle {
+    font-size: 0.875rem;
+  }
+}
+
+.searchBar {
+  background-color: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 1rem;
+  margin-bottom: 2rem;
+}
+
+.searchInput {
+  width: 100%;
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+}
+
+.searchInput:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px #4f46e5;
+}
+
+.section {
+  margin-bottom: 2.5rem;
+}
+
+.sectionTitle {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #1f2937;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+}
+
+.sectionBadge {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: bold;
+  margin-bottom: 0;
+}
+
+.sectionBadgeGreen {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.sectionBadgeBlue {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.sectionBadgeOrange {
+  background-color: #fed7aa;
+  color: #9a3412;
+}
+
+.sectionDescription {
+  color: #4b5563;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+@media (min-width: 768px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.card {
+  background-color: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  transition: box-shadow 0.2s ease;
+}
+
+.cardImageWrap {
+  width: 100%;
+  height: 190px;
+  overflow: hidden;
+  background: #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cardImageButton {
+  width: 100%;
+  height: 190px;
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: #f3f4f6;
+  display: block;
+  position: relative;
+  cursor: pointer;
+}
+
+.cardImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.imageHint {
+  position: absolute;
+  bottom: 10px;
+  right: 12px;
+  background: rgba(15, 23, 42, 0.7);
+  color: #f8fafc;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  letter-spacing: 0.2px;
+}
+
+.card:hover {
+  box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+}
+
+.includedCard {
+  border-left: 4px solid #22c55e;
+  padding: 1.5rem;
+}
+
+.cardHeader {
+  background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%);
+  padding: 1rem;
+  text-align: center;
+}
+
+.rentalCardHeader {
+  background: linear-gradient(135deg, #f97316 0%, #fbbf24 100%);
+}
+
+.cardIcon {
+  font-size: 2.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.cardTitle {
+  font-weight: bold;
+  color: white;
+}
+
+.cardContent {
+  padding: 1rem;
+}
+
+.cardContentItem {
+  margin-bottom: 0.75rem;
+}
+
+.cardDescription {
+  color: #4b5563;
+  font-size: 0.875rem;
+}
+
+.stockBadge {
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.stockAvailable {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.stockLow {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.stockCritical {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.stockOutOfStock {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.stockLowStock {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.priceText {
+  font-size: 1.125rem;
+  font-weight: bold;
+  color: #f97316;
+}
+
+.chargeNote {
+  font-size: 0.75rem;
+  background-color: #dbeafe;
+  color: #1e40af;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  text-align: center;
+  font-weight: 500;
+}
+
+.rentalChargeNote {
+  background-color: #ffedd5;
+  color: #9a3412;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 2rem;
+  color: #6b7280;
+}
+
+.ctaSection {
+  background: linear-gradient(135deg, #4f46e5 0%, #2563eb 100%);
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+  padding: 2rem;
+  text-align: center;
+  color: white;
+  margin-bottom: 2rem;
+}
+
+.ctaTitle {
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin-bottom: 0.75rem;
+}
+
+.ctaDescription {
+  margin-bottom: 1.5rem;
+}
+
+.ctaButton {
+  display: inline-block;
+  background-color: white;
+  color: #4f46e5;
+  font-weight: bold;
+  padding: 0.75rem 2rem;
+  border-radius: 0.5rem;
+  text-decoration: none;
+  transition: background-color 0.2s ease;
+}
+
+.ctaButton:hover {
+  background-color: #f3f4f6;
+}
+
+.footerInfo {
+  background-color: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem;
+  text-align: center;
+  color: #4b5563;
+  font-size: 0.875rem;
+}
+
+.footerInfo p {
+  margin: 0;
+}
+
+.footerInfo p:not(:last-child) {
+  margin-bottom: 0.5rem;
+}
+
+.loadingContainer {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #eff6ff 0%, #e0e7ff 100%);
+  padding: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.loadingContent {
+  text-align: center;
+}
+
+.spinner {
+  width: 3rem;
+  height: 3rem;
+  border: 2px solid #e5e7eb;
+  border-top: 2px solid #4f46e5;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loadingText {
+  color: #4b5563;
+}
+
+.includedBadge {
+  display: inline-block;
+  background-color: #dcfce7;
+  color: #166534;
+  padding: 0.5rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.includedIcon {
+  font-size: 2.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.includedName {
+  font-weight: bold;
+  color: #1f2937;
+  font-size: 1.125rem;
+}
+
+.includedDescription {
+  color: #4b5563;
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+}
+
+.previewOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  z-index: 50;
+}
+
+.previewModal {
+  width: min(640px, 92vw);
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.35);
+  overflow: hidden;
+  position: relative;
+}
+
+.previewClose {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 36px;
+  height: 36px;
+  border-radius: 9999px;
+  border: none;
+  background: rgba(15, 23, 42, 0.8);
+  color: #f8fafc;
+  font-size: 1.5rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.previewImageWrap {
+  width: 100%;
+  height: 320px;
+  background: #0f172a;
+}
+
+.previewImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.previewDetails {
+  padding: 1.5rem;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+}
+
+.previewTitle {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.previewDescription {
+  margin: 0 0 1rem 0;
+  color: #475569;
+  font-size: 0.95rem;
+}
+
+.previewMeta {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.previewPrice {
+  font-weight: 700;
+  color: #ea580c;
+  font-size: 1rem;
+}
+
+.previewStock {
+  font-size: 0.85rem;
+  color: #475569;
+  background: #e2e8f0;
+  border-radius: 9999px;
+  padding: 0.25rem 0.6rem;
+}
+
+.previewNote {
+  font-size: 0.85rem;
+  color: #334155;
+  background: #e0f2fe;
+  border-radius: 12px;
+  padding: 0.75rem 0.9rem;
+}

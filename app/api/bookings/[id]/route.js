@@ -12,6 +12,33 @@ function serializeBigInt(obj) {
   ));
 }
 
+function normalizeBookingStatus(status) {
+  if (!status || typeof status !== 'string') return status;
+  const normalized = status.trim().toLowerCase();
+  const map = {
+    held: 'Held',
+    pending: 'Pending',
+    confirmed: 'Confirmed',
+    cancelled: 'Cancelled',
+    canceled: 'Cancelled',
+    completed: 'Completed',
+    expired: 'Expired',
+    cancellationpending: 'CancellationPending',
+    reschedulepending: 'ReschedulePending',
+    checkedin: 'Confirmed',
+    'checked in': 'Confirmed',
+    'checked-in': 'Confirmed',
+    checkedout: 'Confirmed',
+    'checked out': 'Confirmed',
+    'checked-out': 'Confirmed',
+    checkout: 'Confirmed',
+    'check_out': 'Confirmed',
+    noshow: 'Expired',
+    'no-show': 'Expired',
+  };
+  return map[normalized] || status;
+}
+
 // GET booking by ID
 export const GET = async (_, context) => {
   try {
@@ -43,8 +70,15 @@ export const GET = async (_, context) => {
 // PUT update booking
 export const PUT = async (req, context) => {
   try {
+    const session = await getServerSession(authOptions);
+    const actorRole = session?.user?.role;
+    if (!session || !['SUPERADMIN', 'RECEPTIONIST', 'CASHIER'].includes(actorRole)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id } = await context.params;
     const data = await req.json();
+    const requestedStatus = data.status !== undefined ? normalizeBookingStatus(data.status) : undefined;
 
     const updateData = {};
 
@@ -63,13 +97,35 @@ export const PUT = async (req, context) => {
       }
       updateData.checkOut = checkOutDate;
     }
-    if (data.status !== undefined) updateData.status = data.status;
+    if (requestedStatus !== undefined) {
+      const receptionistTryingManualConfirm =
+        actorRole === 'RECEPTIONIST' &&
+        requestedStatus === 'Confirmed' &&
+        data.actualCheckIn !== true &&
+        data.actualCheckOut !== true;
+
+      if (receptionistTryingManualConfirm || (actorRole === 'RECEPTIONIST' && requestedStatus === 'Completed')) {
+        return NextResponse.json(
+          { error: 'Receptionist cannot set booking to Confirmed or Completed' },
+          { status: 403 }
+        );
+      }
+
+      if (actorRole === 'CASHIER' && (requestedStatus === 'Completed' || data.actualCheckIn === true || data.actualCheckOut === true)) {
+        return NextResponse.json(
+          { error: 'Cashier cannot set booking to check-in/check-out/completed states' },
+          { status: 403 }
+        );
+      }
+
+      updateData.status = requestedStatus;
+    }
 
     // Set actualCheckIn and actualCheckOut timestamps for check-in/out actions
-    if (data.status === 'Confirmed' && data.actualCheckIn === true) {
+    if (requestedStatus === 'Confirmed' && data.actualCheckIn === true) {
       updateData.actualCheckIn = new Date();
     }
-    if (data.status === 'CHECKED_OUT' && data.actualCheckOut === true) {
+    if (data.actualCheckOut === true) {
       updateData.actualCheckOut = new Date();
     }
     if (data.paymentStatus !== undefined) updateData.paymentStatus = data.paymentStatus;
@@ -94,7 +150,7 @@ export const PUT = async (req, context) => {
     }
 
     // Handle cancellation logic
-    if (data.status === 'Cancelled') {
+    if (requestedStatus === 'Cancelled') {
       const booking = await prisma.booking.findUnique({
         where: { id: parseInt(id) },
         include: { payments: true },
@@ -213,14 +269,14 @@ export const PUT = async (req, context) => {
     });
 
     // If transitioning to Cancelled or Checked Out and first time checkout, restore stocks
-    if ((data.status === 'Cancelled') || (data.status === 'CHECKED_OUT' && data.actualCheckOut === true)) {
+    if ((requestedStatus === 'Cancelled') || data.actualCheckOut === true) {
       await prisma.$transaction(async (tx) => {
         const b = await tx.booking.findUnique({
           where: { id: parseInt(id) },
           include: { optionalAmenities: true, rentalAmenities: true },
         });
-        const shouldRestoreOnCancel = data.status === 'Cancelled' && b && b.status !== 'Cancelled';
-        const shouldRestoreOnCheckout = data.status === 'CHECKED_OUT' && data.actualCheckOut === true && b && !b.actualCheckOut;
+        const shouldRestoreOnCancel = requestedStatus === 'Cancelled' && b && b.status !== 'Cancelled';
+        const shouldRestoreOnCheckout = data.actualCheckOut === true && b && !b.actualCheckOut;
         if (shouldRestoreOnCancel || shouldRestoreOnCheckout) {
           for (const oa of (b?.optionalAmenities || [])) {
             await tx.optionalAmenity.update({ where: { id: oa.optionalAmenityId }, data: { quantity: { increment: oa.quantity } } });
@@ -252,19 +308,38 @@ export const PUT = async (req, context) => {
       },
     });
 
+    // Auto-complete booking when operations + finance are both complete.
+    if (
+      updatedBookingFull &&
+      !!updatedBookingFull.actualCheckOut &&
+      updatedBookingFull.paymentStatus === 'Paid'
+    ) {
+      const hasFlaggedPayment = (updatedBookingFull.payments || []).some(
+        (p) => p.verificationStatus === 'Flagged'
+      );
+
+      if (!hasFlaggedPayment) {
+        const completedBooking = await prisma.booking.update({
+          where: { id: parseInt(id) },
+          data: { status: 'Completed' },
+        });
+        updatedBookingFull.status = completedBooking.status;
+      }
+    }
+
     // Create notifications for superadmin based on changes
     try {
-      if (data.status && data.status !== 'Cancelled') { // Cancelled already handled above
+      if (requestedStatus && requestedStatus !== 'Cancelled') { // Cancelled already handled above
         await prisma.notification.create({
           data: {
-            message: `Booking from ${new Date(updatedBooking.checkIn).toLocaleDateString('default', { month: 'long', day: 'numeric', year: 'numeric' })} to ${new Date(updatedBooking.checkOut).toLocaleDateString('default', { month: 'long', day: 'numeric', year: 'numeric' })} status updated to ${data.status} for ${updatedBooking.guestName}`,
+            message: `Booking from ${new Date(updatedBooking.checkIn).toLocaleDateString('default', { month: 'long', day: 'numeric', year: 'numeric' })} to ${new Date(updatedBooking.checkOut).toLocaleDateString('default', { month: 'long', day: 'numeric', year: 'numeric' })} status updated to ${requestedStatus} for ${updatedBooking.guestName}`,
             type: 'booking_status_updated',
             role: 'superadmin',
           },
         });
 
         // Notify customer if status is Confirmed and userId exists
-        if (data.status === 'Confirmed' && updatedBooking.userId) {
+        if (requestedStatus === 'Confirmed' && updatedBooking.userId) {
           const checkInStr = new Date(updatedBooking.checkIn).toLocaleDateString('default', { month: 'long', day: 'numeric', year: 'numeric' });
           const checkOutStr = new Date(updatedBooking.checkOut).toLocaleDateString('default', { month: 'long', day: 'numeric', year: 'numeric' });
           const message = `Your booking from ${checkInStr} to ${checkOutStr} has been confirmed.`;
@@ -354,7 +429,7 @@ export const PUT = async (req, context) => {
         }
       }
 
-      const action = (data.status === 'Cancelled') ? 'CANCEL' : 'UPDATE';
+      const action = (requestedStatus === 'Cancelled') ? 'CANCEL' : 'UPDATE';
       const details = changes.length ? changes.join('; ') : `Updated booking ${updatedBooking.id}`;
 
       // Prepare structured before/after details for the audit
@@ -384,20 +459,20 @@ export const PUT = async (req, context) => {
         guestName: updatedBooking.guestName,
         checkIn: updatedBooking.checkIn,
         checkOut: updatedBooking.checkOut,
-        status: updatedBooking.status,
-        paymentStatus: updatedBooking.paymentStatus,
+        status: updatedBookingFull?.status || updatedBooking.status,
+        paymentStatus: updatedBookingFull?.paymentStatus || updatedBooking.paymentStatus,
       };
 
       // Determine which event to broadcast
-      if (data.status === 'Cancelled') {
+      if (updatedBookingFull.status === 'Cancelled') {
         await triggerEvent(CHANNELS.BOOKINGS, EVENTS.BOOKING_CANCELLED, pusherData);
         await notifyStaff('RECEPTIONIST', { type: 'booking', message: `Booking cancelled for ${updatedBooking.guestName}`, ...pusherData });
         await notifyStaff('CASHIER', { type: 'booking', message: `Booking cancelled for ${updatedBooking.guestName}`, ...pusherData });
-      } else if (data.status === 'Confirmed' && data.actualCheckIn) {
+      } else if (data.actualCheckOut === true) {
+        await triggerEvent(CHANNELS.BOOKINGS, EVENTS.BOOKING_CHECKED_OUT, pusherData);
+      } else if (data.actualCheckIn === true) {
         await triggerEvent(CHANNELS.BOOKINGS, EVENTS.BOOKING_CHECKED_IN, pusherData);
         await notifyStaff('CASHIER', { type: 'checkin', message: `${updatedBooking.guestName} has checked in`, ...pusherData });
-      } else if (data.status === 'CHECKED_OUT' && data.actualCheckOut) {
-        await triggerEvent(CHANNELS.BOOKINGS, EVENTS.BOOKING_CHECKED_OUT, pusherData);
       } else {
         await triggerEvent(CHANNELS.BOOKINGS, EVENTS.BOOKING_UPDATED, pusherData);
       }
@@ -406,9 +481,9 @@ export const PUT = async (req, context) => {
       if (updatedBooking.userId) {
         await notifyUser(updatedBooking.userId, EVENTS.BOOKING_STATUS_CHANGED, {
           bookingId: updatedBooking.id,
-          status: updatedBooking.status,
-          paymentStatus: updatedBooking.paymentStatus,
-          message: `Your booking status has been updated to: ${updatedBooking.status}`,
+          status: updatedBookingFull?.status || updatedBooking.status,
+          paymentStatus: updatedBookingFull?.paymentStatus || updatedBooking.paymentStatus,
+          message: `Your booking status has been updated to: ${updatedBookingFull?.status || updatedBooking.status}`,
         });
       }
 
@@ -416,7 +491,7 @@ export const PUT = async (req, context) => {
       await triggerEvent(CHANNELS.AVAILABILITY, EVENTS.AVAILABILITY_CHANGED, {
         checkIn: updatedBooking.checkIn,
         checkOut: updatedBooking.checkOut,
-        action: data.status === 'Cancelled' ? 'released' : 'updated',
+        action: requestedStatus === 'Cancelled' ? 'released' : 'updated',
       });
 
       console.log('[Pusher] Broadcasted booking update event');

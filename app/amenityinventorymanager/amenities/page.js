@@ -2,17 +2,7 @@
 import { useEffect, useState } from 'react';
 import { RefreshCw, Edit, Trash2, Plus, X } from 'lucide-react';
 
-// Add spinner animation styles
-if (typeof document !== 'undefined') {
-  const style = document.createElement('style');
-  style.textContent = `
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-  `;
-  document.head.appendChild(style);
-}
+const HIDDEN_AMENITIES = new Set(['broom & dustpan', 'toiletries kit', 'karaoke']);
 
 export default function AmenityInventoryPage() {
   const [amenities, setAmenities] = useState([]);
@@ -36,7 +26,10 @@ export default function AmenityInventoryPage() {
       // Add category field for UI
       const optWithCat = (optional || []).map(a => ({ ...a, category: 'optional' }));
       const rentWithCat = (rental || []).map(a => ({ ...a, category: 'rental' }));
-      const merged = [...optWithCat, ...rentWithCat];
+      const merged = [...optWithCat, ...rentWithCat].filter((amenity) => {
+        const normalizedName = amenity?.name?.trim().toLowerCase();
+        return normalizedName && !HIDDEN_AMENITIES.has(normalizedName);
+      });
       setAmenities(merged);
     } catch (err) {
       console.error('Fetch error:', err);
@@ -257,6 +250,13 @@ export default function AmenityInventoryPage() {
       </div>
         </>
       )}
+
+      <style jsx>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }

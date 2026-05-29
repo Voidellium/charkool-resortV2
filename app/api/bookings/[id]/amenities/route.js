@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { triggerEvent, CHANNELS, EVENTS } from '@/lib/pusher-server';
 
 // GET: Get all amenities for a specific booking
 export async function GET(request, { params }) {
@@ -187,6 +188,16 @@ export async function PUT(request, { params }) {
 
       return { totalAmenityPrice };
     });
+
+    try {
+      await triggerEvent(CHANNELS.AMENITIES, EVENTS.AMENITY_STOCK_CHANGED, {
+        action: 'booking-amenities-updated',
+        bookingId: parseInt(id),
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (pusherErr) {
+      console.warn('[Pusher] Failed to broadcast booking amenity stock change:', pusherErr?.message || pusherErr);
+    }
 
     return NextResponse.json({ message: 'Amenities updated successfully', totalAmenityPrice: result.totalAmenityPrice });
   } catch (error) {

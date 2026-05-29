@@ -3,8 +3,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import SuperAdminLayout from '../../../components/SuperAdminLayout';
 import { Trash2 } from 'lucide-react';
+import { useToast } from '@/components/Toast';
 
 export default function ChatbotManagementPage() {
+  const { success, error: toastError } = useToast();
   const [questions, setQuestions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -31,6 +33,7 @@ export default function ChatbotManagementPage() {
       setQuestions(flattened);
     } catch (e) {
       setError('Failed to load questions.');
+      toastError('Failed to load chatbot questions', { title: 'Load Failed' });
     } finally {
       setIsLoading(false);
     }
@@ -72,8 +75,12 @@ export default function ChatbotManagementPage() {
       if (!res.ok) throw new Error(editingQuestion ? 'Failed to update question' : 'Failed to add question');
       await fetchQuestions();
       resetForm();
+      success(editingQuestion ? 'Chatbot question updated successfully' : 'Chatbot question added successfully', {
+        title: editingQuestion ? 'Question Updated' : 'Question Added'
+      });
     } catch (err) {
       setError(err.message);
+      toastError(err.message, { title: 'Save Failed' });
     }
   };
 
@@ -98,8 +105,10 @@ export default function ChatbotManagementPage() {
       const res = await fetch(`/api/chatbot/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete question');
       await fetchQuestions();
+      success('Chatbot question deleted successfully', { title: 'Question Deleted' });
     } catch (err) {
       setError(err.message);
+      toastError(err.message, { title: 'Delete Failed' });
     }
   };
 

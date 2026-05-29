@@ -51,6 +51,20 @@ export async function GET(request, { params }) {
       );
     }
 
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (checkInDate < today || checkOutDate <= today) {
+      return NextResponse.json({
+        success: true,
+        roomId,
+        checkIn,
+        checkOut,
+        availableUnits: [],
+        totalAvailable: 0,
+        warning: 'Dates are in the past'
+      });
+    }
+
     // Get available units with metadata
     const availableUnits = await getAvailableUnitsWithMetadata(
       roomId,

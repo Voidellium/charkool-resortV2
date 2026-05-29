@@ -19,7 +19,8 @@ export async function POST(req) {
       paymentMethod, 
       referenceNo, 
       amountPaid,
-      receiptData 
+      receiptData,
+      processContext
     } = await req.json();
 
     if (!bookingId) {
@@ -42,12 +43,28 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
     }
 
-    // Update booking status - set to Completed when payment is fully paid
+    const normalizedPaymentStatus = String(paymentStatus || booking.paymentStatus || '').trim();
+    const isCheckoutContext = String(processContext || '').toLowerCase() === 'checkout';
+
+    // Checkout is handled in booking management (actualCheckOut flow), not payment processing.
+    if (isCheckoutContext) {
+      return NextResponse.json(
+        { error: 'Checkout actions are restricted to Booking Management.' },
+        { status: 403 }
+      );
+    }
+
+    // Payment endpoint only updates financial status and keeps booking in operational flow.
+    let nextBookingStatus = booking.status;
+    if (['Paid', 'Partial', 'Reservation'].includes(normalizedPaymentStatus)) {
+      nextBookingStatus = 'Confirmed';
+    }
+
     const updatedBooking = await prisma.booking.update({
       where: { id: parseInt(bookingId) },
       data: {
-        status: paymentStatus === 'Paid' ? 'Completed' : 'Confirmed',
-        paymentStatus: paymentStatus || booking.paymentStatus,
+        status: nextBookingStatus,
+        paymentStatus: normalizedPaymentStatus || booking.paymentStatus,
       },
     });
 
@@ -58,7 +75,7 @@ export async function POST(req) {
           bookingId: parseInt(bookingId),
           amount: BigInt(amountPaid),
           currency: 'PHP',
-          status: 'Paid',
+          status: normalizedPaymentStatus === 'Partial' ? 'Partial' : 'Paid',
           provider: paymentMethod === 'cash' ? 'cash' : 'paymongo',
           method: paymentMethod,
           referenceId: referenceNo || `CHECKOUT-${Date.now()}`,
@@ -79,13 +96,14 @@ export async function POST(req) {
       entityId: bookingId.toString(),
       details: JSON.stringify({
         oldStatus: booking.status,
-        newStatus: paymentStatus === 'Paid' ? 'Completed' : 'Confirmed',
+        newStatus: nextBookingStatus,
         oldPaymentStatus: booking.paymentStatus,
-        newPaymentStatus: paymentStatus,
+        newPaymentStatus: normalizedPaymentStatus,
         paymentMethod: paymentMethod,
         amountPaid: amountPaid,
         referenceNo: referenceNo,
-        receiptId: receiptData?.id
+        receiptId: receiptData?.id,
+        processContext: processContext || 'arrival'
       }),
     };
 
