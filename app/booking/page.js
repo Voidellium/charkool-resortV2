@@ -15,6 +15,7 @@ import { useNavigationContext } from '../../context/NavigationContext';
 import { NavigationConfirmationModal, ThreeDRoomViewerModal, MaxCapacityModal, MidnightAlertModal } from '../../components/CustomModals';
 import DataPrivacyModal from '../../components/DataPrivacyModal';
 import { useAvailabilityUpdates, usePusher, CHANNELS, EVENTS } from '../../hooks/usePusher';
+import { toBlobProxyUrl } from '@/lib/blobUrl';
 
 // Timezone-safe date formatting utility
 function formatDate(date) {
@@ -1376,7 +1377,7 @@ export default function BookingPage() {
                                   </div>
                                 )}
                                 <div className="room-media">
-                                  <img src={room.image || '/images/default.jpg'} alt={room.name} />
+                                  <img src={toBlobProxyUrl(room.image) || '/images/default.jpg'} alt={room.name} />
                                   {isFamilyLodge ? (
                                     <span className="available-count unavailable-tag">Coming Soon</span>
                                   ) : isFullyBooked ? (

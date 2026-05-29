@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import fs from 'fs';
-import path from 'path';
 import { recordAudit } from '@/src/lib/audit';
 import { getToken } from 'next-auth/jwt';
+import { del, put } from '@vercel/blob';
 
 const JWT_SECRET = process.env.NEXTAUTH_SECRET;
 
@@ -20,6 +19,10 @@ export async function PUT(req, { params }) {
     const imageFile = formData.get('image');
 
     const data = { name, type, price, quantity };
+    const existingRoom = await prisma.room.findUnique({
+      where: { id: Number(id) },
+      select: { image: true },
+    });
 
     // Only update image if a new file was uploaded
     if (imageFile && imageFile instanceof File && imageFile.size > 0) {
@@ -40,15 +43,26 @@ export async function PUT(req, { params }) {
         );
       }
 
-      const uploadDir = path.join(process.cwd(), 'public/uploads');
-      if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-
       const buffer = Buffer.from(await imageFile.arrayBuffer());
-      const fileName = `${Date.now()}-${imageFile.name}`;
-      const filePath = path.join(uploadDir, fileName);
-      fs.writeFileSync(filePath, buffer);
+      const safeName = imageFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      try {
+        const key = `rooms/${Date.now()}-${safeName}`;
+        const options = { access: 'private', contentType: imageFile.type };
+        console.debug('Uploading room image (update) to blob store', { key, options });
+        const blob = await put(key, buffer, options);
+        data.image = blob.url;
+      } catch (putErr) {
+        console.error('Blob put() failed in PUT /api/rooms/[id]:', putErr && putErr.stack ? putErr.stack : putErr);
+        throw putErr;
+      }
 
-      data.image = `/uploads/${fileName}`;
+      if (existingRoom?.image && existingRoom.image.startsWith('https://')) {
+        try {
+          await del(existingRoom.image);
+        } catch (deleteErr) {
+          console.warn('Failed to delete previous room image blob:', deleteErr);
+        }
+      }
     }
 
     const updatedRoom = await prisma.room.update({

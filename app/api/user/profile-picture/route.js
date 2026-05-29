@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/auth';
 import { PrismaClient } from '@prisma/client';
-import { promises as fs } from 'fs';
-import path from 'path';
+import { del, put } from '@vercel/blob';
 
 const prisma = new PrismaClient();
 
@@ -35,19 +34,12 @@ export async function POST(req) {
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    
-    // Create filename with user ID and timestamp
-    const fileExtension = path.extname(file.name) || '.jpg';
-    const filename = `profile_${session.user.id}_${Date.now()}${fileExtension}`;
-    
-    // Ensure upload directory exists
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'profiles');
-    await fs.mkdir(uploadDir, { recursive: true });
-    
-    const filePath = path.join(uploadDir, filename);
-    await fs.writeFile(filePath, buffer);
-    
-    const fileUrl = `/uploads/profiles/${filename}`;
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const blob = await put(`profiles/${session.user.id}-${Date.now()}-${safeName}`, buffer, {
+      access: 'private',
+      contentType: file.type,
+    });
+    const fileUrl = blob.url;
     
     // Update user profile picture in database
     const updatedUser = await prisma.user.update({
@@ -120,10 +112,9 @@ export async function DELETE(req) {
     });
 
     // Try to delete the old file if it exists and is a local file
-    if (user?.image && user.image.startsWith('/uploads/')) {
+    if (user?.image && user.image.startsWith('https://')) {
       try {
-        const filePath = path.join(process.cwd(), 'public', user.image);
-        await fs.unlink(filePath);
+        await del(user.image);
       } catch (deleteError) {
         // File deletion error is not critical, just log it
         console.warn('Could not delete old profile picture file:', deleteError);

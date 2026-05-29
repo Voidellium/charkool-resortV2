@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from 'react';
 import SuperAdminLayout from '@/components/SuperAdminLayout';
 import { DoorOpen, Plus, Edit2, Trash2, Search, Upload, Eye, RefreshCw, BedDouble, Users, CheckCircle, XCircle, AlertCircle, Info } from 'lucide-react';
 import { useToast } from '@/components/Toast';
+import { toBlobProxyUrl } from '@/lib/blobUrl';
 
 export default function SuperAdminRoomsPage() {
   const { success, error, warning, info } = useToast();
@@ -455,7 +456,7 @@ export default function SuperAdminRoomsPage() {
                 <div style={styles.roomImageContainer}>
                   {room.image ? (
                     <img
-                      src={room.image}
+                      src={toBlobProxyUrl(room.image)}
                       alt={room.name}
                       style={styles.roomImage}
                     />

@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { X, Tag, Calendar, Percent, Sparkles } from 'lucide-react';
+import { toBlobProxyUrl } from '../src/lib/blobUrl';
 
 export default function PromotionPopup({ promotions }) {
   const [currentPromotion, setCurrentPromotion] = useState(null);
@@ -144,9 +145,9 @@ export default function PromotionPopup({ promotions }) {
             padding: '0 2rem',
             marginBottom: '1.5rem'
           }}>
-            <img 
-              src={currentPromotion.image} 
-              alt={currentPromotion.title}
+              <img 
+                src={currentPromotion.image ? toBlobProxyUrl(currentPromotion.image) : undefined} 
+                alt={currentPromotion.title}
               style={{
                 width: '100%',
                 height: '200px',

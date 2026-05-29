@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { writeFile, mkdir, unlink } from 'fs/promises';
-import path from 'path';
 import { recordAudit } from '@/src/lib/audit';
 import { getToken } from 'next-auth/jwt';
+import { del, put } from '@vercel/blob';
 
 const JWT_SECRET = process.env.NEXTAUTH_SECRET;
 
@@ -66,28 +65,22 @@ export async function PATCH(request, { params }) {
         return NextResponse.json({ error: 'File size too large. Max 5MB.' }, { status: 400 });
       }
 
-      // Save file to public/uploads
-      const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
-      await mkdir(uploadsDir, { recursive: true });
-      const fileName = `${Date.now()}-${imageFile.name}`;
-      const filePath = path.join(uploadsDir, fileName);
       const bytes = await imageFile.arrayBuffer();
-      await writeFile(filePath, Buffer.from(bytes));
-      updateData.image = `/uploads/${fileName}`;
+      const safeName = imageFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const blob = await put(`promotions/${Date.now()}-${safeName}`, Buffer.from(bytes), {
+        access: 'private',
+        contentType: imageFile.type,
+      });
+      updateData.image = blob.url;
 
-      // Delete old image if exists
       const existingPromotion = await prisma.promotion.findUnique({ where: { id: parseInt(id) } });
-      if (existingPromotion?.image) {
-        const oldPath = path.join(process.cwd(), 'public', existingPromotion.image);
+      if (existingPromotion?.image && existingPromotion.image.startsWith('https://')) {
         try {
-          await unlink(oldPath);
+          await del(existingPromotion.image);
         } catch (err) {
-          console.error('Failed to delete old image:', err);
+          console.error('Failed to delete old image blob:', err);
         }
       }
-
-      // Note: On Vercel, uploaded files are ephemeral. For production, use a cloud storage service like Cloudinary or S3.
-      // Set STORAGE_PROVIDER env var to switch to cloud storage.
     }
 
     const promotion = await prisma.promotion.update({
@@ -139,13 +132,11 @@ export async function DELETE(request, { params }) {
       return NextResponse.json({ error: 'Promotion not found' }, { status: 404 });
     }
 
-    // Delete image file if exists
-    if (promotion.image) {
-      const filePath = path.join(process.cwd(), 'public', promotion.image);
+    if (promotion.image && promotion.image.startsWith('https://')) {
       try {
-        await unlink(filePath);
+        await del(promotion.image);
       } catch (err) {
-        console.error('Failed to delete image:', err);
+        console.error('Failed to delete image blob:', err);
       }
     }
 

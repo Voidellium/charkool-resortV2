@@ -17,6 +17,7 @@ import RoomUnitSelector from '@/components/RoomUnitSelector';
 import { useToast } from '@/components/Toast';
 import { useOverrideModal, OverrideModal, useEditBookingDateModal, EditBookingDateModal } from '@/components/CustomModals';
 import { useBookingUpdates } from '@/hooks/usePusher';
+import { toBlobProxyUrl } from '@/lib/blobUrl';
 
 // Timezone-safe date formatting utility
 function formatDate(date) {
@@ -1556,7 +1557,7 @@ export default function BookingsPage() {
                                   >
                                     <div style={{ position: 'relative' }}>
                                       <img 
-                                        src={room.image || '/images/default-room.jpg'} 
+                                        src={toBlobProxyUrl(room.image) || '/images/default-room.jpg'} 
                                         alt={room.name}
                                         style={{
                                           width: '100%',

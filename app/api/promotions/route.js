@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
 import { recordAudit } from '@/src/lib/audit';
 import { getToken } from 'next-auth/jwt';
+import { put } from '@vercel/blob';
 
 const JWT_SECRET = process.env.NEXTAUTH_SECRET;
 
@@ -54,17 +53,13 @@ export async function POST(request) {
         return NextResponse.json({ error: 'File size too large. Max 5MB.' }, { status: 400 });
       }
 
-      // Save file to public/uploads
-      const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
-      await mkdir(uploadsDir, { recursive: true });
-      const fileName = `${Date.now()}-${imageFile.name}`;
-      const filePath = path.join(uploadsDir, fileName);
       const bytes = await imageFile.arrayBuffer();
-      await writeFile(filePath, Buffer.from(bytes));
-      imagePath = `/uploads/${fileName}`;
-
-      // Note: On Vercel, uploaded files are ephemeral. For production, use a cloud storage service like Cloudinary or S3.
-      // Set STORAGE_PROVIDER env var to switch to cloud storage.
+      const safeName = imageFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const blob = await put(`promotions/${Date.now()}-${safeName}`, Buffer.from(bytes), {
+        access: 'private',
+        contentType: imageFile.type,
+      });
+      imagePath = blob.url;
     }
 
     const promotion = await prisma.promotion.create({
