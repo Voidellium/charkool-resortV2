@@ -48,6 +48,10 @@ export default function VirtualTour() {
   ];
 
   const handleObjectSelect = (objectName) => {
+    if (viewMode === 'interior') {
+      setViewMode('exterior');
+      setModelPath(modelPaths.resortMap);
+    }
     setSelectedObject(objectName);
     setOpenDropdown(null); // Close any open dropdown
     setIsMobileMenuOpen(false); // Close mobile menu on selection

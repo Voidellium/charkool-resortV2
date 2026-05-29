@@ -46,6 +46,45 @@ function ConfirmationPageInner() {
     }
   }, [bookingId]);
 
+  useEffect(() => {
+    async function ensureReceiptEmailSent() {
+      if (!bookingId || !booking) return;
+
+      const paymentIsEligible = booking.paymentStatus === 'Reservation' || booking.paymentStatus === 'Paid' || booking.paymentStatus === 'Partial';
+      if (!paymentIsEligible) return;
+
+      const latestPayment = booking.payments?.[0] || null;
+      const receiptAlreadyIssued = Boolean(latestPayment?.receiptNumber);
+      const receiptFlagKey = `receiptEmailSent_${bookingId}`;
+      const alreadySentInSession = typeof window !== 'undefined' && localStorage.getItem(receiptFlagKey) === 'true';
+
+      if (receiptAlreadyIssued || alreadySentInSession) return;
+
+      setResendingReceipt(true);
+      try {
+        const res = await fetch('/api/receipts/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bookingId: parseInt(bookingId) })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          localStorage.setItem(receiptFlagKey, 'true');
+          setReceiptMessage({ type: 'success', text: `Receipt sent to ${data.sentTo}` });
+        } else {
+          setReceiptMessage({ type: 'error', text: data.error || 'Failed to send receipt' });
+        }
+      } catch (error) {
+        setReceiptMessage({ type: 'error', text: 'Failed to send receipt. Please try again.' });
+      } finally {
+        setResendingReceipt(false);
+      }
+    }
+
+    ensureReceiptEmailSent();
+  }, [booking, bookingId]);
+
   const goToDashboard = () => {
     router.push('/guest/dashboard');
   };
@@ -437,7 +476,7 @@ function ConfirmationPageInner() {
                 {(booking.paymentStatus === 'Reservation' || booking.paymentStatus === 'Paid' || booking.paymentStatus === 'Partial') && (
                   <div className="receipt-actions">
                     <p className="receipt-info">
-                      📧 A receipt has been sent to your email. You can also:
+                      📧 Your receipt email has been sent or is being sent now. You can also:
                     </p>
                     <div className="receipt-buttons">
                       <button 

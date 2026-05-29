@@ -47,6 +47,10 @@ export default function GuestVirtualTour() {
   ];
 
   const handleObjectSelect = (objectName) => {
+    if (viewMode === 'interior') {
+      setViewMode('exterior');
+      setModelPath(modelPaths.resortMap);
+    }
     setSelectedObject(objectName);
     setOpenDropdown(null); // Close any open dropdown
   };

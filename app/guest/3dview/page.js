@@ -48,6 +48,10 @@ export default function GuestThreeDView() {
   ];
 
   const handleObjectSelect = (objectName) => {
+    if (viewMode === 'interior') {
+      setModelPath(modelPaths.resortMap);
+      setViewMode('exterior');
+    }
     setSelectedObject(objectName);
     setOpenDropdown(null); // Close any open dropdown
     setIsMobileMenuOpen(false); // Close mobile menu on selection

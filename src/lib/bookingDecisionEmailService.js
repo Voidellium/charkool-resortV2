@@ -37,8 +37,8 @@ export async function sendBookingDecisionEmail({
   const typeLabel = requestType === 'cancellation' ? 'Cancellation' : 'Reschedule';
 
   const summaryLine = requestType === 'cancellation'
-    ? `Booking #${bookingId} cancellation request has been ${decisionWord}.`
-    : `Booking #${bookingId} reschedule request has been ${decisionWord}.`;
+    ? `Your cancellation request has been ${decisionWord}.`
+    : `Your reschedule request has been ${decisionWord}.`;
 
   const dateDetailsHtml = requestType === 'reschedule'
     ? `
@@ -58,7 +58,6 @@ export async function sendBookingDecisionEmail({
       <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; margin: 16px 0;">
         <p style="margin: 0 0 8px;"><strong>Request Type:</strong> ${typeLabel}</p>
         <p style="margin: 0 0 8px;"><strong>Decision:</strong> ${action === 'APPROVE' ? 'Approved' : 'Disapproved'}</p>
-        <p style="margin: 0 0 8px;"><strong>Booking ID:</strong> ${bookingId}</p>
         ${dateDetailsHtml}
         <p style="margin: 0;"><strong>Admin Reason:</strong> ${safeReason}</p>
       </div>
@@ -73,7 +72,6 @@ export async function sendBookingDecisionEmail({
     summaryLine,
     `Request Type: ${typeLabel}`,
     `Decision: ${action === 'APPROVE' ? 'Approved' : 'Disapproved'}`,
-    `Booking ID: ${bookingId}`,
   ];
 
   if (requestType === 'reschedule') {
@@ -91,7 +89,7 @@ export async function sendBookingDecisionEmail({
   const { data, error } = await resend.emails.send({
     from: 'Charkool Resort <no-reply@charkoolresort.com>',
     to: [to],
-    subject: `${typeLabel} Request ${action === 'APPROVE' ? 'Approved' : 'Disapproved'} - Booking #${bookingId}`,
+    subject: `${typeLabel} Request ${action === 'APPROVE' ? 'Approved' : 'Disapproved'}`,
     html,
     text: textLines.join('\n'),
   });

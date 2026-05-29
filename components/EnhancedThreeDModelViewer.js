@@ -329,7 +329,7 @@ class ErrorBoundary extends React.Component {
 }
 
 /* ---------- Enhanced loader hook (keeps your robust checks) ---------- */
-function useEnhancedGLTFLoader(url) {
+function useEnhancedGLTFLoader(url, onLoadingChange) {
   const [gltf, setGltf] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -358,6 +358,7 @@ function useEnhancedGLTFLoader(url) {
     loader.manager = loadingManager;
 
     setLoading(true);
+    if (onLoadingChange) onLoadingChange(true);
     setError(null);
 
     loader.load(
@@ -380,6 +381,7 @@ function useEnhancedGLTFLoader(url) {
         });
         setGltf(loadedGltf);
         setLoading(false);
+        if (onLoadingChange) onLoadingChange(false);
       },
       undefined,
       (err) => {
@@ -387,6 +389,7 @@ function useEnhancedGLTFLoader(url) {
         console.error('GLTF load error', err);
         setError({ userMessage: 'Failed to load 3D model', originalError: err });
         setLoading(false);
+        if (onLoadingChange) onLoadingChange(false);
       }
     );
 
@@ -398,7 +401,8 @@ function useEnhancedGLTFLoader(url) {
 
 /* ---------- Model primitive with double-click handler ---------- */
 function Model({ url, onObjectClick, onPositionsComputed, onError }) {
-  const { gltf, error, loading } = useEnhancedGLTFLoader(url);
+function Model({ url, onObjectClick, onPositionsComputed, onError, onLoadingChange }) {
+  const { gltf, error, loading } = useEnhancedGLTFLoader(url, onLoadingChange);
   const sceneRef = useRef();
 
   useEffect(() => { if (error && onError) onError(error); }, [error, onError]);
@@ -474,7 +478,7 @@ function Model({ url, onObjectClick, onPositionsComputed, onError }) {
     onPositionsComputed(pos);
   }, [gltf, onPositionsComputed]);
 
-  if (!gltf) return null;
+  if (loading || !gltf) return null;
 
   return (
     <primitive
@@ -743,6 +747,7 @@ function EnhancedThreeDModelViewerInner({ selectedObject: externalSelected, onSe
   const [objectPositions, setObjectPositions] = useState({});
   const [isLocked, setIsLocked] = useState(false);
   const [modelError, setModelError] = useState(null);
+  const [isModelLoading, setIsModelLoading] = useState(true);
   const [selectedObject, setSelectedObject] = useState(null);
   const [initialCameraReady, setInitialCameraReady] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
@@ -784,6 +789,7 @@ function EnhancedThreeDModelViewerInner({ selectedObject: externalSelected, onSe
     setInitialCameraReady(false);
     // Don't reset selectedObject here - it should be controlled by externalSelected
     setModelError(null);
+    setIsModelLoading(true);
   }, [modelPath]);
 
   // compute camera positions from positions map
@@ -887,6 +893,38 @@ function EnhancedThreeDModelViewerInner({ selectedObject: externalSelected, onSe
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden', background: '#505050' }}>
+      {isModelLoading && !modelError && (
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          zIndex: 1200,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexDirection: 'column',
+          gap: '14px',
+          background: 'linear-gradient(135deg, rgba(212, 165, 116, 0.96) 0%, rgba(248, 241, 224, 0.98) 100%)',
+          color: '#6b4700'
+        }}>
+          <div style={{
+            width: '56px',
+            height: '56px',
+            borderRadius: '50%',
+            border: '6px solid rgba(107, 71, 0, 0.15)',
+            borderTopColor: '#6b4700',
+            animation: 'spin 1s linear infinite'
+          }} />
+          <div style={{ fontSize: '1rem', fontWeight: 700 }}>Loading 3D model...</div>
+          <div style={{ fontSize: '0.9rem', opacity: 0.85 }}>Please wait while the room view is prepared.</div>
+          <style jsx>{`
+            @keyframes spin {
+              from { transform: rotate(0deg); }
+              to { transform: rotate(360deg); }
+            }
+          `}</style>
+        </div>
+      )}
+
       {/* Tutorial Overlay */}
       {showTutorial && (
         <TutorialOverlay onClose={handleCloseTutorial} isMobile={isMobile} />
@@ -935,6 +973,7 @@ function EnhancedThreeDModelViewerInner({ selectedObject: externalSelected, onSe
             onObjectClick={handleObjectSelection}
             onPositionsComputed={handlePositionsComputed}
             onError={handleModelError}
+            onLoadingChange={setIsModelLoading}
           />
 
           {/* Only render controls after we computed overall so initial camera framing works */}
