@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import SuperAdminLayout from '@/components/SuperAdminLayout';
 import Loading, { TableLoading, ButtonLoading } from '@/components/Loading';
@@ -80,6 +80,113 @@ function paymentMatchesTab(payment, tabKey) {
 
 function applyStatusTab(paymentsList, tabKey) {
   return (paymentsList || []).filter((payment) => paymentMatchesTab(payment, tabKey));
+}
+
+const SETTLED_PAYMENT_STATUSES = new Set(['paid', 'partial', 'reservation', 'completed']);
+
+function normalizeStoredAmount(value) {
+  let amount = Number(value || 0);
+  if (amount > 1000000) {
+    amount = Math.floor(amount / 100);
+  }
+  return amount;
+}
+
+function sumSettledPayments(payments) {
+  return (Array.isArray(payments) ? payments : []).reduce((sum, payment) => {
+    if (!payment || typeof payment !== 'object') return sum;
+    const status = String(payment.status || '').toLowerCase();
+    if (!SETTLED_PAYMENT_STATUSES.has(status)) return sum;
+    return sum + normalizeStoredAmount(payment.amount);
+  }, 0);
+}
+
+function getBookingPaymentSummary(payment) {
+  const booking = payment?.booking && typeof payment.booking === 'object' ? payment.booking : payment;
+  const bookingPayments = Array.isArray(booking?.payments)
+    ? booking.payments
+    : Array.isArray(payment?.payments)
+      ? payment.payments
+      : [];
+  let grossAmount = normalizeStoredAmount(
+    booking?.totalPrice ??
+    booking?.totalAmount ??
+    payment?.totalPrice ??
+    payment?.totalAmount ??
+    payment?.amount ??
+    booking?.amount ??
+    0
+  );
+
+  // If grossAmount is not available (0), attempt to compute it from booking details
+  // (rooms, rentalAmenities, cottage, optionalAmenities). Compute in PESOS then convert to cents.
+  if (!grossAmount || grossAmount === 0) {
+    try {
+      let localTotalCents = 0;
+
+      if (Array.isArray(booking?.rooms) && booking.rooms.length > 0) {
+        const checkIn = booking.checkInDate || booking.checkIn || booking.startDate;
+        const checkOut = booking.checkOutDate || booking.checkOut || booking.endDate;
+        let nights = 1;
+        if (checkIn && checkOut) {
+          const ci = new Date(checkIn);
+          const co = new Date(checkOut);
+          const diff = Math.max(0, co.getTime() - ci.getTime());
+          nights = Math.max(1, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+        }
+        for (const r of booking.rooms) {
+          const qty = Number(r.quantity || 1);
+          const priceRaw = r.room?.price ?? r.price ?? 0;
+          const priceCents = normalizeStoredAmount(priceRaw);
+          localTotalCents += priceCents * qty * nights;
+        }
+      }
+
+      if (Array.isArray(booking?.rentalAmenities) && booking.rentalAmenities.length > 0) {
+        for (const ra of booking.rentalAmenities) {
+          const rp = ra.totalPrice ?? ra.price ?? 0;
+          localTotalCents += normalizeStoredAmount(rp);
+        }
+      }
+
+      if (Array.isArray(booking?.cottage) && booking.cottage.length > 0) {
+        for (const c of booking.cottage) {
+          const cp = c.totalPrice ?? c.price ?? 0;
+          localTotalCents += normalizeStoredAmount(cp);
+        }
+      }
+
+      if (Array.isArray(booking?.amenities) && booking.amenities.length > 0) {
+        for (const a of booking.amenities) {
+          const ap = a.totalPrice ?? a.price ?? 0;
+          localTotalCents += normalizeStoredAmount(ap);
+        }
+      }
+
+      if (localTotalCents > 0) {
+        grossAmount = Math.round(localTotalCents);
+      }
+    } catch (e) {
+      // ignore and keep grossAmount as-is
+      console.warn('getBookingPaymentSummary: failed to compute fallback total', e);
+    }
+  }
+  const settledAmount = sumSettledPayments(bookingPayments);
+  const balanceDue = Math.max(0, grossAmount - settledAmount);
+
+  return {
+    grossAmount,
+    settledAmount,
+    balanceDue,
+    booking,
+  };
+}
+
+function getDisplayPaymentStatus(payment) {
+  const bookingPaymentStatus = String(payment?.booking?.paymentStatus || '').trim();
+  const bookingStatus = String(payment?.booking?.status || '').trim();
+  const paymentStatus = String(payment?.status || '').trim();
+  return bookingPaymentStatus || bookingStatus || paymentStatus || 'Pending';
 }
 
 export default function Payments() {
@@ -178,9 +285,26 @@ export default function Payments() {
   }
 
   async function fetchCheckoutTransactions() {
-    // Checkout actions are handled in Booking Management, not Payment Management.
-    setCheckoutTransactions([]);
-    setCheckoutsLoading(false);
+    setCheckoutsLoading(true);
+    try {
+      const today = new Date();
+      const dateStr = today.toISOString().slice(0, 10);
+      const res = await fetch(`/api/bookings/checkout?date=${dateStr}`);
+      if (!res.ok) {
+        console.warn('fetchCheckoutTransactions: API responded with', res.status);
+        setCheckoutTransactions([]);
+      } else {
+        const data = await res.json();
+        // API returns array of bookings directly
+        const rows = Array.isArray(data) ? data : (data.bookings || data);
+        setCheckoutTransactions(rows);
+      }
+    } catch (e) {
+      console.error('fetchCheckoutTransactions error', e);
+      setCheckoutTransactions([]);
+    } finally {
+      setCheckoutsLoading(false);
+    }
   }
 
   async function fetchUpcomingReservations() {
@@ -192,6 +316,7 @@ export default function Payments() {
         // Filter for future check-in dates only
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const isAfter2PM = now.getHours() >= 14;
         
         const upcoming = bookings.filter(booking => {
           const checkIn = booking.checkInDate || booking.checkIn || booking.startDate;
@@ -199,12 +324,17 @@ export default function Payments() {
           
           const checkInDate = new Date(checkIn);
           const checkInDateOnly = new Date(checkInDate.getFullYear(), checkInDate.getMonth(), checkInDate.getDate());
+          const paymentStatus = String(booking.paymentStatus || '').toLowerCase();
           
           // Include all future bookings
           const isFuture = checkInDateOnly >= today;
           const isNotCancelled = !booking.status || booking.status.toLowerCase() !== 'cancelled';
+          const isSameDayReservationAfter2PM =
+            isAfter2PM &&
+            checkInDateOnly.getTime() === today.getTime() &&
+            paymentStatus === 'reservation';
           
-          return isFuture && isNotCancelled;
+          return isFuture && isNotCancelled && !isSameDayReservationAfter2PM;
         });
         
         // Sort by check-in date (earliest first)
@@ -230,12 +360,45 @@ export default function Payments() {
       // Fetch all bookings with Confirmed status and Pending payment, across paginated results.
       const bookings = await fetchAllBookingsForAdmin();
         
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
         // Filter for Confirmed bookings with Pending payments
-        const pending = bookings.filter(booking => {
+        let pending = bookings.filter(booking => {
           const isConfirmed = booking.status === 'Confirmed';
           const isPendingPayment = booking.paymentStatus === 'Pending';
           return isConfirmed && isPendingPayment;
         });
+
+        // Also include reservations that are arriving today AFTER 14:00 (2pm) —
+        // these have paymentStatus === 'Reservation' (deposit paid) but still
+        // require arrival payment for the remaining balance.
+        try {
+          const arrivals = bookings.filter(booking => {
+            const paymentStatus = String(booking.paymentStatus || '').toLowerCase();
+            if (paymentStatus !== 'reservation') return false;
+            // parse checkIn date
+            const checkIn = booking.checkInDate || booking.checkIn || booking.startDate;
+            if (!checkIn) return false;
+            const checkInDate = new Date(checkIn);
+            const checkInOnly = new Date(checkInDate.getFullYear(), checkInDate.getMonth(), checkInDate.getDate());
+            // only today's arrivals
+            if (checkInOnly.getTime() !== today.getTime()) return false;
+            // only after 14:00 local time
+            if (now.getHours() < 14) return false;
+            // exclude cancelled
+            const isNotCancelled = !booking.status || booking.status.toLowerCase() !== 'cancelled';
+            return isNotCancelled;
+          });
+
+          // Merge unique arrivals into pending (avoid duplicates)
+          const arrivalIds = new Set(pending.map(b => b.id));
+          for (const a of arrivals) {
+            if (!arrivalIds.has(a.id)) pending.push(a);
+          }
+        } catch (e) {
+          console.warn('Error calculating arrivals-for-today:', e);
+        }
         
         // Sort by check-in date (most recent first)
         pending.sort((a, b) => {
@@ -510,9 +673,9 @@ export default function Payments() {
     if (!payment) return;
     setProcessingPayment(payment);
     setShowProcessModal(true);
-    
-    const cents = Number(payment?.amount || payment?.totalPrice || 0);
-    const requiredAmount = (cents / 100).toFixed(2);
+
+    const { balanceDue } = getBookingPaymentSummaryWithState(payment);
+    const requiredAmount = (balanceDue / 100).toFixed(2);
     setAmountTendered(requiredAmount);
     setAmountCustomerPaid(requiredAmount); // Pre-fill with required amount
     setPaymentMethod((payment?.method || payment?.provider || "").toLowerCase());
@@ -548,7 +711,7 @@ export default function Payments() {
     setActionLoading(prev => ({...prev, process: true}));
     try {
       const customerPaidInCents = Math.round((parseFloat(amountCustomerPaid || amountTendered || "0") || 0) * 100);
-      const requiredAmount = payment?.totalPrice || payment?.amount || 0;
+      const { balanceDue: requiredAmount } = getBookingPaymentSummaryWithState(payment);
       const changeAmount = Math.max(0, customerPaidInCents - requiredAmount);
       
       // Generate receipt data
@@ -564,14 +727,14 @@ export default function Payments() {
         changeAmount: changeAmount,
         paymentMethod: paymentMethod,
         referenceNo: referenceNo,
-        bookingType: payment.booking?.type || 'Booking',
+        bookingType: payment.booking?.paymentStatus === 'Reservation' ? 'Reservation' : 'Booking',
         processedBy: session?.user?.name || 'Super Admin',
         processedAt: new Date().toISOString(),
         notes: noteText,
         transactionDate: new Date().toISOString().split('T')[0]
       };
 
-      const isBookingContext = ['walkin', 'booking'].includes(String(payment?.type || '').toLowerCase());
+      const isBookingContext = Boolean(payment?.bookingId || payment?.booking?.id);
       let updateRes;
 
       if (isBookingContext) {
@@ -581,7 +744,7 @@ export default function Payments() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             bookingId,
-            paymentStatus: customerPaidInCents >= Number(payment?.totalPrice || payment?.amount || 0) ? 'Paid' : 'Partial',
+            paymentStatus: 'Paid',
             paymentMethod,
             referenceNo,
             amountPaid: customerPaidInCents,
@@ -1189,6 +1352,34 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
     });
   }, [activeStatusTab, searchQuery, paymentMethodFilter, filters.startDate, filters.endDate, filters.status, activeFilter]);
 
+  const settledPaymentsByBookingId = useMemo(() => {
+    const map = new Map();
+    for (const payment of payments) {
+      if (!payment || payment.bookingId == null) continue;
+      const status = String(payment.status || '').toLowerCase();
+      if (!SETTLED_PAYMENT_STATUSES.has(status)) continue;
+      const bookingId = String(payment.bookingId);
+      const amount = normalizeStoredAmount(payment.amount);
+      map.set(bookingId, (map.get(bookingId) || 0) + amount);
+    }
+    return map;
+  }, [payments]);
+
+  const getBookingPaymentSummaryWithState = useCallback((payment) => {
+    const summary = getBookingPaymentSummary(payment);
+    const bookingId = payment?.bookingId ?? payment?.booking?.id;
+    const settledFromState = bookingId != null
+      ? (settledPaymentsByBookingId.get(String(bookingId)) || 0)
+      : 0;
+    const settledAmount = Math.max(summary.settledAmount || 0, settledFromState);
+    const balanceDue = Math.max(0, summary.grossAmount - settledAmount);
+    return {
+      ...summary,
+      settledAmount,
+      balanceDue,
+    };
+  }, [settledPaymentsByBookingId]);
+
   if (loading) {
     return (
       <SuperAdminLayout activePage="payments" user={session?.user}>
@@ -1424,9 +1615,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                   <tbody>
                     {checkoutTransactions.slice(0, 5).map((checkout) => {
                       const totalAmount = checkout.totalPrice || 0;
-                      const paidAmount = (checkout.payments || [])
-                        .filter(p => p.status === 'Paid')
-                        .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+                      const paidAmount = sumSettledPayments(checkout.payments || []);
                       const remainingBalance = totalAmount - paidAmount;
                       const isUnpaid = remainingBalance > 0;
                       
@@ -1537,7 +1726,8 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                   </thead>
                   <tbody>
                     {pendingPaymentBookings.slice(0, 10).map((booking) => {
-                      const totalAmount = booking.totalPrice || 0;
+                      const paidAmount = sumSettledPayments(booking.payments || []);
+                      const remainingBalance = Math.max(0, (booking.totalPrice || 0) - paidAmount);
                       
                       return (
                         <tr key={booking.id} style={{ borderBottom: '1px solid #f1f5f9', background: '#fef2f2' }}>
@@ -1557,7 +1747,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                             {new Date(booking.checkOut || booking.checkOutDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                           </td>
                           <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 700, color: '#dc2626' }}>
-                            ₱{(totalAmount / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                            ₱{(remainingBalance / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                           </td>
                           <td style={{ padding: '0.75rem', textAlign: 'center' }}>
                             <span style={{ 
@@ -1576,9 +1766,10 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                               onClick={() => {
                                 const walkInPayment = {
                                   ...booking,
-                                  amount: totalAmount,
-                                  type: 'walkin',
-                                  isCheckout: true
+                                  amount: remainingBalance,
+                                  totalPrice: remainingBalance,
+                                  type: 'booking',
+                                  isCheckout: false
                                 };
                                 openProcessPaymentModal(walkInPayment);
                               }}
@@ -1926,6 +2117,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                       <th style={styles.th}>Booking</th>
                       <th style={styles.th}>Guest</th>
                       <th style={styles.th}>Amount</th>
+                      <th style={styles.th}>Balance Due</th>
                       <th style={styles.th}>Status</th>
                       <th style={styles.th}>Date</th>
                       <th style={styles.th}>Actions</th>
@@ -1935,7 +2127,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                     {refreshing && <TableLoading />}
                     {!refreshing && pagedTabPayments.length === 0 && (
                       <tr>
-                        <td colSpan={8} style={{ ...styles.td, textAlign: 'center', color: '#64748b' }}>
+                        <td colSpan={9} style={{ ...styles.td, textAlign: 'center', color: '#64748b' }}>
                           No payments found for this tab and filter combination.
                         </td>
                       </tr>
@@ -1971,11 +2163,46 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                           </div>
                         </td>
                         <td style={styles.td}>
-                          <div style={styles.amount}>₱{formatAmount(payment?.amount)}</div>
+                          {(() => {
+                            const summary = getBookingPaymentSummaryWithState(payment);
+                            const rawAmount = normalizeStoredAmount(payment?.amount);
+                            const totalAmount = summary.grossAmount;
+                            const settledAmount = summary.settledAmount;
+                            const balanceDue = summary.balanceDue;
+                            const displayAmount = totalAmount || rawAmount;
+                            const bookingLabel = payment.booking
+                              ? balanceDue > 0
+                                ? 'Reservation Payment • Balance Due'
+                                : 'Reservation Payment • Fully Paid'
+                              : 'Standalone Payment';
+
+                            return (
+                              <div>
+                                <div style={styles.amount}>₱{formatAmount(displayAmount)}</div>
+                                <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.15rem', lineHeight: 1.35 }}>
+                                  {payment.booking ? (
+                                    <>{bookingLabel} • Paid ₱{formatAmount(settledAmount)}</>
+                                  ) : (
+                                    <>Txn ₱{formatAmount(rawAmount)}</>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td style={styles.td}>
-                          <span style={{ ...styles.statusBadge, ...getStatusStyle(payment.status) }}>
-                            {getStatusIcon(payment.status)} {payment.status}
+                          {(() => {
+                            const summary = getBookingPaymentSummaryWithState(payment);
+                            return (
+                              <div style={{ fontWeight: 700, color: summary.balanceDue > 0 ? '#dc2626' : '#059669' }}>
+                                ₱{formatAmount(summary.balanceDue)}
+                              </div>
+                            );
+                          })()}
+                        </td>
+                        <td style={styles.td}>
+                          <span style={{ ...styles.statusBadge, ...getStatusStyle(getDisplayPaymentStatus(payment)) }}>
+                            {getStatusIcon(getDisplayPaymentStatus(payment))} {getDisplayPaymentStatus(payment)}
                           </span>
                         </td>
                         <td style={styles.td}>
@@ -2054,8 +2281,8 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                 <div style={styles.modalBody}>
                   <div style={styles.paymentOverview}>
                     <div style={styles.paymentIdLarge}>#{selectedPayment.id.slice(-8)}</div>
-                    <span style={{ ...styles.statusBadgeLarge, ...getStatusStyle(selectedPayment.status) }}>
-                      {getStatusIcon(selectedPayment.status)} {selectedPayment.status}
+                    <span style={{ ...styles.statusBadgeLarge, ...getStatusStyle(getDisplayPaymentStatus(selectedPayment)) }}>
+                      {getStatusIcon(getDisplayPaymentStatus(selectedPayment))} {getDisplayPaymentStatus(selectedPayment)}
                     </span>
                   </div>
 
@@ -2068,6 +2295,18 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                       <div style={styles.detailRow}>
                         <span style={styles.detailLabel}>Amount:</span>
                         <span style={styles.amountLarge}>₱ {formatAmount(selectedPayment?.amount)}</span>
+                      </div>
+                      <div style={styles.detailRow}>
+                        <span style={styles.detailLabel}>Booking Total:</span>
+                        <span style={styles.detailValue}>₱ {formatAmount(getBookingPaymentSummaryWithState(selectedPayment).grossAmount)}</span>
+                      </div>
+                      <div style={styles.detailRow}>
+                        <span style={styles.detailLabel}>Settled So Far:</span>
+                        <span style={styles.detailValue}>₱ {formatAmount(getBookingPaymentSummaryWithState(selectedPayment).settledAmount)}</span>
+                      </div>
+                      <div style={styles.detailRow}>
+                        <span style={styles.detailLabel}>Balance Due:</span>
+                        <span style={styles.detailValue}>₱ {formatAmount(getBookingPaymentSummaryWithState(selectedPayment).balanceDue)}</span>
                       </div>
                       <div style={styles.detailRow}>
                         <span style={styles.detailLabel}>Date Created:</span>
@@ -2519,7 +2758,8 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                       Payment Calculation
                     </h4>
                     {(() => {
-                      const required = Number(processingPayment?.totalPrice || processingPayment?.amount || 0);
+                      const summary = getBookingPaymentSummaryWithState(processingPayment || {});
+                      const required = Number(summary.balanceDue || processingPayment?.totalPrice || processingPayment?.amount || 0);
                       const paid = Math.round((parseFloat(amountCustomerPaid) || 0) * 100);
                       const change = Math.max(0, paid - required);
                       const isInsufficient = paid < required;
@@ -2529,8 +2769,8 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                           <div style={{ background: 'white', borderRadius: '8px', padding: '1rem', border: '1px solid #e5e7eb' }}>
                             <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.5rem' }}>Required Amount</div>
                             <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1f2937' }}>
-                              ₱{(required/100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                            </div>
+                                ₱{(required/100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                              </div>
                           </div>
                           <div style={{ background: 'white', borderRadius: '8px', padding: '1rem', border: '1px solid #e5e7eb' }}>
                             <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.5rem' }}>Amount Paid</div>
@@ -2583,7 +2823,8 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                   <button
                     onClick={processPayment}
                     disabled={(() => {
-                      const required = Number(processingPayment?.totalPrice || processingPayment?.amount || 0);
+                      const summary = getBookingPaymentSummaryWithState(processingPayment || {});
+                      const required = Number(summary.balanceDue || processingPayment?.totalPrice || processingPayment?.amount || 0);
                       const paid = Math.round((parseFloat(amountCustomerPaid || '0') || 0) * 100);
                       return !paymentMethod || paid < required || actionLoading.process;
                     })()}
@@ -2597,7 +2838,8 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                       fontWeight: 600,
                       cursor: 'pointer',
                       opacity: (() => {
-                        const required = Number(processingPayment?.totalPrice || processingPayment?.amount || 0);
+                        const summary = getBookingPaymentSummaryWithState(processingPayment || {});
+                        const required = Number(summary.balanceDue || processingPayment?.totalPrice || processingPayment?.amount || 0);
                         const paid = Math.round((parseFloat(amountCustomerPaid || '0') || 0) * 100);
                         return (!paymentMethod || paid < required || actionLoading.process) ? 0.5 : 1;
                       })(),

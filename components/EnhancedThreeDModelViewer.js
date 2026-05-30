@@ -400,7 +400,6 @@ function useEnhancedGLTFLoader(url, onLoadingChange) {
 }
 
 /* ---------- Model primitive with double-click handler ---------- */
-function Model({ url, onObjectClick, onPositionsComputed, onError }) {
 function Model({ url, onObjectClick, onPositionsComputed, onError, onLoadingChange }) {
   const { gltf, error, loading } = useEnhancedGLTFLoader(url, onLoadingChange);
   const sceneRef = useRef();
