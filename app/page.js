@@ -162,7 +162,7 @@ export default function Home() {
           router.push('/super-admin/dashboard');
           break;
         case 'RECEPTIONIST':
-          router.push('/receptionist');
+          router.push('/login');
           break;
         case 'CASHIER':
           router.push('/cashier');

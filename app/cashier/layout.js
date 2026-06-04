@@ -1,14 +1,17 @@
 'use client';
-import { useRouter } from 'next/navigation';
+
+import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { ToastProvider } from '@/components/Toast';
+import CashierStaffLayout from '@/components/CashierStaffLayout';
 
 export default function CashierLayout({ children }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { data: session, status } = useSession();
+  const activePage = pathname?.startsWith('/cashier/reception') ? 'bookings' : 'payments';
 
-  // Role-based route protection
   useEffect(() => {
     if (status === 'loading') return;
     if (!session || session.user.role?.toLowerCase() !== 'cashier') {
@@ -18,9 +21,7 @@ export default function CashierLayout({ children }) {
 
   return (
     <ToastProvider>
-      <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: '#f5f7fb' }}>
-        <main style={{ flex: 1 }}>{children}</main>
-      </div>
+      <CashierStaffLayout activePage={activePage}>{children}</CashierStaffLayout>
     </ToastProvider>
   );
 }

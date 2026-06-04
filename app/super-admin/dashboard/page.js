@@ -408,7 +408,7 @@ export default function SuperAdminDashboard() {
         new Date(b.createdAt).toLocaleDateString(),
         b.user?.name || "N/A",
         formatRoomInfo(b),
-        formatCurrency(b.totalPrice),
+        formatCurrency(b.totalCostWithAddons || b.totalAfterDiscount || b.totalPrice),
         b.status
       ]),
       styles: { fontSize: 10, cellPadding: 4 },
@@ -423,7 +423,7 @@ export default function SuperAdminDashboard() {
       Date: new Date(b.createdAt).toLocaleDateString(),
       Customer: b.user?.name || "N/A",
       "Rooms": formatRoomInfo(b),
-      "Total Price": formatCurrency(b.totalPrice),
+      "Total Price": formatCurrency(b.totalCostWithAddons || b.totalAfterDiscount || b.totalPrice),
       Status: b.status,
     })));
     const wb = XLSX.utils.book_new();
@@ -1374,7 +1374,7 @@ export default function SuperAdminDashboard() {
                           {formatRoomInfo(booking)}
                         </td>
                         <td style={{ padding: isMobile ? '0.5rem' : '1rem', fontSize: '0.875rem', fontWeight: '600', color: '#059669', textAlign: 'right' }}>
-                          {formatCurrency(booking.totalPrice)}
+                          {formatCurrency(booking.totalCostWithAddons || booking.totalAfterDiscount || booking.totalPrice)}
                         </td>
                         <td style={{ padding: isMobile ? '0.5rem' : '1rem', textAlign: 'center' }}>
                           <span style={{

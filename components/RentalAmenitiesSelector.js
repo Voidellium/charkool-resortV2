@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { calculateRentalAmenityTotalCents } from '@/src/lib/rentalPricing';
 
 export default function RentalAmenitiesSelector({
   selectedAmenities,
@@ -98,10 +99,7 @@ export default function RentalAmenitiesSelector({
   };
 
   const calculatePrice = (amenity, quantity, hoursUsed) => {
-    if (hoursUsed > 0 && amenity.pricePerHour) {
-      return hoursUsed * amenity.pricePerHour;
-    }
-    return quantity * amenity.pricePerUnit;
+    return calculateRentalAmenityTotalCents({ quantity, hoursUsed, rentalAmenity: amenity });
   };
 
   if (loading) {

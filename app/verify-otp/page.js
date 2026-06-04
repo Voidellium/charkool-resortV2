@@ -147,7 +147,7 @@ function VerifyOTPContent() {
                 finalRedirect = '/super-admin/dashboard';
                 break;
               case 'receptionist':
-                finalRedirect = '/receptionist';
+                finalRedirect = '/login';
                 break;
               case 'cashier':
                 finalRedirect = '/cashier';
@@ -159,7 +159,9 @@ function VerifyOTPContent() {
                 finalRedirect = '/guest/dashboard';
             }
           }
-          // Now, redirect to the intended page
+          if (finalRedirect.startsWith('/cashier/')) {
+            finalRedirect = '/cashier';
+          }
           router.push(finalRedirect);
         } catch (updateError) {
           console.error('Session update error:', updateError);

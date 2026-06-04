@@ -15,6 +15,7 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('error'); // 'error' or 'success'
+  const [feedback, setFeedback] = useState('');
   const [paymentWindow, setPaymentWindow] = useState(null);
   const [paymentCompleted, setPaymentCompleted] = useState(false);
   const [totalRooms, setTotalRooms] = useState(0);
@@ -59,7 +60,7 @@ export default function CheckoutPage() {
           }
           setBookingId(storedBookingId);
           setHeldUntil(data.heldUntil ? new Date(data.heldUntil) : null);
-          const bookingFinalTotal = Number(data.totalAfterDiscount || data.totalPrice || 0) / 100;
+          const bookingFinalTotal = Number(data.totalCostWithAddons || data.totalAfterDiscount || data.totalPrice || 0) / 100;
           if (!Number.isNaN(bookingFinalTotal) && bookingFinalTotal >= 0) {
             setAmount(bookingFinalTotal.toFixed(0));
             localStorage.setItem('bookingAmount', bookingFinalTotal.toFixed(0));
@@ -212,6 +213,19 @@ export default function CheckoutPage() {
                   setMessageType('success');
                   setMessage('Payment successful! Redirecting...');
                   setLoading(false);
+                  // If user entered feedback, save it before redirecting
+                  if (feedback && String(feedback).trim().length > 0) {
+                    try {
+                      await fetch(`/api/bookings/${event.data.bookingId}/remarks`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ content: feedback }),
+                      });
+                      setFeedback('');
+                    } catch (e) {
+                      console.warn('Failed to save feedback before redirect', e);
+                    }
+                  }
                   window.location.href = `/confirmation?bookingId=${event.data.bookingId}`;
                 } else if (data.status === 'failed') {
                   clearInterval(interval);
@@ -258,6 +272,38 @@ export default function CheckoutPage() {
       };
     }
   }, [paymentWindow]);
+
+  // Submit optional checkout feedback (saves as BookingRemark)
+  const submitFeedback = async () => {
+    if (!bookingId) {
+      setMessageType('error');
+      setMessage('No booking to attach feedback to.');
+      return;
+    }
+    if (!feedback || String(feedback).trim().length === 0) {
+      setMessageType('error');
+      setMessage('Please enter feedback before submitting.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/bookings/${bookingId}/remarks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: feedback }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed to save feedback');
+      setMessageType('success');
+      setMessage('Feedback saved. Thank you!');
+      setFeedback('');
+    } catch (e) {
+      setMessageType('error');
+      setMessage(e.message || 'Failed to save feedback');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Before unload warning if payment not completed
   useEffect(() => {
@@ -631,6 +677,28 @@ export default function CheckoutPage() {
               </button>
 
               {message && <p className={`message ${messageType}`}>{message}</p>}
+
+              <div className="section" style={{ marginTop: '12px' }}>
+                <label style={{ display: 'block', marginBottom: '8px' }}>
+                  Optional Feedback
+                </label>
+                <textarea
+                  value={feedback}
+                  onChange={(e) => setFeedback(e.target.value)}
+                  placeholder="Optional: share feedback about your stay or checkout experience"
+                  maxLength={1000}
+                  style={{ width: '100%', minHeight: '84px', padding: '8px', borderRadius: '6px', border: '1px solid #e5e7eb' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '8px' }}>
+                  <button
+                    onClick={submitFeedback}
+                    disabled={loading || !feedback || String(feedback).trim().length === 0}
+                    style={{ padding: '8px 14px', background: '#374151', color: '#fff', border: 'none', borderRadius: '6px', cursor: loading ? 'not-allowed' : 'pointer' }}
+                  >
+                    Save Feedback
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

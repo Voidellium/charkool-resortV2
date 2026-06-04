@@ -1,4 +1,4 @@
-                'use client';
+﻿'use client';
                 import { useSession, signOut } from 'next-auth/react';
                 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
                 import { useChangeModal, ChangeModal, useReceiptModal, ReceiptModal, NavigationConfirmationModal } from '@/components/CustomModals';
@@ -6,8 +6,8 @@
                 import { useNavigationGuard } from '../../hooks/useNavigationGuard.simple';
                 import { Bell, Search, ChevronDown, User, LogOut, CheckCircle2, AlertTriangle, XCircle, Flag, CreditCard, CalendarDays, BookOpen, Clock, Calculator, Hotel, X, Eye, Calendar, Users, MoreVertical, Download, Lock } from 'lucide-react';
                 import styles from './Cashier.module.css';
-                import { useBookingUpdates, usePaymentUpdates, useStaffNotifications } from '@/hooks/usePusher';
-                import ChangePasswordModal from '@/components/ChangePasswordModal';
+                import { useBookingUpdates, usePaymentUpdates } from '@/hooks/usePusher';
+                import { calculateRentalAmenityTotalCents } from '@/src/lib/rentalPricing';
 
                 /**
                  * CASHIER API ENDPOINTS DOCUMENTATION
@@ -96,8 +96,6 @@ export default function CashierDashboard() {
                 });
 
                 // UI state
-                const [userMenuOpen, setUserMenuOpen] = useState(false);
-                const [showChangePassword, setShowChangePassword] = useState(false);
                 const [loading, setLoading] = useState(true);
                 const [isLoading, setIsLoading] = useState(false);
                 const [handoffNotice, setHandoffNotice] = useState("");
@@ -111,7 +109,6 @@ export default function CashierDashboard() {
                 const [totalLoading, setTotalLoading] = useState(false);
                 const [pendingLoading, setPendingLoading] = useState(false);
                 const [notifications, setNotifications] = useState([]);
-                const [notifCount, setNotifCount] = useState(0);
                 const [showNotifications, setShowNotifications] = useState(false);
                 
                 // Notification simulator state
@@ -295,11 +292,9 @@ export default function CashierDashboard() {
                     );
                     
                     setNotifications(uniqueNotifs);
-                    setNotifCount(uniqueNotifs.length);
                   } catch (e) {
                     console.error('Failed to fetch notifications:', e);
                     setNotifications([]);
-                    setNotifCount(0);
                   }
                 }
 
@@ -430,7 +425,7 @@ export default function CashierDashboard() {
                   }
                 }, [toastSuccess]);
 
-                // 🔔 PUSHER: Real-time updates for cashier dashboard
+                // ðŸ”” PUSHER: Real-time updates for cashier dashboard
                 // Callback to refresh all cashier data
                 const refetchCashierData = useCallback(() => {
                   console.log('[Pusher] Received update, refreshing cashier data...');
@@ -482,13 +477,6 @@ export default function CashierDashboard() {
                     console.log('[Pusher] Payment verified:', data);
                     refetchCashierData();
                   },
-                });
-
-                // Subscribe to cashier-specific notifications
-                useStaffNotifications('CASHIER', (notification) => {
-                  console.log('[Pusher] New notification:', notification.message);
-                  toastSuccess(notification.message);
-                  fetchNotifications();
                 });
 
                 // Filters
@@ -702,8 +690,7 @@ export default function CashierDashboard() {
                           // rental amenities
                           if (booking.rentalAmenities && Array.isArray(booking.rentalAmenities)) {
                             for (const ra of booking.rentalAmenities) {
-                              const rp = Number(ra.totalPrice || ra.price || 0);
-                              total += rp;
+                              total += calculateRentalAmenityTotalCents(ra);
                             }
                           }
 
@@ -851,7 +838,7 @@ export default function CashierDashboard() {
                     const key = `${t1?.latestUpdatedAt||''}:${t1?.count||0}|${t2?.latestUpdatedAt||''}:${t2?.count||0}`;
                     if (key !== upcomingSummaryKey) {
                       setUpcomingSummaryKey(key);
-                      // Something changed — refresh the full upcoming lists
+                      // Something changed â€” refresh the full upcoming lists
                       await fetchUpcomingReservations();
                     }
                     return key;
@@ -1110,8 +1097,6 @@ export default function CashierDashboard() {
                   .filter((t) => (t.paymentMethod || "").toLowerCase() === "card")
                   .reduce((sum, t) => sum + Number(t.amountPaid || 0), 0);
                 const cardTotal = completedCardTotal;
-                const totalNotifications = notifications.length;
-
                 // Totals for upcoming windows (amounts are expected in cents)
                 const upcomingTodayTotalAmount = useMemo(() => {
                   try {
@@ -1831,18 +1816,6 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                 if (status === "loading" || loading) {
                   return (
                     <div className={styles.page}>
-                      <header className={styles.headerBar}>
-                        <div className={styles.headerLeft}>
-                          <div className={`${styles.skeleton} ${styles.skeletonLineMd}`} style={{ width: 180 }} />
-                        </div>
-                        <div className={styles.headerCenter}>
-                          <div className={`${styles.skeleton} ${styles.skeletonLineSm}`} style={{ width: 120 }} />
-                        </div>
-                        <div className={styles.headerRight}>
-                          <div className={`${styles.skeleton} ${styles.skeletonCircleMd}`} />
-                          <div className={`${styles.skeleton} ${styles.skeletonCircleMd}`} />
-                        </div>
-                      </header>
                       <main className={styles.main}>
                         <div className={styles.leftColumn}>
                           <div className={styles.kpiGrid}>
@@ -1907,292 +1880,6 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
 
                 return (
                   <div className={styles.page}>
-                    {/* Navbar */}
-                    <header className={styles.headerBar}>
-                      <div className={styles.headerLeft}>
-                        {/* Empty or can add logo here */}
-                      </div>
-                      <div className={styles.headerRight}>
-                        {/* Notifications */}
-                        <div style={{ position: 'relative' }}>
-                          <button
-                            onClick={() => setShowNotifications(!showNotifications)}
-                            className={styles.notificationBtn}
-                            aria-label="Notifications"
-                            title={`${totalNotifications} new notification${totalNotifications !== 1 ? 's' : ''}`}
-                          >
-                            <Bell className="h-5 w-5" />
-                            {totalNotifications > 0 && (
-                              <span className={styles.badge}>{totalNotifications > 9 ? '9+' : totalNotifications}</span>
-                            )}
-                          </button>
-                          
-                          {/* Notifications Panel */}
-                          {showNotifications && (
-                            <>
-                              <div
-                                onClick={() => setShowNotifications(false)}
-                                style={{ position: 'fixed', inset: 0, zIndex: 140 }}
-                                aria-hidden
-                              />
-                              <div style={{
-                                position: 'absolute',
-                                top: 'calc(100% + 8px)',
-                                right: 0,
-                                width: 'min(95vw, 420px)',
-                                maxHeight: '70vh',
-                                overflowY: 'auto',
-                                background: '#fff',
-                                borderRadius: '12px',
-                                boxShadow: '0 12px 48px rgba(0, 0, 0, 0.15)',
-                                zIndex: 150,
-                                border: '1px solid #e5e7eb',
-                                padding: 0
-                              }}>
-                                {/* Header */}
-                                <div style={{
-                                  padding: '16px',
-                                  borderBottom: '1px solid #e5e7eb',
-                                  display: 'flex',
-                                  justifyContent: 'space-between',
-                                  alignItems: 'center',
-                                  position: 'sticky',
-                                  top: 0,
-                                  background: '#f8fafc',
-                                  zIndex: 10
-                                }}>
-                                  <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '600', color: '#1f2937' }}>
-                                    Notifications
-                                  </h3>
-                                  <span style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    minWidth: '28px',
-                                    height: '28px',
-                                    background: '#febe52',
-                                    color: 'white',
-                                    borderRadius: '999px',
-                                    fontSize: '0.8rem',
-                                    fontWeight: '700'
-                                  }}>
-                                    {totalNotifications > 9 ? '9+' : totalNotifications}
-                                  </span>
-                                </div>
-                                
-                                {/* Notifications List */}
-                                <div style={{ maxHeight: 'calc(70vh - 60px)', overflowY: 'auto' }}>
-                                  {notifications.length === 0 ? (
-                                    <div style={{
-                                      padding: '32px 16px',
-                                      textAlign: 'center',
-                                      color: '#94a3b8'
-                                    }}>
-                                      <Bell className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                                      <p style={{ margin: 0, fontSize: '0.9rem' }}>No notifications yet</p>
-                                    </div>
-                                  ) : (
-                                    notifications.map((notif, idx) => (
-                                      <div key={idx} style={{
-                                        padding: '16px',
-                                        borderBottom: idx < notifications.length - 1 ? '1px solid #f1f5f9' : 'none',
-                                        transition: 'background-color 0.2s ease',
-                                        cursor: 'pointer'
-                                      }}
-                                      onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
-                                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                                      >
-                                        {/* Notification Icon and Header */}
-                                        <div style={{
-                                          display: 'flex',
-                                          alignItems: 'flex-start',
-                                          gap: '12px',
-                                          marginBottom: '8px'
-                                        }}>
-                                          <div style={{
-                                            width: '32px',
-                                            height: '32px',
-                                            borderRadius: '8px',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            flexShrink: 0,
-                                            background: notif.type === 'payment' ? '#dbeafe' : notif.type === 'booking' ? '#fef3c7' : '#f0fdf4',
-                                            color: notif.type === 'payment' ? '#0369a1' : notif.type === 'booking' ? '#b45309' : '#16a34a'
-                                          }}>
-                                            {notif.type === 'payment' ? (
-                                              <CreditCard className="h-4 w-4" />
-                                            ) : notif.type === 'booking' ? (
-                                              <Hotel className="h-4 w-4" />
-                                            ) : (
-                                              <CheckCircle2 className="h-4 w-4" />
-                                            )}
-                                          </div>
-                                          <div style={{ flex: 1 }}>
-                                            <div style={{
-                                              fontSize: '0.95rem',
-                                              fontWeight: '600',
-                                              color: '#1f2937',
-                                              marginBottom: '2px'
-                                            }}>
-                                              {notif.title || notif.message?.split('\n')[0] || 'Notification'}
-                                            </div>
-                                            <div style={{
-                                              fontSize: '0.8rem',
-                                              color: '#9ca3af',
-                                              fontWeight: '500'
-                                            }}>
-                                              {notif.timestamp ? new Date(notif.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) :
-                                               notif.createdAt ? new Date(notif.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Now'}
-                                            </div>
-                                          </div>
-                                        </div>
-                                        
-                                        {/* Message */}
-                                        <p style={{
-                                          fontSize: '0.9rem',
-                                          color: '#475569',
-                                          lineHeight: '1.5',
-                                          margin: '0 0 12px 0'
-                                        }}>
-                                          {notif.message || notif.description}
-                                        </p>
-                                        
-                                        {/* Actions and Metadata */}
-                                        <div className="flex items-center justify-between">
-                                          <div style={{
-                                            fontSize: '0.8rem',
-                                            color: '#94a3b8',
-                                            fontWeight: '500'
-                                          }}>
-                                            {notif.timestamp ? new Date(notif.timestamp).toLocaleDateString() :
-                                             notif.createdAt ? new Date(notif.createdAt).toLocaleDateString() : 'Today'}
-                                          </div>
-                                          
-                                          {notif.type === 'booking' && notif.bookingId && (
-                                            <button
-                                              style={{
-                                                background: 'linear-gradient(135deg, #febe52, #f59e0b)',
-                                                color: 'white',
-                                                border: 'none',
-                                                borderRadius: '8px',
-                                                padding: '6px 12px',
-                                                fontSize: '0.8rem',
-                                                fontWeight: '600',
-                                                cursor: 'pointer',
-                                                transition: 'all 0.2s ease',
-                                                boxShadow: '0 2px 4px rgba(245, 158, 11, 0.3)'
-                                              }}
-                                              onMouseEnter={(e) => {
-                                                e.target.style.transform = 'scale(1.05)';
-                                                e.target.style.boxShadow = '0 4px 8px rgba(245, 158, 11, 0.4)';
-                                              }}
-                                              onMouseLeave={(e) => {
-                                                e.target.style.transform = 'scale(1)';
-                                                e.target.style.boxShadow = '0 2px 4px rgba(245, 158, 11, 0.3)';
-                                              }}
-                                            >
-                                              View Booking
-                                            </button>
-                                          )}
-                                        </div>
-                                      </div>
-                                    ))
-                                  )}
-                                </div>
-                                
-                                {/* Footer */}
-                                {notifications.length > 0 && (
-                                  <div style={{
-                                    padding: '12px 16px',
-                                    borderTop: '1px solid #e5e7eb',
-                                    background: '#f8fafc',
-                                    textAlign: 'center'
-                                  }}>
-                                    <button
-                                      onClick={() => {
-                                        setShowNotifications(false);
-                                        // Optional: Add action to view all notifications
-                                        toastSuccess('Viewing all notifications');
-                                      }}
-                                      style={{
-                                        background: 'none',
-                                        border: 'none',
-                                        color: '#3b82f6',
-                                        cursor: 'pointer',
-                                        fontSize: '0.9rem',
-                                        fontWeight: '600',
-                                        textDecoration: 'none',
-                                        transition: 'color 0.2s ease'
-                                      }}
-                                      onMouseEnter={(e) => e.target.style.color = '#1d4ed8'}
-                                      onMouseLeave={(e) => e.target.style.color = '#3b82f6'}
-                                    >
-                                      View All Notifications
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            </>
-                          )}
-                        </div>
-
-                        {/* User Menu */}
-                        <div style={{ position: 'relative' }}>
-                          <button
-                            onClick={() => setUserMenuOpen(!userMenuOpen)}
-                            className={styles.avatarBtn}
-                            aria-label="User menu"
-                          >
-                            <div className={styles.avatar}>
-                              {(session?.user?.name || 'C')[0].toUpperCase()}
-                            </div>
-                            <div className={styles.avatarInfo}>
-                              <div className={styles.avatarName}>
-                                {session?.user?.name || 'Cashier'}
-                              </div>
-                              <div className={styles.avatarRole}>Cashier</div>
-                            </div>
-                            <ChevronDown className="h-4 w-4 text-white opacity-80" />
-                          </button>
-                          {userMenuOpen && (
-                            <>
-                              <div
-                                onClick={() => setUserMenuOpen(false)}
-                                style={{ position: 'fixed', inset: 0, zIndex: 140 }}
-                                aria-hidden
-                              />
-                              <div className={styles.dropdownMenu}>
-                                <button
-                                  onClick={() => setUserMenuOpen(false)}
-                                  className={styles.menuItem}
-                                  role="menuitem"
-                                >
-                                  <User className="h-4 w-4" />
-                                  <span>View Profile</span>
-                                </button>
-                                <button
-                                  onClick={() => { setUserMenuOpen(false); setShowChangePassword(true); }}
-                                  className={styles.menuItem}
-                                  role="menuitem"
-                                >
-                                  <Lock className="h-4 w-4" />
-                                  <span>Change Password</span>
-                                </button>
-                                <button
-                                  onClick={() => { setUserMenuOpen(false); signOut({ callbackUrl: '/login' }); }}
-                                  className={`${styles.menuItem} ${styles.menuItemLogout}`}
-                                  role="menuitem"
-                                >
-                                  <LogOut className="h-4 w-4" />
-                                  <span>Sign Out</span>
-                                </button>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </header>
 
                     {/* Welcome Section */}
                     <div style={{
@@ -2481,7 +2168,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                           
                           {debug && (
                             <div className="px-3 py-2 text-xs text-slate-600 border-b border-slate-100">
-                              Debug · upcomingReservations: {upcomingTransactionsList.length} · pagedUpcoming: {pagedUpcoming.length}
+                              Debug Â· upcomingReservations: {upcomingTransactionsList.length} Â· pagedUpcoming: {pagedUpcoming.length}
                             </div>
                           )}
                           
@@ -2645,7 +2332,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                           {upcomingTotalPages > 1 && (
                             <div className={`${styles.paginationBar} ${styles.barRelative}`} style={{marginTop: '16px'}}>
                               <div className={styles.paginationInfo}>
-                                Page {upcomingPage} of {upcomingTotalPages} • {upcomingTransactionsList.length} reservations
+                                Page {upcomingPage} of {upcomingTotalPages} â€¢ {upcomingTransactionsList.length} reservations
                               </div>
                               <div className={styles.paginationButtons}>
                                 <button
@@ -2825,7 +2512,7 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                           {sameDayTotalPages > 1 && (
                               <div className={`${styles.paginationBar} ${styles.barRelative}`} style={{marginTop: '16px'}}>
                                 <div className={styles.paginationInfo}>
-                                  Page {sameDayPage} of {sameDayTotalPages} • {sameDayPaymentQueue.length} arrivals
+                                  Page {sameDayPage} of {sameDayTotalPages} â€¢ {sameDayPaymentQueue.length} arrivals
                                 </div>
                                 <div className={styles.paginationButtons}>
                                   <button
@@ -3670,301 +3357,22 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                       <ReceiptModal modal={receiptModal} setModal={setReceiptModal} />
                     </>
 
+                    {/* Logout Confirmation Modal */}
+                    <NavigationConfirmationModal
+                      show={navigationGuard.show}
+                      onStay={navigationGuard.onStay}
+                      onLeave={navigationGuard.onLeave}
+                      context="logout"
+                      message={navigationGuard.message}
+                    />
+
                     {/* Notifications Modal */}
                     {showNotifications && (
                       <div className={styles.modalOverlay} onClick={() => setShowNotifications(false)}>
                         <div className={styles.modal} onClick={(e) => e.stopPropagation()} style={{maxWidth: '600px'}}>
-                          <div className="flex items-center justify-between mb-6">
-                            <h2 className={styles.modalHeader} style={{margin: 0, background: 'linear-gradient(135deg, var(--primary-500), var(--primary-600))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent'}}>
-                              <div className="flex items-center gap-2">
-                                <Bell className="h-6 w-6" style={{color: '#febe52'}} />
-                                Notifications Center
-                              </div>
-                            </h2>
-                            <button
-                              onClick={() => setShowNotifications(false)}
-                              className="p-2 hover:bg-red-50 rounded-lg transition-colors group"
-                              aria-label="Close"
-                              style={{
-                                position: 'absolute',
-                                top: '16px',
-                                right: '16px',
-                                background: 'rgba(239, 68, 68, 0.1)',
-                                border: '1px solid rgba(239, 68, 68, 0.2)'
-                              }}
-                            >
-                              <X className="h-5 w-5 text-red-500 group-hover:text-red-700" />
-                            </button>
-                          </div>
-                          
-                          {/* Tab Headers */}
-                          <div className="flex border-b border-slate-200 mb-4">
-                            <div className={styles.notificationTab}>
-                              All Notifications ({notifications.length})
-                            </div>
-                          </div>
-                          
-                          <div className="grid gap-4 max-h-[60vh] overflow-y-auto p-2">
-                            {notifications.length === 0 ? (
-                              <div className="text-center py-10 text-slate-500">
-                                <Bell className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                                <p>No new notifications at this time</p>
-                                <p className="text-xs mt-2 opacity-70">Notifications will appear here as they arrive</p>
-                              </div>
-                            ) : (
-                              notifications.map((notif, index) => (
-                                <div 
-                                  key={notif.id}
-                                  className="notification-card group"
-                                  style={{
-                                    background: notif.priority === 'urgent' ? 'linear-gradient(135deg, #fee2e2, #fecaca)' :
-                                               notif.priority === 'high' ? 'linear-gradient(135deg, #fef3c7, #fde68a)' :
-                                               notif.priority === 'normal' ? 'linear-gradient(135deg, #dbeafe, #bfdbfe)' :
-                                               'linear-gradient(135deg, #f8fafc, #f1f5f9)',
-                                    border: `1px solid ${
-                                      notif.priority === 'urgent' ? '#fca5a5' :
-                                      notif.priority === 'high' ? '#fbbf24' :
-                                      notif.priority === 'normal' ? '#93c5fd' :
-                                      '#e2e8f0'
-                                    }`,
-                                    borderRadius: '16px',
-                                    padding: '20px',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-                                    position: 'relative',
-                                    overflow: 'hidden'
-                                  }}
-                                  onMouseEnter={(e) => {
-                                    e.currentTarget.style.transform = 'translateY(-2px)';
-                                    e.currentTarget.style.boxShadow = '0 8px 25px rgba(0, 0, 0, 0.12)';
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.currentTarget.style.transform = 'translateY(0)';
-                                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.06)';
-                                  }}
-                                >
-                                  {/* Priority Accent Line */}
-                                  <div
-                                    style={{
-                                      position: 'absolute',
-                                      top: 0,
-                                      left: 0,
-                                      right: 0,
-                                      height: '4px',
-                                      background: notif.priority === 'urgent' ? 'linear-gradient(90deg, #dc2626, #ef4444)' :
-                                                 notif.priority === 'high' ? 'linear-gradient(90deg, #febe52, #f59e0b)' :
-                                                 notif.priority === 'normal' ? 'linear-gradient(90deg, #3b82f6, #1d4ed8)' :
-                                                 'linear-gradient(90deg, #6b7280, #4b5563)'
-                                    }}
-                                  />
-                                  
-                                  {/* Card Header */}
-                                  <div className="flex items-start justify-between mb-3">
-                                    <div className="flex items-center gap-3">
-                                      {/* Icon with enhanced styling */}
-                                      <div
-                                        style={{
-                                          width: '48px',
-                                          height: '48px',
-                                          borderRadius: '12px',
-                                          background: notif.priority === 'urgent' ? 'linear-gradient(135deg, #dc2626, #b91c1c)' :
-                                                     notif.priority === 'high' ? 'linear-gradient(135deg, #febe52, #d97706)' :
-                                                     notif.priority === 'normal' ? 'linear-gradient(135deg, #3b82f6, #1e40af)' :
-                                                     'linear-gradient(135deg, #6b7280, #374151)',
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          justifyContent: 'center',
-                                          fontSize: '1.5rem',
-                                          color: 'white',
-                                          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
-                                        }}
-                                      >
-                                        {notif.icon || (
-                                          notif.type === 'payment' ? <CreditCard className="h-6 w-6" /> :
-                                          notif.type === 'booking' ? <Hotel className="h-6 w-6" /> :
-                                          notif.type === 'urgent' ? <AlertTriangle className="h-6 w-6" /> :
-                                          notif.type === 'checkout' ? <LogOut className="h-6 w-6" /> :
-                                          notif.type === 'system' ? <X className="h-6 w-6" /> :
-                                          notif.type === 'alert' ? <AlertTriangle className="h-6 w-6" /> :
-                                          <Bell className="h-6 w-6" />
-                                        )}
-                                      </div>
-                                      
-                                      {/* Title and Priority Badge */}
-                                      <div>
-                                        <h3 style={{
-                                          fontSize: '1rem',
-                                          fontWeight: '700',
-                                          color: '#1e293b',
-                                          margin: 0,
-                                          lineHeight: '1.4'
-                                        }}>
-                                          {notif.title}
-                                        </h3>
-                                        {notif.priority && notif.priority !== 'normal' && (
-                                          <span
-                                            style={{
-                                              display: 'inline-block',
-                                              marginTop: '4px',
-                                              padding: '2px 8px',
-                                              fontSize: '0.75rem',
-                                              fontWeight: '600',
-                                              borderRadius: '6px',
-                                              background: notif.priority === 'urgent' ? '#dc2626' : '#febe52',
-                                              color: 'white',
-                                              textTransform: 'uppercase',
-                                              letterSpacing: '0.5px'
-                                            }}
-                                          >
-                                            {notif.priority}
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                    
-                                    {/* Time Badge */}
-                                    <div
-                                      style={{
-                                        padding: '4px 8px',
-                                        background: 'rgba(255, 255, 255, 0.7)',
-                                        borderRadius: '8px',
-                                        fontSize: '0.75rem',
-                                        color: '#64748b',
-                                        fontWeight: '500',
-                                        backdropFilter: 'blur(4px)'
-                                      }}
-                                    >
-                                      {notif.timestamp ? new Date(notif.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) :
-                                       notif.createdAt ? new Date(notif.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Now'}
-                                    </div>
-                                  </div>
-                                  
-                                  {/* Message */}
-                                  <p style={{
-                                    fontSize: '0.9rem',
-                                    color: '#475569',
-                                    lineHeight: '1.5',
-                                    margin: '0 0 16px 0'
-                                  }}>
-                                    {notif.message}
-                                  </p>
-                                  
-                                  {/* Actions and Metadata */}
-                                  <div className="flex items-center justify-between">
-                                    <div style={{
-                                      fontSize: '0.8rem',
-                                      color: '#94a3b8',
-                                      fontWeight: '500'
-                                    }}>
-                                      {notif.timestamp ? new Date(notif.timestamp).toLocaleDateString() :
-                                       notif.createdAt ? new Date(notif.createdAt).toLocaleDateString() : 'Today'}
-                                    </div>
-                                    
-                                    {notif.type === 'booking' && notif.bookingId && (
-                                      <button
-                                        style={{
-                                          background: 'linear-gradient(135deg, #febe52, #f59e0b)',
-                                          color: 'white',
-                                          border: 'none',
-                                          borderRadius: '8px',
-                                          padding: '6px 12px',
-                                          fontSize: '0.8rem',
-                                          fontWeight: '600',
-                                          cursor: 'pointer',
-                                          transition: 'all 0.2s ease',
-                                          boxShadow: '0 2px 4px rgba(245, 158, 11, 0.3)'
-                                        }}
-                                        onMouseEnter={(e) => {
-                                          e.target.style.transform = 'scale(1.05)';
-                                          e.target.style.boxShadow = '0 4px 8px rgba(245, 158, 11, 0.4)';
-                                        }}
-                                        onMouseLeave={(e) => {
-                                          e.target.style.transform = 'scale(1)';
-                                          e.target.style.boxShadow = '0 2px 4px rgba(245, 158, 11, 0.3)';
-                                        }}
-                                      >
-                                        View Booking #{notif.bookingId}
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                              ))
-                            )}
-                          </div>
                         </div>
                       </div>
                     )}
-
-                    {/* Live Notification Popup */}
-                    {showLiveNotification && currentLiveNotification && (
-                      <div className="fixed top-4 right-4 z-[2000] max-w-sm">
-                        <div className={`
-                          transform transition-all duration-500 ease-out
-                          ${showLiveNotification ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'}
-                        `}>
-                          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden">
-                            {/* Notification Header */}
-                            <div className={`
-                              px-4 py-3 flex items-center justify-between
-                              ${currentLiveNotification.priority === 'urgent' ? 'bg-red-500' :
-                                currentLiveNotification.priority === 'high' ? 'bg-amber-500' :
-                                currentLiveNotification.priority === 'normal' ? 'bg-blue-500' :
-                                'bg-slate-500'}
-                              text-white
-                            `}>
-                              <div className="flex items-center gap-2">
-                                <span className="text-lg">{currentLiveNotification.icon}</span>
-                                <span className="font-semibold text-sm">{currentLiveNotification.title}</span>
-                              </div>
-                              <button
-                                onClick={() => setShowLiveNotification(false)}
-                                className="p-1 hover:bg-white/20 rounded transition-colors"
-                              >
-                                <XCircle className="h-4 w-4" />
-                              </button>
-                            </div>
-                            
-                            {/* Notification Body */}
-                            <div className="p-4">
-                              <p className="text-slate-700 text-sm mb-3">{currentLiveNotification.message}</p>
-                              <div className="flex items-center justify-between text-xs text-slate-500">
-                                <span>{new Date(currentLiveNotification.timestamp).toLocaleTimeString()}</span>
-                                <button
-                                  onClick={() => {
-                                    setShowLiveNotification(false);
-                                    setShowNotifications(true);
-                                  }}
-                                  className="text-blue-600 hover:text-blue-800 font-medium"
-                                >
-                                  View All
-                                </button>
-                              </div>
-                            </div>
-                            
-                            {/* Priority Indicator */}
-                            <div className={`
-                              h-1 w-full
-                              ${currentLiveNotification.priority === 'urgent' ? 'bg-red-500' :
-                                currentLiveNotification.priority === 'high' ? 'bg-amber-500' :
-                                currentLiveNotification.priority === 'normal' ? 'bg-blue-500' :
-                                'bg-slate-500'}
-                            `} />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-
-
-                    {/* Logout Confirmation Modal */}
-                    <NavigationConfirmationModal
-                      show={navigationGuard.showModal}
-                      onStay={navigationGuard.handleStay}
-                      onLeave={() => signOut({ callbackUrl: '/login' })}
-                      context="logout"
-                      message={navigationGuard.message}
-                    />
 
                     {/* Back/Leave Confirmation for Cancel */}
                     <NavigationConfirmationModal
@@ -4341,6 +3749,36 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                                               </>
                                             )}
 
+                                            <div className={styles.detailLabel}>Price Breakdown</div>
+                                            <div className={styles.detailValue}>
+                                              <div className="space-y-1">
+                                                {(() => {
+                                                  const nights = Math.max(1, (new Date(md.checkOut) - new Date(md.checkIn)) / (1000 * 60 * 60 * 24));
+                                                  const roomLines = (md.rooms || []).map((r, idx) => (
+                                                    <div key={`room-${idx}`}>
+                                                      {r.room?.name || 'Room'} x{r.quantity} ({nights} nights): ₱{((Number(r.room?.price || r.price || 0) * Number(r.quantity || 0) * nights) / 100).toFixed(0)}
+                                                    </div>
+                                                  ));
+                                                  const optionalLines = (md.optionalAmenities || []).map((oa, idx) => (
+                                                    <div key={`optional-${idx}`}>
+                                                      {oa.optionalAmenity?.name || 'Optional Amenity'} x{oa.quantity}: ₱{((Number(oa.optionalAmenity?.price || 0) * Number(oa.quantity || 0)) / 100).toFixed(0)}
+                                                    </div>
+                                                  ));
+                                                  const rentalLines = (md.rentalAmenities || []).map((ra, idx) => (
+                                                    <div key={`rental-${idx}`}>
+                                                      {ra.rentalAmenity?.name || 'Rental Amenity'} x{ra.quantity} {ra.hoursUsed ? `(${ra.hoursUsed}h)` : ''}: ₱{(calculateRentalAmenityTotalCents(ra) / 100).toFixed(0)}
+                                                    </div>
+                                                  ));
+                                                  const discountLine = discountAmount > 0 ? (
+                                                    <div className="text-amber-700">
+                                                      Promotion Discount: -₱{(discountAmount / 100).toFixed(0)}
+                                                    </div>
+                                                  ) : null;
+                                                  return [...roomLines, ...optionalLines, ...rentalLines, discountLine].filter(Boolean);
+                                                })()}
+                                              </div>
+                                            </div>
+
                                             {formattedCheckIn && (
                                               <>
                                                 <div className={styles.detailLabel}>Days Until</div>
@@ -4425,14 +3863,6 @@ ${receiptData.notes ? `Notes: ${receiptData.notes}` : ''}
                       </p>
                     </footer>
                     
-                    {/* Change Password Modal */}
-                    <ChangePasswordModal
-                      isOpen={showChangePassword}
-                      onClose={() => setShowChangePassword(false)}
-                      onSuccess={() => {
-                        console.log('Cashier password changed successfully');
-                      }}
-                    />
                   </div>
                 );
               }

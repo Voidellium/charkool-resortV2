@@ -5,6 +5,8 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/auth';
 import { withSecurity, validateNumber, validateObject } from '@/lib/security';
 import { broadcastNewBooking, triggerEvent, notifyStaff, CHANNELS, EVENTS } from '@/lib/pusher-server';
+import { calculateRentalAmenityTotalCents, sumRentalAmenitiesTotalCents } from '@/src/lib/rentalPricing';
+import { getAuditWriteMeta } from '@/src/lib/cashierStaffAuth';
 
 // Helper function to serialize BigInt values
 function serializeBigInt(obj) {
@@ -67,6 +69,17 @@ async function getBookingsHandler(request) {
         optionalAmenities: { include: { optionalAmenity: true } },
         rentalAmenities: { include: { rentalAmenity: true } },
         cottage: { include: { cottage: true } },
+        remarks: {
+          include: {
+            author: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
       skip: skip,
@@ -84,13 +97,7 @@ async function getBookingsHandler(request) {
           continue; // Skip invalid bookings instead of throwing
         }
 
-        let rentalTotal = 0;
-        if (booking.rentalAmenities && Array.isArray(booking.rentalAmenities) && booking.rentalAmenities.length > 0) {
-          rentalTotal = booking.rentalAmenities.reduce((sum, ra) => {
-            const val = typeof ra.totalPrice === 'bigint' ? Number(ra.totalPrice) : ra.totalPrice || 0;
-            return sum + val;
-          }, 0);
-        }
+        const rentalTotal = sumRentalAmenitiesTotalCents(booking.rentalAmenities);
 
         let cottageTotal = 0;
         if (booking.cottage && Array.isArray(booking.cottage) && booking.cottage.length > 0) {
@@ -219,7 +226,7 @@ async function postBookingHandler(request) {
       );
     }
 
-    const {
+    let {
       guestName,
       checkIn,
       checkOut,
@@ -235,6 +242,13 @@ async function postBookingHandler(request) {
       userId = null,
       promotionId = null
     } = validation.data;
+
+    const actorRole = String(actorSession?.user?.role || '').toUpperCase();
+    const isStaffWalkIn = !userId && (actorRole === 'SUPERADMIN' || actorRole === 'RECEPTIONIST' || actorRole === 'CASHIER');
+    if (isStaffWalkIn) {
+      status = 'Confirmed';
+      paymentStatus = 'Pending';
+    }
 
     // Validate that either selectedRooms or roomsArray is provided
     const hasOldFormat = selectedRooms && typeof selectedRooms === 'object' && Object.keys(selectedRooms).length > 0;
@@ -403,14 +417,11 @@ async function postBookingHandler(request) {
 
       for (const amenity of amenitiesDetails) {
         const selection = rentalAmenitiesToUse[amenity.id];
-        let amenityPrice = 0;
-        if (selection.hoursUsed > 0 && amenity.pricePerHour) {
-          const perHour = typeof amenity.pricePerHour === 'bigint' ? Number(amenity.pricePerHour) : amenity.pricePerHour;
-          amenityPrice = selection.hoursUsed * perHour;
-        } else {
-          const perUnit = typeof amenity.pricePerUnit === 'bigint' ? Number(amenity.pricePerUnit) : amenity.pricePerUnit;
-          amenityPrice = selection.quantity * perUnit;
-        }
+        const amenityPrice = calculateRentalAmenityTotalCents({
+          quantity: selection.quantity,
+          hoursUsed: selection.hoursUsed,
+          rentalAmenity: amenity,
+        });
         rentalAmenitiesToCreate.push({
           rentalAmenityId: amenity.id,
           quantity: selection.quantity,
@@ -419,6 +430,12 @@ async function postBookingHandler(request) {
         });
       }
     }
+
+    const rentalAmenitiesTotal = rentalAmenitiesToCreate.reduce(
+      (sum, item) => sum + (Number(item.totalPrice) || 0),
+      0
+    );
+    calculatedTotalPrice += rentalAmenitiesTotal;
 
     const cottageToCreate = [];
     if (cottage && Object.keys(cottage).length > 0) {
@@ -703,7 +720,8 @@ async function postBookingHandler(request) {
       });
 
       // If the booking was created by receptionist, hand off to cashier immediately.
-      if (actorSession?.user?.role === 'RECEPTIONIST') {
+      const walkInRole = String(actorSession?.user?.role || '').toUpperCase();
+      if (walkInRole === 'RECEPTIONIST' || walkInRole === 'CASHIER') {
         const handoffNotification = await prisma.notification.create({
           data: {
             message: `Walk-in booking #${booking.id} is ready for cashier payment processing.`,
@@ -728,8 +746,13 @@ async function postBookingHandler(request) {
     // Record audit trail for the booking creation
     try {
       // Attempt to resolve server session to capture who created the booking
+      const auditMeta = getAuditWriteMeta(actorSession?.user?.role);
+      const createSummary =
+        auditMeta.actorLabel === 'Cashier'
+          ? `Cashier created walk-in booking for ${booking.guestName}`
+          : `Created booking for ${booking.guestName}`;
       const detailsObj = {
-        summary: `Created booking for ${booking.guestName}`,
+        summary: createSummary,
         after: booking,
         promotion: appliedPromotion ? {
           id: appliedPromotion.id,
@@ -744,7 +767,7 @@ async function postBookingHandler(request) {
       await recordAudit({
         actorId: actorSession?.user?.id || null,
         actorName: actorSession?.user?.name || actorSession?.user?.email || booking.guestName,
-        actorRole: actorSession?.user?.role || 'CUSTOMER',
+        actorRole: isStaffWalkIn ? auditMeta.actorRole : (actorSession?.user?.role || 'CUSTOMER'),
         action: 'CREATE',
         entity: 'Booking',
         entityId: String(booking.id),

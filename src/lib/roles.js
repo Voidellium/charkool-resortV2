@@ -3,8 +3,11 @@
  * Provides clear separation between Customer and Staff accounts
  */
 
-// Staff roles - accounts created by SuperAdmin
+// Staff roles - accounts created by SuperAdmin (legacy RECEPTIONIST kept for existing DB rows)
 export const STAFF_ROLES = ['SUPERADMIN', 'RECEPTIONIST', 'CASHIER', 'AMENITYINVENTORYMANAGER'];
+
+/** Roles Super Admin can assign when creating new staff (no Receptionist). */
+export const CREATABLE_STAFF_ROLES = ['CASHIER', 'AMENITYINVENTORYMANAGER'];
 
 // Customer role - accounts created through registration
 export const CUSTOMER_ROLE = 'CUSTOMER';

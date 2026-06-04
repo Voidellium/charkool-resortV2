@@ -1294,7 +1294,7 @@ export default function ChatInterface({ isModal, onClose, session }) {
 
       const successMsg = {
         type: 'bot',
-        text: data?.message || 'Thank you. A Super Admin will contact you within 24 hours via email or the contact details you provided.',
+        text: data?.message || "Our personnel will contact you regarding the chatbot's unanswered question within 24 hours via Email or Contact Number.",
         timestamp: new Date(),
         id: Date.now()
       };
@@ -1391,7 +1391,7 @@ export default function ChatInterface({ isModal, onClose, session }) {
                       cursor: 'pointer'
                     }}
                   >
-                    Sign in to request admin contact
+                    Sign in to Request Personnel Contact
                   </button>
                 </div>
               )}
@@ -1435,7 +1435,7 @@ export default function ChatInterface({ isModal, onClose, session }) {
                         <div className="suggestion-arrow">→</div>
                       </button>
                     ))}
-                    {msg.showRequestAdmin && (
+                        {msg.showRequestAdmin && (
                       <div style={{ marginTop: 12 }}>
                         <button
                           className="request-admin-btn"
@@ -1455,7 +1455,7 @@ export default function ChatInterface({ isModal, onClose, session }) {
                             cursor: 'pointer'
                           }}
                         >
-                          Request Direct Admin Contact
+                          Request Personnel Contact
                         </button>
                       </div>
                     )}

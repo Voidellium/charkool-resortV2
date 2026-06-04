@@ -163,7 +163,7 @@
           new Date(b.createdAt).toLocaleDateString(),
           b.user?.name || "N/A",
           b.room?.name || "N/A",
-          formatCurrency(b.totalPrice),
+          formatCurrency(b.totalCostWithAddons || b.totalAfterDiscount || b.totalPrice),
           b.status
         ]),
         styles: { fontSize: 10, cellPadding: 4 },
@@ -178,7 +178,7 @@
         Date: new Date(b.createdAt).toLocaleDateString(),
         Customer: b.user?.name || "N/A",
         Room: b.room?.name || "N/A",
-        "Total Price": formatCurrency(b.totalPrice),
+        "Total Price": formatCurrency(b.totalCostWithAddons || b.totalAfterDiscount || b.totalPrice),
         Status: b.status,
       })));
       const wb = XLSX.utils.book_new();
@@ -1521,7 +1521,7 @@
                           textAlign: 'right',
                           borderBottom: '1px solid #f3f4f6'
                         }}>
-                          {formatCurrency(booking.totalPrice)}
+                          {formatCurrency(booking.totalCostWithAddons || booking.totalAfterDiscount || booking.totalPrice)}
                         </td>
                         <td style={{
                           padding: '1rem',

@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import SuperAdminLayout from '@/components/SuperAdminLayout';
 import Loading, { TableLoading, ButtonLoading } from '@/components/Loading';
 import { useToast } from '@/components/Toast';
+import { calculateRentalAmenityTotalCents } from '@/src/lib/rentalPricing';
 import {
   CreditCard,
   Clock,
@@ -144,8 +145,7 @@ function getBookingPaymentSummary(payment) {
 
       if (Array.isArray(booking?.rentalAmenities) && booking.rentalAmenities.length > 0) {
         for (const ra of booking.rentalAmenities) {
-          const rp = ra.totalPrice ?? ra.price ?? 0;
-          localTotalCents += normalizeStoredAmount(rp);
+          localTotalCents += calculateRentalAmenityTotalCents(ra);
         }
       }
 

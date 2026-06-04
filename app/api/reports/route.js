@@ -8,6 +8,19 @@ function serializeBigInt(value) {
   );
 }
 
+function getMonthKey(date) {
+  return date.toISOString().slice(0, 7);
+}
+
+function getLastTwoMonthsKeys(referenceDate = new Date()) {
+  const months = [];
+  for (let i = 1; i >= 0; i--) {
+    const date = new Date(referenceDate.getFullYear(), referenceDate.getMonth() - i, 1);
+    months.push(getMonthKey(date));
+  }
+  return months;
+}
+
 // ✅ GET: Reports
 export async function GET(req) {
   try {
@@ -96,7 +109,7 @@ export async function GET(req) {
       monthly[month].revenue += Number(payment?.amount || 0);
     }
 
-    const monthlyReport = Object.values(monthly);
+    const lastTwoMonths = getLastTwoMonthsKeys();
 
     // ✅ Monthly room type distribution (Rooms availed per month by Room.type)
     const roomTypeMonthlyMap = {};
@@ -111,10 +124,31 @@ export async function GET(req) {
         roomTypeMonthlyMap[month].totalRoomAvailed += (br.quantity || 0);
       }
     }
+    for (const month of lastTwoMonths) {
+      if (!monthly[month]) {
+        monthly[month] = { month, bookings: 0, revenue: 0 };
+      }
+
+      if (!roomTypeMonthlyMap[month]) {
+        roomTypeMonthlyMap[month] = { month, totalRoomAvailed: 0 };
+      }
+    }
+
+    const roomTypes = Array.from(roomTypesSet);
+    for (const month of lastTwoMonths) {
+      for (const type of roomTypes) {
+        if (roomTypeMonthlyMap[month][type] === undefined) {
+          roomTypeMonthlyMap[month][type] = 0;
+        }
+      }
+    }
+
+    const monthlyReport = Object.values(monthly)
+      .sort((a, b) => a.month.localeCompare(b.month));
+
     const monthlyRoomTypeReport = Object.values(roomTypeMonthlyMap)
       // keep months in chronological order like monthlyReport
       .sort((a, b) => a.month.localeCompare(b.month));
-    const roomTypes = Array.from(roomTypesSet);
 
     // ✅ Amenity usage (new system): Optional & Rental
     const optionalCounts = new Map();

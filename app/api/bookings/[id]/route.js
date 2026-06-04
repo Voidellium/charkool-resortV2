@@ -4,6 +4,8 @@ import { recordAudit } from '@/src/lib/audit';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/auth';
 import { triggerEvent, notifyUser, notifyStaff, CHANNELS, EVENTS } from '@/lib/pusher-server';
+import { calculateRentalAmenityTotalCents } from '@/src/lib/rentalPricing';
+import { canAccessReceptionApis, getAuditWriteMeta } from '@/src/lib/cashierStaffAuth';
 
 // Function to serialize BigInt values for JSON response
 function serializeBigInt(obj) {
@@ -53,6 +55,7 @@ export const GET = async (_, context) => {
         rentalAmenities: { include: { rentalAmenity: true } },
         cottage: { include: { cottage: true } },
         payments: true,
+        remarks: { include: { author: true } },
       },
     });
 
@@ -60,7 +63,40 @@ export const GET = async (_, context) => {
       return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
     }
 
-    return NextResponse.json(serializeBigInt(booking));
+    const nights = Math.max(1, Math.ceil((new Date(booking.checkOut) - new Date(booking.checkIn)) / (1000 * 60 * 60 * 24)));
+    const roomTotal = (booking.rooms || []).reduce((sum, roomBooking) => {
+      const roomPrice = Number(roomBooking.room?.price || roomBooking.price || 0) || 0;
+      const quantity = Number(roomBooking.quantity || 0) || 0;
+      const additionalPax = Number(roomBooking.additionalPax || 0) || 0;
+      return sum + (roomPrice * quantity * nights) + (additionalPax * 40000 * nights);
+    }, 0);
+
+    const optionalTotal = (booking.optionalAmenities || []).reduce((sum, optional) => {
+      const amenityPrice = Number(optional.optionalAmenity?.price || 0) || 0;
+      const quantity = Number(optional.quantity || 0) || 0;
+      return sum + (amenityPrice * quantity);
+    }, 0);
+
+    const rentalTotal = (booking.rentalAmenities || []).reduce((sum, rental) => {
+      return sum + calculateRentalAmenityTotalCents(rental);
+    }, 0);
+
+    const cottageTotal = (booking.cottage || []).reduce((sum, cottageBooking) => {
+      return sum + Number(cottageBooking.totalPrice || 0);
+    }, 0);
+
+    const totalCostWithAddons = roomTotal + optionalTotal + rentalTotal + cottageTotal;
+    const totalBeforeDiscount = Number(booking.totalBeforeDiscount || totalCostWithAddons || booking.totalPrice || 0);
+    const totalAfterDiscount = Number(booking.totalAfterDiscount || booking.totalPrice || totalBeforeDiscount || 0);
+    const discountAmount = Number(booking.discountAmount || Math.max(0, totalBeforeDiscount - totalAfterDiscount));
+
+    return NextResponse.json(serializeBigInt({
+      ...booking,
+      totalCostWithAddons,
+      totalBeforeDiscount,
+      totalAfterDiscount,
+      discountAmount,
+    }));
   } catch (error) {
     console.error('❌ Booking GET Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -72,7 +108,7 @@ export const PUT = async (req, context) => {
   try {
     const session = await getServerSession(authOptions);
     const actorRole = session?.user?.role;
-    if (!session || !['SUPERADMIN', 'RECEPTIONIST', 'CASHIER'].includes(actorRole)) {
+    if (!session || !canAccessReceptionApis(actorRole)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -265,6 +301,7 @@ export const PUT = async (req, context) => {
         amenities: { include: { amenity: true } },
         payments: true,
         user: true,
+        remarks: { include: { author: true } },
       },
     });
 
@@ -304,6 +341,7 @@ export const PUT = async (req, context) => {
         cottage: { include: { cottage: true } },
         amenities: { include: { amenity: true } },
         payments: true,
+        remarks: { include: { author: true } },
         user: true,
       },
     });
@@ -439,10 +477,20 @@ export const PUT = async (req, context) => {
         after: updatedBookingFull,
       };
 
+      const auditMeta = getAuditWriteMeta(session?.user?.role);
+      if (auditMeta.actorLabel === 'Cashier' && detailsObj.summary) {
+        detailsObj.summary = detailsObj.summary.replace(/^Status:/, 'Cashier updated status:');
+        if (data.actualCheckIn === true) {
+          detailsObj.summary = `Cashier checked in ${updatedBookingFull?.guestName || updatedBooking.guestName}`;
+        } else if (data.actualCheckOut === true) {
+          detailsObj.summary = `Cashier checked out ${updatedBookingFull?.guestName || updatedBooking.guestName}`;
+        }
+      }
+
       await recordAudit({
         actorId: session?.user?.id || null,
         actorName: session?.user?.name || session?.user?.email || 'Unknown',
-        actorRole: session?.user?.role || 'UNKNOWN',
+        actorRole: auditMeta.actorRole,
         action,
         entity: 'Booking',
         entityId: String(updatedBooking.id),

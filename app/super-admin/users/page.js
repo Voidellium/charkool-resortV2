@@ -14,7 +14,6 @@ import { useToast, ConfirmModal } from '@/components/Toast';
 
 // Role configuration
 const STAFF_ROLES = [
-  { value: 'RECEPTIONIST', label: 'Receptionist', color: '#2563eb' },
   { value: 'CASHIER', label: 'Cashier', color: '#16a34a' },
   { value: 'AMENITYINVENTORYMANAGER', label: 'Inventory Manager', color: '#9333ea' },
   { value: 'SUPERADMIN', label: 'Super Admin', color: '#dc2626' },
@@ -743,7 +742,7 @@ function StaffFormModal({ staff, onSave, onRequestPromotion, onClose, loading, i
     name: staff?.name || '',
     email: staff?.email || '',
     password: '',
-    role: staff?.role || 'RECEPTIONIST',
+    role: staff?.role || 'CASHIER',
   });
   const [errors, setErrors] = useState({});
 

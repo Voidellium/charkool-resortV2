@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { calculateRentalAmenityTotalCents } from '@/src/lib/rentalPricing';
 
 function normalizePromotionId(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -36,6 +37,8 @@ export async function POST(request) {
     } = body;
 
     let total = 0;
+let rentalTotal = 0;
+
 
     // NEW FORMAT: Calculate room costs from rooms array
     if (rooms && rooms.length > 0) {
@@ -110,14 +113,13 @@ export async function POST(request) {
           const selection = aggregatedRentals[amenity.id];
           if (!selection) continue;
 
-          const quantity = selection.quantity || 0;
-          const hours = selection.hoursUsed || 0;
-
-          if (hours > 0 && amenity.pricePerHour) {
-            total += hours * amenity.pricePerHour * quantity;
-          } else {
-            total += quantity * amenity.pricePerUnit;
-          }
+          const amenityCost = calculateRentalAmenityTotalCents({
+            quantity: selection.quantity,
+            hoursUsed: selection.hoursUsed,
+            rentalAmenity: amenity,
+          });
+          total += amenityCost;
+          rentalTotal += amenityCost;
         }
       }
     } 
@@ -144,14 +146,13 @@ export async function POST(request) {
           const selection = rentalAmenities[amenity.id];
           if (!selection) continue;
 
-          const quantity = selection.quantity || 0;
-          const hours = selection.hoursUsed || 0;
-
-          if (hours > 0 && amenity.pricePerHour) {
-            total += hours * amenity.pricePerHour;
-          } else {
-            total += quantity * amenity.pricePerUnit;
-          }
+          const amenityCost = calculateRentalAmenityTotalCents({
+            quantity: selection.quantity,
+            hoursUsed: selection.hoursUsed,
+            rentalAmenity: amenity,
+          });
+          total += amenityCost;
+          rentalTotal += amenityCost;
         }
       }
     }
@@ -200,6 +201,7 @@ export async function POST(request) {
     return NextResponse.json({
       totalPrice: finalTotal,
       baseTotal: total,
+      rentalAmenityTotal: rentalTotal,
       discountAmount,
       finalTotal,
       appliedPromotion

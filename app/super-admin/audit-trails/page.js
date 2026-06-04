@@ -51,7 +51,8 @@ function humanizeBookingData(data, isComparison = false) {
 	if (data.checkOut) humanData['Check-out Date'] = formatDate(data.checkOut);
 	if (data.status) humanData['Booking Status'] = data.status.charAt(0).toUpperCase() + data.status.slice(1);
 	if (data.paymentStatus) humanData['Payment Status'] = data.paymentStatus.replace(/([A-Z])/g, ' $1').trim();
-	if (data.totalPrice) humanData['Total Amount'] = formatCurrency(data.totalPrice);
+	const totalAmt = data.totalCostWithAddons ?? data.totalAfterDiscount ?? data.totalPrice;
+	if (totalAmt !== undefined && totalAmt !== null) humanData['Total Amount'] = formatCurrency(totalAmt);
 	if (data.numberOfGuests) humanData['Number of Guests'] = `${data.numberOfGuests} guest${data.numberOfGuests > 1 ? 's' : ''}`;
 	
 	// Handle rooms array

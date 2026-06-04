@@ -13,6 +13,7 @@ import {
   assignRoomUnit, 
   reassignRoomUnit 
 } from '@/lib/roomUnitAvailability';
+import { canAccessReceptionApis } from '@/src/lib/cashierStaffAuth';
 
 export async function GET(request, { params }) {
   try {
@@ -46,7 +47,7 @@ export async function POST(request, { params }) {
   try {
     const session = await getServerSession();
     
-    if (!session || session.user.role !== 'RECEPTIONIST') {
+    if (!session || !canAccessReceptionApis(session.user.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -87,7 +88,7 @@ export async function PUT(request, { params }) {
   try {
     const session = await getServerSession();
     
-    if (!session || session.user.role !== 'RECEPTIONIST') {
+    if (!session || !canAccessReceptionApis(session.user.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

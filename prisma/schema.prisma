@@ -297,7 +297,8 @@ model Booking {
   paymentMode   String           @default("cash") // Required: "cash", "gcash", "maya", "card"
   isDeleted     Boolean          @default(false)
   cancellationRemarks String?
-  user          User?            @relation(fields: [userId], references: [id])
+  feedback String?
+user          User?            @relation(fields: [userId], references: [id])
   rooms         BookingRoom[]
   amenities     BookingAmenity[]
   optionalAmenities BookingOptionalAmenity[]

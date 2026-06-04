@@ -1,9 +1,10 @@
+// @ts-nocheck
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import { useNavigationGuard } from '../../../hooks/useNavigationGuard.simple';
-import { 
+import {
   NavigationConfirmationModal,
   CancelConfirmModal,
   useCancelConfirmModal,
@@ -14,6 +15,7 @@ import BookingCalendar from '../../../components/BookingCalendar';
 import PromotionPopup from '../../../components/PromotionPopup';
 import { useUserUpdates } from '../../../hooks/usePusher';
 import { useToast } from '@/components/Toast';
+import { calculateRentalAmenityTotalCents } from '@/src/lib/rentalPricing';
 import {
   AlertTriangle,
   ArrowRight,
@@ -212,7 +214,7 @@ function RescheduleModalContent({ booking, guest }) {
         try {
           const errorData = await res.json();
           errorMsg = errorData.error || errorData.message || errorMsg;
-        } catch {}
+        } catch { }
         setStatus('error');
         setInfo(errorMsg);
       }
@@ -568,7 +570,7 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
 
   const details = fullBookingDetails || booking;
   const totalAmount = details.payments?.reduce((sum, p) => (p.status === 'Paid' || p.status === 'Reservation') ? sum + Number(p.amount) : sum, 0) || 0;
-  
+
   // Calculate total from all components to ensure rental amenities are included
   const reservationFee = (details.rooms?.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0) || 0) * 2000;
   const roomCharges = (details.rooms || []).reduce((sum, roomBooking) => {
@@ -578,7 +580,7 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
     const roomReservationFee = (Number(roomBooking.quantity) || 0) * 2000;
     return sum + (roomTotal - roomReservationFee);
   }, 0);
-  const rentalTotal = (details.rentalAmenities || []).reduce((sum, rental) => sum + ((Number(rental.totalPrice) || 0) / 100), 0);
+  const rentalTotal = (details.rentalAmenities || []).reduce((sum, rental) => sum + (calculateRentalAmenityTotalCents(rental) / 100), 0);
   const optionalTotal = (details.optionalAmenities || []).reduce((sum, optional) => {
     const amenityPrice = (Number(optional.optionalAmenity?.price) || 0) / 100;
     return sum + (amenityPrice * (Number(optional.quantity) || 0));
@@ -594,7 +596,7 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
     : Math.max(0, baseTotal - finalTotal);
   const totalPrice = finalTotal;
   const remainingBalance = finalTotal - (totalAmount / 100);
-  
+
   const room = details.rooms?.[0]?.room;
   const isCancelled = String(details.status).toLowerCase() === 'cancelled';
 
@@ -751,7 +753,7 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
         {/* Payment Information with Breakdown */}
         <div className="details-section">
           <h3 className="section-title"><CreditCard size={18} /> {isCancelled ? 'Payment Summary' : 'Payment Details'}</h3>
-          
+
           {isCancelled ? (
             <div className="payment-summary">
               <div className="summary-row">
@@ -786,7 +788,7 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
                       const reservationFee = (Number(roomBooking.quantity) || 0) * 2000;
                       const roomBalance = roomTotal - reservationFee;
                       const additionalPaxFee = (roomBooking.additionalPax || 0) * 400 * nights;
-                      
+
                       return (roomBalance > 0 || additionalPaxFee > 0) ? (
                         <div key={idx} className="breakdown-item">
                           <span className="breakdown-label">
@@ -944,7 +946,7 @@ const UnifiedDetailsModal = ({ booking, guest }) => {
                     )}
                   </div>
                   {payment.receiptUrl && (
-                    <button 
+                    <button
                       className="receipt-btn"
                       onClick={() => handleDownloadReceipt(payment.receiptUrl)}
                     >
@@ -1474,12 +1476,12 @@ const BookingHistoryCard = ({ booking, guest, onViewDetails, onReschedule, resch
   };
 
   const isCancelled = String(booking.status).toLowerCase() === 'cancelled';
-  const refundedPayments = isCancelled 
+  const refundedPayments = isCancelled
     ? booking.payments?.filter(p => p.status === 'Refunded' || p.status === 'refunded') || []
     : [];
   const totalPaid = booking.payments?.reduce((sum, p) => (p.status === 'Paid' || p.status === 'Reservation') ? sum + Number(p.amount) : sum, 0) || 0;
   const totalRefunded = refundedPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-  
+
   // Calculate total from all components
   const reservationFee = (booking.rooms?.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0) || 0) * 2000;
   const roomCharges = (booking.rooms || []).reduce((sum, roomBooking) => {
@@ -1489,14 +1491,14 @@ const BookingHistoryCard = ({ booking, guest, onViewDetails, onReschedule, resch
     const roomReservationFee = (Number(roomBooking.quantity) || 0) * 2000;
     return sum + (roomTotal - roomReservationFee);
   }, 0);
-  const rentalTotal = (booking.rentalAmenities || []).reduce((sum, rental) => sum + ((Number(rental.totalPrice) || 0) / 100), 0);
+  const rentalTotal = (booking.rentalAmenities || []).reduce((sum, rental) => sum + (calculateRentalAmenityTotalCents(rental) / 100), 0);
   const optionalTotal = (booking.optionalAmenities || []).reduce((sum, optional) => {
     const amenityPrice = (Number(optional.optionalAmenity?.price) || 0) / 100;
     return sum + (amenityPrice * (Number(optional.quantity) || 0));
   }, 0);
   const cottageTotal = (booking.cottage || []).reduce((sum, cottageBooking) => sum + ((Number(cottageBooking.totalPrice) || 0) / 100), 0);
   const calculatedTotal = reservationFee + roomCharges + rentalTotal + optionalTotal + cottageTotal;
-  const finalTotal = Number(booking.totalAfterDiscount || booking.totalPrice || calculatedTotal * 100) / 100;
+  const finalTotal = Number(booking.totalAfterDiscount || booking.totalCostWithAddons || booking.totalPrice || calculatedTotal * 100) / 100;
   const remainingBalance = finalTotal - (totalPaid / 100);
 
   return (
@@ -1508,19 +1510,19 @@ const BookingHistoryCard = ({ booking, guest, onViewDetails, onReschedule, resch
         </span>
       </div>
       <div className="card-details">
-        <p><strong>Check-in:</strong> {new Date(booking.checkIn).toLocaleDateString('en-US', { 
-          month: 'long', 
-          day: 'numeric', 
+        <p><strong>Check-in:</strong> {new Date(booking.checkIn).toLocaleDateString('en-US', {
+          month: 'long',
+          day: 'numeric',
           year: 'numeric'
         })} at 2:00 PM</p>
-        <p><strong>Check-out:</strong> {new Date(booking.checkOut).toLocaleDateString('en-US', { 
-          month: 'long', 
-          day: 'numeric', 
+        <p><strong>Check-out:</strong> {new Date(booking.checkOut).toLocaleDateString('en-US', {
+          month: 'long',
+          day: 'numeric',
           year: 'numeric'
         })} at 12:00 PM</p>
-        <p><strong>{isCancelled ? 'Originally Booked' : 'Booked on'}:</strong> {new Date(booking.createdAt).toLocaleDateString('en-US', { 
-          month: 'long', 
-          day: 'numeric', 
+        <p><strong>{isCancelled ? 'Originally Booked' : 'Booked on'}:</strong> {new Date(booking.createdAt).toLocaleDateString('en-US', {
+          month: 'long',
+          day: 'numeric',
           year: 'numeric',
         })} at {new Date(booking.createdAt).toLocaleTimeString('en-US', {
           hour: '2-digit',
@@ -1529,9 +1531,9 @@ const BookingHistoryCard = ({ booking, guest, onViewDetails, onReschedule, resch
         })}</p>
         {isCancelled && booking.updatedAt && (
           <p style={{ color: '#dc2626', fontWeight: '600' }}>
-            <strong>Cancelled on:</strong> {new Date(booking.updatedAt).toLocaleDateString('en-US', { 
-              month: 'long', 
-              day: 'numeric', 
+            <strong>Cancelled on:</strong> {new Date(booking.updatedAt).toLocaleDateString('en-US', {
+              month: 'long',
+              day: 'numeric',
               year: 'numeric'
             })} at {new Date(booking.updatedAt).toLocaleTimeString('en-US', {
               hour: '2-digit',
@@ -1593,21 +1595,21 @@ const BookingHistoryCard = ({ booking, guest, onViewDetails, onReschedule, resch
                   Reschedule
                 </button>
               ) : isWithinOneDay() ? (
-                <button 
-                  className="reschedule-btn" 
-                  disabled 
-                  style={{ 
-                    backgroundColor: '#e0e0e0', 
-                    color: '#888', 
+                <button
+                  className="reschedule-btn"
+                  disabled
+                  style={{
+                    backgroundColor: '#e0e0e0',
+                    color: '#888',
                     cursor: 'not-allowed',
                     position: 'relative'
-              }}
-              title="Reschedule not available - must be done at least 1 day before check-in date"
-            >
-              Reschedule
-            </button>
-          ) : null
-        )}
+                  }}
+                  title="Reschedule not available - must be done at least 1 day before check-in date"
+                >
+                  Reschedule
+                </button>
+              ) : null
+            )}
           </>
         )}
       </div>
@@ -1714,20 +1716,20 @@ const BookingHistoryCard = ({ booking, guest, onViewDetails, onReschedule, resch
 };
 
 // Combined History Card Component
-const HistoryCard = ({ 
-  booking, 
-  guest, 
-  onViewDetails, 
-  onReschedule, 
+const HistoryCard = ({
+  booking,
+  guest,
+  onViewDetails,
+  onReschedule,
   onCancel,
   onDismiss,
-  rescheduleRequests = {}, 
+  rescheduleRequests = {},
   cancellationRequests = {},
   unitAssignments = [],
   dismissing = false
 }) => {
   const [showDeniedModal, setShowDeniedModal] = useState(false);
-  
+
   // Get reschedule status from the batch-fetched data
   const rescheduleData = rescheduleRequests[booking.id];
   const rescheduleStatus = rescheduleData?.status || null;
@@ -1736,7 +1738,7 @@ const HistoryCard = ({
   // Calculate remaining balance
   const isCancelled = String(booking.status).toLowerCase() === 'cancelled';
   const totalPaid = booking.payments?.reduce((sum, p) => (p.status === 'Paid' || p.status === 'Reservation') ? sum + Number(p.amount) : sum, 0) || 0;
-  
+
   // Calculate total from all components
   const reservationFee = (booking.rooms?.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0) || 0) * 2000;
   const roomCharges = (booking.rooms || []).reduce((sum, roomBooking) => {
@@ -1746,14 +1748,14 @@ const HistoryCard = ({
     const roomReservationFee = (Number(roomBooking.quantity) || 0) * 2000;
     return sum + (roomTotal - roomReservationFee);
   }, 0);
-  const rentalTotal = (booking.rentalAmenities || []).reduce((sum, rental) => sum + ((Number(rental.totalPrice) || 0) / 100), 0);
+  const rentalTotal = (booking.rentalAmenities || []).reduce((sum, rental) => sum + (calculateRentalAmenityTotalCents(rental) / 100), 0);
   const optionalTotal = (booking.optionalAmenities || []).reduce((sum, optional) => {
     const amenityPrice = (Number(optional.optionalAmenity?.price) || 0) / 100;
     return sum + (amenityPrice * (Number(optional.quantity) || 0));
   }, 0);
   const cottageTotal = (booking.cottage || []).reduce((sum, cottageBooking) => sum + ((Number(cottageBooking.totalPrice) || 0) / 100), 0);
   const calculatedTotal = reservationFee + roomCharges + rentalTotal + optionalTotal + cottageTotal;
-  const finalTotal = Number(booking.totalAfterDiscount || booking.totalPrice || calculatedTotal * 100) / 100;
+  const finalTotal = Number(booking.totalAfterDiscount || booking.totalCostWithAddons || booking.totalPrice || calculatedTotal * 100) / 100;
   const remainingBalance = finalTotal - (totalPaid / 100);
 
   const isRescheduleAllowed = () => {
@@ -1820,12 +1822,12 @@ const HistoryCard = ({
                   if (!acc[roomName]) {
                     acc[roomName] = [];
                   }
-                  
+
                   // Find unit assignments for this room
                   const roomUnits = unitAssignments.filter(
                     u => u.roomId === roomBooking.roomId
                   );
-                  
+
                   if (roomUnits.length > 0) {
                     roomUnits.forEach(unit => {
                       if (unit.unitNumber) {
@@ -1836,16 +1838,16 @@ const HistoryCard = ({
                     // If no unit assignments but quantity > 1, show count
                     acc[roomName].push(`${roomBooking.quantity}x`);
                   }
-                  
+
                   return acc;
                 }, {});
-                
+
                 return Object.entries(groupedRooms).map(([roomName, units], index) => (
                   <div key={index} className="room-item">
                     {roomName}
                     {units.length > 0 && (
-                      units[0].includes('x') 
-                        ? ` (${units[0]})` 
+                      units[0].includes('x')
+                        ? ` (${units[0]})`
                         : ` #${units.join(',')}`
                     )}
                   </div>
@@ -1867,28 +1869,28 @@ const HistoryCard = ({
           )}
         </div>
       </div>
-      
+
       <div className="card-content">
         <div className="date-info">
           <div className="date-group">
             <span className="date-label">Check-in</span>
-            <span className="date-value">{new Date(booking.checkIn).toLocaleDateString('en-US', { 
-              month: 'short', 
-              day: 'numeric', 
+            <span className="date-value">{new Date(booking.checkIn).toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
               year: 'numeric'
             })}</span>
           </div>
           <div className="date-separator"><ArrowRight size={18} /></div>
           <div className="date-group">
             <span className="date-label">Check-out</span>
-            <span className="date-value">{new Date(booking.checkOut).toLocaleDateString('en-US', { 
-              month: 'short', 
-              day: 'numeric', 
+            <span className="date-value">{new Date(booking.checkOut).toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
               year: 'numeric'
             })}</span>
           </div>
         </div>
-        
+
         <div className="booking-meta">
           <div className="meta-item">
             <span className="meta-label">Balance</span>
@@ -1900,19 +1902,19 @@ const HistoryCard = ({
           </div>
           <div className="meta-item">
             <span className="meta-label">Booked At</span>
-            <span className="meta-value">{new Date(booking.createdAt).toLocaleDateString('en-US', { 
-              month: 'short', 
+            <span className="meta-value">{new Date(booking.createdAt).toLocaleDateString('en-US', {
+              month: 'short',
               day: 'numeric'
             })}</span>
           </div>
         </div>
       </div>
-      
+
       <div className="card-actions">
         <button className="action-btn primary" onClick={() => onViewDetails(booking)}>
           View Full Details
         </button>
-        
+
         {/* Reschedule Logic */}
         {rescheduleStatus === 'PENDING' && (
           <button className="action-btn disabled" disabled>
@@ -1936,9 +1938,9 @@ const HistoryCard = ({
               Reschedule
             </button>
           ) : isWithinOneDay() ? (
-            <button 
-              className="action-btn disabled" 
-              disabled 
+            <button
+              className="action-btn disabled"
+              disabled
               title="Reschedule not available - must be done at least 1 day before check-in date"
             >
               Reschedule
@@ -1953,12 +1955,12 @@ const HistoryCard = ({
           const daysUntilCheckIn = Math.ceil((checkInDate - now) / (1000 * 60 * 60 * 24));
           const cancellationData = cancellationRequests[booking.id];
           const cancellationStatus = cancellationData?.status || null;
-          
+
           // Check if cancel button should be shown
-          const canShowCancelButton = ['Created', 'Pending', 'Confirmed'].includes(booking.status) && 
-                                       booking.status !== 'Cancelled' && 
-                                       booking.status !== 'Completed';
-          
+          const canShowCancelButton = ['Created', 'Pending', 'Confirmed'].includes(booking.status) &&
+            booking.status !== 'Cancelled' &&
+            booking.status !== 'Completed';
+
           // If cancellation is pending
           if (booking.status === 'CancellationPending' || cancellationStatus === 'PENDING') {
             return (
@@ -1967,15 +1969,15 @@ const HistoryCard = ({
               </button>
             );
           }
-          
+
           // If not eligible for cancel
           if (!canShowCancelButton) return null;
-          
+
           // Show cancel button
           const isCancelDisabled = daysUntilCheckIn < 1;
-          
+
           return (
-            <button 
+            <button
               className={`action-btn ${isCancelDisabled ? 'disabled' : 'danger'}`}
               onClick={() => onCancel(booking)}
               disabled={isCancelDisabled}
@@ -1993,8 +1995,8 @@ const HistoryCard = ({
 
         {/* Dismiss button for expired bookings */}
         {booking.status === 'Expired' && onDismiss && (
-          <button 
-            className="action-btn dismiss" 
+          <button
+            className="action-btn dismiss"
             onClick={() => onDismiss(booking.id)}
             disabled={dismissing}
             title="Remove this expired booking from your history"
@@ -2324,72 +2326,78 @@ export default function GuestDashboard() {
     dateFrom: '',
     dateTo: ''
   });
-  const [activeTab, setActiveTab] = useState('upcoming'); // NEW: Tab state
+  const [activeTab, setActiveTab] = useState('all');// NEW: Tab state
   const [dismissing, setDismissing] = useState(false); // NEW: Loading state for dismissal
   const router = useRouter();
 
   // NEW: Helper function to categorize bookings
-  const categorizeBookings = (bookingsList) => {
-    const now = new Date();
-    
-    return {
-      upcoming: bookingsList.filter(b => 
-        (b.status === 'Confirmed' || b.status === 'Pending') && 
-        new Date(b.checkIn) > now &&
-        !b.isDeleted
-      ),
-      expiredPending: bookingsList.filter(b => 
-        b.status === 'Expired' &&
-        !b.isDeleted
-      ),
-      past: bookingsList.filter(b => 
-        (b.status === 'Completed' || (new Date(b.checkOut) < now && b.status === 'Confirmed')) &&
-        !b.isDeleted
-      ),
-      cancelled: bookingsList.filter(b => 
-        b.status === 'Cancelled' &&
-        !b.isDeleted
-      ),
-    };
+ const categorizeBookings = (bookingsList) => {
+  const now = new Date();
+
+  return {
+    all: bookingsList.filter(b => !b.isDeleted),
+
+    upcoming: bookingsList.filter(b =>
+      (b.status === 'Confirmed' || b.status === 'Pending') &&
+      new Date(b.checkIn) > now &&
+      !b.isDeleted
+    ),
+
+    expiredPending: bookingsList.filter(b =>
+      b.status === 'Expired' &&
+      !b.isDeleted
+    ),
+
+    past: bookingsList.filter(b =>
+      (b.status === 'Completed' ||
+        (new Date(b.checkOut) < now && b.status === 'Confirmed')) &&
+      !b.isDeleted
+    ),
+
+    cancelled: bookingsList.filter(b =>
+      b.status === 'Cancelled' &&
+      !b.isDeleted
+    ),
   };
+};
 
   // NEW: Calculate dashboard statistics
   const calculateStats = (bookingsList) => {
     const now = new Date();
     const categorized = categorizeBookings(bookingsList);
-    
-    const confirmedCount = bookingsList.filter(b => 
+
+    const confirmedCount = bookingsList.filter(b =>
       b.status === 'Confirmed' && new Date(b.checkIn) > now
     ).length;
-    
+
     const totalBalance = bookingsList.reduce((sum, booking) => {
       if (booking.status === 'Cancelled' || booking.status === 'Expired') return sum;
-      
+
       const totalPaid = (booking.payments || []).reduce((pSum, p) => {
         const status = (p.status || '').toLowerCase();
-        return (status === 'paid' || status === 'partial' || status === 'reservation') 
-          ? pSum + Number(p.amount || 0) 
+        return (status === 'paid' || status === 'partial' || status === 'reservation')
+          ? pSum + Number(p.amount || 0)
           : pSum;
       }, 0);
-      
+
       // Calculate total price from booking components
       const basePrice = Number(booking.totalBeforeDiscount || booking.totalPrice || 0);
-      const rentalTotal = (booking.rentalAmenities || []).reduce((sum, ra) => 
-        sum + Number(ra.totalPrice || 0), 0
+      const rentalTotal = (booking.rentalAmenities || []).reduce((sum, ra) =>
+        sum + calculateRentalAmenityTotalCents(ra), 0
       );
-      const cottageTotal = (booking.cottage || []).reduce((sum, c) => 
+      const cottageTotal = (booking.cottage || []).reduce((sum, c) =>
         sum + Number(c.totalPrice || 0), 0
       );
       const computedTotal = basePrice + rentalTotal + cottageTotal;
-      const total = Number(booking.totalAfterDiscount || booking.totalPrice || computedTotal);
-      
+      const total = Number(booking.totalAfterDiscount || booking.totalCostWithAddons || booking.totalPrice || computedTotal);
+
       return sum + Math.max(0, total - totalPaid);
     }, 0);
-    
-    const totalStays = bookingsList.filter(b => 
+
+    const totalStays = bookingsList.filter(b =>
       b.status === 'Completed'
     ).length;
-    
+
     return {
       upcomingCount: categorized.upcoming.length,
       confirmedCount,
@@ -2403,13 +2411,13 @@ export default function GuestDashboard() {
   const getNextBooking = (bookingsList) => {
     const now = new Date();
     const upcoming = bookingsList
-      .filter(b => 
-        (b.status === 'Confirmed' || b.status === 'Pending') && 
+      .filter(b =>
+        (b.status === 'Confirmed' || b.status === 'Pending') &&
         new Date(b.checkIn) > now &&
         !b.isDeleted
       )
       .sort((a, b) => new Date(a.checkIn) - new Date(b.checkIn));
-    
+
     return upcoming[0] || null;
   };
 
@@ -2454,9 +2462,9 @@ export default function GuestDashboard() {
   const handleDismissAllExpired = async () => {
     const categorized = categorizeBookings(bookings);
     const expiredIds = categorized.expiredPending.map(b => b.id);
-    
+
     if (expiredIds.length === 0) return;
-    
+
     if (!confirm(`Are you sure you want to dismiss ${expiredIds.length} expired booking(s)?`)) {
       return;
     }
@@ -2464,14 +2472,14 @@ export default function GuestDashboard() {
     setDismissing(true);
     try {
       await Promise.all(
-        expiredIds.map(id => 
+        expiredIds.map(id =>
           fetch(`/api/bookings/${id}/dismiss`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
           })
         )
       );
-      
+
       // Refresh bookings
       const refreshRes = await fetch('/api/guest/me');
       if (refreshRes.ok) {
@@ -2492,7 +2500,7 @@ export default function GuestDashboard() {
     try {
       const bookingIds = bookingsList.map(booking => booking.id).join(',');
       const res = await fetch(`/api/cancellation-requests/batch?bookingIds=${bookingIds}`);
-      
+
       if (res.ok) {
         const data = await res.json();
         setCancellationRequests(data.cancellationRequests || {});
@@ -2536,7 +2544,7 @@ export default function GuestDashboard() {
         setGuest(data.guest);
         setBookings(data.bookings);
         setFilteredBookings(data.bookings);
-        
+
         // Fetch reschedule requests for all bookings in batch
         if (data.bookings && data.bookings.length > 0) {
           await fetchRescheduleRequests(data.bookings);
@@ -2553,7 +2561,7 @@ export default function GuestDashboard() {
       try {
         const bookingIds = bookingsList.map(booking => booking.id).join(',');
         const res = await fetch(`/api/reschedule-requests/batch?bookingIds=${bookingIds}`);
-        
+
         if (res.ok) {
           const data = await res.json();
           setRescheduleRequests(data.rescheduleRequests || {});
@@ -2711,45 +2719,53 @@ export default function GuestDashboard() {
   // NEW: Apply filters with tab consideration
   const applyFilters = (bookingsList = bookings) => {
     const categorized = categorizeBookings(bookingsList);
-    
+
     // Get bookings for active tab
     let tabFilteredBookings = [];
     switch (activeTab) {
+      case 'all':
+        tabFilteredBookings = categorized.all;
+        break;
+
       case 'upcoming':
         tabFilteredBookings = categorized.upcoming;
         break;
+
       case 'past':
         tabFilteredBookings = categorized.past;
         break;
+
       case 'cancelled':
         tabFilteredBookings = categorized.cancelled;
         break;
+
       case 'expired':
         tabFilteredBookings = categorized.expiredPending;
         break;
+
       default:
-        tabFilteredBookings = bookingsList;
+        tabFilteredBookings = categorized.all;
     }
-    
+
     // Apply additional filters
     let filtered = tabFilteredBookings.filter(booking => {
-      const roomMatch = !filters.roomName || 
-        booking.rooms?.some(r => 
+      const roomMatch = !filters.roomName ||
+        booking.rooms?.some(r =>
           r.room?.name?.toLowerCase().includes(filters.roomName.toLowerCase())
         );
-      
-      const paymentMatch = !filters.paymentStatus || 
+
+      const paymentMatch = !filters.paymentStatus ||
         booking.paymentStatus === filters.paymentStatus;
-      
-      const dateFromMatch = !filters.dateFrom || 
+
+      const dateFromMatch = !filters.dateFrom ||
         new Date(booking.checkIn) >= new Date(filters.dateFrom);
-      
-      const dateToMatch = !filters.dateTo || 
+
+      const dateToMatch = !filters.dateTo ||
         new Date(booking.checkOut) <= new Date(filters.dateTo);
-      
+
       return roomMatch && paymentMatch && dateFromMatch && dateToMatch;
     });
-    
+
     setFilteredBookings(filtered);
   };
 
@@ -2811,25 +2827,25 @@ export default function GuestDashboard() {
     let filtered = [...bookings];
 
     if (filters.roomName) {
-      filtered = filtered.filter(booking => 
+      filtered = filtered.filter(booking =>
         booking.rooms?.[0]?.room?.name?.toLowerCase().includes(filters.roomName.toLowerCase())
       );
     }
 
     if (filters.paymentStatus) {
-      filtered = filtered.filter(booking => 
+      filtered = filtered.filter(booking =>
         booking.paymentStatus.toLowerCase() === filters.paymentStatus.toLowerCase()
       );
     }
 
     if (filters.dateFrom) {
-      filtered = filtered.filter(booking => 
+      filtered = filtered.filter(booking =>
         new Date(booking.checkIn) >= new Date(filters.dateFrom)
       );
     }
 
     if (filters.dateTo) {
-      filtered = filtered.filter(booking => 
+      filtered = filtered.filter(booking =>
         new Date(booking.checkOut) <= new Date(filters.dateTo)
       );
     }
@@ -2886,14 +2902,14 @@ export default function GuestDashboard() {
                   <div className="stat-label">Upcoming Stays</div>
                 </div>
               </div>
-              
+
               <div className="stat-card">
                 <div className="stat-content">
                   <div className="stat-value">{stats.confirmedCount}</div>
                   <div className="stat-label">Confirmed</div>
                 </div>
               </div>
-              
+
               <div className="stat-card">
                 <div className="stat-content">
                   <div className="stat-value">{stats.totalStays}</div>
@@ -2908,26 +2924,26 @@ export default function GuestDashboard() {
         {(() => {
           const nextBooking = getNextBooking(bookings);
           if (!nextBooking) return null;
-          
+
           const daysUntil = getDaysUntilCheckIn(nextBooking.checkIn);
           const remainingBalance = (() => {
             const totalPaid = (nextBooking.payments || []).reduce((sum, p) => {
               const status = (p.status || '').toLowerCase();
-              return (status === 'paid' || status === 'partial' || status === 'reservation') 
-                ? sum + Number(p.amount || 0) 
+              return (status === 'paid' || status === 'partial' || status === 'reservation')
+                ? sum + Number(p.amount || 0)
                 : sum;
             }, 0);
-            const basePrice = Number(nextBooking.totalPrice || 0);
-            const rentalTotal = (nextBooking.rentalAmenities || []).reduce((sum, ra) => 
-              sum + Number(ra.totalPrice || 0), 0
+            const basePrice = Number(nextBooking.totalCostWithAddons || nextBooking.totalPrice || 0);
+            const rentalTotal = (nextBooking.rentalAmenities || []).reduce((sum, ra) =>
+              sum + calculateRentalAmenityTotalCents(ra), 0
             );
-            const cottageTotal = (nextBooking.cottage || []).reduce((sum, c) => 
+            const cottageTotal = (nextBooking.cottage || []).reduce((sum, c) =>
               sum + Number(c.totalPrice || 0), 0
             );
             const total = basePrice + rentalTotal + cottageTotal;
             return Math.max(0, (total - totalPaid) / 100);
           })();
-          
+
           return (
             <div className="next-booking-highlight">
               <h3>Your Next Stay</h3>
@@ -2964,7 +2980,7 @@ export default function GuestDashboard() {
               <span className="action-icon"><Hotel size={34} /></span>
               <span className="action-label">New Booking</span>
             </button>
-            
+
             <button className="quick-action-btn" onClick={() => {
               // Trigger the floating chatbot to open
               window.dispatchEvent(new Event('openChatbot'));
@@ -2972,7 +2988,7 @@ export default function GuestDashboard() {
               <span className="action-icon"><MessageCircleQuestion size={34} /></span>
               <span className="action-label">Ask Questions</span>
             </button>
-            
+
             <button className="quick-action-btn" onClick={() => router.push('/guest/3dview')}>
               <span className="action-icon"><Smartphone size={34} /></span>
               <span className="action-label">Virtual Tour</span>
@@ -2993,7 +3009,7 @@ export default function GuestDashboard() {
                 onChange={(e) => setFilters({ ...filters, roomName: e.target.value })}
               />
             </div>
-            
+
             <div className="filter-group">
               <label htmlFor="paymentStatus">Payment Status</label>
               <select
@@ -3008,7 +3024,7 @@ export default function GuestDashboard() {
                 <option value="Reservation">Reservation</option>
               </select>
             </div>
-            
+
             <div className="filter-group">
               <label htmlFor="dateFrom">Check-in From</label>
               <input
@@ -3018,7 +3034,7 @@ export default function GuestDashboard() {
                 onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
               />
             </div>
-            
+
             <div className="filter-group">
               <label htmlFor="dateTo">Check-out To</label>
               <input
@@ -3028,9 +3044,9 @@ export default function GuestDashboard() {
                 onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
               />
             </div>
-            
-            <button 
-              className="clear-filters-btn" 
+
+            <button
+              className="clear-filters-btn"
               onClick={() => setFilters({ roomName: '', paymentStatus: '', dateFrom: '', dateTo: '' })}
             >
               Clear Filters
@@ -3043,36 +3059,48 @@ export default function GuestDashboard() {
           const categorized = categorizeBookings(bookings);
           return (
             <div className="booking-tabs">
-              <button 
-                className={activeTab === 'upcoming' ? 'tab active' : 'tab'}
-                onClick={() => setActiveTab('upcoming')}
-              >
-                Upcoming ({categorized.upcoming.length})
-              </button>
-              <button 
-                className={activeTab === 'past' ? 'tab active' : 'tab'}
-                onClick={() => setActiveTab('past')}
-              >
-                Past Stays ({categorized.past.length})
-              </button>
-              <button 
-                className={activeTab === 'cancelled' ? 'tab active' : 'tab'}
-                onClick={() => setActiveTab('cancelled')}
-              >
-                Cancelled ({categorized.cancelled.length})
-              </button>
-              {categorized.expiredPending.length > 0 && (
-                <button 
-                  className={activeTab === 'expired' ? 'tab active expired-tab' : 'tab expired-tab'}
-                  onClick={() => setActiveTab('expired')}
+                <button
+                  className={activeTab === 'all' ? 'tab active' : 'tab'}
+                  onClick={() => setActiveTab('all')}
                 >
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                    Expired ({categorized.expiredPending.length})
-                    <AlertTriangle size={14} />
-                  </span>
+                  All Bookings ({categorized.all.length})
                 </button>
-              )}
-            </div>
+
+                <button
+                  className={activeTab === 'upcoming' ? 'tab active' : 'tab'}
+                  onClick={() => setActiveTab('upcoming')}
+                >
+                  Upcoming ({categorized.upcoming.length})
+                </button>
+
+                <button
+                  className={activeTab === 'past' ? 'tab active' : 'tab'}
+                  onClick={() => setActiveTab('past')}
+                >
+                  Past Stays ({categorized.past.length})
+                </button>
+
+                <button
+                  className={activeTab === 'cancelled' ? 'tab active' : 'tab'}
+                  onClick={() => setActiveTab('cancelled')}
+                >
+                  Cancelled ({categorized.cancelled.length})
+                </button>
+
+                {categorized.expiredPending.length > 0 && (
+                  <button
+                    className={activeTab === 'expired'
+                      ? 'tab active expired-tab'
+                      : 'tab expired-tab'}
+                    onClick={() => setActiveTab('expired')}
+                  >
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      Expired ({categorized.expiredPending.length})
+                      <AlertTriangle size={14} />
+                    </span>
+                  </button>
+                )}
+              </div>
           );
         })()}
 
@@ -3080,16 +3108,17 @@ export default function GuestDashboard() {
         <section className="section-history">
           <div className="section-header">
             <h2>
-              {activeTab === 'upcoming' && 'Upcoming Bookings'}
-              {activeTab === 'past' && 'Past Stays'}
-              {activeTab === 'cancelled' && 'Cancelled Bookings'}
-              {activeTab === 'expired' && 'Expired Bookings'}
-            </h2>
+            {activeTab === 'all' && 'All Bookings'}
+            {activeTab === 'upcoming' && 'Upcoming Bookings'}
+            {activeTab === 'past' && 'Past Stays'}
+            {activeTab === 'cancelled' && 'Cancelled Bookings'}
+            {activeTab === 'expired' && 'Expired Bookings'}
+          </h2>
             <span className="results-count">
               {filteredBookings.length} {filteredBookings.length === 1 ? 'booking' : 'bookings'} found
             </span>
           </div>
-          
+
           <div className="history-grid">
             {filteredBookings.length > 0 ? (
               filteredBookings.map(booking => (
@@ -3815,7 +3844,7 @@ export default function GuestDashboard() {
       `}</style>
 
       {/* Logout Confirmation Modal */}
-      <NavigationConfirmationModal 
+      <NavigationConfirmationModal
         show={navigationGuard.showModal}
         onStay={navigationGuard.handleStay}
         onLeave={navigationGuard.handleLeave}

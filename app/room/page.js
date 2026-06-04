@@ -64,6 +64,7 @@ const rooms = [
 function RoomPageContent() {
   const [selectedRoom, setSelectedRoom] = useState(null)
   const [selectedImage, setSelectedImage] = useState(null)
+  const [carouselIndex, setCarouselIndex] = useState(0)
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -76,12 +77,30 @@ function RoomPageContent() {
     const match = roomMap[slug]
     if (match) {
       setSelectedRoom(match)
+      setCarouselIndex(0)
     }
   }, [searchParams, roomMap])
+
+  // Carousel auto-advance every 2 seconds
+  useEffect(() => {
+    if (!selectedRoom) return
+    const interval = setInterval(() => {
+      setCarouselIndex(prev => (prev + 1) % selectedRoom.images.length)
+    }, 2000)
+    return () => clearInterval(interval)
+  }, [selectedRoom])
+
+  // Reset carousel when room changes
+  useEffect(() => {
+    if (selectedRoom) {
+      setCarouselIndex(0)
+    }
+  }, [selectedRoom?.id])
 
   // Keep URL in sync when selecting/closing
   const openRoom = (room) => {
     setSelectedRoom(room)
+    setCarouselIndex(0)
     const params = new URLSearchParams(searchParams?.toString() || '')
     params.set('room', room.id)
     router.replace(`/room?${params.toString()}`)
@@ -122,27 +141,52 @@ function RoomPageContent() {
       {selectedRoom && (
         <div className="modal-overlay" role="dialog" aria-modal="true" onClick={closeRoom}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <div className="image-gallery">
-              {selectedRoom.images.map((img, idx) => (
-                <img key={idx} src={img} alt={`${selectedRoom.name} image ${idx + 1}`} onClick={() => setSelectedImage(img)} style={{ cursor: 'pointer' }} />
-              ))}
-            </div>
-            <h2>{selectedRoom.name}</h2>
-            <p className="capacity"><FaUsers /> {selectedRoom.capacity}</p>
-            <p className="description">{selectedRoom.description}</p>
-            <ul className="amenities">
-              {selectedRoom.amenities.map((amenity, idx) => (
-                <li key={idx} className="amenity-item">
-                  <span className="icon">{amenity.icon}</span> {amenity.label}
-                </li>
-              ))}
-            </ul>
-            <div className="modal-actions">
-              <button className="book-room-btn" onClick={() => router.push('/booking')} aria-label="Proceed to booking">
-                <span className="btn-shine" aria-hidden="true"></span>
-                Book This Room
-              </button>
-              <button className="close-btn" onClick={closeRoom} aria-label="Close details">Close</button>
+            <div className="modal-layout">
+              {/* Left: Image Carousel */}
+              <div className="carousel-section">
+                <div className="carousel-container">
+                  {selectedRoom.images.map((img, idx) => (
+                    <img
+                      key={idx}
+                      src={img}
+                      alt={`${selectedRoom.name} image ${idx + 1}`}
+                      className={carouselIndex === idx ? 'carousel-img active' : 'carousel-img'}
+                      onClick={() => setSelectedImage(img)}
+                    />
+                  ))}
+                </div>
+                <div className="carousel-dots">
+                  {selectedRoom.images.map((_, idx) => (
+                    <button
+                      key={idx}
+                      className={carouselIndex === idx ? 'dot active' : 'dot'}
+                      onClick={() => setCarouselIndex(idx)}
+                      aria-label={`Show image ${idx + 1}`}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Right: Room Details */}
+              <div className="modal-details">
+                <h2>{selectedRoom.name}</h2>
+                <p className="capacity"><FaUsers /> {selectedRoom.capacity}</p>
+                <p className="description">{selectedRoom.description}</p>
+                <ul className="amenities">
+                  {selectedRoom.amenities.map((amenity, idx) => (
+                    <li key={idx} className="amenity-item">
+                      <span className="icon">{amenity.icon}</span> {amenity.label}
+                    </li>
+                  ))}
+                </ul>
+                <div className="modal-actions">
+                  <button className="book-room-btn" onClick={() => router.push('/booking')} aria-label="Proceed to booking">
+                    <span className="btn-shine" aria-hidden="true"></span>
+                    Book This Room
+                  </button>
+                  <button className="close-btn" onClick={closeRoom} aria-label="Close details">Close</button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -181,7 +225,7 @@ function RoomPageContent() {
           background-image: url('/images/resort-hero.jpg');
           background-size: cover;
           background-position: center;
-          height: clamp(140px, 26vh, 320px); /* reduced so it doesn't dominate */
+          height: clamp(140px, 26vh, 320px);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -201,12 +245,12 @@ function RoomPageContent() {
           position: relative;
           z-index: 1;
           margin: 0;
-          font-size: clamp(1.6rem, 4vw, 2.4rem); /* smaller, elegant */
+          font-size: clamp(1.6rem, 4vw, 2.4rem);
           line-height: 1.15;
           letter-spacing: 0.4px;
         }
         .hero-title {
-          color: #fff; /* fallback */
+          color: #fff;
           background: linear-gradient(100deg, #ffffff 0%, #fff7ea 35%, var(--brand) 65%, #ffffff 100%);
           -webkit-background-clip: text;
           background-clip: text;
@@ -229,7 +273,6 @@ function RoomPageContent() {
           margin: 0 auto;
           transition: filter 0.3s ease;
         }
-        /* Ensure 3 columns on larger screens */
         @media (min-width: 1024px) {
           .room-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 1280px; }
         }
@@ -314,6 +357,8 @@ function RoomPageContent() {
         }
         .view-details-btn:hover .btn-shine,
         .book-room-btn:hover .btn-shine { transform: translateX(50%) skewX(-20deg); }
+
+        /* Modal Layout */
         .modal-overlay {
           position: fixed;
           inset: 0;
@@ -323,37 +368,93 @@ function RoomPageContent() {
           justify-content: center;
           z-index: 1000;
           backdrop-filter: blur(4px);
+          padding: 1rem;
         }
         .modal-content {
-          background: #ffffff; /* solid for full readability */
+          background: #ffffff;
           border-radius: 16px;
-          max-width: 720px;
-          width: 90%;
-          padding: clamp(1rem, 3vw, 2rem);
-          box-shadow: 0 10px 28px rgba(0,0,0,0.2);
+          max-width: 960px;
+          width: 100%;
           max-height: 90vh;
           overflow-y: auto;
+          box-shadow: 0 10px 28px rgba(0,0,0,0.2);
           color: var(--ink);
         }
-        .modal-content h2 { color: var(--ink); }
-        .image-gallery {
+        .modal-layout {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 2rem;
+          padding: clamp(1rem, 3vw, 2rem);
+        }
+        @media (max-width: 768px) {
+          .modal-layout {
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+          }
+        }
+
+        /* Carousel */
+        .carousel-section {
           display: flex;
-          gap: 0.75rem;
-          overflow-x: auto;
-          margin-bottom: 1rem;
-          scroll-snap-type: x mandatory;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
         }
-        .image-gallery img {
-          width: 180px;
-          height: 110px;
+        .carousel-container {
+          position: relative;
+          width: 100%;
+          aspect-ratio: 4 / 3;
+          border-radius: 12px;
+          overflow: hidden;
+          background: #f3f4f6;
+        }
+        .carousel-img {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
           object-fit: cover;
-          border-radius: 8px;
-          flex-shrink: 0;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-          scroll-snap-align: start;
-          transition: transform 0.25s ease, box-shadow 0.25s ease;
+          opacity: 0;
+          transition: opacity 0.5s ease-in-out;
+          cursor: pointer;
         }
-        .image-gallery img:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.18); }
+        .carousel-img.active {
+          opacity: 1;
+        }
+        .carousel-dots {
+          display: flex;
+          gap: 0.5rem;
+          margin-top: 0.75rem;
+        }
+        .dot {
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          border: none;
+          background: #d1d5db;
+          cursor: pointer;
+          transition: background 0.3s ease, transform 0.2s ease;
+        }
+        .dot.active {
+          background: var(--brand);
+          transform: scale(1.2);
+        }
+        .dot:hover {
+          background: #9ca3af;
+        }
+
+        /* Modal Details (Right Side) */
+        .modal-details {
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+        }
+        .modal-details h2 {
+          margin: 0 0 0.5rem 0;
+          color: var(--brand);
+          font-size: 1.8rem;
+          font-weight: 700;
+        }
         .capacity {
           font-weight: 600;
           font-size: 1.1rem;
@@ -361,29 +462,32 @@ function RoomPageContent() {
           align-items: center;
           gap: 0.5rem;
           color: var(--ink);
-          margin-bottom: 0.5rem;
+          margin-bottom: 0.75rem;
         }
         .description {
           margin-bottom: 1rem;
           color: var(--ink);
-          line-height: 1.5;
+          line-height: 1.6;
         }
         .amenities {
           list-style: none;
           padding: 0;
-          margin: 0 0 1rem 0;
+          margin: 0 0 1.25rem 0;
           display: flex;
           flex-wrap: wrap;
-          gap: 1rem;
+          gap: 0.75rem;
         }
         .amenity-item {
           display: flex;
           align-items: center;
           color: var(--ink-soft);
+          font-size: 0.95rem;
         }
         .icon {
-          margin-right: 0.5rem;
+          margin-right: 0.4rem;
           color: var(--brand);
+          display: flex;
+          align-items: center;
         }
         .modal-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
         .book-room-btn {
@@ -396,7 +500,6 @@ function RoomPageContent() {
           border-radius: 12px;
           font-weight: 800;
           cursor: pointer;
-          margin-right: 0.5rem;
           transition: transform 0.2s ease, box-shadow 0.3s ease, filter 0.2s ease;
           box-shadow: 0 8px 22px rgba(254, 190, 82, 0.45);
           outline: none;
@@ -414,6 +517,7 @@ function RoomPageContent() {
           cursor: pointer;
         }
         .close-btn:hover { background-color: #d1d5db; }
+
         .footer {
           background-color: #e8cfa3;
           text-align: center;
@@ -432,8 +536,10 @@ function RoomPageContent() {
           .view-details-btn,
           .book-room-btn,
           .close-btn { width: 100%; margin-bottom: 0.5rem; }
-          .image-gallery img { width: 120px; height: 80px; }
+          .carousel-container { aspect-ratio: 3 / 2; }
         }
+
+        /* Full Image Modal */
         .image-modal-overlay {
           position: fixed;
           inset: 0;
@@ -443,6 +549,7 @@ function RoomPageContent() {
           justify-content: center;
           z-index: 1100;
           backdrop-filter: blur(4px);
+          padding: 1rem;
         }
         .image-modal-content {
           background: #fff;
@@ -475,6 +582,7 @@ function RoomPageContent() {
         @media (prefers-reduced-motion: reduce) {
           .hero-title { animation: none; }
           .room-image, .view-details-btn, .book-room-btn { transition: none; }
+          .carousel-img { transition: none; }
         }
       `}</style>
     </>

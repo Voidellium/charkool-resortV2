@@ -1,9 +1,9 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
-import { 
-  Plus, Search, Filter, Calendar, Users, 
-  TrendingUp, Eye, Edit, Trash2, CheckCircle, XCircle, 
+import {
+  Plus, Search, Filter, Calendar, Users,
+  TrendingUp, Eye, Edit, Trash2, CheckCircle, XCircle,
   Clock, MapPin, Phone, Mail, Star, MoreHorizontal,
   Download, RefreshCw, Settings, ArrowUpDown, ChevronDown, Circle, AlertCircle, Info
 } from 'lucide-react';
@@ -98,11 +98,11 @@ export default function BookingsPage() {
 
   // Override modal for early check-in/out (shared)
   const [overrideModal, setOverrideModal] = useOverrideModal();
-  
+
   // Edit booking date modal
   const [editDateModal, setEditDateModal] = useEditBookingDateModal();
   const [editingDates, setEditingDates] = useState(false);
-  
+
   // Toast notifications
   const { success, error, warning, info } = useToast();
 
@@ -152,7 +152,7 @@ export default function BookingsPage() {
 
   // Alert Modal state (replaces browser alert())
   const [alertModal, setAlertModal] = useState({ show: false, title: '', message: '', type: 'info' });
-  
+
   // Helper function to show alert modal
   const showAlert = useCallback((title, message, type = 'info') => {
     setAlertModal({ show: true, title, message, type });
@@ -183,7 +183,7 @@ export default function BookingsPage() {
         }
       } catch (err) { console.error('Failed to load availability:', err); }
     }
-    
+
     // Fetch disabled dates from super admin configuration
     async function fetchDisabledDates() {
       try {
@@ -202,7 +202,7 @@ export default function BookingsPage() {
         }
       } catch (err) { console.error('Failed to load disabled dates:', err); }
     }
-    
+
     fetchAvailability();
     fetchDisabledDates();
 
@@ -333,8 +333,8 @@ export default function BookingsPage() {
 
   // Price calculation
   useEffect(() => {
-    const nights = createBookingForm.checkIn && createBookingForm.checkOut 
-      ? Math.max(1, (new Date(createBookingForm.checkOut) - new Date(createBookingForm.checkIn)) / (1000 * 60 * 60 * 24)) 
+    const nights = createBookingForm.checkIn && createBookingForm.checkOut
+      ? Math.max(1, (new Date(createBookingForm.checkOut) - new Date(createBookingForm.checkIn)) / (1000 * 60 * 60 * 24))
       : 1;
 
     async function calculateTotal() {
@@ -359,7 +359,7 @@ export default function BookingsPage() {
             cottage: createBookingForm.selectedAmenities.cottage
           }),
         });
-        if(res.ok) {
+        if (res.ok) {
           const data = await res.json();
           setTotalPrice(data.totalPrice || 0);
         }
@@ -396,15 +396,15 @@ export default function BookingsPage() {
   const handleAddRoom = (roomId) => {
     const room = availableRooms.find(r => r.id === roomId);
     if (!room) return;
-    
+
     const capacity = getRoomCapacityDetails(room.type);
     const roomInstances = (createBookingForm.rooms || []).filter(r => r.roomId === roomId);
-    
+
     if (roomInstances.length >= room.remaining) {
       error(`No more ${room.type} rooms available for these dates.`);
       return;
     }
-    
+
     const newInstance = {
       roomId,
       instanceNumber: roomInstances.length + 1,
@@ -415,7 +415,7 @@ export default function BookingsPage() {
       optionalAmenities: {},
       rentalAmenities: {}
     };
-    
+
     setCreateBookingForm(prev => ({
       ...prev,
       rooms: [...prev.rooms, newInstance]
@@ -434,7 +434,7 @@ export default function BookingsPage() {
   const handleRoomGuestChange = (roomId, instanceNumber, field, value) => {
     setCreateBookingForm(prev => ({
       ...prev,
-      rooms: prev.rooms.map(r => 
+      rooms: prev.rooms.map(r =>
         r.roomId === roomId && r.instanceNumber === instanceNumber
           ? { ...r, [field]: value }
           : r
@@ -447,7 +447,7 @@ export default function BookingsPage() {
     setLoading(true);
     try {
       const res = await fetch('/api/bookings?includeDeleted=true', { headers: { 'Content-Type': 'application/json' } });
-      
+
       if (!res.ok) {
         const errorData = await res.json();
         console.error('API Error:', errorData);
@@ -456,12 +456,12 @@ export default function BookingsPage() {
         setHistoryBookings([]);
         return;
       }
-      
+
       const data = await res.json();
-      
+
       // Handle paginated response structure
       const bookingsData = data.bookings || data; // Support both old and new API structure
-      
+
       if (Array.isArray(bookingsData)) {
         setBookings(bookingsData.filter(b => b && !b.isDeleted));
         setHistoryBookings(bookingsData.filter(b => b && b.isDeleted));
@@ -553,8 +553,8 @@ export default function BookingsPage() {
 
   // Toggle booking selection
   const toggleBookingSelection = (bookingId) => {
-    setSelectedBookings(prev => 
-      prev.includes(bookingId) 
+    setSelectedBookings(prev =>
+      prev.includes(bookingId)
         ? prev.filter(id => id !== bookingId)
         : [...prev, bookingId]
     );
@@ -562,9 +562,9 @@ export default function BookingsPage() {
 
   // Select all bookings
   const toggleSelectAll = () => {
-    setSelectedBookings(prev => 
-      prev.length === paginatedBookings.length 
-        ? [] 
+    setSelectedBookings(prev =>
+      prev.length === paginatedBookings.length
+        ? []
         : paginatedBookings.filter(booking => booking && booking.id).map(booking => booking.id)
     );
   };
@@ -581,17 +581,17 @@ export default function BookingsPage() {
       'Total': `₱${booking.totalAmount || 0}`,
       'Payment': booking.paymentOption || 'N/A'
     }));
-    
+
     if (csvData.length === 0) {
       showAlert('No Data', 'No bookings to export', 'warning');
       return;
     }
-    
+
     const csvString = [
       Object.keys(csvData[0]).join(','),
       ...csvData.map(row => Object.values(row).join(','))
     ].join('\n');
-    
+
     const blob = new Blob([csvString], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -630,14 +630,14 @@ export default function BookingsPage() {
   const filteredBookings = bookings.filter((booking) => {
     // Add null check for booking object
     if (!booking) return false;
-    
+
     // Show all bookings (both staff-created walk-ins and guest-created bookings)
     const matchesStatus = !filterStatus || booking.status === filterStatus;
     const matchesPaymentOption = !filterPaymentOption || booking.paymentOption === filterPaymentOption;
     const matchesPaymentMethod = !filterPaymentMethod || (booking.paymentMethods && booking.paymentMethods.includes(filterPaymentMethod));
-    const matchesSearch = !searchTerm || 
-                         (booking.guestName && booking.guestName.toLowerCase().includes(searchTerm.toLowerCase())) || 
-                         (booking.id && booking.id.toString().includes(searchTerm));
+    const matchesSearch = !searchTerm ||
+      (booking.guestName && booking.guestName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (booking.id && booking.id.toString().includes(searchTerm));
     return matchesStatus && matchesPaymentOption && matchesPaymentMethod && matchesSearch;
   });
 
@@ -766,15 +766,15 @@ export default function BookingsPage() {
       const res = await fetch(`/api/bookings/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          status: 'Cancelled', 
-          cancellationRemarks: remarks || 'No remarks provided' 
+        body: JSON.stringify({
+          status: 'Cancelled',
+          cancellationRemarks: remarks || 'No remarks provided'
         }),
       });
       if (res.ok) {
         const updatedBooking = await res.json();
         setBookings(bookings.map(b => b.id === id ? updatedBooking : b));
-        
+
         // Record audit trail for cancellation
         try {
           await fetch('/api/audit-trails', {
@@ -799,10 +799,10 @@ export default function BookingsPage() {
           console.error('Failed to record audit trail:', auditErr);
           // Don't fail the cancellation if audit logging fails
         }
-        
+
         setMessage({ type: 'success', text: 'Booking cancelled successfully.' });
         success('Booking cancelled successfully');
-        
+
         // Auto-close the cancel modal
         setShowCancelModal(false);
         setCancelRemarks('');
@@ -835,17 +835,17 @@ export default function BookingsPage() {
 
       if (res.ok) {
         const data = await res.json();
-        
+
         // Update the booking in the list
         setBookings(bookings.map(b => b.id === bookingId ? data.booking : b));
-        
+
         success('✅ Booking dates updated successfully');
-        
+
         // Close modal and refresh
         setEditDateModal({ show: false, booking: null });
         setShowDetailsModal(false);
         setCurrentBooking(null);
-        
+
         // Refresh bookings list
         await fetchBookings();
       } else {
@@ -862,6 +862,23 @@ export default function BookingsPage() {
 
   return (
     <SuperAdminLayout>
+      {/* Inline CSS for modal responsiveness */}
+      <style jsx>{`
+        .modal-responsive {
+          animation: modalSlideIn 0.3s ease-out;
+        }
+        @keyframes modalSlideIn {
+          from { opacity: 0; transform: translateY(-50px) scale(0.95); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @media (max-width: 768px) {
+          .modal-responsive {
+            padding: 1rem !important;
+            margin: 0.5rem !important;
+            max-width: calc(100vw - 1rem) !important;
+          }
+        }
+      `}</style>
       <div style={styles.container}>
         {/* Modern Header Section */}
         <div style={styles.header}>
@@ -970,7 +987,7 @@ export default function BookingsPage() {
                 </span>
               </button>
             </div>
-            
+
             {/* Quick Stats in Tabs */}
             <div style={styles.tabsStats}>
               <div style={styles.quickStat}>
@@ -1120,8 +1137,8 @@ export default function BookingsPage() {
               borderColor: message.type === 'success' ? '#0ea5e9' : '#ef4444',
             }}>
               <div style={styles.messageIcon}>
-                {message.type === 'success' ? 
-                  <CheckCircle size={20} style={{ color: '#0ea5e9' }} /> : 
+                {message.type === 'success' ?
+                  <CheckCircle size={20} style={{ color: '#0ea5e9' }} /> :
                   <XCircle size={20} style={{ color: '#ef4444' }} />
                 }
               </div>
@@ -1181,7 +1198,7 @@ export default function BookingsPage() {
                     error('❌ First name is required.');
                     return;
                   }
-                  
+
                   if (!createBookingForm.lastName?.trim()) {
                     error('❌ Last name is required.');
                     return;
@@ -1222,10 +1239,10 @@ export default function BookingsPage() {
                   }
 
                   // NEW: Validation - all rooms configured
-                  const totalGuests = createBookingForm.rooms.reduce((sum, r) => 
+                  const totalGuests = createBookingForm.rooms.reduce((sum, r) =>
                     sum + r.adults + r.additionalPax + r.children, 0
                   );
-                  
+
                   if (totalGuests < 1) {
                     error('❌ Please configure guest count for all rooms.');
                     return;
@@ -1276,10 +1293,10 @@ export default function BookingsPage() {
                     // Handle network or server errors
                     if (!response.ok) {
                       let errorMessage = 'Failed to create booking';
-                      
+
                       try {
                         const errorData = await response.json();
-                        
+
                         // Check for specific error types
                         if (errorData.error) {
                           if (errorData.error.includes('inventory') || errorData.error.includes('stock')) {
@@ -1300,7 +1317,7 @@ export default function BookingsPage() {
                           errorMessage = 'Server error occurred. Please try again or contact support.';
                         }
                       }
-                      
+
                       throw new Error(errorMessage);
                     }
 
@@ -1327,7 +1344,7 @@ export default function BookingsPage() {
                     await fetchBookings();
                   } catch (err) {
                     console.error('❌ Booking Error:', err);
-                    
+
                     // Provide user-friendly error messages
                     if (err.message.includes('fetch')) {
                       error('❌ Network error. Please check your connection and try again.');
@@ -1363,10 +1380,10 @@ export default function BookingsPage() {
                             checkOut={createBookingForm.checkOut ? new Date(createBookingForm.checkOut) : null}
                           />
                         </div>
-                        
+
                         <div style={{ flex: '1 1 320px', minWidth: '300px' }}>
                           {/* Right side - Guest Info and Dates */}
-                          <div style={{ 
+                          <div style={{
                             backgroundColor: '#FFF7ED',
                             padding: '15px',
                             borderRadius: '8px',
@@ -1376,7 +1393,7 @@ export default function BookingsPage() {
                               <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>
                                 Guest Information
                               </label>
-                              
+
                               {/* First Name */}
                               <div style={{ marginBottom: '10px' }}>
                                 <label style={{ display: 'block', fontSize: '14px', marginBottom: '4px', color: '#374151' }}>
@@ -1472,8 +1489,8 @@ export default function BookingsPage() {
                             <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
                               <div style={{ flex: '1' }}>
                                 <p style={{ margin: '0 0 4px 0', fontSize: '14px' }}>Check-in:</p>
-                                <div style={{ 
-                                  padding: '8px', 
+                                <div style={{
+                                  padding: '8px',
                                   backgroundColor: '#fff',
                                   border: '1px solid #ccc',
                                   borderRadius: '4px',
@@ -1484,8 +1501,8 @@ export default function BookingsPage() {
                               </div>
                               <div style={{ flex: '1' }}>
                                 <p style={{ margin: '0 0 4px 0', fontSize: '14px' }}>Check-out:</p>
-                                <div style={{ 
-                                  padding: '8px', 
+                                <div style={{
+                                  padding: '8px',
                                   backgroundColor: '#fff',
                                   border: '1px solid #ccc',
                                   borderRadius: '4px',
@@ -1498,10 +1515,10 @@ export default function BookingsPage() {
                           </div>
 
                           {dateWarning && (
-                            <div style={{ 
-                              color: '#856404', 
-                              backgroundColor: '#fff3cd', 
-                              padding: '10px', 
+                            <div style={{
+                              color: '#856404',
+                              backgroundColor: '#fff3cd',
+                              padding: '10px',
                               borderRadius: '4px',
                               marginTop: '10px',
                               border: '1px solid #ffeeba',
@@ -1524,164 +1541,164 @@ export default function BookingsPage() {
                           ) : availableRooms.length === 0 ? (
                             <p>No rooms available for the selected dates.</p>
                           ) : (
-                            <div style={{ 
-                              display: 'grid', 
-                              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', 
-                              gap: '20px' 
+                            <div style={{
+                              display: 'grid',
+                              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                              gap: '20px'
                             }}>
                               {availableRooms
                                 .filter(room => room.type !== 'FAMILY_LODGE')
                                 .map((room) => {
-                                // Count how many instances of this room are already added
-                                const roomInstances = (createBookingForm.rooms || []).filter(r => r.roomId === room.id);
-                                const isFull = room.remaining <= 0;
-                                const hasInstances = roomInstances.length > 0;
-                                const allInstancesAdded = roomInstances.length >= room.remaining;
-                                
-                                const roomCapacity = room.type === 'TEPEE' ? 5 : room.type === 'LOFT' ? 3 : room.type === 'VILLA' ? 10 : 1;
+                                  // Count how many instances of this room are already added
+                                  const roomInstances = (createBookingForm.rooms || []).filter(r => r.roomId === room.id);
+                                  const isFull = room.remaining <= 0;
+                                  const hasInstances = roomInstances.length > 0;
+                                  const allInstancesAdded = roomInstances.length >= room.remaining;
 
-                                return (
-                                  <div
-                                    key={room.id}
-                                    style={{
-                                      border: hasInstances ? '2px solid #FEBE52' : '1px solid #d1d5db',
-                                      borderRadius: '12px',
-                                      padding: '0',
-                                      backgroundColor: 'white',
-                                      cursor: isFull ? 'not-allowed' : 'pointer',
-                                      opacity: isFull ? 0.5 : 1,
-                                      transition: 'all 0.2s ease',
-                                      overflow: 'hidden',
-                                      position: 'relative'
-                                    }}
-                                  >
-                                    <div style={{ position: 'relative' }}>
-                                      <img 
-                                        src={toBlobProxyUrl(room.image) || '/images/default-room.jpg'} 
-                                        alt={room.name}
-                                        style={{
-                                          width: '100%',
-                                          height: '140px',
-                                          objectFit: 'cover'
-                                        }}
-                                      />
-                                      {/* Availability Badge */}
-                                      <span style={{
-                                        position: 'absolute',
-                                        top: '8px',
-                                        right: '8px',
-                                        backgroundColor: isFull ? '#ef4444' : room.remaining <= 3 ? '#f59e0b' : '#10b981',
-                                        color: 'white',
-                                        padding: '4px 10px',
+                                  const roomCapacity = room.type === 'TEPEE' ? 5 : room.type === 'LOFT' ? 3 : room.type === 'VILLA' ? 10 : 1;
+
+                                  return (
+                                    <div
+                                      key={room.id}
+                                      style={{
+                                        border: hasInstances ? '2px solid #FEBE52' : '1px solid #d1d5db',
                                         borderRadius: '12px',
-                                        fontSize: '12px',
-                                        fontWeight: '600',
-                                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                                      }}>
-                                        {isFull ? 'Full' : `${room.remaining - roomInstances.length} left`}
-                                      </span>
-                                      {/* Selected Count Indicator */}
-                                      {hasInstances && (
-                                        <div style={{
-                                          position: 'absolute',
-                                          top: '8px',
-                                          left: '8px',
-                                          backgroundColor: '#FEBE52',
-                                          color: 'white',
-                                          width: '32px',
-                                          height: '32px',
-                                          borderRadius: '50%',
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          justifyContent: 'center',
-                                          fontSize: '16px',
-                                          fontWeight: 'bold',
-                                          boxShadow: '0 2px 6px rgba(0,0,0,0.3)'
-                                        }}>
-                                          {roomInstances.length}
-                                        </div>
-                                      )}
-                                    </div>
-                                    <div style={{ padding: '12px' }}>
-                                      <h4 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: '600', color: '#1f2937' }}>
-                                        {room.name}
-                                      </h4>
-                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '10px' }}>
-                                        {/* Room Type Tag */}
-                                        <span style={{
-                                          backgroundColor: '#e5e7eb',
-                                          color: '#374151',
-                                          padding: '3px 8px',
-                                          borderRadius: '4px',
-                                          fontSize: '11px',
-                                          fontWeight: '600',
-                                          textTransform: 'uppercase'
-                                        }}>
-                                          {room.type}
-                                        </span>
-                                        {/* Capacity Tag */}
-                                        <span style={{
-                                          backgroundColor: '#dbeafe',
-                                          color: '#1e40af',
-                                          padding: '3px 8px',
-                                          borderRadius: '4px',
-                                          fontSize: '11px',
-                                          fontWeight: '600',
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          gap: '3px'
-                                        }}>
-                                          👥 {roomCapacity} guests
-                                        </span>
-                                      </div>
-                                      {/* Price */}
-                                      <p style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: 'bold', color: '#FEBE52' }}>
-                                        ₱{(room.price / 100).toLocaleString()}<span style={{ fontSize: '12px', fontWeight: 'normal', color: '#6b7280' }}>/night</span>
-                                      </p>
-                                      
-                                      {/* Add Room Button */}
-                                      {!isFull && !allInstancesAdded && (
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            const capacity = getRoomCapacityDetails(room.type);
-                                            const instanceNumber = roomInstances.length + 1;
-                                            setCreateBookingForm(prev => ({
-                                              ...prev,
-                                              rooms: [...prev.rooms, {
-                                                roomId: room.id,
-                                                instanceNumber,
-                                                unitNumber: null,
-                                                adults: 1,
-                                                additionalPax: 0,
-                                                children: 0,
-                                                optionalAmenities: {},
-                                                rentalAmenities: {}
-                                              }]
-                                            }));
-                                          }}
+                                        padding: '0',
+                                        backgroundColor: 'white',
+                                        cursor: isFull ? 'not-allowed' : 'pointer',
+                                        opacity: isFull ? 0.5 : 1,
+                                        transition: 'all 0.2s ease',
+                                        overflow: 'hidden',
+                                        position: 'relative'
+                                      }}
+                                    >
+                                      <div style={{ position: 'relative' }}>
+                                        <img
+                                          src={toBlobProxyUrl(room.image) || '/images/default-room.jpg'}
+                                          alt={room.name}
                                           style={{
                                             width: '100%',
-                                            padding: '8px',
+                                            height: '140px',
+                                            objectFit: 'cover'
+                                          }}
+                                        />
+                                        {/* Availability Badge */}
+                                        <span style={{
+                                          position: 'absolute',
+                                          top: '8px',
+                                          right: '8px',
+                                          backgroundColor: isFull ? '#ef4444' : room.remaining <= 3 ? '#f59e0b' : '#10b981',
+                                          color: 'white',
+                                          padding: '4px 10px',
+                                          borderRadius: '12px',
+                                          fontSize: '12px',
+                                          fontWeight: '600',
+                                          boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                        }}>
+                                          {isFull ? 'Full' : `${room.remaining - roomInstances.length} left`}
+                                        </span>
+                                        {/* Selected Count Indicator */}
+                                        {hasInstances && (
+                                          <div style={{
+                                            position: 'absolute',
+                                            top: '8px',
+                                            left: '8px',
                                             backgroundColor: '#FEBE52',
                                             color: 'white',
-                                            border: 'none',
-                                            borderRadius: '6px',
+                                            width: '32px',
+                                            height: '32px',
+                                            borderRadius: '50%',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            fontSize: '16px',
+                                            fontWeight: 'bold',
+                                            boxShadow: '0 2px 6px rgba(0,0,0,0.3)'
+                                          }}>
+                                            {roomInstances.length}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div style={{ padding: '12px' }}>
+                                        <h4 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: '600', color: '#1f2937' }}>
+                                          {room.name}
+                                        </h4>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '10px' }}>
+                                          {/* Room Type Tag */}
+                                          <span style={{
+                                            backgroundColor: '#e5e7eb',
+                                            color: '#374151',
+                                            padding: '3px 8px',
+                                            borderRadius: '4px',
+                                            fontSize: '11px',
                                             fontWeight: '600',
-                                            cursor: 'pointer',
-                                            fontSize: '14px'
-                                          }}
-                                        >
-                                          + Add Room
-                                        </button>
-                                      )}
+                                            textTransform: 'uppercase'
+                                          }}>
+                                            {room.type}
+                                          </span>
+                                          {/* Capacity Tag */}
+                                          <span style={{
+                                            backgroundColor: '#dbeafe',
+                                            color: '#1e40af',
+                                            padding: '3px 8px',
+                                            borderRadius: '4px',
+                                            fontSize: '11px',
+                                            fontWeight: '600',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '3px'
+                                          }}>
+                                            👥 {roomCapacity} guests
+                                          </span>
+                                        </div>
+                                        {/* Price */}
+                                        <p style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: 'bold', color: '#FEBE52' }}>
+                                          ₱{(room.price / 100).toLocaleString()}<span style={{ fontSize: '12px', fontWeight: 'normal', color: '#6b7280' }}>/night</span>
+                                        </p>
+
+                                        {/* Add Room Button */}
+                                        {!isFull && !allInstancesAdded && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const capacity = getRoomCapacityDetails(room.type);
+                                              const instanceNumber = roomInstances.length + 1;
+                                              setCreateBookingForm(prev => ({
+                                                ...prev,
+                                                rooms: [...prev.rooms, {
+                                                  roomId: room.id,
+                                                  instanceNumber,
+                                                  unitNumber: null,
+                                                  adults: 1,
+                                                  additionalPax: 0,
+                                                  children: 0,
+                                                  optionalAmenities: {},
+                                                  rentalAmenities: {}
+                                                }]
+                                              }));
+                                            }}
+                                            style={{
+                                              width: '100%',
+                                              padding: '8px',
+                                              backgroundColor: '#FEBE52',
+                                              color: 'white',
+                                              border: 'none',
+                                              borderRadius: '6px',
+                                              fontWeight: '600',
+                                              cursor: 'pointer',
+                                              fontSize: '14px'
+                                            }}
+                                          >
+                                            + Add Room
+                                          </button>
+                                        )}
+                                      </div>
                                     </div>
-                                  </div>
-                                );
-                              })}
+                                  );
+                                })}
                             </div>
                           )}
-                          
+
                           {/* Room Configuration Panel - NEW */}
                           {createBookingForm.rooms && createBookingForm.rooms.length > 0 && (
                             <div style={{ marginTop: '30px' }}>
@@ -1690,11 +1707,11 @@ export default function BookingsPage() {
                                 {createBookingForm.rooms.map((roomData, idx) => {
                                   const room = availableRooms.find(r => r.id === roomData.roomId);
                                   if (!room) return null;
-                                  
+
                                   const capacity = getRoomCapacityDetails(room.type);
                                   const roomTypeName = room.type === 'LOFT' ? 'Loft' : room.type === 'TEPEE' ? 'Tepee' : room.type === 'VILLA' ? 'Villa' : room.name;
                                   const additionalPaxFee = 400; // ₱400 per additional pax
-                                  
+
                                   return (
                                     <div
                                       key={`${roomData.roomId}-${roomData.instanceNumber}`}
@@ -1732,7 +1749,7 @@ export default function BookingsPage() {
                                           Remove
                                         </button>
                                       </div>
-                                      
+
                                       {/* Room Unit Selector */}
                                       <div style={{ marginBottom: '15px' }}>
                                         <RoomUnitSelector
@@ -1744,7 +1761,7 @@ export default function BookingsPage() {
                                           onUnitSelect={(unitNumber) => {
                                             setCreateBookingForm(prev => ({
                                               ...prev,
-                                              rooms: prev.rooms.map(r => 
+                                              rooms: prev.rooms.map(r =>
                                                 r.roomId === roomData.roomId && r.instanceNumber === roomData.instanceNumber
                                                   ? { ...r, unitNumber }
                                                   : r
@@ -1753,7 +1770,7 @@ export default function BookingsPage() {
                                           }}
                                         />
                                       </div>
-                                      
+
                                       {/* Guest Configuration */}
                                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '15px' }}>
                                         {/* Adults */}
@@ -1767,7 +1784,7 @@ export default function BookingsPage() {
                                               onClick={() => {
                                                 setCreateBookingForm(prev => ({
                                                   ...prev,
-                                                  rooms: prev.rooms.map(r => 
+                                                  rooms: prev.rooms.map(r =>
                                                     r.roomId === roomData.roomId && r.instanceNumber === roomData.instanceNumber
                                                       ? { ...r, adults: Math.max(1, r.adults - 1) }
                                                       : r
@@ -1795,7 +1812,7 @@ export default function BookingsPage() {
                                               onClick={() => {
                                                 setCreateBookingForm(prev => ({
                                                   ...prev,
-                                                  rooms: prev.rooms.map(r => 
+                                                  rooms: prev.rooms.map(r =>
                                                     r.roomId === roomData.roomId && r.instanceNumber === roomData.instanceNumber
                                                       ? { ...r, adults: Math.min(capacity.base, r.adults + 1) }
                                                       : r
@@ -1817,7 +1834,7 @@ export default function BookingsPage() {
                                             </button>
                                           </div>
                                         </div>
-                                        
+
                                         {/* Additional Pax */}
                                         <div>
                                           <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px', fontWeight: '600' }}>
@@ -1829,7 +1846,7 @@ export default function BookingsPage() {
                                               onClick={() => {
                                                 setCreateBookingForm(prev => ({
                                                   ...prev,
-                                                  rooms: prev.rooms.map(r => 
+                                                  rooms: prev.rooms.map(r =>
                                                     r.roomId === roomData.roomId && r.instanceNumber === roomData.instanceNumber
                                                       ? { ...r, additionalPax: Math.max(0, r.additionalPax - 1) }
                                                       : r
@@ -1857,7 +1874,7 @@ export default function BookingsPage() {
                                               onClick={() => {
                                                 setCreateBookingForm(prev => ({
                                                   ...prev,
-                                                  rooms: prev.rooms.map(r => 
+                                                  rooms: prev.rooms.map(r =>
                                                     r.roomId === roomData.roomId && r.instanceNumber === roomData.instanceNumber
                                                       ? { ...r, additionalPax: Math.min(capacity.additionalPaxMax, r.additionalPax + 1) }
                                                       : r
@@ -1884,7 +1901,7 @@ export default function BookingsPage() {
                                             </div>
                                           )}
                                         </div>
-                                        
+
                                         {/* Children */}
                                         <div>
                                           <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px', fontWeight: '600' }}>
@@ -1896,7 +1913,7 @@ export default function BookingsPage() {
                                               onClick={() => {
                                                 setCreateBookingForm(prev => ({
                                                   ...prev,
-                                                  rooms: prev.rooms.map(r => 
+                                                  rooms: prev.rooms.map(r =>
                                                     r.roomId === roomData.roomId && r.instanceNumber === roomData.instanceNumber
                                                       ? { ...r, children: Math.max(0, r.children - 1) }
                                                       : r
@@ -1924,7 +1941,7 @@ export default function BookingsPage() {
                                               onClick={() => {
                                                 setCreateBookingForm(prev => ({
                                                   ...prev,
-                                                  rooms: prev.rooms.map(r => 
+                                                  rooms: prev.rooms.map(r =>
                                                     r.roomId === roomData.roomId && r.instanceNumber === roomData.instanceNumber
                                                       ? { ...r, children: Math.min(capacity.childrenMax || 2, r.children + 1) }
                                                       : r
@@ -1947,7 +1964,7 @@ export default function BookingsPage() {
                                           </div>
                                         </div>
                                       </div>
-                                      
+
                                       {/* Summary */}
                                       <div style={{ padding: '8px', backgroundColor: '#FFF7ED', borderRadius: '6px', fontSize: '12px' }}>
                                         <strong>Room Summary:</strong> {roomData.adults} Adult{roomData.adults !== 1 ? 's' : ''}
@@ -1969,7 +1986,7 @@ export default function BookingsPage() {
                 {createBookingStep === 2 && (
                   <>
                     <h3 style={{ color: '#5a3e00', marginBottom: '20px' }}>Optional & Rental Amenities</h3>
-                    <div style={{ 
+                    <div style={{
                       backgroundColor: '#FFF8E1',
                       padding: '20px',
                       borderRadius: '8px',
@@ -2005,8 +2022,8 @@ export default function BookingsPage() {
                           <h4 style={{ color: '#5a3e00', marginBottom: '10px' }}>Optional Amenities:</h4>
                           <OptionalAmenitiesSelector
                             selectedAmenities={createBookingForm.selectedAmenities.optional}
-                            onAmenitiesChange={(newOptional) => setCreateBookingForm(prev => ({ 
-                              ...prev, 
+                            onAmenitiesChange={(newOptional) => setCreateBookingForm(prev => ({
+                              ...prev,
                               selectedAmenities: {
                                 ...prev.selectedAmenities,
                                 optional: newOptional
@@ -2020,8 +2037,8 @@ export default function BookingsPage() {
                           <h4 style={{ color: '#5a3e00', marginBottom: '10px' }}>Rental Amenities:</h4>
                           <RentalAmenitiesSelector
                             selectedAmenities={createBookingForm.selectedAmenities.rental}
-                            onAmenitiesChange={(newRental) => setCreateBookingForm(prev => ({ 
-                              ...prev, 
+                            onAmenitiesChange={(newRental) => setCreateBookingForm(prev => ({
+                              ...prev,
                               selectedAmenities: {
                                 ...prev.selectedAmenities,
                                 rental: newRental
@@ -2037,7 +2054,7 @@ export default function BookingsPage() {
                 {createBookingStep === 3 && (
                   <>
                     <h3 style={{ color: '#5a3e00', marginBottom: '20px' }}>Booking Summary</h3>
-                    <div style={{ 
+                    <div style={{
                       backgroundColor: '#FFF8E1',
                       padding: '20px',
                       borderRadius: '8px',
@@ -2139,14 +2156,14 @@ export default function BookingsPage() {
                       </div>
 
                       {/* Price Breakdown */}
-                      <div style={{ 
+                      <div style={{
                         backgroundColor: 'white',
                         padding: '15px',
                         borderRadius: '6px',
                         border: '1px solid rgba(251, 190, 82, 0.2)'
                       }}>
                         <h4 style={{ color: '#5a3e00', marginBottom: '15px' }}>Price Breakdown</h4>
-                        
+
                         {/* Room Costs */}
                         {Object.entries(createBookingForm.selectedRooms).map(([roomId, quantity]) => {
                           const roomDetails = createBookingForm.selectedRoomDetails[roomId];
@@ -2187,9 +2204,9 @@ export default function BookingsPage() {
                         })}
 
                         {/* Total */}
-                        <div style={{ 
-                          borderTop: '2px solid rgba(251, 190, 82, 0.3)', 
-                          marginTop: '15px', 
+                        <div style={{
+                          borderTop: '2px solid rgba(251, 190, 82, 0.3)',
+                          marginTop: '15px',
                           paddingTop: '15px',
                           display: 'flex',
                           justifyContent: 'space-between',
@@ -2286,12 +2303,12 @@ export default function BookingsPage() {
 
                 {/* Live Total Display - Bottom Left */}
                 {createTotalPrice > 0 && (
-                  <div style={{ 
-                    position: 'absolute', 
-                    bottom: '20px', 
-                    left: '20px', 
-                    fontWeight: 'bold', 
-                    fontSize: '1.2rem', 
+                  <div style={{
+                    position: 'absolute',
+                    bottom: '20px',
+                    left: '20px',
+                    fontWeight: 'bold',
+                    fontSize: '1.2rem',
                     color: '#ED7709',
                     backgroundColor: 'rgba(255, 248, 225, 0.9)',
                     padding: '10px 15px',
@@ -2316,7 +2333,7 @@ export default function BookingsPage() {
                   {currentTab === 'active' ? 'Active Bookings' : 'Booking History'}
                 </h3>
                 <div style={styles.tableActions}>
-                  <button 
+                  <button
                     onClick={() => handleBulkAction('settings')}
                     style={styles.bulkActionButton}
                   >
@@ -2325,11 +2342,11 @@ export default function BookingsPage() {
                   </button>
                 </div>
               </div>
-              
+
               <div style={styles.tableWrapper}>
                 {loading ? (
-                  <div style={{ 
-                    position: 'relative', 
+                  <div style={{
+                    position: 'relative',
                     height: '300px',
                     display: 'flex',
                     alignItems: 'center',
@@ -2344,8 +2361,8 @@ export default function BookingsPage() {
                       <tr>
                         <th style={styles.tableHeadCell}>
                           <div style={styles.tableHeadContent}>
-                            <input 
-                              type="checkbox" 
+                            <input
+                              type="checkbox"
                               style={styles.headerCheckbox}
                               checked={selectedBookings.length === paginatedBookings.length && paginatedBookings.length > 0}
                               onChange={toggleSelectAll}
@@ -2402,8 +2419,8 @@ export default function BookingsPage() {
                             <tr key={`booking-${booking.id}`} style={styles.tableRow}>
                               <td style={styles.tableCell}>
                                 <div style={styles.guestInfo}>
-                                  <input 
-                                    type="checkbox" 
+                                  <input
+                                    type="checkbox"
                                     style={styles.rowCheckbox}
                                     checked={selectedBookings.includes(booking.id)}
                                     onChange={() => toggleBookingSelection(booking.id)}
@@ -2421,14 +2438,14 @@ export default function BookingsPage() {
                                 <div style={styles.dateInfo}>
                                   <div style={styles.checkInDate}>
                                     <Calendar size={14} />
-                                    {new Date(booking.checkIn).toLocaleDateString('en-US', { 
-                                      month: 'short', day: 'numeric' 
+                                    {new Date(booking.checkIn).toLocaleDateString('en-US', {
+                                      month: 'short', day: 'numeric'
                                     })}
                                   </div>
                                   <div style={styles.checkOutDate}>
                                     <Clock size={14} />
-                                    {new Date(booking.checkOut).toLocaleDateString('en-US', { 
-                                      month: 'short', day: 'numeric' 
+                                    {new Date(booking.checkOut).toLocaleDateString('en-US', {
+                                      month: 'short', day: 'numeric'
                                     })}
                                   </div>
                                   <div style={styles.duration}>
@@ -2440,8 +2457,8 @@ export default function BookingsPage() {
                                 <div style={styles.roomInfo}>
                                   <div style={styles.roomName}>
                                     <MapPin size={14} />
-                                    {booking.rooms && Array.isArray(booking.rooms) && booking.rooms.length > 0 
-                                      ? booking.rooms.map(r => r.room.name).join(', ') 
+                                    {booking.rooms && Array.isArray(booking.rooms) && booking.rooms.length > 0
+                                      ? booking.rooms.map(r => r.room.name).join(', ')
                                       : 'N/A'
                                     }
                                   </div>
@@ -2569,7 +2586,7 @@ export default function BookingsPage() {
                             {booking.status}
                           </span>
                         </div>
-                        
+
                         <div style={styles.cardContent}>
                           <div style={styles.cardRow}>
                             <div style={styles.cardIcon}>
@@ -2592,8 +2609,8 @@ export default function BookingsPage() {
                               <MapPin size={16} />
                             </div>
                             <div>
-                              <strong>Room:</strong> {booking.rooms && Array.isArray(booking.rooms) && booking.rooms.length > 0 
-                                ? booking.rooms.map(r => r.room.name).join(', ') 
+                              <strong>Room:</strong> {booking.rooms && Array.isArray(booking.rooms) && booking.rooms.length > 0
+                                ? booking.rooms.map(r => r.room.name).join(', ')
                                 : 'N/A'
                               }
                             </div>
@@ -2615,7 +2632,7 @@ export default function BookingsPage() {
                             </div>
                           </div>
                         </div>
-                        
+
                         <div style={styles.cardActions}>
                           <button
                             onClick={() => {
@@ -2679,7 +2696,7 @@ export default function BookingsPage() {
               >
                 Previous
               </button>
-              
+
               {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
                 <button
                   key={page}
@@ -2692,7 +2709,7 @@ export default function BookingsPage() {
                   {page}
                 </button>
               ))}
-              
+
               <button
                 onClick={() => setCurrentPage(currentPage + 1)}
                 disabled={currentPage === totalPages}
@@ -2912,10 +2929,10 @@ export default function BookingsPage() {
               <div style={{ marginBottom: '10px' }}>
                 <strong>Selected Rooms:</strong>
                 <ul style={{ marginTop: '5px', paddingLeft: '20px' }}>
-                  {currentBooking.rooms && Array.isArray(currentBooking.rooms) && currentBooking.rooms.length > 0 ? 
+                  {currentBooking.rooms && Array.isArray(currentBooking.rooms) && currentBooking.rooms.length > 0 ?
                     currentBooking.rooms.map((r) => (
                       <li key={`room-${r.room.id}`}>{r.room.name} x{r.quantity}</li>
-                    )) : 
+                    )) :
                     <li>No rooms selected</li>
                   }
                 </ul>
@@ -2924,16 +2941,16 @@ export default function BookingsPage() {
               <div style={{ marginBottom: '10px' }}>
                 <strong>Selected Amenities:</strong>
                 <ul style={{ marginTop: '5px', paddingLeft: '20px' }}>
-                  {currentBooking.optionalAmenities && Array.isArray(currentBooking.optionalAmenities) && currentBooking.optionalAmenities.length > 0 ? 
+                  {currentBooking.optionalAmenities && Array.isArray(currentBooking.optionalAmenities) && currentBooking.optionalAmenities.length > 0 ?
                     currentBooking.optionalAmenities.map((oa) => (
                       <li key={`optional-${oa.optionalAmenity.id}`}>{oa.optionalAmenity.name} x{oa.quantity}</li>
-                    )) : 
+                    )) :
                     <li>No optional amenities selected</li>
                   }
-                  {currentBooking.rentalAmenities && Array.isArray(currentBooking.rentalAmenities) && currentBooking.rentalAmenities.length > 0 ? 
+                  {currentBooking.rentalAmenities && Array.isArray(currentBooking.rentalAmenities) && currentBooking.rentalAmenities.length > 0 ?
                     currentBooking.rentalAmenities.map((ra) => (
                       <li key={`rental-${ra.rentalAmenity.id}`}>{ra.rentalAmenity.name} x{ra.quantity} {ra.hoursUsed ? `(${ra.hoursUsed}h)` : ''}</li>
-                    )) : 
+                    )) :
                     <li>No rental amenities selected</li>
                   }
                 </ul>
@@ -3000,7 +3017,7 @@ export default function BookingsPage() {
                     Edit Dates
                   </button>
                 )}
-                
+
                 {/* Confirm and Cancel for new bookings (not confirmed or checked in/out) */}
                 {(['Pending', 'PENDING', 'HELD', 'Held', 'NEW', 'New'].includes(currentBooking.status) && !currentBooking.actualCheckIn) && (
                   <>
@@ -3461,14 +3478,14 @@ export default function BookingsPage() {
                   ×
                 </button>
               </div>
-              
+
               <div style={{ color: '#64748b', textAlign: 'center', padding: '2rem' }}>
                 <Edit size={48} style={{ marginBottom: '1rem', color: '#d79a2b' }} />
                 <p>Edit booking functionality coming soon...</p>
                 <p>Guest: {currentBooking.guestName}</p>
                 <p>Room: {currentBooking.roomNumber}</p>
               </div>
-              
+
               <div style={{
                 display: 'flex',
                 justifyContent: 'flex-end',
@@ -3569,7 +3586,7 @@ export default function BookingsPage() {
                   ×
                 </button>
               </div>
-              
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 <button
                   onClick={() => {
@@ -3592,7 +3609,7 @@ export default function BookingsPage() {
                   <Eye size={16} />
                   View Full Details
                 </button>
-                
+
                 <button
                   onClick={() => {
                     setShowMoreActionsModal(false);
@@ -3614,7 +3631,7 @@ export default function BookingsPage() {
                   <Edit size={16} />
                   Edit Booking
                 </button>
-                
+
                 <button
                   onClick={() => {
                     setShowMoreActionsModal(false);
@@ -3637,12 +3654,12 @@ export default function BookingsPage() {
                   <Trash2 size={16} />
                   Cancel Booking
                 </button>
-                
+
                 <button
                   onClick={() => {
                     const csvData = `Booking ID,Guest Name,Check-in,Check-out,Room,Status,Total,Payment
 ${currentBooking.id},${currentBooking.guestName},${currentBooking.checkInDate},${currentBooking.checkOutDate},${currentBooking.roomNumber},${currentBooking.status},₱${currentBooking.totalAmount},${currentBooking.paymentOption}`;
-                    
+
                     const blob = new Blob([csvData], { type: 'text/csv' });
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
@@ -3650,7 +3667,7 @@ ${currentBooking.id},${currentBooking.guestName},${currentBooking.checkInDate},$
                     a.download = `booking-${currentBooking.id}.csv`;
                     a.click();
                     window.URL.revokeObjectURL(url);
-                    
+
                     setShowMoreActionsModal(false);
                   }}
                   style={{
@@ -3739,11 +3756,11 @@ ${currentBooking.id},${currentBooking.guestName},${currentBooking.checkInDate},$
                   ×
                 </button>
               </div>
-              
+
               <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>
                 {selectedBookings.length} booking(s) selected
               </p>
-              
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 <button
                   onClick={() => {
@@ -3768,17 +3785,17 @@ ${currentBooking.id},${currentBooking.guestName},${currentBooking.checkInDate},$
                   <Trash2 size={16} />
                   Cancel Selected Bookings
                 </button>
-                
+
                 <button
                   onClick={() => {
                     const selectedBookingData = filteredBookings.filter(b => selectedBookings.includes(b.id));
                     const csvData = [
                       'Booking ID,Guest Name,Check-in,Check-out,Room,Status,Total,Payment',
-                      ...selectedBookingData.map(booking => 
+                      ...selectedBookingData.map(booking =>
                         `${booking.id},${booking.guestName},${booking.checkInDate},${booking.checkOutDate},${booking.roomNumber},${booking.status},₱${booking.totalAmount},${booking.paymentOption}`
                       )
                     ].join('\n');
-                    
+
                     const blob = new Blob([csvData], { type: 'text/csv' });
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
@@ -3786,7 +3803,7 @@ ${currentBooking.id},${currentBooking.guestName},${currentBooking.checkInDate},$
                     a.download = 'selected-bookings.csv';
                     a.click();
                     window.URL.revokeObjectURL(url);
-                    
+
                     setShowBulkActionsModal(false);
                   }}
                   style={{
@@ -3806,7 +3823,7 @@ ${currentBooking.id},${currentBooking.guestName},${currentBooking.checkInDate},$
                   Export Selected Bookings
                 </button>
               </div>
-              
+
               <div style={{
                 display: 'flex',
                 justifyContent: 'flex-end',
@@ -3929,7 +3946,7 @@ const styles = {
     backgroundColor: '#f9fafb',
     minHeight: '100vh',
   },
-  
+
   // Header Section
   header: {
     background: '#d79a2b',
@@ -4008,7 +4025,7 @@ const styles = {
     cursor: 'pointer',
     transition: 'all 0.2s ease',
   },
-  
+
   // KPI Section
   kpiSection: {
     maxWidth: '100%',
@@ -4066,7 +4083,7 @@ const styles = {
     alignItems: 'center',
     gap: '0.5rem',
   },
-  
+
   // Filters Section
   filtersCard: {
     maxWidth: '100%',
@@ -4276,7 +4293,7 @@ const styles = {
     cursor: 'pointer',
     transition: 'all 0.2s ease',
   },
-  
+
   // Message Card
   messageCard: {
     maxWidth: '100%',
@@ -4314,7 +4331,7 @@ const styles = {
     cursor: 'pointer',
     transition: 'all 0.2s ease',
   },
-  
+
   // Tabs
   tabsCard: {
     maxWidth: '100%',
@@ -4379,7 +4396,7 @@ const styles = {
     fontSize: '0.875rem',
     fontWeight: '500',
   },
-  
+
   // Modern Table Styles
   bookingsCard: {
     maxWidth: '100%',
@@ -4608,7 +4625,7 @@ const styles = {
     padding: '3rem',
     color: '#64748b',
   },
-  
+
   // Cards View Styles
   cardsContainer: {
     backgroundColor: '#ffffff',
@@ -4730,7 +4747,7 @@ const styles = {
     cursor: 'pointer',
     transition: 'all 0.2s ease',
   },
-  
+
   // Pagination Styles
   paginationContainer: {
     maxWidth: '100%',
@@ -4763,7 +4780,7 @@ const styles = {
     color: '#ffffff',
     border: '1px solid #d79a2b',
   },
-  
+
   // Bulk Actions Styles
   bulkActionsContainer: {
     display: 'flex',

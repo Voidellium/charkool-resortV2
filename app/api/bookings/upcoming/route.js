@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { sumRentalAmenitiesTotalCents } from '@/src/lib/rentalPricing';
 
 // Helper to serialize BigInt
 function serializeBigInt(obj) {
@@ -45,10 +46,7 @@ export async function GET(request) {
 
     const processed = bookings.map(booking => {
       // compute totals similar to /api/bookings
-      let rentalTotal = 0;
-      if (booking.rentalAmenities && Array.isArray(booking.rentalAmenities)) {
-        rentalTotal = booking.rentalAmenities.reduce((s, ra) => s + (typeof ra.totalPrice === 'bigint' ? Number(ra.totalPrice) : (ra.totalPrice || 0)), 0);
-      }
+      const rentalTotal = sumRentalAmenitiesTotalCents(booking.rentalAmenities);
       let cottageTotal = 0;
       if (booking.cottage && Array.isArray(booking.cottage)) {
         cottageTotal = booking.cottage.reduce((s, c) => s + (typeof c.totalPrice === 'bigint' ? Number(c.totalPrice) : (c.totalPrice || 0)), 0);

@@ -139,6 +139,11 @@ export async function middleware(req: NextRequest) {
 
   const token = await getToken({ req, secret: JWT_SECRET });
 
+  // Legacy receptionist routes — bookings moved to cashier
+  if (pathname.startsWith('/receptionist')) {
+    return NextResponse.redirect(new URL('/login', req.url));
+  }
+
   // --- Additional token validation ---
   if (token) {
     // Validate token hasn't expired (24 hours)
@@ -164,6 +169,20 @@ export async function middleware(req: NextRequest) {
     }
   }
 
+  // --- 4. Bypass trusted-browser OTP for SUPERADMIN when browser is already trusted ---
+  // If user is SUPERADMIN and the browser is trusted, skip OTP enforcement
+  try {
+    const role = (token?.role || '').toString().toUpperCase();
+    if (role === 'SUPERADMIN') {
+      // Completely bypass OTP for SUPERADMIN
+      const response = NextResponse.next();
+      const isLocalhost = req.url.includes('localhost') || req.url.includes('127.0.0.1');
+      return applySecurityHeaders(response, isLocalhost);
+    }
+  } catch (e) {
+    console.warn('[MIDDLEWARE] Error during superadmin browser-trust bypass check', e);
+  }
+
   // --- 1. Handle authenticated users trying to access login/register pages ---
   if (token && isLoginOrRegister) {
     // Check if there's a redirect parameter and honor it for safe redirects
@@ -174,7 +193,6 @@ export async function middleware(req: NextRequest) {
       const safeRedirects: Record<string, string[]> = {
         "customer": ["/booking", "/guest"],
         "superadmin": ["/super-admin", "/booking"],
-        "receptionist": ["/receptionist", "/booking"],
         "cashier": ["/cashier", "/booking"],
         "amenityinventorymanager": ["/amenityinventorymanager", "/booking"],
       };
@@ -192,7 +210,7 @@ export async function middleware(req: NextRequest) {
       const role = token.role.toLowerCase();
       switch (role) {
         case "superadmin": return NextResponse.redirect(new URL("/super-admin/dashboard", req.url));
-        case "receptionist": return NextResponse.redirect(new URL("/receptionist", req.url));
+        case "receptionist": return NextResponse.redirect(new URL("/login", req.url));
         case "cashier": return NextResponse.redirect(new URL("/cashier", req.url));
         case "amenityinventorymanager": return NextResponse.redirect(new URL("/amenityinventorymanager", req.url));
         case "customer": return NextResponse.redirect(new URL("/guest/dashboard", req.url));
@@ -225,7 +243,7 @@ export async function middleware(req: NextRequest) {
       const role = typeof token.role === "string" ? token.role.toLowerCase() : "";
       switch (role) {
         case "superadmin": return NextResponse.redirect(new URL("/super-admin/dashboard", req.url));
-        case "receptionist": return NextResponse.redirect(new URL("/receptionist", req.url));
+        case "receptionist": return NextResponse.redirect(new URL("/login", req.url));
         case "cashier": return NextResponse.redirect(new URL("/cashier", req.url));
         case "amenityinventorymanager": return NextResponse.redirect(new URL("/amenityinventorymanager", req.url));
         default: return NextResponse.redirect(new URL("/unauthorized", req.url));
@@ -236,7 +254,6 @@ export async function middleware(req: NextRequest) {
   // --- 3. Role-based protection for specific routes ---
   const roleProtectedRoutes: Record<string, string[]> = {
     "/super-admin": ["superadmin"],
-    "/receptionist": ["receptionist"],
     "/cashier": ["cashier"],
     "/amenityinventorymanager": ["amenityinventorymanager"],
     "/guest": ["customer"],
@@ -252,6 +269,10 @@ export async function middleware(req: NextRequest) {
         return NextResponse.redirect(new URL("/unauthorized", req.url));
       }
 
+      if (userRole === "superadmin") {
+        continue;
+      }
+
       // Check if user needs OTP verification for this session
       // Apply to ALL authenticated users (including guests) for new browsers or incognito
       const needsOtpVerification = await checkBrowserTrust(req, token);
@@ -259,7 +280,8 @@ export async function middleware(req: NextRequest) {
 
       if (needsOtpVerification) {
         const otpUrl = new URL("/verify-otp", req.url);
-        otpUrl.searchParams.set("redirect", pathname);
+        const otpRedirect = pathname.startsWith('/cashier') ? '/cashier' : pathname;
+        otpUrl.searchParams.set("redirect", otpRedirect);
         return NextResponse.redirect(otpUrl);
       }
     }

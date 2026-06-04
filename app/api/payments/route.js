@@ -24,6 +24,9 @@ export async function GET() {
                 contactNumber: true,
               }
             },
+            optionalAmenities: { include: { optionalAmenity: true } },
+            rentalAmenities: { include: { rentalAmenity: true } },
+            cottage: { include: { cottage: true } },
             rooms: {
               include: {
                 room: {

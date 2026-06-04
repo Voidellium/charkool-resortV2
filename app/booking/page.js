@@ -154,7 +154,7 @@ export default function BookingPage() {
             router.push('/super-admin/dashboard');
             break;
           case 'RECEPTIONIST':
-            router.push('/receptionist');
+            router.push('/login');
             break;
           case 'CASHIER':
             router.push('/cashier');
@@ -652,9 +652,9 @@ export default function BookingPage() {
               const data = await res.json();
               setPromotionError('');
               setAppliedPromotion(data.appliedPromotion || null);
-              setBaseTotal(data.baseTotal || data.totalPrice || 0);
+              setBaseTotal(data.baseTotal || data.totalCostWithAddons || data.totalPrice || 0);
               setDiscountAmount(data.discountAmount || 0);
-              setTotalPrice(data.finalTotal || data.totalPrice || 0);
+              setTotalPrice(data.finalTotal || data.totalAfterDiscount || data.totalCostWithAddons || data.totalPrice || 0);
             } else {
               const errorData = await res.json();
               setPromotionError(errorData?.error || 'Promotion could not be applied.');

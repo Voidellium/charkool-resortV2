@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, Suspense } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { signIn, useSession } from 'next-auth/react';
+import { signIn, signOut, useSession } from 'next-auth/react';
 import { FaGoogle } from 'react-icons/fa6';
 import { Eye, EyeOff } from 'lucide-react';
 import { useAccountLinking } from '@/hooks/useAccountLinking';
@@ -104,11 +104,18 @@ function LoginForm() {
     }
   }, [searchParams]);
 
-  const redirectByRole = (role) => {
+  const redirectByRole = async (role) => {
     if (!role) return router.push('/');
+    if (role.toLowerCase() === 'receptionist') {
+      setError(
+        'Bookings have moved to the Cashier account. Please sign in with a Cashier account or contact your administrator.'
+      );
+      await signOut({ redirect: false });
+      router.push('/login');
+      return;
+    }
     switch (role.toLowerCase()) {
       case 'superadmin': return router.push('/super-admin/dashboard');
-      case 'receptionist': return router.push('/receptionist');
       case 'amenityinventorymanager': return router.push('/amenityinventorymanager');
       case 'cashier': return router.push('/cashier');
       case 'customer': return router.push('/guest/dashboard');
