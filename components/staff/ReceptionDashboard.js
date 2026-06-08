@@ -197,6 +197,7 @@ export default function ReceptionDashboard() {
   const [showGuestSuggestions, setShowGuestSuggestions] = useState(false);
   const [activeBookingFilter, setActiveBookingFilter] = useState('all');
   const [checkActionModal, setCheckActionModal] = useState({ show: false, booking: null, action: null });
+  const [checkOutFeedback, setCheckOutFeedback] = useState('');
   
   // Pagination and search state
   const [currentPage, setCurrentPage] = useState(1);
@@ -559,9 +560,10 @@ export default function ReceptionDashboard() {
       if (checkActionModal.action === 'checkin') {
         await handleCheckIn(checkActionModal.booking.id);
       } else if (checkActionModal.action === 'checkout') {
-        await handleCheckOut(checkActionModal.booking.id);
+        await handleCheckOut(checkActionModal.booking.id, checkOutFeedback);
       }
     } finally {
+      setCheckOutFeedback('');
       closeCheckActionModal();
     }
   };
@@ -997,11 +999,15 @@ export default function ReceptionDashboard() {
     }
   };
 
-  const handleCheckOut = async (bookingId) => {
+  const handleCheckOut = async (bookingId, feedback = '') => {
     try {
       const bookingToUpdate = bookings.find(b => b.id === bookingId);
       if (!bookingToUpdate) throw new Error('Booking not found');
-      const updatedData = { status: 'Confirmed', actualCheckOut: true };
+      const updatedData = {
+        status: 'Confirmed',
+        actualCheckOut: true,
+        ...(feedback.trim() ? { feedback: feedback.trim() } : {}),
+      };
       const res = await fetch(`/api/bookings/${bookingId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -3897,9 +3903,46 @@ export default function ReceptionDashboard() {
               {`Are you sure you want to ${checkActionModal.action === 'checkin' ? 'check in' : 'check out'} `}
               <strong>{checkActionModal.booking.guestName || `Booking #${checkActionModal.booking.id}`}</strong>?
             </p>
+
+            {/* Optional feedback — only shown on checkout */}
+            {checkActionModal.action === 'checkout' && (
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '0.875rem',
+                  fontWeight: '600',
+                  color: '#374151',
+                  marginBottom: '0.4rem'
+                }}>
+                  Feedback <span style={{ fontWeight: 400, color: '#9ca3af' }}>(optional)</span>
+                </label>
+                <textarea
+                  value={checkOutFeedback}
+                  onChange={(e) => setCheckOutFeedback(e.target.value)}
+                  placeholder="Any notes about the guest's stay, room condition, etc..."
+                  rows={3}
+                  style={{
+                    width: '100%',
+                    padding: '0.6rem 0.75rem',
+                    borderRadius: '6px',
+                    border: '1px solid #d1d5db',
+                    fontSize: '0.875rem',
+                    resize: 'vertical',
+                    outline: 'none',
+                    fontFamily: 'inherit',
+                    boxSizing: 'border-box',
+                    color: '#374151',
+                  }}
+                />
+              </div>
+            )}
+
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
               <button
-                onClick={closeCheckActionModal}
+                onClick={() => {
+                  setCheckOutFeedback('');
+                  closeCheckActionModal();
+                }}
                 style={{
                   padding: '0.55rem 0.95rem',
                   borderRadius: '6px',

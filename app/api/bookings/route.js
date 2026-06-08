@@ -821,6 +821,6 @@ async function postBookingHandler(request) {
 // Export secured handlers
 export const GET = withSecurity(getBookingsHandler);
 export const POST = withSecurity(postBookingHandler, { 
-  rateLimit: { max: 10, window: 15 * 60 * 1000 }, 
+  rateLimit: { max: 100, window: 15 * 60 * 1000 }, // Increased to 100 for staff/high-volume environments
   validateInput: true 
 });

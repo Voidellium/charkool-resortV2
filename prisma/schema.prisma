@@ -298,6 +298,8 @@ model Booking {
   isDeleted     Boolean          @default(false)
   cancellationRemarks String?
   feedback String?
+  checkInByRole  String?
+  checkOutByRole String?
 user          User?            @relation(fields: [userId], references: [id])
   rooms         BookingRoom[]
   amenities     BookingAmenity[]

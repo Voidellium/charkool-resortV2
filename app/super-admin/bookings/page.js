@@ -2956,6 +2956,109 @@ export default function BookingsPage() {
                 </ul>
               </div>
 
+              {/* Check-in / Check-out Activity */}
+              <div style={{
+                marginBottom: '16px',
+                padding: '12px 14px',
+                backgroundColor: '#f8fafc',
+                borderRadius: '8px',
+                border: '1px solid #e2e8f0',
+              }}>
+                <strong style={{ display: 'block', marginBottom: '10px', color: '#1e293b' }}>
+                  Check-in / Check-out Activity
+                </strong>
+
+                {/* Check-in row */}
+                <div style={{ marginBottom: '8px' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#16a34a', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Check-in
+                  </span>
+                  <div style={{ marginTop: '2px', fontSize: '0.875rem', color: '#374151' }}>
+                    {currentBooking.actualCheckIn ? (
+                      <>
+                        <span>
+                          {new Date(currentBooking.actualCheckIn).toLocaleString('en-US', {
+                            month: 'short', day: 'numeric', year: 'numeric',
+                            hour: 'numeric', minute: '2-digit'
+                          })}
+                        </span>
+                        {currentBooking.checkInByRole && (
+                          <span style={{
+                            marginLeft: '8px',
+                            padding: '1px 7px',
+                            backgroundColor: '#dcfce7',
+                            color: '#166534',
+                            borderRadius: '10px',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                          }}>
+                            {currentBooking.checkInByRole.charAt(0).toUpperCase() + currentBooking.checkInByRole.slice(1).toLowerCase()}
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Not yet checked in</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Check-out row */}
+                <div style={{ marginBottom: currentBooking.actualCheckOut ? '10px' : 0 }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Check-out
+                  </span>
+                  <div style={{ marginTop: '2px', fontSize: '0.875rem', color: '#374151' }}>
+                    {currentBooking.actualCheckOut ? (
+                      <>
+                        <span>
+                          {new Date(currentBooking.actualCheckOut).toLocaleString('en-US', {
+                            month: 'short', day: 'numeric', year: 'numeric',
+                            hour: 'numeric', minute: '2-digit'
+                          })}
+                        </span>
+                        {currentBooking.checkOutByRole && (
+                          <span style={{
+                            marginLeft: '8px',
+                            padding: '1px 7px',
+                            backgroundColor: '#fee2e2',
+                            color: '#991b1b',
+                            borderRadius: '10px',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                          }}>
+                            {currentBooking.checkOutByRole.charAt(0).toUpperCase() + currentBooking.checkOutByRole.slice(1).toLowerCase()}
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Not yet checked out</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Feedback row — only shown after checkout */}
+                {currentBooking.actualCheckOut && (
+                  <div style={{
+                    marginTop: '10px',
+                    paddingTop: '10px',
+                    borderTop: '1px solid #e2e8f0',
+                  }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Staff Feedback
+                    </span>
+                    <p style={{
+                      marginTop: '4px',
+                      marginBottom: 0,
+                      fontSize: '0.875rem',
+                      color: currentBooking.feedback ? '#374151' : '#9ca3af',
+                      fontStyle: currentBooking.feedback ? 'normal' : 'italic',
+                    }}>
+                      {currentBooking.feedback || 'No feedback'}
+                    </p>
+                  </div>
+                )}
+              </div>
+
               <div style={{ marginBottom: '10px' }}>
                 <strong>Price Breakdown:</strong>
                 <ul style={{ marginTop: '5px', paddingLeft: '20px' }}>
